@@ -6272,6 +6272,282 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
         }
 
+        // ========================================================
+        // --- MOCE ARTEFAKTÓW ---
+        // Każda relikwia daje własną umiejętność, gdy jest założona.
+        // Liczba użyć na misję zależy od powiązanej cechy: domyślnie 1,
+        // od 15 punktów cechy 2, od 20 punktów 3.
+        // ========================================================
+        function getRelicUses(warriorIndex, statKey) {
+            const v = getWarriorStat(warriorIndex || 0, statKey || 'madrosc');
+            if (v >= 20) return 3;
+            if (v >= 15) return 2;
+            return 1;
+        }
+
+        function relicUsesLeft(soldier, relicName, warriorIndex, statKey) {
+            if (!soldier.relicUses) soldier.relicUses = {};
+            return Math.max(0, getRelicUses(warriorIndex, statKey) - (soldier.relicUses[relicName] || 0));
+        }
+
+        function spendRelicUse(soldier, relicName) {
+            if (!soldier.relicUses) soldier.relicUses = {};
+            soldier.relicUses[relicName] = (soldier.relicUses[relicName] || 0) + 1;
+        }
+
+        // Najbliższy widoczny wróg - wiele mocy go potrzebuje
+        function nearestVisibleEnemy(s, zasieg) {
+            const sx = Math.round(s.mesh.position.x), sz = Math.round(s.mesh.position.z);
+            let best = null, bestD = Infinity;
+            enemies.forEach(e => {
+                if (e.isDead) return;
+                const d = Math.max(Math.abs(Math.round(e.mesh.position.x) - sx), Math.abs(Math.round(e.mesh.position.z) - sz));
+                if (d > (zasieg || getVisionRange())) return;
+                if (d < bestD) { bestD = d; best = e; }
+            });
+            return best;
+        }
+
+        // Definicje mocy. stat = cecha wyznaczająca liczbę użyć.
+        const RELIC_POWERS = {
+            // --- GŁOWA ---
+            'Hełm Świętego Michała': { nazwa: 'Hart Ducha', stat: 'silaPsychiczna', koszt: 2,
+                opis: 'Przez 2 tury nie imają się Ciebie hipnoza ani strach.',
+                dzialaj: (s) => { s.mindWardTurns = 2; s.hypnotizedBy = null; s.panicTurns = 0;
+                    return `${s.name} zbroi umysł - hipnoza i strach nie mają dostępu przez 2 tury.`; } },
+            'Diadem Królowej Jadwigi': { nazwa: 'Królewski Rozkaz', stat: 'charyzma', koszt: 3,
+                opis: 'Cały oddział odzyskuje pełne punkty ruchu.',
+                dzialaj: (s) => { let n = 0;
+                    soldiers.forEach(w => { if (!w.isDead && w !== s && !w.isAngel) { w.ap = getEffectiveMaxAp(w); w.turnEnded = false; n++; } });
+                    return `Rozkaz postawił na nogi ${n} wojowników.`; } },
+            'Wieniec Świętej Cecylii': { nazwa: 'Pieśń Ukojenia', stat: 'charyzma', koszt: 3,
+                opis: 'Wrogowie w promieniu 6 tracą następną turę.',
+                dzialaj: (s) => { const sx = Math.round(s.mesh.position.x), sz = Math.round(s.mesh.position.z);
+                    let n = 0;
+                    enemies.forEach(e => { if (e.isDead) return;
+                        if (Math.hypot(e.mesh.position.x - sx, e.mesh.position.z - sz) > 6) return;
+                        e.boundTurns = 1; n++; });
+                    return n ? `Pieśń zatrzymuje ${n} wrogów w bezruchu.` : 'Nikt nie słyszy pieśni.'; } },
+            'Kaptur Ojca Maksymiliana': { nazwa: 'Ukrycie', stat: 'witalnosc', koszt: 3,
+                opis: 'Znikasz na 2 tury - żaden potwór Cię nie widzi.',
+                dzialaj: (s) => { s.invisibleTurns = 2; setStealthLook(s, true);
+                    return `${s.name} znika sprzed oczu wrogów na 2 tury.`; } },
+
+            // --- ZBROJA ---
+            'Napierśnik Świętego Jerzego': { nazwa: 'Smocza Stal', stat: 'witalnosc', koszt: 3,
+                opis: 'Przez turę nie przyjmujesz żadnych obrażeń.',
+                dzialaj: (s) => { s.invulnTurns = 1; return `${s.name} kryje się za smoczą stalą - przez turę nietykalny.`; } },
+            'Zbroja Świętego Sebastiana': { nazwa: 'Odbicie Strzał', stat: 'witalnosc', koszt: 3,
+                opis: 'Przez 2 tury trafienia wracają do napastnika.',
+                dzialaj: (s) => { s.reflectTurns = 2; return `${s.name} odbija pociski przez 2 tury.`; } },
+            'Pancerz Świętego Stanisława': { nazwa: 'Niezłomność', stat: 'silaPsychiczna', koszt: 2,
+                opis: 'Odzyskujesz połowę utraconego życia.',
+                dzialaj: (s) => { const brak = (s.maxHp || 10) - s.hp;
+                    s.hp = Math.min(s.maxHp || 10, s.hp + Math.ceil(brak / 2));
+                    return `${s.name} podnosi się o własnych siłach (${s.hp} PkŻ).`; } },
+            'Habit Świętego Franciszka': { nazwa: 'Pokój', stat: 'charyzma', koszt: 3,
+                opis: 'Przez turę żaden wróg Cię nie zaatakuje.',
+                dzialaj: (s) => { s.peaceTurns = 1; return `Wokół ${s.name} zapada pokój - przez turę nikt go nie tknie.`; } },
+
+            // --- PŁASZCZ ---
+            'Płaszcz Świętego Floriana': { nazwa: 'Nietknięty Ogniem', stat: 'witalnosc', koszt: 2,
+                opis: 'Przez 3 tury przechodzisz przez lawę i wodę bez szkody.',
+                dzialaj: (s) => { s.levitateTurns = Math.max(s.levitateTurns || 0, 3); attachLevitateAura(s);
+                    return `${s.name} kroczy nad żywiołem przez 3 tury.`; } },
+            'Płaszcz Świętego Marcina': { nazwa: 'Podzielony Płaszcz', stat: 'charyzma', koszt: 3,
+                opis: 'Oddajesz połowę swojego życia rannemu towarzyszowi.',
+                dzialaj: (s) => { let cel = null, brak = 0;
+                    soldiers.forEach(w => { if (w.isDead || w === s || w.isAngel) return;
+                        const b = (w.maxHp || 10) - w.hp; if (b > brak) { brak = b; cel = w; } });
+                    if (!cel) return 'Nikt nie potrzebuje Twojego płaszcza.';
+                    const dar = Math.max(1, Math.floor(s.hp / 2));
+                    s.hp -= dar; cel.hp = Math.min(cel.maxHp || 10, cel.hp + dar);
+                    return `${s.name} dzieli się życiem z ${cel.name} (+${dar} PkŻ).`; } },
+            'Welon Świętej Weroniki': { nazwa: 'Prawdziwe Oblicze', stat: 'madrosc', koszt: 2,
+                opis: 'Odsłania całą mapę na 2 tury.',
+                dzialaj: (s) => { for (let L = 0; L < fowVisible.length; L++)
+                        for (let x = 0; x < mapWidth; x++) { fowVisible[L][x].fill(1); fowExplored[L][x].fill(1); }
+                    updateFoW();
+                    return 'Zasłona opada - widać cały sen.'; } },
+            'Szkaplerz Świętej Teresy': { nazwa: 'Mała Droga', stat: 'madrosc', koszt: 2,
+                opis: 'Leczy 1 PkŻ na turę przez 5 tur i zmywa zarazę.',
+                dzialaj: (s) => { s.regenTurns = 5; cureInfection(s);
+                    return `${s.name} wchodzi na małą drogę - 5 tur powolnego zdrowienia.`; } },
+            'Sznur Świętego Franciszka': { nazwa: 'Pochwycenie', stat: 'zrecznosc', koszt: 3,
+                opis: 'Przyciąga wroga do siebie, wiąże go na turę i od razu zadaje cios.',
+                dzialaj: (s) => {
+                    const cel = nearestVisibleEnemy(s, 8);
+                    if (!cel) return 'Nikogo nie ma w zasięgu sznura.';
+                    const sx = Math.round(s.mesh.position.x), sz = Math.round(s.mesh.position.z);
+                    const lvl = s.level || 0;
+                    let spot = null;
+                    for (const d of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1]]) {
+                        const nx = sx + d[0], nz = sz + d[1];
+                        if (!isWithinPlayBounds(nx, nz) || !canStandAt(nx, nz, lvl)) continue;
+                        if (isUnitAtLevel(nx, nz, lvl, cel)) continue;
+                        spot = [nx, nz]; break;
+                    }
+                    if (!spot) return 'Brak miejsca, by przyciągnąć wroga.';
+                    cel.mesh.position.set(spot[0], getLevelY(spot[0], spot[1], lvl) + (cel.mesh.userData.yOffset || 0), spot[1]);
+                    cel.level = lvl;
+                    cel.boundTurns = 1;
+                    refreshEnemyPositions();
+                    let tekst = `Sznur oplata wroga i ściąga go pod nogi! Związany na turę.`;
+                    // natychmiastowy cios, jeśli starczy punktów
+                    if (s.ap >= 3) {
+                        s.ap -= 3;
+                        const dmg = getMeleeDamage(s);
+                        const traf = Math.random() * 100 < getMeleeHitChance(s);
+                        playFileSfx(AudioFiles.swordHit, 0.7);
+                        if (traf) {
+                            cel.hp -= dmg;
+                            tekst += ` Cios za ${dmg}!`;
+                            if (cel.hp <= 0) { cel.isDead = true; scene.remove(cel.mesh); s.kills = (s.kills || 0) + 1;
+                                releaseHypnotized(cel); refreshEnemyPositions(); playEnemyDeathSfx(cel); tekst += ' Wróg powalony!'; }
+                        } else tekst += ' Cios chybia.';
+                    }
+                    updateFoW();
+                    return tekst; } },
+
+            // --- RĘCE ---
+            'Tarcza Świętej Barbary': { nazwa: 'Mur Obronny', stat: 'witalnosc', koszt: 2,
+                opis: 'Stawia bańkę chroniącą cały oddział.',
+                dzialaj: (s) => { createShieldBubble(s); return 'Bańka ochronna otacza oddział.'; } },
+            'Włócznia Świętego Jerzego': { nazwa: 'Cios Przebijający', stat: 'zrecznosc', koszt: 4,
+                opis: 'Trafia najbliższego wroga na pewno, ignorując osłonę.',
+                dzialaj: (s) => { const cel = nearestVisibleEnemy(s);
+                    if (!cel) return 'Nie widzisz celu.';
+                    const dmg = 8; cel.hp -= dmg;
+                    let t = `Włócznia przeszywa wroga za ${dmg}!`;
+                    if (cel.hp <= 0) { cel.isDead = true; scene.remove(cel.mesh); s.kills = (s.kills || 0) + 1;
+                        releaseHypnotized(cel); refreshEnemyPositions(); playEnemyDeathSfx(cel); t += ' Powalony!'; }
+                    return t; } },
+            'Pastorał Jana Pawła': { nazwa: 'Zwołanie', stat: 'charyzma', koszt: 2,
+                opis: 'Wszyscy samowolni wracają pod rozkazy na 2 tury.',
+                dzialaj: (s) => { let n = 0;
+                    soldiers.forEach((w, i) => { if (isSoldierRebel(i)) { w.summonedTurns = 2; w.turnEnded = false; n++; } });
+                    return n ? `Pastorał przywołuje ${n} wojowników do porządku na 2 tury.` : 'Cały oddział i tak Cię słucha.'; } },
+            'Kaduceusz Świętego Łukasza': { nazwa: 'Uzdrowienie', stat: 'madrosc', koszt: 3,
+                opis: 'Leczy najbardziej rannego towarzysza do pełni sił.',
+                dzialaj: (s) => { let cel = null, brak = 0;
+                    soldiers.forEach(w => { if (w.isDead || w.isAngel) return;
+                        const b = (w.maxHp || 10) - w.hp; if (b > brak) { brak = b; cel = w; } });
+                    if (!cel) return 'Nikt nie potrzebuje leczenia.';
+                    cel.hp = cel.maxHp || 10; cureInfection(cel);
+                    return `${cel.name} wraca do pełni sił (+${brak} PkŻ).`; } },
+            'Lampion Świętej Łucji': { nazwa: 'Światło Łucji', stat: 'madrosc', koszt: 0, pasywna: true,
+                opis: 'Stale widzisz o 3 pola dalej, niezależnie od warunków.',
+                dzialaj: () => 'Lampion świeci sam z siebie.' },
+            'Fiolka Świętego Rafała': { nazwa: 'Balsam', stat: 'madrosc', koszt: 2,
+                opis: 'Zmywa zarazę i leczy 5 PkŻ całemu oddziałowi.',
+                dzialaj: (s) => { let n = 0;
+                    soldiers.forEach(w => { if (w.isDead || w.isAngel) return;
+                        w.hp = Math.min(w.maxHp || 10, w.hp + 5); cureInfection(w); n++; });
+                    return `Balsam koi ${n} wojowników.`; } },
+            'Kryształ Świętej Kingi': { nazwa: 'Oczyszczenie', stat: 'silaPsychiczna', koszt: 2,
+                opis: 'Zdejmuje z oddziału trans, panikę i zarazę.',
+                dzialaj: (s) => { let n = 0;
+                    soldiers.forEach(w => { if (w.isDead) return;
+                        if (w.hypnotizedBy || w.panicTurns || w.infected) n++;
+                        w.hypnotizedBy = null; w.panicTurns = 0; cureInfection(w); });
+                    return n ? `Kryształ oczyszcza ${n} wojowników.` : 'Nikt nie jest skalany.'; } },
+            'Lilia Świętego Antoniego': { nazwa: 'Odnalezienie', stat: 'madrosc', koszt: 2,
+                opis: 'Wskazuje cel misji - serce, relikwię albo więźnia.',
+                dzialaj: (s) => {
+                    let cel = null, co = '';
+                    if (heartPrison && !heartPrison.freed) { cel = heartPrison; co = 'Serce śpiącego'; }
+                    else if (missionArtifact && !missionArtifact.taken) { cel = missionArtifact; co = 'Relikwia'; }
+                    else if (floodPrisoner && !floodPrisoner.isDead) { cel = { x: Math.round(floodPrisoner.mesh.position.x), z: Math.round(floodPrisoner.mesh.position.z) }; co = 'Więzień'; floodPrisoner.hidden = false; }
+                    else if (escortTarget) { cel = escortTarget; co = 'Portal'; }
+                    if (!cel) return 'Lilia nie wskazuje niczego szczególnego.';
+                    const d = Math.round(Math.hypot(cel.x - s.mesh.position.x, cel.z - s.mesh.position.z));
+                    showFloatingWarning(`${co}: ${d} pól stąd`);
+                    updateFoW();
+                    return `Lilia wskazuje: ${co}, ${d} pól stąd.`; } },
+
+            // --- NOGI ---
+            'Sandały Świętego Krzysztofa': { nazwa: 'Przeprawa', stat: 'zrecznosc', koszt: 2,
+                opis: 'Przenosi Cię o 10 pól w stronę celu misji.',
+                dzialaj: (s) => {
+                    const sx = Math.round(s.mesh.position.x), sz = Math.round(s.mesh.position.z);
+                    let cel = escortTarget || (heartPrison && !heartPrison.freed ? heartPrison : null) ||
+                              (missionArtifact && !missionArtifact.taken ? missionArtifact : null);
+                    const kier = cel ? Math.atan2(cel.z - sz, cel.x - sx) : Math.random() * Math.PI * 2;
+                    for (let r = 10; r >= 3; r--) {
+                        const nx = Math.round(sx + Math.cos(kier) * r), nz = Math.round(sz + Math.sin(kier) * r);
+                        if (!isWithinPlayBounds(nx, nz) || !canStandAt(nx, nz, s.level || 0)) continue;
+                        if (isUnitAtLevel(nx, nz, s.level || 0, s)) continue;
+                        s.mesh.position.set(nx, getLevelY(nx, nz, s.level || 0) + s.mesh.userData.yOffset, nz);
+                        refreshPlayerPositions(); updateFoW();
+                        return `${s.name} pokonuje ${r} pól jednym krokiem.`;
+                    }
+                    return 'Nie ma dokąd się przeprawić.'; } },
+            'Buty Świętego Wojciecha': { nazwa: 'Niestrudzony Marsz', stat: 'zrecznosc', koszt: 0,
+                opis: 'Natychmiast odzyskujesz pełne punkty ruchu.',
+                dzialaj: (s) => { s.ap = getEffectiveMaxAp(s); s.turnEnded = false;
+                    return `${s.name} rusza dalej bez zmęczenia (${s.ap} PA).`; } },
+            'Nagolenniki Św. Gabriela': { nazwa: 'Krok Posłańca', stat: 'zrecznosc', koszt: 0,
+                opis: 'Przez 2 tury ruch nie kosztuje punktów.',
+                dzialaj: (s) => { s.freeMoveTurns = 2;
+                    return `${s.name} porusza się jak posłaniec - 2 tury darmowego ruchu.`; } },
+            'Trzewiki Świętej Faustyny': { nazwa: 'Ścieżka Miłosierdzia', stat: 'madrosc', koszt: 2,
+                opis: 'Leczy 3 PkŻ każdemu towarzyszowi obok Ciebie.',
+                dzialaj: (s) => { const sx = Math.round(s.mesh.position.x), sz = Math.round(s.mesh.position.z);
+                    let n = 0;
+                    soldiers.forEach(w => { if (w.isDead || w === s) return;
+                        if (Math.max(Math.abs(Math.round(w.mesh.position.x) - sx), Math.abs(Math.round(w.mesh.position.z) - sz)) > 2) return;
+                        w.hp = Math.min(w.maxHp || 10, w.hp + 3); n++; });
+                    return n ? `Miłosierdzie koi ${n} towarzyszy.` : 'Nikogo nie ma obok.'; } }
+        };
+
+        // Uruchomienie mocy artefaktu
+        function useRelicPower(relicName) {
+            if (gameOver || !isPlayerTurn) return;
+            const s = getActiveSoldier();
+            if (!s || s.isDead) return;
+            const idx = soldiers.indexOf(s);
+            const moc = RELIC_POWERS[relicName];
+            if (!moc || moc.pasywna) return;
+            const noszona = playerInventory.some(it => it.name === relicName && (it.assignedTo === undefined ? 0 : it.assignedTo) === idx);
+            if (!noszona) { updateUI(`${relicName} nie jest założona przez tego wojownika.`); return; }
+            if (s.turnEnded) { updateUI('Ten wojownik zakończył już ruch w tej turze.'); return; }
+            const limit = getRelicUses(idx, moc.stat);
+            if (relicUsesLeft(s, relicName, idx, moc.stat) <= 0) { updateUI(`${moc.nazwa}: moc wyczerpana (${limit}/${limit}).`); return; }
+            if (s.ap < moc.koszt) { updateUI(`Za mało punktów ruchu (potrzeba ${moc.koszt}).`); return; }
+
+            s.ap -= moc.koszt;
+            spendRelicUse(s, relicName);
+            const komunikat = moc.dzialaj(s);
+            showFloatingWarning(moc.nazwa);
+            updateUI(`${komunikat} [${s.relicUses[relicName]}/${limit}]`);
+            checkGameOver();
+            updateUI();
+        }
+
+        // Odliczanie efektów artefaktów na początku tury gracza
+        function tickRelicEffects() {
+            soldiers.forEach(s => {
+                if (s.isDead) return;
+                if (s.mindWardTurns > 0) s.mindWardTurns--;
+                if (s.invulnTurns > 0) s.invulnTurns--;
+                if (s.reflectTurns > 0) s.reflectTurns--;
+                if (s.peaceTurns > 0) s.peaceTurns--;
+                if (s.freeMoveTurns > 0) s.freeMoveTurns--;
+                if (s.invisibleTurns > 0) {
+                    s.invisibleTurns--;
+                    if (s.invisibleTurns <= 0 && !s.stealthActive) {
+                        setStealthLook(s, false);
+                        updateUI(`${s.name} znów staje się widoczny.`);
+                    }
+                }
+                if (s.regenTurns > 0) {
+                    s.regenTurns--;
+                    if (s.hp < (s.maxHp || 10)) s.hp = Math.min(s.maxHp || 10, s.hp + 1);
+                }
+            });
+            enemies.forEach(e => { if (e.boundTurns > 0) e.boundTurns--; });
+        }
+
         const SPIRITUAL_ABILITIES = [
             {
                 id: 'cross',
@@ -6419,12 +6695,31 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             updateUI();
         }
 
+        // Moce z założonych artefaktów - doklejane do stałych umiejętności
+        function getRelicAbilities(idx) {
+            const s = soldiers[idx];
+            if (!s) return [];
+            return playerInventory
+                .filter(it => (it.assignedTo === undefined ? 0 : it.assignedTo) === idx)
+                .map(it => ({ item: it, moc: RELIC_POWERS[it.name] }))
+                .filter(o => o.moc && !o.moc.pasywna)
+                .map(o => ({
+                    id: 'relic:' + o.item.name,
+                    name: `${o.moc.nazwa} (${o.item.name})`,
+                    describe: () => `${o.moc.opis} Koszt ${o.moc.koszt} PA. Liczba użyć zależy od cechy: ${(STAT_INFO[o.moc.stat] ? STAT_INFO[o.moc.stat].name : o.moc.stat)}.`,
+                    available: () => true,
+                    usesLeft: (sol, i) => relicUsesLeft(sol, o.item.name, i, o.moc.stat),
+                    run: () => useRelicPower(o.item.name)
+                }));
+        }
+
         function renderAbilitiesPanel() {
             const list = document.getElementById('abilities-list');
             list.innerHTML = '';
             const active = getActiveSoldier();
             const idx = active ? soldiers.indexOf(active) : 0;
-            SPIRITUAL_ABILITIES.forEach(ab => {
+            const wszystkie = SPIRITUAL_ABILITIES.concat(getRelicAbilities(idx));
+            wszystkie.forEach(ab => {
                 const btn = document.createElement('button');
                 btn.className = 'ability-btn';
                 const ok = ab.available(idx);
@@ -6785,7 +7080,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 soldiers: soldiers.filter(s => !s.isAngel).map(s => ({
                     x: s.mesh.position.x, z: s.mesh.position.z, hp: s.hp, maxHp: s.maxHp, ap: s.ap, maxAp: s.maxAp,
                     isDead: s.isDead, name: s.name, class: s.class, accuracyBonus: s.accuracyBonus,
-                    turnEnded: s.turnEnded, isKneeling: s.isKneeling, shieldHp: s.shieldHp, level: s.level || 0, crossUsed: s.crossUsed || 0, angelUsed: s.angelUsed || 0, infected: !!s.infected, infectionTick: s.infectionTick || 0, levitateUsed: s.levitateUsed || 0, levitateTurns: s.levitateTurns || 0, stealthUsed: s.stealthUsed || 0, stealthActive: !!s.stealthActive, callUsed: s.callUsed || 0, summonedTurns: s.summonedTurns || 0,
+                    turnEnded: s.turnEnded, isKneeling: s.isKneeling, shieldHp: s.shieldHp, level: s.level || 0, crossUsed: s.crossUsed || 0, angelUsed: s.angelUsed || 0, infected: !!s.infected, infectionTick: s.infectionTick || 0, relicUses: { ...(s.relicUses || {}) }, levitateUsed: s.levitateUsed || 0, levitateTurns: s.levitateTurns || 0, stealthUsed: s.stealthUsed || 0, stealthActive: !!s.stealthActive, callUsed: s.callUsed || 0, summonedTurns: s.summonedTurns || 0,
                     shotsFired: s.shotsFired, shotsHit: s.shotsHit, kills: s.kills
                 })),
                 // Martwych pomijamy - inaczej po wczytaniu ich bryły wracały na planszę
@@ -6888,7 +7183,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 mesh.position.set(sd.x, ty + mesh.userData.yOffset, sd.z);
                 mesh.add(createNameSprite(sd.name));
                 scene.add(mesh);
-                const sObj = { mesh: mesh, hp: sd.hp, maxHp: sd.maxHp, ap: sd.ap, maxAp: sd.maxAp, isDead: sd.isDead, name: sd.name, class: sd.class, accuracyBonus: sd.accuracyBonus, turnEnded: sd.turnEnded, isKneeling: sd.isKneeling, shieldHp: sd.shieldHp, level: sd.level || 0, crossUsed: sd.crossUsed || 0, angelUsed: sd.angelUsed || 0, infected: !!sd.infected, infectionTick: sd.infectionTick || 0, levitateUsed: sd.levitateUsed || 0, levitateTurns: sd.levitateTurns || 0, stealthUsed: sd.stealthUsed || 0, stealthActive: !!sd.stealthActive, callUsed: sd.callUsed || 0, summonedTurns: sd.summonedTurns || 0, shotsFired: sd.shotsFired, shotsHit: sd.shotsHit, kills: sd.kills };
+                const sObj = { mesh: mesh, hp: sd.hp, maxHp: sd.maxHp, ap: sd.ap, maxAp: sd.maxAp, isDead: sd.isDead, name: sd.name, class: sd.class, accuracyBonus: sd.accuracyBonus, turnEnded: sd.turnEnded, isKneeling: sd.isKneeling, shieldHp: sd.shieldHp, level: sd.level || 0, crossUsed: sd.crossUsed || 0, angelUsed: sd.angelUsed || 0, infected: !!sd.infected, infectionTick: sd.infectionTick || 0, relicUses: { ...(sd.relicUses || {}) }, levitateUsed: sd.levitateUsed || 0, levitateTurns: sd.levitateTurns || 0, stealthUsed: sd.stealthUsed || 0, stealthActive: !!sd.stealthActive, callUsed: sd.callUsed || 0, summonedTurns: sd.summonedTurns || 0, shotsFired: sd.shotsFired, shotsHit: sd.shotsHit, kills: sd.kills };
                 if (sObj.levitateTurns > 0) attachLevitateAura(sObj); // przywróć poświatę lewitacji
                 if (sObj.stealthActive) setStealthLook(sObj, true);
                 return sObj;
@@ -8567,7 +8862,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     hitStreak: 0, healsUsed: 0, shieldsUsed: 0, crossUsed: 0,
                     levitateUsed: 0, levitateTurns: 0,
                     stealthUsed: 0, stealthActive: false,
-                    callUsed: 0, summonedTurns: 0, hypnotizedBy: null, panicTurns: 0, angelUsed: 0, infected: false, infectionTick: 0
+                    callUsed: 0, summonedTurns: 0, hypnotizedBy: null, panicTurns: 0, angelUsed: 0, infected: false, infectionTick: 0,
+                    relicUses: {}, mindWardTurns: 0, invulnTurns: 0, reflectTurns: 0,
+                    peaceTurns: 0, invisibleTurns: 0, regenTurns: 0, freeMoveTurns: 0
                 });
             }
             activeSoldierIndex = 0;
@@ -9272,12 +9569,22 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const visionRange = 25; // bazowy zasięg wzroku
         const BLIZZARD_VISION = 9; // w zamieci widać niewiele - walka na krótkim dystansie
         // Zasięg wzroku bieżącej planszy. W zamieci gęsty śnieg drastycznie skraca widoczność.
+        // Lampion Świętej Łucji rozjaśnia mrok niezależnie od planszy
+        function getLampBonus() {
+            const s = getActiveSoldier();
+            if (!s) return 0;
+            const idx = soldiers.indexOf(s);
+            return playerInventory.some(it => it.name === 'Lampion Świętej Łucji' &&
+                (it.assignedTo === undefined ? 0 : it.assignedTo) === idx) ? 3 : 0;
+        }
+
         function getVisionRange() {
-            if (!currentCombatTheme) return visionRange;
-            if (currentCombatTheme.id === 'zamiec') return BLIZZARD_VISION;
-            if (currentCombatTheme.id === 'nekropolia') return 14; // mgła nad grobami
-            if (currentCombatTheme.id === 'katedra') return 18;    // półmrok wnętrza
-            return visionRange;
+            const bonus = getLampBonus();
+            if (!currentCombatTheme) return visionRange + bonus;
+            if (currentCombatTheme.id === 'zamiec') return BLIZZARD_VISION + bonus;
+            if (currentCombatTheme.id === 'nekropolia') return 14 + bonus;
+            if (currentCombatTheme.id === 'katedra') return 18 + bonus;
+            return visionRange + bonus;
         }
         const npcVisionRange = 5;
         const colorHidden = new THREE.Color(0x000000), colorExplored = new THREE.Color(0x333333), colorVisible = new THREE.Color(0xffffff); 
@@ -9882,7 +10189,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const hasFloors = mapHasFloors();
             document.getElementById('btn-level-up').style.display = hasFloors ? '' : 'none';
             document.getElementById('btn-level-down').style.display = hasFloors ? '' : 'none';
-            const anyAbility = active && SPIRITUAL_ABILITIES.some(ab => ab.available(soldiers.indexOf(active)));
+            const anyAbility = active && (SPIRITUAL_ABILITIES.some(ab => ab.available(soldiers.indexOf(active)))
+                                          || getRelicAbilities(soldiers.indexOf(active)).length > 0);
             document.getElementById('btn-abilities').style.display = anyAbility ? '' : 'none';
             document.getElementById('btn-heal').style.display = isHealerClass ? '' : 'none';
             document.getElementById('btn-shield').style.display = isHealerClass ? '' : 'none';
@@ -9925,6 +10233,25 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         let shieldBubble = null; // { x, z, hitsLeft, mesh, caster }
         const SHIELD_RADIUS = 3;
         const SHIELD_MAX_HITS = 3;
+
+        // Rozpostarcie bańki ochronnej - używa jej i mentalista, i Tarcza Świętej Barbary
+        function createShieldBubble(caster) {
+            if (!caster) return;
+            clearShieldBubble(null);
+            const cx = caster.mesh.position.x, cz = caster.mesh.position.z;
+            const cy = getTerrainY(Math.round(cx), Math.round(cz));
+            const geo = new THREE.SphereGeometry(SHIELD_RADIUS, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+            const mat = new THREE.MeshBasicMaterial({
+                color: 0x55aaff, transparent: true, opacity: 0.10 + 0.07 * SHIELD_MAX_HITS,
+                side: THREE.DoubleSide, depthWrite: false
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.userData.unitType = 'fx';
+            mesh.position.set(cx, cy, cz);
+            mesh.castShadow = false; mesh.receiveShadow = false;
+            scene.add(mesh);
+            shieldBubble = { x: cx, z: cz, hitsLeft: SHIELD_MAX_HITS, mesh: mesh, caster: caster };
+        }
 
         function clearShieldBubble(reason) {
             if (!shieldBubble) return;
@@ -10002,7 +10329,22 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return Math.max(1, Math.round(base * (1 - penalty / 100)));
         }
 
-        function applyDamageToUnit(unit, amount) {
+        function applyDamageToUnit(unit, amount, napastnik) {
+            // Smocza Stal - przez turę żadne obrażenia nie przechodzą
+            if (unit && unit.invulnTurns > 0) {
+                updateUI(`${unit.name} odbija cios smoczą stalą!`);
+                return;
+            }
+            // Odbicie Strzał - obrażenia wracają do napastnika
+            if (unit && unit.reflectTurns > 0 && napastnik && !napastnik.isDead) {
+                napastnik.hp -= amount;
+                updateUI(`Cios odbija się od zbroi i wraca do napastnika (-${amount})!`);
+                if (napastnik.hp <= 0) {
+                    napastnik.isDead = true; scene.remove(napastnik.mesh);
+                    releaseHypnotized(napastnik); refreshEnemyPositions(); playEnemyDeathSfx(napastnik);
+                }
+                return;
+            }
             // Bańka ochronna przyjmuje całe trafienie na siebie (3 trafienia i pęka)
             if (shieldBubble && unit && unit.mesh && !unit.isNPC) {
                 if (isInsideShield(unit.mesh.position.x, unit.mesh.position.z)) {
@@ -10900,22 +11242,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             active.ap -= shieldCost;
             active.shieldsUsed = (active.shieldsUsed || 0) + 1;
 
+            createShieldBubble(active);
+
             const cx = active.mesh.position.x, cz = active.mesh.position.z;
-            const cy = getTerrainY(Math.round(cx), Math.round(cz));
-
-            const geo = new THREE.SphereGeometry(SHIELD_RADIUS, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2);
-            const mat = new THREE.MeshBasicMaterial({
-                color: 0x55aaff, transparent: true, opacity: 0.10 + 0.07 * SHIELD_MAX_HITS,
-                side: THREE.DoubleSide, depthWrite: false
-            });
-            const mesh = new THREE.Mesh(geo, mat);
-            mesh.userData.unitType = 'fx';
-            mesh.position.set(cx, cy, cz);
-            mesh.castShadow = false; mesh.receiveShadow = false;
-            scene.add(mesh);
-
-            shieldBubble = { x: cx, z: cz, hitsLeft: SHIELD_MAX_HITS, mesh: mesh, caster: active };
-
             const covered = soldiers.filter(s => !s.isDead && isInsideShield(s.mesh.position.x, s.mesh.position.z)).length;
             updateUI(`${active.name} rozpościera osłonę! Chroni ${covered} wojowników, wytrzyma ${SHIELD_MAX_HITS} trafienia. Znika, gdy się ruszysz. [${active.shieldsUsed}/${shieldLimit}]`);
             updateUI();
@@ -11666,12 +11995,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (shieldBubble && shieldBubble.caster === active) clearShieldBubble("Osłona znika - rzucający ruszył się z miejsca.");
                 
                 moveAlongPath({mesh: active.mesh, userData: active.mesh.userData}, clonedPath, 150, () => {
-                    active.ap -= finalCost; updateUI(partialMove ? `${active.name} zatrzymał się${apReserve > 0 ? " - zachowuje " + apReserve + " PA rezerwy." : " - brak dalszych PA."}` : "Ruch zakończony."); 
+                    if (!(active.freeMoveTurns > 0)) active.ap -= finalCost; updateUI(partialMove ? `${active.name} zatrzymał się${apReserve > 0 ? " - zachowuje " + apReserve + " PA rezerwy." : " - brak dalszych PA."}` : "Ruch zakończony."); 
                     refreshPlayerPositions();
                     checkPrisonerRescue();
                     checkSarcophagi();
                     checkCivilianScream();
             tickInfections();
+            tickRelicEffects();
                     updatePrisonerVisibility();
                     // Relikwia podnosi się samoczynnie, gdy wojownik na nią wejdzie
                     if (missionArtifact && !missionArtifact.taken) {
@@ -12029,6 +12359,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if(s.isDead) continue;
                 const chebDist = Math.max(Math.abs(Math.round(s.mesh.position.x) - ex), Math.abs(Math.round(s.mesh.position.z) - ez));
                 // Skradającego się widać dopiero z bliska - i wtedy ukrycie przepada
+                if (s.invisibleTurns > 0) continue;      // Kaptur - nikt go nie widzi
+                if (s.peaceTurns > 0) continue;          // Habit - nikt go nie zaatakuje
                 if (s.stealthActive) {
                     if (chebDist > STEALTH_DETECT_RANGE) continue;
                     breakStealth(s, 'wróg podszedł zbyt blisko');
@@ -12200,7 +12532,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const sDist = Math.max(Math.abs(sx2 - ex), Math.abs(sz2 - ez));
 
                 // wrzask - panika u słabych duchem
-                if (!bestTarget.isNPC && !isSoldierPanicking(bestTarget) && sDist <= STRZYGA_PANIC_RANGE && e.ap >= 3) {
+                if (!bestTarget.isNPC && !(bestTarget.mindWardTurns > 0) && !isSoldierPanicking(bestTarget) && sDist <= STRZYGA_PANIC_RANGE && e.ap >= 3) {
                     e.ap -= 3;
                     faceTowards(e, sx2, sz2);
                     const resist = getPanicResistance(bestTarget);
@@ -12269,7 +12601,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const targetProtected = isNearHoly(vx, vz);
 
                 // 1) Hipnoza - tylko na wojownika, jeden naraz
-                if (!targetProtected && !bestTarget.isNPC && !isSoldierHypnotized(bestTarget) && vDist <= VAMPIRE_HYPNO_RANGE
+                if (!targetProtected && !bestTarget.isNPC && !(bestTarget.mindWardTurns > 0) && !isSoldierHypnotized(bestTarget) && vDist <= VAMPIRE_HYPNO_RANGE
                     && !soldiers.some(s => s.hypnotizedBy === e) && e.ap >= 4) {
                     e.ap -= 4;
                     faceTowards(e, vx, vz);
@@ -12328,6 +12660,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         return;
                     }
                 }
+                currentEnemyIndex++; setTimeout(processNextEnemy, 150);
+                return;
+            }
+
+            // Związany (sznur, pieśń) traci turę
+            if (e.boundTurns && e.boundTurns > 0) {
+                updateUI('Wróg szarpie się w więzach i traci turę.');
                 currentEnemyIndex++; setTimeout(processNextEnemy, 150);
                 return;
             }
