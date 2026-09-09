@@ -447,6 +447,9 @@
         #npc-dialogue-buttons button:hover { background: #aa66ff; color: #000; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
 </head>
 <body>
     <div id="settings-menu">
@@ -5046,7 +5049,154 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return sprite;
         }
 
+        // ========================================================
+        // --- MODEL 3D WOJOWNIKA (Mixamo) ---
+        // Model wczytujemy raz, z wyprzedzeniem. Każdy wojownik dostaje własny klon
+        // ze swoim mikserem animacji. Gdyby plik się nie wczytał, gra wraca do brył.
+        // ========================================================
+        const WARRIOR_MODEL_URL = 'models/wojownik.glb';
+        let warriorModelProto = null;      // wzorzec do klonowania
+        let warriorModelClips = {};        // idle / walk / attack / death
+        let warriorModelReady = false;
+        let warriorMixers = [];            // aktywne miksery do aktualizacji co klatkę
+
+        function loadWarriorModel() {
+            if (typeof THREE.GLTFLoader === 'undefined') {
+                console.info('[model] Brak GLTFLoader - wojownicy pozostaną bryłami.');
+                return;
+            }
+            try {
+                const loader = new THREE.GLTFLoader();
+                // Model jest skompresowany metodą Draco - bez dekodera GLTFLoader
+                // pobiera plik, ale nie potrafi rozpakować siatek.
+                if (typeof THREE.DRACOLoader !== 'undefined') {
+                    const draco = new THREE.DRACOLoader();
+                    draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+                    draco.setDecoderConfig({ type: 'js' });
+                    loader.setDRACOLoader(draco);
+                } else {
+                    console.warn('[model] Brak DRACOLoader - model skompresowany Draco się nie rozpakuje.');
+                }
+                loader.load(WARRIOR_MODEL_URL, (gltf) => {
+                    warriorModelProto = gltf.scene;
+                    (gltf.animations || []).forEach(a => { warriorModelClips[a.name] = a; });
+                    // Dobieramy skalę tak, by postać miała ok. 1.7 jednostki wysokości
+                    const box = new THREE.Box3().setFromObject(warriorModelProto);
+                    const wys = box.max.y - box.min.y;
+                    warriorModelProto.userData.autoScale = (wys > 0.01) ? (1.7 / wys) : 1;
+                    warriorModelProto.userData.footOffset = -box.min.y * warriorModelProto.userData.autoScale;
+                    warriorModelReady = true;
+                    console.info(`[model] Wczytano wojownika: animacje ${Object.keys(warriorModelClips).join(', ')}, skala ${warriorModelProto.userData.autoScale.toFixed(3)}`);
+                }, undefined, (err) => {
+                    // Rozpoznajemy przyczynę, żeby nie zgadywać
+                    if (location.protocol === 'file:') {
+                        console.warn(
+                            '[model] Gra działa z pliku lokalnego (file://), a przeglądarka blokuje wczytywanie modeli 3D.\n' +
+                            'Uruchom prosty serwer w folderze gry, np.:\n' +
+                            '   python -m http.server 8000\n' +
+                            'i otwórz http://localhost:8000/game13.html');
+                    } else {
+                        console.warn('[model] Nie udało się wczytać ' + WARRIOR_MODEL_URL + '.', err);
+                        console.warn('[model] Jeśli plik pobrał się (kod 200), a mimo to jest błąd - ' +
+                            'najczęściej brakuje dekodera kompresji Draco albo obsługi tekstur WebP.');
+                    }
+                    console.info('[model] Wojownicy pozostaną bryłami - gra działa normalnie.');
+                });
+            } catch (e) {
+                console.info('[model] Wczytywanie modelu pominięte:', e);
+            }
+        }
+
+        // Klon modelu wraz z własnym szkieletem i mikserem
+        function buildWarriorModelInstance() {
+            if (!warriorModelReady || !warriorModelProto) return null;
+            // SkeletonUtils daje niezależny szkielet dla każdego klonu.
+            // Bez niego pierwszy wojownik dostaje sam wzorzec (wtedy działa poprawnie),
+            // a kolejni wracają do brył - lepiej to niż wspólny, psujący się szkielet.
+            let klon;
+            if (THREE.SkeletonUtils && THREE.SkeletonUtils.clone) {
+                klon = THREE.SkeletonUtils.clone(warriorModelProto);
+            } else if (!warriorModelProto.userData.wUzyciu) {
+                klon = warriorModelProto;
+                warriorModelProto.userData.wUzyciu = true;
+            } else {
+                return null;
+            }
+            const grupa = new THREE.Group();
+            const s = warriorModelProto.userData.autoScale || 1;
+            klon.scale.set(s, s, s);
+            klon.position.y = warriorModelProto.userData.footOffset || 0;
+            klon.rotation.y = Math.PI;   // Mixamo patrzy w -Z, gra oczekuje +Z
+            grupa.add(klon);
+
+            const mixer = new THREE.AnimationMixer(klon);
+            const akcje = {};
+            Object.keys(warriorModelClips).forEach(n => {
+                akcje[n] = mixer.clipAction(warriorModelClips[n]);
+            });
+            if (akcje.death) { akcje.death.loop = THREE.LoopOnce; akcje.death.clampWhenFinished = true; }
+            if (akcje.attack) { akcje.attack.loop = THREE.LoopOnce; akcje.attack.clampWhenFinished = true; }
+            if (akcje.idle) akcje.idle.play();
+
+            grupa.userData.mixer = mixer;
+            grupa.userData.actions = akcje;
+            grupa.userData.currentAction = 'idle';
+            grupa.userData.isModel = true;
+            warriorMixers.push(mixer);
+            return grupa;
+        }
+
+        // Przełączenie animacji z płynnym przejściem
+        function playWarriorAnim(mesh, nazwa, powrotDoIdle) {
+            if (!mesh || !mesh.userData || !mesh.userData.actions) return;
+            const a = mesh.userData.actions;
+            if (!a[nazwa]) return;
+            const poprzednia = mesh.userData.currentAction;
+            if (poprzednia === nazwa && nazwa !== 'attack') return;
+            if (poprzednia && a[poprzednia] && poprzednia !== nazwa) a[poprzednia].fadeOut(0.2);
+            a[nazwa].reset().fadeIn(0.2).play();
+            mesh.userData.currentAction = nazwa;
+            if (powrotDoIdle && a.idle) {
+                const dl = (warriorModelClips[nazwa] ? warriorModelClips[nazwa].duration : 1) * 1000;
+                setTimeout(() => {
+                    if (mesh.userData.currentAction !== nazwa) return;
+                    a[nazwa].fadeOut(0.2);
+                    a.idle.reset().fadeIn(0.2).play();
+                    mesh.userData.currentAction = 'idle';
+                }, Math.max(200, dl - 150));
+            }
+        }
+
+        // Miksery żyją tak długo, jak ich bryła jest na scenie.
+        // Bez tego lista rosła z każdą misją i po kilkudziesięciu bitwach
+        // aktualizowaliśmy setki nieużywanych animacji.
+        function updateWarriorMixers(dt) {
+            if (warriorMixers.length === 0) return;
+            for (let i = warriorMixers.length - 1; i >= 0; i--) {
+                const m = warriorMixers[i];
+                const korzen = m.getRoot ? m.getRoot() : null;
+                const zywy = korzen && korzen.parent;
+                if (!zywy) { warriorMixers.splice(i, 1); continue; }
+                m.update(dt);
+            }
+        }
+
+        // Twarde sprzątanie przy starcie misji - wszystkie stare modele odchodzą
+        function resetWarriorMixers() {
+            warriorMixers = [];
+            if (warriorModelProto) warriorModelProto.userData.wUzyciu = false;
+        }
+
         function createCharacter(bodyColor, faceColor, hairColor, scale, unitType, noWeapon) {
+            // Wojownicy gracza dostają model 3D, jeśli jest dostępny
+            if (warriorModelReady && (unitType === 'player' || unitType === 'hero')) {
+                const m = buildWarriorModelInstance();
+                if (m) {
+                    m.userData.yOffset = 0;
+                    m.userData.unitType = unitType;
+                    return m;
+                }
+            }
             const group = new THREE.Group();
             const bodyGeo = new THREE.BoxGeometry(0.6, 0.8, 0.4);
             const bodyMat = new THREE.MeshLambertMaterial({ color: bodyColor });
@@ -7639,6 +7789,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         function startPresentMode(atPosition) {
+            resetWarriorMixers();
             gameMode = 'present';
             gameOver = false;
             // Motyw walki MUSI zniknąć przed ustaleniem pogody - inaczej po powrocie z misji
@@ -7940,6 +8091,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             window.__cityPick = null;
             bellUsed = false; shadowsFleeUntil = 0;
             nightStartTime = performance.now(); nightExtraShadows = 0;
+            resetWarriorMixers();
             spawnSleepingNPCs();
             spawnNightEnemies();
             markLampsForNight();
@@ -9598,6 +9750,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         function moveAlongPath(meshData, path, durationPerTile, callback) {
+            // Model przechodzi w marsz na czas wędrówki i wraca do spoczynku po dojściu
+            const chodzacy = meshData && meshData.mesh && meshData.mesh.userData && meshData.mesh.userData.isModel ? meshData.mesh : null;
+            if (chodzacy) playWarriorAnim(chodzacy, 'walk');
+            if (chodzacy) {
+                const oryginalny = callback;
+                callback = function () {
+                    playWarriorAnim(chodzacy, 'idle');
+                    if (oryginalny) oryginalny();
+                };
+            }
             if (path.length === 0) { if (callback) callback(); return; }
             let nextStep = path.shift();
             let targetY = nextStep.y + meshData.mesh.userData.yOffset;
@@ -10187,6 +10349,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (Math.random() * 100 >= chance) return false;
 
             victim.ap -= MELEE_COST;
+            playWarriorAnim(victim.mesh, 'attack', true);
             const dmg = getMeleeDamage(victim);
             const hit = Math.random() * 100 < getMeleeHitChance(victim);
             victim.mesh.lookAt(enemy.mesh.position.x, victim.mesh.position.y, enemy.mesh.position.z);
@@ -10219,6 +10382,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         function startGame(count) {
+            resetWarriorMixers();   // stare modele odchodzą razem z poprzednią misją
             clearTimeout(enemyTurnTimeout); 
             clearInterval(npcSicknessInterval);
             gameMode = 'dream';
@@ -13277,6 +13441,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (soldiers.length > 0 || isExploreMode()) renderMinimap();
             updateShadowFollow();
             updateCloudSea(dt);
+            updateWarriorMixers(dt);
             updateThemeMusic();
             updateEveningAmbient();
             updateEscortPortal(time);
@@ -14407,6 +14572,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             window.location.href = 'https://www.google.pl';
         });
 
+        loadWarriorModel();   // model wojownika wczytujemy z wyprzedzeniem
+        if (location.protocol === 'file:') {
+            console.info('[model] Wskazówka: modele 3D wymagają serwera. Bez niego wojownicy będą bryłami, reszta gry działa bez zmian.');
+        }
         document.getElementById('title-screen').style.display = 'flex';
 
         // Dźwięk w przeglądarce wymaga gestu użytkownika - odblokowujemy przy pierwszej interakcji
