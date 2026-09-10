@@ -3598,6 +3598,50 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function createLamp() {
             const isVolcano = currentCombatTheme && currentCombatTheme.id === 'wulkan';
             const group = new THREE.Group();
+            const isCyberLamp = currentCombatTheme && currentCombatTheme.id === 'cyber';
+
+            // W cyberprzestrzeni nie ma klasycznych latarni - stoją tam smukłe pylony
+            // świecące zimnym, jasnym światłem wzdłuż całej wysokości.
+            if (isCyberLamp) {
+                const obudowa = new THREE.MeshLambertMaterial({ color: 0x16212e });
+                const trzon = new THREE.Mesh(new THREE.BoxGeometry(0.22, 4.2, 0.22), obudowa);
+                trzon.position.set(0, 2.1, 0);
+                group.add(trzon);
+                // świetlne pasy po obu stronach pylonu
+                [-0.13, 0.13].forEach(dx => {
+                    const pas = new THREE.Mesh(new THREE.BoxGeometry(0.06, 3.6, 0.06),
+                        new THREE.MeshBasicMaterial({ color: 0xdff6ff }));
+                    pas.position.set(dx, 2.2, 0);
+                    pas.userData.isBulb = true;
+                    group.add(pas);
+                });
+                // zwieńczenie
+                const czasza = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+                    new THREE.MeshBasicMaterial({ color: 0xbdf1ff }));
+                czasza.position.set(0, 4.2, 0);
+                czasza.userData.isBulb = true;
+                group.add(czasza);
+                // podstawa z poświatą
+                const stopa = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 0.14, 10), obudowa);
+                stopa.position.set(0, 0.07, 0);
+                group.add(stopa);
+                const krag = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.05, 6, 16),
+                    new THREE.MeshBasicMaterial({ color: 0x35d6ff }));
+                krag.rotation.x = Math.PI / 2;
+                krag.position.set(0, 0.16, 0);
+                group.add(krag);
+
+                group.userData.bulbColor = 0xdff6ff;
+                group.userData.lit = true;
+                group.userData.nightIntensity = 1.6;
+                const swiatloCyber = new THREE.PointLight(0xcfeeff, 0, 9, 1.1);
+                swiatloCyber.position.set(0, 3.4, 0);
+                group.add(swiatloCyber);
+                group.userData.lampLight = swiatloCyber;
+                group.userData.unitType = 'fx';
+                return group;
+            }
+
             const postMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
             const post = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.32, 2.2, 10), postMat);
             post.position.set(0, 1.1, 0);
@@ -3609,14 +3653,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             arm.position.set(0, 2.2, 0);
             group.add(arm);
 
-            const bulbMat = new THREE.MeshBasicMaterial({ color: isVolcano ? 0xff3311 : 0xffdd66 });
+            const isCyber = currentCombatTheme && currentCombatTheme.id === 'cyber';
+            const kolorZarowki = isVolcano ? 0xff3311 : (isCyber ? 0xbdf1ff : 0xffdd66);
+            const bulbMat = new THREE.MeshBasicMaterial({ color: kolorZarowki });
             [-0.52, 0.52].forEach(dx => {
                 const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 12), bulbMat.clone());
                 bulb.position.set(dx, 2.12, 0);
                 bulb.userData.isBulb = true;
                 group.add(bulb);
             });
-            group.userData.bulbColor = isVolcano ? 0xff3311 : 0xffdd66;
+            group.userData.bulbColor = kolorZarowki;
             group.userData.lit = true;
 
             // Latarnie nie świecą w dzień - intensywność włącza się dopiero w nocy (updateStreetLampsLighting)
@@ -5181,6 +5227,22 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         // Przełączenie animacji z płynnym przejściem
+        // Zgon z dokończeniem animacji - bryła znika dopiero po jej zakończeniu
+        function killUnitWithAnim(unit, poZgonie) {
+            if (!unit) return;
+            unit.isDead = true;
+            const m = unit.mesh;
+            const maModel = m && m.userData && m.userData.isModel && m.userData.actions && m.userData.actions.death;
+            if (maModel) {
+                playWarriorAnim(m, 'death');
+                const dl = (warriorModelClips.death ? warriorModelClips.death.duration : 2) * 1000;
+                setTimeout(() => { scene.remove(m); if (poZgonie) poZgonie(); }, Math.min(3000, dl));
+            } else {
+                scene.remove(m);
+                if (poZgonie) poZgonie();
+            }
+        }
+
         function playWarriorAnim(mesh, nazwa, powrotDoIdle) {
             if (!mesh || !mesh.userData || !mesh.userData.actions) return;
             const a = mesh.userData.actions;
@@ -11367,13 +11429,19 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const alivePlayers = soldiers.filter(s => !s.isDead && !s.isEscortee && !s.isAngel).length;
             
             if (alivePlayers === 0 || missionObjectiveFailed()) {
+                // Ekran końca po chwili, żeby zdążyła się pokazać animacja upadku.
+                // Przy jednoosobowym oddziale krócej - i tak nie ma na co patrzeć.
+                const zwlokaKonca = (soldiers.filter(s => !s.isEscortee && !s.isAngel).length > 1) ? 2000 : 1000;
                 clearTimeout(enemyTurnTimeout); gameOver = true; lastMissionWon = false;
                 document.getElementById('game-over-text').innerText = missionObjectiveFailed() ? "MISJA NIEUDANA!" : "GAME OVER!";
                 const statsSummary = finalizeMissionCombatStats();
                 let loseText = currentMissionStory ? currentMissionStory.lose : '';
                 if (statsSummary) loseText += '\n\n' + statsSummary;
                 document.getElementById('game-over-story').innerText = loseText;
-                document.getElementById('game-over-screen').style.display = 'flex'; highlightMesh.visible = false;
+                highlightMesh.visible = false;
+                setTimeout(() => {
+                    document.getElementById('game-over-screen').style.display = 'flex';
+                }, zwlokaKonca);
             }
             else if (missionObjectiveComplete()) {
                 // Po zwycięstwie można zostać i dobić resztę - przycisk pojawia się
@@ -11499,8 +11567,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             active.ap -= kneelCost;
             active.isKneeling = !active.isKneeling;
 
-            const baseScale = active.mesh.scale.x; 
-            const baseYOffset = active.mesh.userData.baseYOffset;
+            // Model 3D nie ma baseYOffset ustawianego przy bryłach - bez tej ochrony
+            // pozycja stawała się nieokreślona i wojownik znikał z planszy.
+            const baseScale = active.mesh.userData.baseScaleY !== undefined
+                ? active.mesh.userData.baseScaleY : active.mesh.scale.y;
+            active.mesh.userData.baseScaleY = baseScale;
+            const baseYOffset = (active.mesh.userData.baseYOffset !== undefined)
+                ? active.mesh.userData.baseYOffset : (active.mesh.userData.yOffset || 0);
+            active.mesh.userData.baseYOffset = baseYOffset;
             if (active.isKneeling) {
                 active.mesh.scale.y = baseScale * 0.7;
                 active.mesh.userData.yOffset = baseYOffset * 0.7;
@@ -11526,7 +11600,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const meleeCost = 3;
             if (active.ap < meleeCost) { updateUI(`Za mało AP (potrzeba ${meleeCost})!`); return; }
             const ax = Math.round(active.mesh.position.x), az = Math.round(active.mesh.position.z);
-            const target = enemies.find(en => !en.isDead && Math.abs(Math.round(en.mesh.position.x) - ax) + Math.abs(Math.round(en.mesh.position.z) - az) <= 1);
+            // Ukos też się liczy - stąd Chebyshev zamiast sumy odległości
+            const target = enemies.find(en => !en.isDead &&
+                Math.max(Math.abs(Math.round(en.mesh.position.x) - ax), Math.abs(Math.round(en.mesh.position.z) - az)) <= 1);
             if (!target) { updateUI("Brak wroga w zasięgu ataku wręcz (musisz stać obok)."); return; }
             active.ap -= meleeCost;
             const damage = getMeleeDamage(active);
@@ -11839,7 +11915,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     let hitChance = calculateHitChance(distanceXY, py > ey, targetCover !== null, shooterCover !== null, getPlayerAccuracyBonus(shooter) + cornPenalty1, blindInCorn1);
                     let isHit = (Math.random() * 100) <= hitChance;
                     shooter.shotsFired = (shooter.shotsFired || 0) + 1;
-                    playWarriorAnim(active.mesh, 'attack', true);
+                    playWarriorAnim(shooter.mesh, 'attack', true);
                     createProjectile(px, py, pz, ex, ey, ez, isHit, targetCover, () => {
                         if (isHit) {
                             shooter.shotsHit = (shooter.shotsHit || 0) + 1;
@@ -11873,7 +11949,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z), ey = getLevelY(ex, ez, e.level || 0);
                 const dist = Math.abs(px - ex) + Math.abs(pz - ez);
                 // Wręcz tylko na tej samej kondygnacji
-                if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'summoner' || e.type === 'zombie' || e.type === 'strzyga' || e.type === 'robot') return ((e.level || 0) === (active.level || 0) && dist === 1 && Math.abs(ey - py) <= 1 && e.type !== 'summoner');
+                if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'summoner' || e.type === 'zombie' || e.type === 'strzyga' || e.type === 'robot') return ((e.level || 0) === (active.level || 0) && Math.max(Math.abs(px - ex), Math.abs(pz - ez)) === 1 && Math.abs(ey - py) <= 1 && e.type !== 'summoner');
                 return (dist <= getVisionRange() && checkLineOfSight3D(ex, ey+1, ez, px, py+0.5, pz) && !floorsBlockShot(ex, ez, e.level || 0, px, pz, active.level || 0));
             });
 
@@ -12274,6 +12350,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             playFileSfx(AudioFiles.laserShot, 0.5);
                             let isHit = (Math.random() * 100) <= hitChance;
                             active.shotsFired = (active.shotsFired || 0) + 1;
+                            playWarriorAnim(active.mesh, 'attack', true);
                             createProjectile(startX, startY, startZ, targetX, targetY, targetZ, isHit, targetCover, () => {
                                 if (isHit) { 
                                     active.shotsHit = (active.shotsHit || 0) + 1;
@@ -13193,7 +13270,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'zombie' || e.type === 'robot') {
                 const meleeCostE = (e.type === 'brute') ? shootCost : 3; // szybsze rasy uderzają taniej
-                if (e.ap >= meleeCostE && tLvl === eLvl && dist === 1 && Math.abs(ey - py) <= 1) {
+                const chebDystans = Math.max(Math.abs(px - ex), Math.abs(pz - ez));
+                if (e.ap >= meleeCostE && tLvl === eLvl && chebDystans === 1 && Math.abs(ey - py) <= 1) {
                     // Wojownik może uderzyć pierwszy i powalić napastnika
                     if (!bestTarget.isNPC && tryMeleeInterrupt(e, bestTarget)) {
                         checkGameOver();
