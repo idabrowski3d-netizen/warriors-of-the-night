@@ -5080,13 +5080,45 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 loader.load(WARRIOR_MODEL_URL, (gltf) => {
                     warriorModelProto = gltf.scene;
                     (gltf.animations || []).forEach(a => { warriorModelClips[a.name] = a; });
-                    // Dobieramy skalę tak, by postać miała ok. 1.7 jednostki wysokości
-                    const box = new THREE.Box3().setFromObject(warriorModelProto);
-                    const wys = box.max.y - box.min.y;
+
+                    // Skórowane siatki mają zasięg widoczności liczony z pozy spoczynkowej,
+                    // przez co silnik potrafi je odciąć i postać znika. Wyłączamy to odcinanie.
+                    let siatek = 0;
+                    warriorModelProto.traverse(ch => {
+                        if (!ch.isMesh && !ch.isSkinnedMesh) return;
+                        siatek++;
+                        ch.frustumCulled = false;
+                        ch.castShadow = false;
+                        ch.receiveShadow = false;
+                        if (ch.material) {
+                            const mats = Array.isArray(ch.material) ? ch.material : [ch.material];
+                            mats.forEach(m => {
+                                m.side = THREE.DoubleSide;
+                                if (m.transparent && m.opacity >= 0.99) m.transparent = false;
+                            });
+                        }
+                    });
+
+                    // Rozmiar liczymy z samej geometrii - Box3 na modelu ze szkieletem
+                    // bywa pusty, zanim poza zostanie policzona.
+                    const box = new THREE.Box3();
+                    warriorModelProto.traverse(ch => {
+                        if (!ch.geometry) return;
+                        ch.geometry.computeBoundingBox();
+                        if (!ch.geometry.boundingBox) return;
+                        const b = ch.geometry.boundingBox.clone();
+                        ch.updateMatrixWorld(true);
+                        b.applyMatrix4(ch.matrixWorld);
+                        box.union(b);
+                    });
+                    const wys = (box.max && isFinite(box.max.y)) ? (box.max.y - box.min.y) : 0;
                     warriorModelProto.userData.autoScale = (wys > 0.01) ? (1.7 / wys) : 1;
-                    warriorModelProto.userData.footOffset = -box.min.y * warriorModelProto.userData.autoScale;
+                    warriorModelProto.userData.footOffset = (wys > 0.01) ? (-box.min.y * warriorModelProto.userData.autoScale) : 0;
                     warriorModelReady = true;
-                    console.info(`[model] Wczytano wojownika: animacje ${Object.keys(warriorModelClips).join(', ')}, skala ${warriorModelProto.userData.autoScale.toFixed(3)}`);
+
+                    console.info(`[model] Wczytano wojownika: animacje ${Object.keys(warriorModelClips).join(', ') || 'BRAK'}`);
+                    console.info(`[model] siatek: ${siatek}, wysokość surowa: ${wys.toFixed(3)}, skala: ${warriorModelProto.userData.autoScale.toFixed(4)}, podniesienie: ${warriorModelProto.userData.footOffset.toFixed(3)}`);
+                    if (siatek === 0) console.warn('[model] Model nie zawiera żadnej siatki - prawdopodobnie nie rozpakowała się kompresja Draco.');
                 }, undefined, (err) => {
                     // Rozpoznajemy przyczynę, żeby nie zgadywać
                     if (location.protocol === 'file:') {
@@ -5122,11 +5154,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             } else {
                 return null;
             }
+            klon.traverse(ch => { if (ch.isMesh || ch.isSkinnedMesh) ch.frustumCulled = false; });
             const grupa = new THREE.Group();
             const s = warriorModelProto.userData.autoScale || 1;
             klon.scale.set(s, s, s);
             klon.position.y = warriorModelProto.userData.footOffset || 0;
-            klon.rotation.y = Math.PI;   // Mixamo patrzy w -Z, gra oczekuje +Z
+            // Bez dodatkowego obrotu - grą obraca postać przez lookAt,
+            // a nadmiarowe 180 stopni sprawiało, że wojownik szedł tyłem.
             grupa.add(klon);
 
             const mixer = new THREE.AnimationMixer(klon);
@@ -11498,6 +11532,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const damage = getMeleeDamage(active);
             const isHit = Math.random() * 100 < getMeleeHitChance(active);
             active.mesh.lookAt(target.mesh.position.x, active.mesh.position.y, target.mesh.position.z);
+            playWarriorAnim(active.mesh, 'attack', true);
             active.shotsFired = (active.shotsFired || 0) + 1;
             if (isHit) {
                 active.shotsHit = (active.shotsHit || 0) + 1;
@@ -11804,6 +11839,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     let hitChance = calculateHitChance(distanceXY, py > ey, targetCover !== null, shooterCover !== null, getPlayerAccuracyBonus(shooter) + cornPenalty1, blindInCorn1);
                     let isHit = (Math.random() * 100) <= hitChance;
                     shooter.shotsFired = (shooter.shotsFired || 0) + 1;
+                    playWarriorAnim(active.mesh, 'attack', true);
                     createProjectile(px, py, pz, ex, ey, ez, isHit, targetCover, () => {
                         if (isHit) {
                             shooter.shotsHit = (shooter.shotsHit || 0) + 1;
