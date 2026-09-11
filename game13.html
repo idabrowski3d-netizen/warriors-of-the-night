@@ -5129,6 +5129,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
                     // Skórowane siatki mają zasięg widoczności liczony z pozy spoczynkowej,
                     // przez co silnik potrafi je odciąć i postać znika. Wyłączamy to odcinanie.
+                    let bezTekstury = 0;
+                    warriorModelProto.traverse(ch => {
+                        if (!ch.isMesh && !ch.isSkinnedMesh) return;
+                        const lm = Array.isArray(ch.material) ? ch.material : [ch.material];
+                        lm.forEach(m => { if (m && !m.map) bezTekstury++; });
+                    });
+                    if (bezTekstury > 0) console.warn('[model] materialow bez tekstury: ' + bezTekstury +
+                        ' - silnik nie czyta WebP. Wyeksportuj tekstury jako PNG/JPEG.');
                     let siatek = 0;
                     warriorModelProto.traverse(ch => {
                         if (!ch.isMesh && !ch.isSkinnedMesh) return;
@@ -5141,6 +5149,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             mats.forEach(m => {
                                 m.side = THREE.DoubleSide;
                                 if (m.transparent && m.opacity >= 0.99) m.transparent = false;
+                                // Ta wersja silnika nie czyta tekstur WebP, więc materiał
+                                // zostaje bez mapy i wychodzi czarną sylwetką.
+                                if (!m.map) {
+                                    if (m.color && m.color.set) m.color.set(0xb9c6d6);
+                                    if ('metalness' in m) m.metalness = 0.25;
+                                    if ('roughness' in m) m.roughness = 0.6;
+                                    if (m.emissive && m.emissive.set) m.emissive.set(0x1a2028);
+                                }
                             });
                         }
                     });
@@ -11822,7 +11838,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         });
         document.getElementById('btn-turn').addEventListener('click', () => { 
             if (isPlayerTurn && !gameOver) {
-                soldiers.forEach(s => s.ap = 0);
+                // Zostawione punkty NIE przepadają - są zapasem na wartę podczas tury wroga.
+                // Zamykamy tylko możliwość dalszego działania w swojej turze.
+                soldiers.forEach(s => { if (!s.isDead) s.turnEnded = true; });
+                const wWarcie = soldiers.filter(s => !s.isDead && !s.isEscortee && s.ap >= shootCost).length;
+                if (wWarcie > 0) updateUI(`Koniec tury. Na warcie: ${wWarcie} ${wWarcie === 1 ? 'wojownik' : 'wojowników'}.`);
                 startEnemyTurn(); 
             }
         });
@@ -13017,7 +13037,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         SoundEngine.playHit();
                         applyDamageToUnit(bestTarget, 6);
                         if (bestTarget.hp <= 0) {
-                            bestTarget.isDead = true; scene.remove(bestTarget.mesh); playDyingSfx();
+                            playDyingSfx(); killUnitWithAnim(bestTarget);
                             if (bestTarget.isNPC) applyMoralePenalty(); else refreshPlayerPositions();
                         }
                     } else updateUI('Strzyga chybia!');
@@ -13086,7 +13106,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         SoundEngine.playHit();
                         applyDamageToUnit(bestTarget, 5);
                         if (bestTarget.hp <= 0) {
-                            bestTarget.isDead = true; scene.remove(bestTarget.mesh); playDyingSfx();
+                            playDyingSfx(); killUnitWithAnim(bestTarget);
                             if (bestTarget.isNPC) applyMoralePenalty(); else refreshPlayerPositions();
                         }
                     } else updateUI('Wampir chybia!');
@@ -13292,7 +13312,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         if (e.type === 'zombie' && !bestTarget.isNPC) tryInfectSoldier(bestTarget);
                         if(isHit) { SoundEngine.playHit(); applyDamageToUnit(bestTarget, meleeDmg); updateUI(bestTarget.isNPC ? "Cywil trafiony!" : `Otrzymałeś cios! (-${meleeDmg} HP)`); if (!bestTarget.isNPC && bestTarget.hp > 0) chatter(bestTarget, bestTarget.hp <= 3 ? CHATTER_LOW_HP : CHATTER_HIT_TAKEN, 0.6); } else { updateUI("Unik! Duży obcy spudłował."); }
                         if(bestTarget.hp <= 0) { 
-                            bestTarget.isDead = true; scene.remove(bestTarget.mesh); playDyingSfx(); 
+                            playDyingSfx(); killUnitWithAnim(bestTarget); 
                             if (bestTarget.isNPC) applyMoralePenalty(); else refreshPlayerPositions();
                         }
                         // Duszek jest jednorazowy - po ciosie rozwiewa się
@@ -13324,7 +13344,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             playFileSfx(AudioFiles.wallHit, 0.5);
                         }
                         if(bestTarget.hp <= 0) { 
-                            bestTarget.isDead = true; scene.remove(bestTarget.mesh); playDyingSfx(); 
+                            playDyingSfx(); killUnitWithAnim(bestTarget); 
                             if (bestTarget.isNPC) applyMoralePenalty(); else refreshPlayerPositions();
                         }
                         checkGameOver(); if (!gameOver) { checkPlayerOverwatch(e, () => { if(!gameOver) setTimeout(processNextEnemy, 500); }); }
