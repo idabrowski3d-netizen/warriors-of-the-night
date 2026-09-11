@@ -5146,7 +5146,24 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         ch.receiveShadow = false;
                         if (ch.material) {
                             const mats = Array.isArray(ch.material) ? ch.material : [ch.material];
+                            // Wtyczka oznacza tekstury jako sRGB, a gra renderuje w przestrzeni
+                            // liniowej - bez korekty model wychodzi niemal czarny. Zamieniamy też
+                            // materiał na ten sam rodzaj, którego używa reszta gry.
+                            const zamienione = mats.map(m => {
+                                if (!m) return m;
+                                if (m.map) { m.map.encoding = THREE.LinearEncoding; m.map.needsUpdate = true; }
+                                return new THREE.MeshLambertMaterial({
+                                    map: m.map || null,
+                                    color: m.map ? 0xffffff : 0xb9c6d6,
+                                    skinning: true,
+                                    side: THREE.DoubleSide,
+                                    transparent: !!(m.transparent && m.opacity < 0.99),
+                                    opacity: (m.opacity === undefined) ? 1 : m.opacity
+                                });
+                            });
+                            ch.material = Array.isArray(ch.material) ? zamienione : zamienione[0];
                             mats.forEach(m => {
+                                if (!m) return;
                                 m.side = THREE.DoubleSide;
                                 if (m.transparent && m.opacity >= 0.99) m.transparent = false;
                                 // Ta wersja silnika nie czyta tekstur WebP, więc materiał
@@ -5174,7 +5191,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         box.union(b);
                     });
                     const wys = (box.max && isFinite(box.max.y)) ? (box.max.y - box.min.y) : 0;
-                    warriorModelProto.userData.autoScale = (wys > 0.01) ? (1.7 / wys) : 1;
+                    // 1.7 to wzrost odpowiadający bryłom; x1.2 na życzenie - wojownik ma górować
+                    warriorModelProto.userData.autoScale = (wys > 0.01) ? (1.7 * 1.2 / wys) : 1;
                     warriorModelProto.userData.footOffset = (wys > 0.01) ? (-box.min.y * warriorModelProto.userData.autoScale) : 0;
                     warriorModelReady = true;
 
@@ -5230,8 +5248,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             Object.keys(warriorModelClips).forEach(n => {
                 akcje[n] = mixer.clipAction(warriorModelClips[n]);
             });
-            if (akcje.death) { akcje.death.loop = THREE.LoopOnce; akcje.death.clampWhenFinished = true; }
-            if (akcje.attack) { akcje.attack.loop = THREE.LoopOnce; akcje.attack.clampWhenFinished = true; }
+            // Animacje jednorazowe zatrzymują się na ostatniej klatce
+            ['death', 'attack', 'fire', 'fire_kneel', 'pray', 'stand_to_kneel', 'kneel_to_stand'].forEach(n => {
+                if (!akcje[n]) return;
+                akcje[n].loop = THREE.LoopOnce;
+                akcje[n].clampWhenFinished = true;
+            });
             if (akcje.idle) akcje.idle.play();
 
             grupa.userData.mixer = mixer;
@@ -5256,6 +5278,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             } else {
                 scene.remove(m);
                 if (poZgonie) poZgonie();
+            }
+        }
+
+        // Odtwarza pierwszą animację, którą model faktycznie zawiera.
+        // Dzięki temu starszy plik bez nowych klipów nadal działa.
+        function playWarriorAnimAny(mesh, nazwy, powrotDoIdle) {
+            if (!mesh || !mesh.userData || !mesh.userData.actions) return;
+            for (const n of nazwy) {
+                if (mesh.userData.actions[n]) { playWarriorAnim(mesh, n, powrotDoIdle); return; }
             }
         }
 
@@ -6861,6 +6892,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (s.ap < moc.koszt) { updateUI(`Za mało punktów ruchu (potrzeba ${moc.koszt}).`); return; }
 
             s.ap -= moc.koszt;
+            playWarriorAnimAny(s.mesh, ['pray'], true);
             spendRelicUse(s, relicName);
             const komunikat = moc.dzialaj(s);
             showFloatingWarning(moc.nazwa);
@@ -7074,6 +7106,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 btn.disabled = !ok || left <= 0;
                 if (!btn.disabled) btn.addEventListener('click', () => {
                     document.getElementById('abilities-overlay').style.display = 'none';
+                    // Każda umiejętność duchowa zaczyna się modlitwą
+                    const wykonawca = getActiveSoldier();
+                    if (wykonawca) playWarriorAnimAny(wykonawca.mesh, ['pray'], true);
                     ab.run();
                 });
                 list.appendChild(btn);
@@ -8878,6 +8913,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             const isGhost = gameMode === 'presentNight';
 
+            // Model przechodzi w marsz, gdy bohater się porusza, i wraca do spoczynku,
+            // gdy gracz puści klawisze. W mieście ruch jest płynny, nie po polach,
+            // więc sterujemy animacją bezpośrednio.
+            if (hero.mesh.userData && hero.mesh.userData.isModel) {
+                const idzie = (dx !== 0 || dz !== 0);
+                const teraz = hero.mesh.userData.currentAction;
+                if (idzie && teraz !== 'walk') playWarriorAnim(hero.mesh, 'walk');
+                else if (!idzie && teraz === 'walk') playWarriorAnim(hero.mesh, 'idle');
+            }
             if (dx !== 0 || dz !== 0) {
                 const len = Math.hypot(dx, dz) || 1;
                 dx /= len; dz /= len;
@@ -9843,6 +9887,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         let activeAnimations = [];
         function slideObject(mesh, targetX, targetY, targetZ, duration, callback) {
+            duration = duration / (spowolnienieCzasu || 1);   // w zwolnionym tempie ruch trwa dłużej
             const startX = mesh.position.x, startY = mesh.position.y, startZ = mesh.position.z, startTime = performance.now();
             activeAnimations.push(function(time) {
                 let progress = Math.min((time - startTime) / duration, 1);
@@ -9861,6 +9906,32 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
         }
 
+        // Wrogowie dostrzeżeni już wcześniej nie zatrzymują marszu ponownie -
+        // liczy się tylko ten, którego wojownik widzi po raz pierwszy w tej misji.
+        let dostrzezeniWrogowie = new Set();
+
+        function resetDostrzezonych() { dostrzezeniWrogowie = new Set(); }
+
+        function wykryjNowegoWroga(mesh) {
+            const sx = Math.round(mesh.position.x), sz = Math.round(mesh.position.z);
+            const lvl = 0;
+            const sy = getLevelY(sx, sz, lvl);
+            for (const e of enemies) {
+                if (e.isDead) continue;
+                const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
+                const d = Math.max(Math.abs(ex - sx), Math.abs(ez - sz));
+                if (d > getVisionRange()) continue;
+                const ey = getLevelY(ex, ez, e.level || 0);
+                if (!checkLineOfSight3D(sx, sy + 1, sz, ex, ey + 0.5, ez)) continue;
+                if (floorsBlockShot(sx, sz, lvl, ex, ez, e.level || 0)) continue;
+                const klucz = enemies.indexOf(e);
+                if (dostrzezeniWrogowie.has(klucz)) continue;
+                dostrzezeniWrogowie.add(klucz);
+                return e;
+            }
+            return null;
+        }
+
         function moveAlongPath(meshData, path, durationPerTile, callback) {
             // Model przechodzi w marsz na czas wędrówki i wraca do spoczynku po dojściu
             const chodzacy = meshData && meshData.mesh && meshData.mesh.userData && meshData.mesh.userData.isModel ? meshData.mesh : null;
@@ -9873,6 +9944,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 };
             }
             if (path.length === 0) { if (callback) callback(); return; }
+
+            // Przed pierwszym krokiem zapisujemy wrogów, których wojownik już widzi -
+            // inaczej zatrzymywałby się od razu na kimś, kogo obserwuje od dawna.
+            if (meshData.mesh.userData.unitType === 'player' && !meshData.__spisany) {
+                meshData.__spisany = true;
+                if (typeof wykryjNowegoWroga === 'function') {
+                    while (wykryjNowegoWroga(meshData.mesh)) { /* spisujemy wszystkich widocznych */ }
+                }
+            }
+
             let nextStep = path.shift();
             let targetY = nextStep.y + meshData.mesh.userData.yOffset;
             
@@ -9880,7 +9961,26 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             SoundEngine.playStep(meshData.mesh.userData.unitType); 
             
             slideObject(meshData.mesh, nextStep.x, targetY, nextStep.z, durationPerTile, () => {
-                if (meshData.mesh.userData.unitType === 'player' || meshData.mesh.userData.unitType === 'npc') updateFoW(); 
+                const czyGracz = meshData.mesh.userData.unitType === 'player';
+                if (czyGracz || meshData.mesh.userData.unitType === 'npc') updateFoW();
+
+                // Marsz przerywamy, gdy w polu widzenia pojawi się nowy wróg.
+                // Dzięki temu wojownik nie wchodzi na oślep w sam środek grupy przeciwników.
+                if (czyGracz && path.length > 0 && typeof wykryjNowegoWroga === 'function') {
+                    const zauwazony = wykryjNowegoWroga(meshData.mesh);
+                    if (zauwazony) {
+                        const zwrot = path.length;
+                        path.length = 0;
+                        // Punkty za pola, których nie przeszedł, wracają do puli -
+                        // inaczej zatrzymanie karałoby gracza za czujność.
+                        const idacy = meshData.__zolnierz;
+                        if (idacy && !idacy.isDead) {
+                            idacy.ap = Math.min(getEffectiveMaxAp(idacy), (idacy.ap || 0) + zwrot);
+                        }
+                        updateUI(`Wróg w zasięgu wzroku! Marsz przerwany, ${zwrot} ${zwrot === 1 ? 'punkt wraca' : 'PA wraca'} do puli.`);
+                        showFloatingWarning('Dostrzeżono wroga - zatrzymanie!');
+                    }
+                }
                 moveAlongPath(meshData, path, durationPerTile, callback);
             });
         }
@@ -10495,6 +10595,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function startGame(count) {
             resetWarriorMixers();   // stare modele odchodzą razem z poprzednią misją
+            resetDostrzezonych();
             clearTimeout(enemyTurnTimeout); 
             clearInterval(npcSicknessInterval);
             gameMode = 'dream';
@@ -11510,11 +11611,97 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const maxPanDistance = 22;
 
         function applyCameraPosition() {
+            if (kinoAktywne) return;   // w trakcie ujęcia kamerą steruje film
             const px = cameraFollowTarget.x + cameraPanOffset.x;
             const py = cameraFollowTarget.y;
             const pz = cameraFollowTarget.z + cameraPanOffset.z;
             camera.position.set(px + Math.cos(cameraAngle) * cameraRadius, py + cameraHeight, pz + Math.sin(cameraAngle) * cameraRadius);
             camera.lookAt(px, py, pz);
+        }
+
+        // ========================================================
+        // --- KAMERA FILMOWA ---
+        // Co trzecią likwidację (oraz w wyjątkowych chwilach) kamera zjeżdża zza
+        // pleców wojownika i zwalnia czas, żeby pokazać scenę z bliska.
+        // ========================================================
+        let kinoAktywne = false;
+        let kinoLicznikZabojstw = 0;
+        const KINO_CO_ILE = 3;
+        let spowolnienieCzasu = 1;      // 1 = normalnie, mniej = wolniej
+        let kinoPrzywrocenie = null;
+
+        function czasKlatki(dt) { return dt * spowolnienieCzasu; }
+
+        // Ustawia kamerę za plecami wojownika, patrząc w stronę celu
+        function ustawKamereZaPlecami(strzelec, cel, postep) {
+            const sx = strzelec.mesh.position.x, sz = strzelec.mesh.position.z;
+            const sy = strzelec.mesh.position.y;
+            const kierX = cel.mesh.position.x - sx, kierZ = cel.mesh.position.z - sz;
+            const dl = Math.hypot(kierX, kierZ) || 1;
+            const jx = kierX / dl, jz = kierZ / dl;
+
+            // Zjazd: zaczynamy dalej i wyżej, kończymy tuż za ramieniem
+            const odleglosc = 7.5 - 4.2 * postep;
+            const wysokosc = 5.5 - 2.6 * postep;
+            const wBok = 1.6 - 0.5 * postep;
+
+            camera.position.set(
+                sx - jx * odleglosc - jz * wBok,
+                sy + wysokosc,
+                sz - jz * odleglosc + jx * wBok
+            );
+            camera.lookAt(
+                sx + jx * (dl * 0.55),
+                sy + 1.2,
+                sz + jz * (dl * 0.55)
+            );
+        }
+
+        function zakonczKino() {
+            kinoAktywne = false;
+            spowolnienieCzasu = 1;
+            if (kinoPrzywrocenie) { kinoPrzywrocenie(); kinoPrzywrocenie = null; }
+            applyCameraPosition();
+        }
+
+        // Uruchomienie ujęcia. czasTrwania w ms (czas rzeczywisty).
+        function odpalKamereFilmowa(strzelec, cel, czasTrwania) {
+            if (kinoAktywne || gameOver) return false;
+            if (!strzelec || !cel || !strzelec.mesh || !cel.mesh) return false;
+            if (!SoundEngine || !camera) return false;
+
+            kinoAktywne = true;
+            spowolnienieCzasu = 0.35;          // zwolnienie czasu
+            const start = performance.now();
+            const trwanie = czasTrwania || 1600;
+
+            kinoPrzywrocenie = () => { updateCameraPosition(); };
+
+            activeAnimations.push(function (time) {
+                if (gameOver) { zakonczKino(); return true; }
+                const t = Math.min(1, (time - start) / trwanie);
+                // łagodne wejście i wyjście
+                const p = t < 0.5 ? (2 * t * t) : (1 - Math.pow(-2 * t + 2, 2) / 2);
+                ustawKamereZaPlecami(strzelec, cel, p);
+                // pod koniec czas wraca do normy
+                spowolnienieCzasu = (t > 0.75) ? (0.35 + 0.65 * ((t - 0.75) / 0.25)) : 0.35;
+                if (t >= 1) { zakonczKino(); return true; }
+                return false;
+            });
+            return true;
+        }
+
+        // Zgłoszenie likwidacji - co trzecia uruchamia ujęcie
+        function zglosZabojstwo(strzelec, ofiara) {
+            if (!strzelec || !ofiara) return;
+            kinoLicznikZabojstw++;
+            if (kinoLicznikZabojstw % KINO_CO_ILE !== 0) return;
+            odpalKamereFilmowa(strzelec, ofiara, 1700);
+        }
+
+        // Wyjątkowe chwile - np. przywołanie Patrona
+        function kinoChwilaWyjatkowa(bohater, cel) {
+            odpalKamereFilmowa(bohater, cel || bohater, 2000);
         }
 
         function updateCameraPosition() { 
@@ -11529,6 +11716,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         window.addEventListener('pointermove', (event) => { edgeScrollMouseX = event.clientX; edgeScrollMouseY = event.clientY; });
 
         function handleEdgeScroll() {
+            if (kinoAktywne) return;
             if (gameOver || !getActiveSoldier()) return;
             const margin = 45, panSpeed = 0.225;
             let panX = 0, panZ = 0;
@@ -11592,12 +11780,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 ? active.mesh.userData.baseYOffset : (active.mesh.userData.yOffset || 0);
             active.mesh.userData.baseYOffset = baseYOffset;
             if (active.isKneeling) {
+                playWarriorAnimAny(active.mesh, ['stand_to_kneel'], true);
                 active.mesh.scale.y = baseScale * 0.7;
                 active.mesh.userData.yOffset = baseYOffset * 0.7;
                 document.getElementById('btn-kneel').innerText = 'Wstań';
                 updateUI(`${active.name} przyklęka. (+20% celności, trudniej go trafić)`);
                 chatter(active, CHATTER_KNEEL, 0.6);
             } else {
+                playWarriorAnimAny(active.mesh, ['kneel_to_stand'], true);
                 active.mesh.scale.y = baseScale;
                 active.mesh.userData.yOffset = baseYOffset;
                 document.getElementById('btn-kneel').innerText = 'Przyklęknij';
@@ -11636,7 +11826,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (target.hp <= 0) {
                     target.isDead = true; scene.remove(target.mesh);
                     active.kills = (active.kills || 0) + 1;
-                    chatter(active, CHATTER_KILL, 0.6); playEnemyDeathSfx(target);
+                    chatter(active, CHATTER_KILL, 0.6); playEnemyDeathSfx(target); zglosZabojstwo(active, target);
                     refreshEnemyPositions();
                 }
             } else {
@@ -11880,7 +12070,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (e.key === 'ArrowDown' || k2 === 's') heroKeys.down = false;
         });
 
+        let turaWrogaNr = 0;   // rośnie z każdą turą wroga - warta z poprzedniej tury nie strzela
+
         function checkPlayerOverwatch(enemy, callback) {
+            const mojaTura = turaWrogaNr;
             if (gameOver || enemy.isDead) { callback(); return; }
             
             let shooters = soldiers.filter(s => !s.isDead && s.ap >= shootCost && !s.isEscortee);
@@ -11905,6 +12098,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
 
             function processShooter(idx) {
+                // Tura wroga mogła się w międzyczasie skończyć - wtedy wojownicy
+                // mają już świeżą pulę punktów i warta nie ma prawa z niej korzystać.
+                if (mojaTura !== turaWrogaNr || isPlayerTurn) { callback(); return; }
                 if (gameOver || idx >= shooters.length) { callback(); return; }
                 let shooter = shooters[idx];
                 let px = Math.round(shooter.mesh.position.x), pz = Math.round(shooter.mesh.position.z), py = getLevelY(px, pz, shooter.level || 0);
@@ -11935,14 +12131,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     let hitChance = calculateHitChance(distanceXY, py > ey, targetCover !== null, shooterCover !== null, getPlayerAccuracyBonus(shooter) + cornPenalty1, blindInCorn1);
                     let isHit = (Math.random() * 100) <= hitChance;
                     shooter.shotsFired = (shooter.shotsFired || 0) + 1;
-                    playWarriorAnim(shooter.mesh, 'attack', true);
+                    playWarriorAnimAny(shooter.mesh,
+                        shooter.isKneeling ? ['fire_kneel', 'fire', 'attack'] : ['fire', 'attack'], true);
                     createProjectile(px, py, pz, ex, ey, ez, isHit, targetCover, () => {
                         if (isHit) {
                             shooter.shotsHit = (shooter.shotsHit || 0) + 1;
                             const gainOw = awardHitBonus(shooter);
                             target.hp -= 5; updateUI(`TRAFIENIE Z WARTY! (Szansa: ${hitChance}%) +${gainOw}% celności dla ${shooter.name}!`);
                             playFileSfx(AudioFiles.enemyOuch, 0.6);
-                            if (target.hp <= 0) { target.isDead = true; scene.remove(target.mesh); shooter.kills = (shooter.kills || 0) + 1; refreshEnemyPositions(); releaseHypnotized(target); chatter(shooter, CHATTER_KILL, 0.6); playEnemyDeathSfx(target); }
+                            if (target.hp <= 0) { target.isDead = true; scene.remove(target.mesh); shooter.kills = (shooter.kills || 0) + 1; refreshEnemyPositions(); releaseHypnotized(target); chatter(shooter, CHATTER_KILL, 0.6); playEnemyDeathSfx(target); zglosZabojstwo(shooter, target); }
                             else chatter(shooter, CHATTER_HIT, 0.5);
                         } else { 
                             if (targetCover && targetCover.type !== 'wall-resistant') { destroyObstacle(targetCover); updateUI("Pudło z warty! Mur zniszczony."); }
@@ -12370,14 +12567,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             playFileSfx(AudioFiles.laserShot, 0.5);
                             let isHit = (Math.random() * 100) <= hitChance;
                             active.shotsFired = (active.shotsFired || 0) + 1;
-                            playWarriorAnim(active.mesh, 'attack', true);
+                            playWarriorAnimAny(active.mesh,
+                                active.isKneeling ? ['fire_kneel', 'fire', 'attack'] : ['fire', 'attack'], true);
                             createProjectile(startX, startY, startZ, targetX, targetY, targetZ, isHit, targetCover, () => {
                                 if (isHit) { 
                                     active.shotsHit = (active.shotsHit || 0) + 1;
                                     const gainHit = awardHitBonus(active); clickedEnemy.hp -= 5; updateUI(`Trafienie! (Szansa: ${hitChance}%) +${gainHit}% celności dla ${active.name}!`); 
                                     playFileSfx(AudioFiles.enemyOuch, 0.6);
                                     if (clickedEnemy.hp <= 0) {
-                                        releaseHypnotized(clickedEnemy); clickedEnemy.isDead = true; scene.remove(clickedEnemy.mesh); active.kills = (active.kills || 0) + 1; chatter(active, CHATTER_KILL, 0.6); playEnemyDeathSfx(clickedEnemy); }
+                                        releaseHypnotized(clickedEnemy); clickedEnemy.isDead = true; scene.remove(clickedEnemy.mesh); active.kills = (active.kills || 0) + 1; chatter(active, CHATTER_KILL, 0.6); playEnemyDeathSfx(clickedEnemy); zglosZabojstwo(active, clickedEnemy); }
                                     else chatter(active, CHATTER_HIT, 0.5);
                                 }
                                 else { 
@@ -12464,7 +12662,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 let clonedPath = [...finalPath];
                 if (shieldBubble && shieldBubble.caster === active) clearShieldBubble("Osłona znika - rzucający ruszył się z miejsca.");
                 
-                moveAlongPath({mesh: active.mesh, userData: active.mesh.userData}, clonedPath, 150, () => {
+                moveAlongPath({mesh: active.mesh, userData: active.mesh.userData, __zolnierz: active}, clonedPath, 150, () => {
                     if (!(active.freeMoveTurns > 0)) active.ap -= finalCost; updateUI(partialMove ? `${active.name} zatrzymał się${apReserve > 0 ? " - zachowuje " + apReserve + " PA rezerwy." : " - brak dalszych PA."}` : "Ruch zakończony."); 
                     refreshPlayerPositions();
                     checkPrisonerRescue();
@@ -12490,6 +12688,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function endEnemyTurn() {
             clearTimeout(enemyTurnTimeout); currentEnemyIndex = 0; isPlayerTurn = true;
+            turaWrogaNr++;   // unieważnia wartę rozpoczętą w kończącej się turze
             // Używamy s.maxAp, nie stałej maxAP - inaczej bonusy ze Zręczności i klasy znikają po pierwszej turze
             // Rany obniżają też pulę punktów ruchu
             soldiers.forEach(s => { if(!s.isDead) { s.ap = getEffectiveMaxAp(s); s.turnEnded = false; } });
@@ -12611,53 +12810,124 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const rebels = soldiers.filter((s, i) => isSoldierRebel(i) && s.ap > 0 && !s.turnEnded);
             if (rebels.length === 0) { callback(); return; }
             let idx = 0;
+
+            // Czy z tego pola da się ostrzelać wroga
+            function maTorStrzalu(s, e, zx, zz) {
+                if (e.isDead) return false;
+                const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
+                const d = Math.max(Math.abs(ex - zx), Math.abs(ez - zz));
+                if (d > getVisionRange()) return false;
+                const sy = getLevelY(zx, zz, s.level || 0), ey = getLevelY(ex, ez, e.level || 0);
+                if (!checkLineOfSight3D(zx, sy + 1, zz, ex, ey + 0.5, ez)) return false;
+                if (floorsBlockShot(zx, zz, s.level || 0, ex, ez, e.level || 0)) return false;
+                return true;
+            }
+
+            // Najlepszy cel do ostrzału: spośród WSZYSTKICH wrogów z torem strzału.
+            // Wcześniej brany był najbliższy wróg niezależnie od widoczności - jeśli
+            // akurat stał za murem, wojownik maszerował do niego, choć mógł strzelać do innego.
+            function wybierzCel(s, zx, zz) {
+                let cel = null, naj = Infinity, slaby = Infinity;
+                enemies.forEach(e => {
+                    if (!maTorStrzalu(s, e, zx, zz)) return;
+                    const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
+                    const d = Math.max(Math.abs(ex - zx), Math.abs(ez - zz));
+                    // Dobijamy rannych, przy remisie bierzemy bliższego
+                    if (e.hp < slaby || (e.hp === slaby && d < naj)) { slaby = e.hp; naj = d; cel = e; }
+                });
+                return cel;
+            }
+
             const step = () => {
                 if (gameOver || idx >= rebels.length) { callback(); return; }
-                const s = rebels[idx++];
+                const s = rebels[idx];
                 const sx = Math.round(s.mesh.position.x), sz = Math.round(s.mesh.position.z);
-                let target = null, best = Infinity;
-                enemies.forEach(e => {
-                    if (e.isDead) return;
-                    const d = Math.max(Math.abs(Math.round(e.mesh.position.x) - sx), Math.abs(Math.round(e.mesh.position.z) - sz));
-                    if (d < best) { best = d; target = e; }
-                });
-                if (!target) { s.turnEnded = true; step(); return; }
-                const tx = Math.round(target.mesh.position.x), tz = Math.round(target.mesh.position.z);
-                const sy = getLevelY(sx, sz, s.level || 0), ty2 = getLevelY(tx, tz, target.level || 0);
-                if (s.ap >= shootCost && best <= getVisionRange() && checkLineOfSight3D(sx, sy + 1, sz, tx, ty2 + 0.5, tz)
-                    && !floorsBlockShot(sx, sz, s.level || 0, tx, tz, target.level || 0)) {
+
+                // 1) Strzelamy, dopóki starcza punktów i jest do kogo
+                const cel = wybierzCel(s, sx, sz);
+                if (cel && s.ap >= shootCost) {
+                    const tx = Math.round(cel.mesh.position.x), tz = Math.round(cel.mesh.position.z);
+                    const sy = getLevelY(sx, sz, s.level || 0), ty2 = getLevelY(tx, tz, cel.level || 0);
+                    const dyst = Math.max(Math.abs(tx - sx), Math.abs(tz - sz));
                     s.ap -= shootCost;
                     s.shotsFired = (s.shotsFired || 0) + 1;
                     s.mesh.lookAt(tx, s.mesh.position.y, tz);
-                    const hit = Math.random() * 100 <= calculateHitChance(best, false, !!getCoverObstacle(tx, tz, sx, sz), false, getPlayerAccuracyBonus(s));
+                    playWarriorAnimAny(s.mesh, ['fire', 'attack'], true);
+                    const hit = Math.random() * 100 <= calculateHitChance(dyst, false, !!getCoverObstacle(tx, tz, sx, sz), false, getPlayerAccuracyBonus(s));
                     createProjectile(sx, sy + 1, sz, tx, ty2 + 0.5, tz, hit, null, () => {
                         if (hit) {
                             s.shotsHit = (s.shotsHit || 0) + 1;
-                            target.hp -= 5;
-                            if (target.hp <= 0) { target.isDead = true; scene.remove(target.mesh); s.kills = (s.kills || 0) + 1; refreshEnemyPositions(); }
+                            awardHitBonus(s);
+                            cel.hp -= 5;
+                            if (cel.hp <= 0) {
+                                cel.isDead = true; scene.remove(cel.mesh);
+                                s.kills = (s.kills || 0) + 1;
+                                releaseHypnotized(cel); refreshEnemyPositions(); playEnemyDeathSfx(cel); zglosZabojstwo(s, cel);
+                            }
                         }
-                        updateUI(`${s.name} działa po swojemu i strzela na własną rękę!`);
+                        updateUI(`${s.name} działa po swojemu i strzela${hit ? '' : ' - pudło'}.`);
                         checkGameOver();
-                        setTimeout(step, 150);
+                        setTimeout(step, 150);   // ten sam wojownik może strzelić ponownie
                     }, 'player');
                     return;
                 }
-                // Bez linii strzału - podchodzi bliżej
+
+                // 2) Cios wręcz, gdy wróg stoi tuż obok, a na strzał brak punktów
+                const obok = enemies.find(e => !e.isDead && (e.level || 0) === (s.level || 0) &&
+                    Math.max(Math.abs(Math.round(e.mesh.position.x) - sx), Math.abs(Math.round(e.mesh.position.z) - sz)) === 1);
+                if (obok && s.ap >= 3) {
+                    s.ap -= 3;
+                    s.mesh.lookAt(obok.mesh.position.x, s.mesh.position.y, obok.mesh.position.z);
+                    playWarriorAnim(s.mesh, 'attack', true);
+                    const dmg = getMeleeDamage(s);
+                    if (Math.random() * 100 < getMeleeHitChance(s)) {
+                        obok.hp -= dmg;
+                        playFileSfx(AudioFiles.swordHit, 0.7);
+                        updateUI(`${s.name} uderza wręcz na własną rękę! (-${dmg})`);
+                        if (obok.hp <= 0) {
+                            obok.isDead = true; scene.remove(obok.mesh);
+                            s.kills = (s.kills || 0) + 1;
+                            releaseHypnotized(obok); refreshEnemyPositions(); playEnemyDeathSfx(obok); zglosZabojstwo(s, obok);
+                        }
+                    } else updateUI(`${s.name} atakuje wręcz, ale chybia.`);
+                    checkGameOver();
+                    setTimeout(step, 150);
+                    return;
+                }
+
+                // 3) Brak celu - podchodzimy, ale tylko tyle, by uzyskać tor strzału,
+                //    i zawsze zostawiamy punkty na sam strzał.
+                let najblizszy = null, najd = Infinity;
+                enemies.forEach(e => {
+                    if (e.isDead) return;
+                    const d = Math.max(Math.abs(Math.round(e.mesh.position.x) - sx), Math.abs(Math.round(e.mesh.position.z) - sz));
+                    if (d < najd) { najd = d; najblizszy = e; }
+                });
+                if (!najblizszy || s.ap <= 0) { s.turnEnded = true; idx++; step(); return; }
+
                 refreshEnemyPositions(); refreshPlayerPositions(); refreshNPCPositions();
+                const tx = Math.round(najblizszy.mesh.position.x), tz = Math.round(najblizszy.mesh.position.z);
                 const p = findPath(sx, sz, tx, tz, s.level || 0, s);
                 if (p && p.path.length > 0) {
-                    const walk = p.path.slice(0, Math.min(p.path.length, s.ap));
+                    // zostawiamy zapas na strzał, o ile w ogóle mamy z czego
+                    const doRuchu = (s.ap > shootCost) ? (s.ap - shootCost) : s.ap;
+                    let walk = p.path.slice(0, Math.min(p.path.length, doRuchu));
+                    // skracamy marsz do pierwszego pola, z którego widać wroga
+                    for (let k = 0; k < walk.length; k++) {
+                        if (maTorStrzalu(s, najblizszy, walk[k].x, walk[k].z)) { walk = walk.slice(0, k + 1); break; }
+                    }
                     if (walk.length > 0) {
                         s.ap -= walk.length;
                         moveAlongPath({ mesh: s.mesh, userData: s.mesh.userData }, walk, 150, () => {
                             refreshPlayerPositions(); updateFoW();
-                            updateUI(`${s.name} nie słucha rozkazów i rusza na wroga.`);
-                            setTimeout(step, 150);
+                            updateUI(`${s.name} nie słucha rozkazów i szuka pozycji strzeleckiej.`);
+                            setTimeout(step, 150);   // po dojściu spróbuje strzelić
                         });
                         return;
                     }
                 }
-                s.turnEnded = true;   // nie ma dokąd iść - kończy swoją turę
+                s.turnEnded = true;   // nie ma dokąd iść
+                idx++;
                 step();
             };
             step();
@@ -13575,7 +13845,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (soldiers.length > 0 || isExploreMode()) renderMinimap();
             updateShadowFollow();
             updateCloudSea(dt);
-            updateWarriorMixers(dt);
+            updateWarriorMixers(dt * spowolnienieCzasu);
             updateThemeMusic();
             updateEveningAmbient();
             updateEscortPortal(time);
