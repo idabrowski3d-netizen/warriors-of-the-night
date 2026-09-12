@@ -5101,6 +5101,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // ze swoim mikserem animacji. Gdyby plik się nie wczytał, gra wraca do brył.
         // ========================================================
         const WARRIOR_MODEL_URL = 'models/wojownik.glb';
+        const HERO_MODEL_URL = 'models/hero.glb';
+        let heroModelProto = null, heroModelClips = {}, heroModelReady = false;
         let warriorModelProto = null;      // wzorzec do klonowania
         let warriorModelClips = {};        // idle / walk / attack / death
         let warriorModelReady = false;
@@ -5219,6 +5221,209 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
         }
 
+        // ========================================================
+        // --- MODELE WROGÓW ---
+        // Każdy typ wroga może dostać własny plik .glb. Dopóki go nie ma,
+        // gra rysuje dotychczasową bryłę - podmiana jest bezbolesna.
+        // Nazwy klipów podajemy wprost, bo bywają różne (attack vs fight).
+        // ========================================================
+        const ENEMY_MODELS = {
+            zombie:  { plik: 'models/zombie.glb',  idle: 'zombie_idle',  walk: 'zombie_walk',
+                       atak: 'zombie_attack',  smierc: 'zombie_death',  cios: 'zombie_hit',  wysokosc: 1.8 },
+            vampire: { plik: 'models/wampir.glb',  idle: 'wampir_idle',  walk: 'wampir_walk',
+                       atak: 'wampir_attack',  smierc: 'wampir_death',  cios: 'wampir_hit',
+                       specjalna: 'wampir_hypnotize', wysokosc: 2.0 },
+            brute:   { plik: 'models/mutant.glb',  idle: 'mutant_idle',  walk: 'mutant_walk',
+                       atak: 'mutant_fight',   smierc: 'mutant_death',  cios: 'mutant_hit',  wysokosc: 2.6 },
+            fast:    { plik: 'models/demon.glb',   idle: 'demon_idle',   walk: 'demon_walk',
+                       atak: 'demon_fight',    smierc: 'demon_death',   cios: 'demon_hit',   wysokosc: 1.5 },
+            strzyga: { plik: 'models/strzyga.glb', idle: 'strzyga_idle', walk: 'strzyga_walk',
+                       atak: 'strzyga_attack', smierc: 'strzyga_death', cios: 'strzyga_hit',
+                       specjalna: 'strzyga_scream', wysokosc: 1.9 }
+        };
+
+        const wrogModele = {};   // typ -> { proto, klipy, gotowy }
+
+        function loadEnemyModels() {
+            if (typeof THREE.GLTFLoader === 'undefined') return;
+            Object.keys(ENEMY_MODELS).forEach(typ => {
+                const cfg = ENEMY_MODELS[typ];
+                wrogModele[typ] = { proto: null, klipy: {}, gotowy: false };
+                try {
+                    const loader = new THREE.GLTFLoader();
+                    if (typeof THREE.DRACOLoader !== 'undefined') {
+                        const draco = new THREE.DRACOLoader();
+                        draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+                        draco.setDecoderConfig({ type: 'js' });
+                        loader.setDRACOLoader(draco);
+                    }
+                    loader.load(cfg.plik, (gltf) => {
+                        const proto = gltf.scene;
+                        (gltf.animations || []).forEach(a => { wrogModele[typ].klipy[a.name] = a; });
+                        let minY = Infinity, maxY = -Infinity;
+                        proto.traverse(ch => {
+                            if (!ch.isMesh && !ch.isSkinnedMesh) return;
+                            ch.frustumCulled = false;
+                            ch.castShadow = true;
+                            const mats = Array.isArray(ch.material) ? ch.material : [ch.material];
+                            const nowe = mats.map(m => {
+                                if (!m) return m;
+                                if (m.map) { m.map.encoding = THREE.LinearEncoding; m.map.needsUpdate = true; }
+                                return new THREE.MeshLambertMaterial({
+                                    map: m.map || null,
+                                    color: m.map ? 0xffffff : 0xa08890,
+                                    skinning: true, side: THREE.DoubleSide
+                                });
+                            });
+                            ch.material = Array.isArray(ch.material) ? nowe : nowe[0];
+                            if (ch.geometry) {
+                                try { ch.geometry.computeBoundingBox(); ch.geometry.computeBoundingSphere(); } catch (e) {}
+                                if (ch.geometry.boundingBox) {
+                                    minY = Math.min(minY, ch.geometry.boundingBox.min.y);
+                                    maxY = Math.max(maxY, ch.geometry.boundingBox.max.y);
+                                }
+                            }
+                        });
+                        const wys = (isFinite(maxY - minY) && maxY - minY > 0.001) ? (maxY - minY) : 1.8;
+                        proto.userData.autoScale = Math.min(100, Math.max(0.0005, (cfg.wysokosc || 1.8) / wys));
+                        proto.userData.footOffset = isFinite(minY) ? -minY * proto.userData.autoScale : 0;
+                        wrogModele[typ].proto = proto;
+                        wrogModele[typ].gotowy = true;
+                        console.info(`[model] Wczytano wroga '${typ}'. Animacje: ${Object.keys(wrogModele[typ].klipy).join(', ')}`);
+                    }, undefined, () => {
+                        // brak pliku to normalna sytuacja - zostaje dotychczasowa bryła
+                    });
+                } catch (e) { /* zostaje bryła */ }
+            });
+        }
+
+        function buildEnemyModelInstance(typ) {
+            const wpis = wrogModele[typ];
+            if (!wpis || !wpis.gotowy || !wpis.proto) return null;
+            let klon;
+            if (THREE.SkeletonUtils && THREE.SkeletonUtils.clone) klon = THREE.SkeletonUtils.clone(wpis.proto);
+            else if (!wpis.proto.userData.wUzyciu) { klon = wpis.proto; wpis.proto.userData.wUzyciu = true; }
+            else return null;
+            klon.traverse(ch => { if (ch.isMesh || ch.isSkinnedMesh) { ch.frustumCulled = false; ch.visible = true; } });
+
+            const grupa = new THREE.Group();
+            const s = wpis.proto.userData.autoScale || 1;
+            klon.scale.set(s, s, s);
+            klon.position.y = wpis.proto.userData.footOffset || 0;
+            grupa.add(klon);
+
+            const cfg = ENEMY_MODELS[typ];
+            const mixer = new THREE.AnimationMixer(klon);
+            const akcje = {};
+            Object.keys(wpis.klipy).forEach(n => { akcje[n] = mixer.clipAction(wpis.klipy[n]); });
+            [cfg.atak, cfg.smierc, cfg.cios, cfg.specjalna].forEach(n => {
+                if (!n || !akcje[n]) return;
+                akcje[n].loop = THREE.LoopOnce;
+                akcje[n].clampWhenFinished = true;
+            });
+            if (akcje[cfg.idle]) akcje[cfg.idle].play();
+
+            grupa.userData.mixer = mixer;
+            grupa.userData.actions = akcje;
+            grupa.userData.currentAction = cfg.idle;
+            grupa.userData.isModel = true;
+            grupa.userData.isEnemyModel = true;
+            grupa.userData.enemyKind = typ;
+            grupa.userData.yOffset = 0;
+            grupa.userData.unitType = typ;
+            warriorMixers.push(mixer);
+            return grupa;
+        }
+
+        // Skróty do animacji wroga po roli, nie po nazwie klipu
+        function animWroga(jednostka, rola, powrotDoIdle) {
+            if (!jednostka || !jednostka.mesh) return;
+            const u = jednostka.mesh.userData;
+            if (!u || !u.isEnemyModel) return;
+            const cfg = ENEMY_MODELS[u.enemyKind];
+            if (!cfg) return;
+            const nazwa = cfg[rola];
+            if (!nazwa) return;
+            playWarriorAnim(jednostka.mesh, nazwa, powrotDoIdle);
+        }
+
+        // Bohater w Teraźniejszości ma własny model, niezależny od wojowników snu
+        function loadHeroModel() {
+            if (typeof THREE.GLTFLoader === 'undefined') return;
+            try {
+                const loader = new THREE.GLTFLoader();
+                if (typeof THREE.DRACOLoader !== 'undefined') {
+                    const draco = new THREE.DRACOLoader();
+                    draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+                    draco.setDecoderConfig({ type: 'js' });
+                    loader.setDRACOLoader(draco);
+                }
+                loader.load(HERO_MODEL_URL, (gltf) => {
+                    heroModelProto = gltf.scene;
+                    (gltf.animations || []).forEach(a => { heroModelClips[a.name] = a; });
+                    heroModelProto.traverse(ch => {
+                        if (!ch.isMesh && !ch.isSkinnedMesh) return;
+                        ch.frustumCulled = false;
+                        ch.castShadow = true;
+                        const mats = Array.isArray(ch.material) ? ch.material : [ch.material];
+                        const nowe = mats.map(m => {
+                            if (!m) return m;
+                            if (m.map) { m.map.encoding = THREE.LinearEncoding; m.map.needsUpdate = true; }
+                            return new THREE.MeshLambertMaterial({
+                                map: m.map || null,
+                                color: m.map ? 0xffffff : 0xc0cfe0,
+                                skinning: true, side: THREE.DoubleSide
+                            });
+                        });
+                        ch.material = Array.isArray(ch.material) ? nowe : nowe[0];
+                        if (ch.geometry) { try { ch.geometry.computeBoundingBox(); ch.geometry.computeBoundingSphere(); } catch (e) {} }
+                    });
+                    let minY = Infinity, maxY = -Infinity;
+                    heroModelProto.traverse(ch => {
+                        if (!ch.geometry || !ch.geometry.boundingBox) return;
+                        minY = Math.min(minY, ch.geometry.boundingBox.min.y);
+                        maxY = Math.max(maxY, ch.geometry.boundingBox.max.y);
+                    });
+                    const wys = (isFinite(maxY - minY) && maxY - minY > 0.001) ? (maxY - minY) : 1.7;
+                    heroModelProto.userData.autoScale = Math.min(100, Math.max(0.0005, 1.9 / wys));
+                    heroModelProto.userData.footOffset = isFinite(minY) ? -minY * heroModelProto.userData.autoScale : 0;
+                    heroModelReady = true;
+                    console.info('[model] Wczytano bohatera. Animacje: ' + Object.keys(heroModelClips).join(', '));
+                }, undefined, () => {
+                    console.info('[model] Brak ' + HERO_MODEL_URL + ' - bohater pozostanie bryłą.');
+                });
+            } catch (e) { console.info('[model] Bohater pominięty:', e); }
+        }
+
+        function buildHeroModelInstance() {
+            if (!heroModelReady || !heroModelProto) return null;
+            let klon;
+            if (THREE.SkeletonUtils && THREE.SkeletonUtils.clone) klon = THREE.SkeletonUtils.clone(heroModelProto);
+            else if (!heroModelProto.userData.wUzyciu) { klon = heroModelProto; heroModelProto.userData.wUzyciu = true; }
+            else return null;
+            klon.traverse(ch => { if (ch.isMesh || ch.isSkinnedMesh) { ch.frustumCulled = false; ch.visible = true; } });
+
+            const grupa = new THREE.Group();
+            const s = heroModelProto.userData.autoScale || 1;
+            klon.scale.set(s, s, s);
+            klon.position.y = heroModelProto.userData.footOffset || 0;
+            grupa.add(klon);
+
+            const mixer = new THREE.AnimationMixer(klon);
+            const akcje = {};
+            Object.keys(heroModelClips).forEach(n => { akcje[n] = mixer.clipAction(heroModelClips[n]); });
+            if (akcje.hero_talk) { akcje.hero_talk.loop = THREE.LoopOnce; akcje.hero_talk.clampWhenFinished = true; }
+            if (akcje.hero_idle) akcje.hero_idle.play();
+
+            grupa.userData.mixer = mixer;
+            grupa.userData.actions = akcje;
+            grupa.userData.currentAction = 'hero_idle';
+            grupa.userData.isModel = true;
+            grupa.userData.isHeroModel = true;
+            warriorMixers.push(mixer);
+            return grupa;
+        }
+
         // Klon modelu wraz z własnym szkieletem i mikserem
         function buildWarriorModelInstance() {
             if (!warriorModelReady || !warriorModelProto) return null;
@@ -5266,6 +5471,32 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         // Przełączenie animacji z płynnym przejściem
         // Zgon z dokończeniem animacji - bryła znika dopiero po jej zakończeniu
+        // Wróg oberwał, ale przeżył - krótkie wzdrygnięcie
+        function wrogOberwal(wrog) {
+            if (!wrog || wrog.isDead) return;
+            animWroga(wrog, 'cios', true);
+        }
+
+        // Zgon wroga z dokończeniem animacji upadku
+        function zabijWroga(wrog, poZgonie) {
+            if (!wrog) return;
+            wrog.isDead = true;
+            const u = wrog.mesh && wrog.mesh.userData;
+            const cfg = (u && u.isEnemyModel) ? ENEMY_MODELS[u.enemyKind] : null;
+            const maSmierc = cfg && cfg.smierc && u.actions && u.actions[cfg.smierc];
+            if (maSmierc) {
+                animWroga(wrog, 'smierc');
+                const klip = wrogModele[u.enemyKind].klipy[cfg.smierc];
+                const dl = (klip ? klip.duration : 2) * 1000;
+                setTimeout(() => { scene.remove(wrog.mesh); refreshEnemyPositions(); if (poZgonie) poZgonie(); },
+                           Math.min(3500, dl));
+            } else {
+                scene.remove(wrog.mesh);
+                refreshEnemyPositions();
+                if (poZgonie) poZgonie();
+            }
+        }
+
         function killUnitWithAnim(unit, poZgonie) {
             if (!unit) return;
             unit.isDead = true;
@@ -5332,6 +5563,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function createCharacter(bodyColor, faceColor, hairColor, scale, unitType, noWeapon) {
             // Wojownicy gracza dostają model 3D, jeśli jest dostępny
+            // Bohater Teraźniejszości ma własny model
+            if (heroModelReady && unitType === 'hero') {
+                const h = buildHeroModelInstance();
+                if (h) { h.userData.yOffset = 0; h.userData.unitType = unitType; return h; }
+            }
             if (warriorModelReady && (unitType === 'player' || unitType === 'hero')) {
                 const m = buildWarriorModelInstance();
                 if (m) {
@@ -8000,6 +8236,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             document.getElementById('npc-dialogue').style.display = 'none';
             document.getElementById('sleeping-vital-container').style.display = 'none';
             dialogueOpen = false;
+            zblizKamereNaRozmowe(false);
             updatePlayerStatsUI();
             document.getElementById('instructions').innerHTML = 'Strzałki - poruszanie się<br>Kliknij nieznajomego, by porozmawiać<br>Coś dziwnego czai się we śnie...';
         }
@@ -8272,6 +8509,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             document.getElementById('npc-dialogue').style.display = 'none';
             document.getElementById('sleeping-vital-container').style.display = 'none';
             dialogueOpen = false;
+            zblizKamereNaRozmowe(false);
             updatePlayerStatsUI();
             document.getElementById('instructions').innerHTML = 'WSAD - poruszanie się (przenikasz przez ściany)<br>Nad śpiącymi widać, jaki sen ich dręczy<br><b>B</b> przy kościele - dzwon płoszy Cienie | <b>R</b> - zapal latarnię (1 Grace)';
         }
@@ -8919,13 +9157,22 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (hero.mesh.userData && hero.mesh.userData.isModel) {
                 const idzie = (dx !== 0 || dz !== 0);
                 const teraz = hero.mesh.userData.currentAction;
-                if (idzie && teraz !== 'walk') playWarriorAnim(hero.mesh, 'walk');
-                else if (!idzie && teraz === 'walk') playWarriorAnim(hero.mesh, 'idle');
+                if (hero.mesh.userData.isHeroModel) {
+                    // Nocą bohater się unosi - lot zastępuje chodzenie całkowicie
+                    const noc = (gameMode === 'presentNight');
+                    const ruch = noc ? 'hero_fly' : 'hero_walk';
+                    const spoczynek = noc ? 'hero_fly' : 'hero_idle';
+                    const docelowa = idzie ? ruch : spoczynek;
+                    if (teraz !== docelowa && teraz !== 'hero_talk') playWarriorAnim(hero.mesh, docelowa);
+                } else {
+                    if (idzie && teraz !== 'walk') playWarriorAnim(hero.mesh, 'walk');
+                    else if (!idzie && teraz === 'walk') playWarriorAnim(hero.mesh, 'idle');
+                }
             }
             if (dx !== 0 || dz !== 0) {
                 const len = Math.hypot(dx, dz) || 1;
                 dx /= len; dz /= len;
-                const speed = 6;
+                const speed = 6 * 0.8;   // o 20% wolniej - lepiej pasuje do animacji marszu
                 const moveX = dx * speed * dt, moveZ = dz * speed * dt;
                 const curX = hero.mesh.position.x, curZ = hero.mesh.position.z;
                 const nextX = curX + moveX, nextZ = curZ + moveZ;
@@ -8984,9 +9231,32 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         let dialogueYesCallback = null;
         let dialogueNoCallback = null;
 
+        // ========================================================
+        // --- ZBLIŻENIE KAMERY NA ROZMOWĘ ---
+        // Kamera łagodnie zjeżdża bliżej bohatera i wraca po zakończeniu rozmowy.
+        // ========================================================
+        let rozmowaZoom = 0;          // 0 = zwykły widok, 1 = pełne zbliżenie
+        let rozmowaZoomCel = 0;
+
+        function zblizKamereNaRozmowe(wlacz) {
+            rozmowaZoomCel = wlacz ? 1 : 0;
+        }
+
+        function updateRozmowaZoom(dt) {
+            if (rozmowaZoom === rozmowaZoomCel) return;
+            const krok = dt * 2.2;
+            if (rozmowaZoom < rozmowaZoomCel) rozmowaZoom = Math.min(rozmowaZoomCel, rozmowaZoom + krok);
+            else rozmowaZoom = Math.max(rozmowaZoomCel, rozmowaZoom - krok);
+        }
+
         function showDialogue(text, yesLabel, noLabel, onYes, onNo) {
             dialogueOpen = true;
             heroKeys.left = heroKeys.right = heroKeys.up = heroKeys.down = false;
+            // Rozmowa - bohater gestykuluje (nocą pozostaje w locie) i kamera zjeżdża bliżej
+            if (hero && hero.mesh.userData && hero.mesh.userData.isHeroModel && gameMode !== 'presentNight') {
+                playWarriorAnim(hero.mesh, 'hero_talk', true);
+            }
+            zblizKamereNaRozmowe(true);
             document.getElementById('npc-dialogue-text').innerText = text;
             const yesBtn = document.getElementById('npc-dialogue-yes');
             const noBtn = document.getElementById('npc-dialogue-no');
@@ -9728,6 +9998,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 scene.add(mesh);
                 // Na planszach z kondygnacjami część wrogów pilnuje wyższych pięter
                 let spawnLevel = 0;
+                // Jeśli dla tego typu wgrano model 3D, zastępuje on dotychczasową bryłę
+                const zModelu = buildEnemyModelInstance(type);
+                if (zModelu) { scene.remove(mesh); mesh = zModelu; scene.add(mesh); }
+
                 if (currentCombatTheme && currentCombatTheme.id === 'newyork' && Math.random() < 0.45) {
                     const cand = [];
                     for (let L = 1; L < MAX_LEVELS; L++) if (hasFloorAt(ex, ez, L)) cand.push(L);
@@ -11615,8 +11889,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const px = cameraFollowTarget.x + cameraPanOffset.x;
             const py = cameraFollowTarget.y;
             const pz = cameraFollowTarget.z + cameraPanOffset.z;
-            camera.position.set(px + Math.cos(cameraAngle) * cameraRadius, py + cameraHeight, pz + Math.sin(cameraAngle) * cameraRadius);
-            camera.lookAt(px, py, pz);
+            // Podczas rozmowy kamera podjeżdża bliżej i niżej
+            const promien = cameraRadius * (1 - 0.55 * rozmowaZoom);
+            const wysokosc = cameraHeight * (1 - 0.62 * rozmowaZoom);
+            camera.position.set(px + Math.cos(cameraAngle) * promien, py + wysokosc, pz + Math.sin(cameraAngle) * promien);
+            camera.lookAt(px, py + 1.2 * rozmowaZoom, pz);
         }
 
         // ========================================================
@@ -11989,12 +12266,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             document.getElementById('npc-dialogue').style.display = 'none';
             document.getElementById('npc-dialogue-no').style.display = '';
             dialogueOpen = false;
+            zblizKamereNaRozmowe(false);
             const cb = dialogueYesCallback; dialogueYesCallback = null; dialogueNoCallback = null;
             if (cb) cb();
         });
         document.getElementById('npc-dialogue-no').addEventListener('click', () => {
             document.getElementById('npc-dialogue').style.display = 'none';
             dialogueOpen = false;
+            zblizKamereNaRozmowe(false);
             const cb = dialogueNoCallback; dialogueYesCallback = null; dialogueNoCallback = null;
             if (cb) cb();
         });
@@ -13205,7 +13484,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                 faceTowards(e, walk[0].x, walk[0].z);
                                 SoundEngine.playStep(e.type);
                                 updateUI('Wróg rusza na poszukiwanie wojowników!');
-                                moveAlongPath({ mesh: e.mesh, userData: e.mesh.userData }, walk, 150, () => {
+                                if (e.mesh.userData.isEnemyModel) animWroga(e, 'walk');
+                    moveAlongPath({ mesh: e.mesh, userData: e.mesh.userData }, walk, 150, () => {
+                        if (e.mesh.userData.isEnemyModel) animWroga(e, 'idle');
                                     updateFoW();
                                     checkPlayerOverwatch(e, () => { if (!gameOver) setTimeout(processNextEnemy, 100); });
                                 });
@@ -13281,6 +13562,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         bestTarget.panicTurns = 1;
                         bestTarget.turnEnded = true;
                         bestTarget.ap = 0;
+                        animWroga(e, 'specjalna', true);
                         playFileSfx(AudioFiles.strzygaAttack, 0.8);
                         updateUI(`STRZYGA wrzeszczy! ${bestTarget.name} panikuje (szansa ${chance}%) i ucieka na oślep.`);
                         showFloatingWarning(`${bestTarget.name} wpada w panikę!`);
@@ -13573,6 +13855,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         : (e.type === 'stalker' ? "PEŁZACZ rzuca się na cel!"
                         : (e.type === 'zombie' ? "ZOMBIE wczepia się pazurami!"
                         : (e.type === 'robot' ? "ROBOT uderza stalową pięścią!" : "DUSZEK uderza i gaśnie!"))));
+                    animWroga(e, 'atak', true);
                     if (e.type === 'zombie') playFileSfx(AudioFiles.zombieAttack, 0.7);
                     faceTowards(e, px, pz);
                     let isHit = Math.random() < 0.85; 
@@ -13829,6 +14112,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             updateHouseWalls();
             if (isExploreMode()) {
                 updateHeroMovement(dt);
+            updateRozmowaZoom(dt);
+            if (rozmowaZoom > 0.001 && isExploreMode()) applyCameraPosition();
                 if (gameMode === 'present') { 
                     updateNPCUmbrellas();
                     checkHospitalStairs();
@@ -14977,6 +15262,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         });
 
         loadWarriorModel();   // model wojownika wczytujemy z wyprzedzeniem
+        loadHeroModel();      // i bohatera Teraźniejszości
+        loadEnemyModels();    // modele wrogów - każdy pojawi się, gdy plik będzie dostępny
         if (location.protocol === 'file:') {
             console.info('[model] Wskazówka: modele 3D wymagają serwera. Bez niego wojownicy będą bryłami, reszta gry działa bez zmian.');
         }
