@@ -11,6 +11,30 @@
     <title>Warriors of the Night</title>
     <style>
         html, body { height: 100%; overscroll-behavior: none; }
+        /* Celownik pojawia się po najechaniu na wroga - od razu widać, że da się strzelić */
+        body.celownik, body.celownik canvas {
+            cursor: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' width='38' height='38' viewBox='0 0 38 38'>\
+<circle cx='19' cy='19' r='12' fill='none' stroke='%23ff4444' stroke-width='2.5'/>\
+<circle cx='19' cy='19' r='2.5' fill='%23ff4444'/>\
+<line x1='19' y1='1' x2='19' y2='9' stroke='%23ff4444' stroke-width='2.5'/>\
+<line x1='19' y1='29' x2='19' y2='37' stroke='%23ff4444' stroke-width='2.5'/>\
+<line x1='1' y1='19' x2='9' y2='19' stroke='%23ff4444' stroke-width='2.5'/>\
+<line x1='29' y1='19' x2='37' y2='19' stroke='%23ff4444' stroke-width='2.5'/>\
+</svg>") 19 19, crosshair;
+        }
+        /* Poza zasięgiem strzału - celownik przygaszony */
+        body.celownik-szary, body.celownik-szary canvas {
+            cursor: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' width='38' height='38' viewBox='0 0 38 38'>\
+<circle cx='19' cy='19' r='12' fill='none' stroke='%23888888' stroke-width='2.5'/>\
+<circle cx='19' cy='19' r='2.5' fill='%23888888'/>\
+<line x1='19' y1='1' x2='19' y2='9' stroke='%23888888' stroke-width='2.5'/>\
+<line x1='19' y1='29' x2='19' y2='37' stroke='%23888888' stroke-width='2.5'/>\
+<line x1='1' y1='19' x2='9' y2='19' stroke='%23888888' stroke-width='2.5'/>\
+<line x1='29' y1='19' x2='37' y2='19' stroke='%23888888' stroke-width='2.5'/>\
+</svg>") 19 19, crosshair;
+        }
         body { margin: 0; overflow: hidden; background-color: #111; color: #fff; font-family: monospace; user-select: none; }
         
         /* Ekran Startowy */
@@ -8242,6 +8266,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         function startPresentMode(atPosition) {
+            zerujKursor();
             resetWarriorMixers();
             gameMode = 'present';
             gameOver = false;
@@ -10700,6 +10725,27 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Przesuwa podgląd na wskazany obszar. Wcześniej kliknięcie przechodziło
         // na planszę i wojownik próbował tam iść.
         // ========================================================
+        // Kursor zmienia się w celownik nad wrogiem. Szary oznacza, że strzał
+        // w tej chwili nie dojdzie - za daleko, brak punktów albo cel zasłonięty.
+        function ustawKursorCelownika(wrog, strzelec) {
+            const b = document.body;
+            if (!wrog || !strzelec) { zerujKursor(); return; }
+            const sx = Math.round(strzelec.mesh.position.x), sz = Math.round(strzelec.mesh.position.z);
+            const ex = Math.round(wrog.mesh.position.x), ez = Math.round(wrog.mesh.position.z);
+            const d = Math.max(Math.abs(ex - sx), Math.abs(ez - sz));
+            const sy = getLevelY(sx, sz, strzelec.level || 0), ey = getLevelY(ex, ez, wrog.level || 0);
+            const mozna = strzelec.ap >= shootCost && d <= getVisionRange() &&
+                          checkLineOfSight3D(sx, sy + 1, sz, ex, ey + 0.5, ez) &&
+                          !floorsBlockShot(sx, sz, strzelec.level || 0, ex, ez, wrog.level || 0);
+            b.classList.toggle('celownik', mozna);
+            b.classList.toggle('celownik-szary', !mozna);
+        }
+
+        function zerujKursor() {
+            document.body.classList.remove('celownik');
+            document.body.classList.remove('celownik-szary');
+        }
+
         function podepnijMinimape() {
             const cvs = document.getElementById('minimap-canvas');
             const box = document.getElementById('minimap-container');
@@ -11070,6 +11116,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         function startGame(count) {
+            zerujKursor();
             resetWarriorMixers();   // stare modele odchodzą razem z poprzednią misją
             if (znacznikWroga) { scene.remove(znacznikWroga); znacznikWroga = null; }
             resetDostrzezonych();
@@ -12738,8 +12785,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 let remainingAP = active.ap, msg = "";
                 let distanceXY = Math.abs(targetX - startX) + Math.abs(targetZ - startZ);
 
+                if (!hoveredEnemy) zerujKursor();
                 if (distanceXY === 0) { msg = `Twoja pozycja`; remainingAP = active.ap; } 
                 else if (hoveredEnemy) {
+                    ustawKursorCelownika(hoveredEnemy, active);
                     let eName = hoveredEnemy.type === 'brute' ? 'DUŻY (Walka wręcz)' : (hoveredEnemy.type === 'fast' ? 'SZYBKI (Zwiadowca)' : 'PODSTAWOWY');
                     remainingAP = active.ap - shootCost;
 
