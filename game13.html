@@ -7598,6 +7598,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function toggleTestPanel() {
             const el = document.getElementById('test-overlay');
+            // Rozwinięta lista Ustawień zasłaniałaby panel - zwijamy ją od razu
+            const dd = document.getElementById('settings-dropdown');
+            if (dd) dd.style.display = 'none';
             if (el.style.display === 'flex') { el.style.display = 'none'; return; }
             renderTestPanel();
             el.style.display = 'flex';
@@ -10684,7 +10687,50 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             minimapDataCtx.putImageData(imgData, 0, 0);
         }
 
+        // ========================================================
+        // --- KLIKNIĘCIE W MAPĘ TAKTYCZNĄ ---
+        // Przesuwa podgląd na wskazany obszar. Wcześniej kliknięcie przechodziło
+        // na planszę i wojownik próbował tam iść.
+        // ========================================================
+        function podepnijMinimape() {
+            const cvs = document.getElementById('minimap-canvas');
+            const box = document.getElementById('minimap-container');
+            if (!cvs || cvs.dataset.podpieta) return;
+            cvs.dataset.podpieta = '1';
+            cvs.style.cursor = 'pointer';
+
+            // Kliknięcia na obszarze mapy nie mogą trafiać na planszę
+            box.addEventListener('pointerdown', (e) => e.stopPropagation(), true);
+
+            cvs.addEventListener('dblclick', (e) => {
+                e.stopPropagation();
+                updateCameraPosition();   // powrót do aktywnego wojownika
+                updateUI('Podgląd wrócił do wojownika.');
+            });
+
+            cvs.addEventListener('pointerdown', (e) => {
+                e.stopPropagation();
+                if (gameMode !== 'dream' || gameOver) return;
+                const r = cvs.getBoundingClientRect();
+                const ux = (e.clientX - r.left) / r.width;
+                const uz = (e.clientY - r.top) / r.height;
+                if (ux < 0 || ux > 1 || uz < 0 || uz > 1) return;
+
+                // Przeliczenie na współrzędne planszy
+                const wx = Math.round(ux * mapWidth) - offsetX;
+                const wz = Math.round(uz * mapDepth) - offsetZ;
+                const a = getActiveSoldier();
+                const bazaX = a ? a.mesh.position.x : 0;
+                const bazaZ = a ? a.mesh.position.z : 0;
+                cameraPanOffset.set(wx - bazaX, 0, wz - bazaZ);
+                applyCameraPosition();
+                renderMinimap();
+                updateUI('Podgląd przesunięty. Kliknij mapę dwukrotnie, by wrócić do wojownika.');
+            });
+        }
+
         function renderMinimap() {
+            podepnijMinimape();
             minimapCtx.imageSmoothingEnabled = false;
             minimapCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
             minimapCtx.drawImage(minimapDataCanvas, 0, 0, minimapCanvas.width, minimapCanvas.height);
