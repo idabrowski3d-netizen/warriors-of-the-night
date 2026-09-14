@@ -400,10 +400,13 @@
         #minimap-container {
             position: absolute; top: 20px; right: 20px; z-index: 5;
             background: rgba(0,0,0,0.7); border: 1px solid #44aaff; border-radius: 5px;
-            padding: 8px; pointer-events: none;
+            padding: 8px;
+            /* Mapa musi przyjmować kliknięcia - wcześniej pointer-events: none sprawiało,
+               że kliknięcie przechodziło na planszę i wojownik próbował tam iść. */
+            pointer-events: auto;
         }
         #minimap-label { font-size: 11px; color: #44aaff; text-align: center; letter-spacing: 1px; margin-bottom: 5px; }
-        #minimap-canvas { display: block; image-rendering: pixelated; border: 1px solid #555; }
+        #minimap-canvas { display: block; image-rendering: pixelated; border: 1px solid #555; cursor: pointer; touch-action: none; }
 
         #player-stats-panel {
             display: none; position: absolute; top: 20px; left: 20px; z-index: 5;
@@ -4148,7 +4151,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const UI_OVERLAY_IDS = ['settings-menu', 'npc-dialogue', 'abilities-overlay', 'test-overlay',
                                 'help-overlay', 'bestiary-overlay', 'levelup-overlay', 'loadpick-overlay',
                                 'inventory-panel-overlay', 'stats-panel-overlay', 'start-screen', 'sin-overlay',
-                                'game-over-screen', 'title-screen', 'name-prompt-screen'];
+                                'game-over-screen', 'title-screen', 'name-prompt-screen',
+                                'minimap-container', 'touch-ui'];
 
         function isUiClick(event) {
             const t = event && event.target;
