@@ -616,6 +616,7 @@
             <button class="touch-btn" data-klawisz="tab" title="Następny wojownik">👤</button>
             <button class="touch-btn" data-klawisz="obrotL" title="Obróć w lewo">↺</button>
             <button class="touch-btn" data-klawisz="obrotP" title="Obróć w prawo">↻</button>
+            <button class="touch-btn" data-klawisz="powrot" title="Widok na wojownika">🎯</button>
             <button class="touch-btn" id="btn-pelny-ekran" title="Pełny ekran">⛶</button>
         </div>
     </div>
@@ -12534,6 +12535,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const nameScreenOpen = document.getElementById('name-prompt-screen').style.display === 'flex';
             // Panel postaci przeniesiony z [S] na [C] - [S] obsługuje teraz ruch w dół (WSAD)
             if (k === 'c' && !dialogueOpen && !nameScreenOpen) { e.preventDefault(); toggleStatsPanel(); }
+            if (k === 'f' && gameMode === 'dream' && !dialogueOpen && !nameScreenOpen) {
+                e.preventDefault(); updateCameraPosition();   // F - powrót widoku do wojownika
+                updateUI('Widok wrócił do wojownika.');
+            }
             if (k === 'i' && !dialogueOpen && !nameScreenOpen) { e.preventDefault(); toggleInventoryPanel(); }
             if (k === 'h' && !dialogueOpen && !nameScreenOpen) { e.preventDefault(); toggleBestiary(); }
             if (k === 'k' && document.getElementById('inventory-panel-overlay').style.display === 'flex') {
@@ -12916,6 +12921,52 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 speakAt(npc, line, `[${info.label}]` + (hint ? ' ' + hint : ''));
             }
         }
+
+        // ========================================================
+        // --- PRZESUWANIE PLANSZY ---
+        // Wciśnięta rolka (środkowy przycisk) przeciąga widok bez ruszania wojownika.
+        // Na telefonie to samo robią dwa palce przesuwane równolegle.
+        // ========================================================
+        let przeciaganieWidoku = null;
+
+        function ekranNaPlansze(dx, dy) {
+            // Przeliczamy ruch myszy na kierunki planszy z uwzględnieniem obrotu kamery
+            const skala = 0.06 * (cameraHeight / 25);
+            const cos = Math.cos(cameraAngle), sin = Math.sin(cameraAngle);
+            return {
+                x: (-dx * sin - dy * cos) * skala,
+                z: ( dx * cos - dy * sin) * skala
+            };
+        }
+
+        window.addEventListener('pointerdown', (e) => {
+            if (e.button !== 1) return;            // tylko rolka
+            if (gameMode !== 'dream') return;
+            e.preventDefault();
+            przeciaganieWidoku = { x: e.clientX, y: e.clientY };
+            document.body.style.cursor = 'grabbing';
+        }, true);
+
+        window.addEventListener('pointermove', (e) => {
+            if (!przeciaganieWidoku) return;
+            const dx = e.clientX - przeciaganieWidoku.x;
+            const dy = e.clientY - przeciaganieWidoku.y;
+            przeciaganieWidoku = { x: e.clientX, y: e.clientY };
+            const r = ekranNaPlansze(dx, dy);
+            cameraPanOffset.set(cameraPanOffset.x + r.x, 0, cameraPanOffset.z + r.z);
+            applyCameraPosition();
+        }, true);
+
+        const koniecPrzeciagania = () => {
+            if (!przeciaganieWidoku) return;
+            przeciaganieWidoku = null;
+            document.body.style.cursor = '';
+        };
+        window.addEventListener('pointerup', koniecPrzeciagania, true);
+        window.addEventListener('pointercancel', koniecPrzeciagania, true);
+        // Środkowy przycisk domyślnie włącza przewijanie strony - blokujemy
+        window.addEventListener('auxclick', (e) => { if (e.button === 1) e.preventDefault(); });
+        window.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); });
 
         window.addEventListener('pointerdown', (event) => {
             if (isUiClick(event)) return;
@@ -15684,12 +15735,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     else if (k === 'tab') { if (gameMode === 'dream') selectNextSoldier(); }
                     else if (k === 'obrotL') rotateCameraBy(-Math.PI / 8);
                     else if (k === 'obrotP') rotateCameraBy(Math.PI / 8);
+                    else if (k === 'powrot') { updateCameraPosition(); updateUI('Widok wrócił do wojownika.'); }
                 });
             });
 
             // Dwa palce: obrót kamery i przybliżanie
             let palce = new Map();
-            let poprzedniKat = null;
+            let poprzedniKat = null, poprzedniSrodek = null;
             window.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') palce.set(e.pointerId, e); }, true);
             window.addEventListener('pointermove', (e) => {
                 if (e.pointerType !== 'touch' || !palce.has(e.pointerId)) return;
@@ -15697,15 +15749,26 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (palce.size !== 2) return;
                 const [a, b] = [...palce.values()];
                 const kat = Math.atan2(b.clientY - a.clientY, b.clientX - a.clientX);
+                const srodek = { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 };
                 if (poprzedniKat !== null) {
                     let roznica = kat - poprzedniKat;
                     if (roznica > Math.PI) roznica -= Math.PI * 2;
                     if (roznica < -Math.PI) roznica += Math.PI * 2;
-                    if (Math.abs(roznica) > 0.01) rotateCameraBy(roznica);
+                    if (Math.abs(roznica) > 0.02) rotateCameraBy(roznica);
                 }
+                // Równoległe przesunięcie obu palców przeciąga widok
+                if (poprzedniSrodek && gameMode === 'dream') {
+                    const dx = srodek.x - poprzedniSrodek.x, dy = srodek.y - poprzedniSrodek.y;
+                    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+                        const r = ekranNaPlansze(dx, dy);
+                        cameraPanOffset.set(cameraPanOffset.x + r.x, 0, cameraPanOffset.z + r.z);
+                        applyCameraPosition();
+                    }
+                }
+                poprzedniSrodek = srodek;
                 poprzedniKat = kat;
             }, true);
-            const zwolnij = (e) => { palce.delete(e.pointerId); if (palce.size < 2) poprzedniKat = null; };
+            const zwolnij = (e) => { palce.delete(e.pointerId); if (palce.size < 2) { poprzedniKat = null; poprzedniSrodek = null; } };
             window.addEventListener('pointerup', zwolnij, true);
             window.addEventListener('pointercancel', zwolnij, true);
 
@@ -15715,7 +15778,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 stick.style.display = wMiescie ? '' : 'none';
                 document.querySelectorAll('.touch-btn').forEach(b => {
                     const k = b.dataset.klawisz;
-                    const tylkoWalka = (k === 'tab' || k === 'obrotL' || k === 'obrotP');
+                    const tylkoWalka = (k === 'tab' || k === 'obrotL' || k === 'obrotP' || k === 'powrot');
                     if (b.id === 'btn-pelny-ekran') { b.style.display = ''; return; }
                     b.style.display = (tylkoWalka && wMiescie) ? 'none' : '';
                 });
