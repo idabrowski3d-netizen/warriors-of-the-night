@@ -2,6 +2,12 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0b0b12">
+    <link rel="manifest" href="manifest.json">
     <title>Warriors of the Night</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #111; color: #fff; font-family: monospace; user-select: none; }
@@ -455,6 +461,7 @@
     <div id="settings-menu">
         <button id="settings-toggle-btn">⚙ Ustawienia</button>
         <div id="settings-dropdown">
+            <label><input type="checkbox" id="chk-oszczedny"> Tryb oszczędny (płynniej na telefonie)</label>
             <label><input type="checkbox" id="toggle-sfx" checked> Dźwięki</label>
             <label><input type="checkbox" id="toggle-music" checked> Muzyka / Otoczenie</label>
             <div style="height:1px; background:#444; margin:8px 0;"></div>
@@ -594,6 +601,16 @@
             <div id="bestiary-preview-wrap"><canvas id="bestiary-preview"></canvas></div>
             <div id="bestiary-content"></div>
             <button id="btn-close-bestiary" class="start-btn">Zamknij [H]</button>
+        </div>
+    </div>
+
+    <div id="touch-ui">
+        <div id="touch-stick"><div id="touch-stick-knob"></div></div>
+        <div id="touch-buttons">
+            <button class="touch-btn" data-klawisz="i" title="Ekwipunek">🎒</button>
+            <button class="touch-btn" data-klawisz="tab" title="Następny wojownik">👤</button>
+            <button class="touch-btn" data-klawisz="obrotL" title="Obróć w lewo">↺</button>
+            <button class="touch-btn" data-klawisz="obrotP" title="Obróć w prawo">↻</button>
         </div>
     </div>
 
@@ -1203,9 +1220,22 @@
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
         let cameraAngle = Math.PI / 4; const cameraRadius = 20; const cameraHeight = 25;
         
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        // ========================================================
+        // --- TRYB MOBILNY ---
+        // Telefon dostaje lżejsze ustawienia obrazu i sterowanie dotykiem.
+        // ========================================================
+        const naTelefonie = (() => {
+            const dotyk = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+            const waski = Math.min(window.innerWidth, window.innerHeight) < 820;
+            return dotyk && waski;
+        })();
+        let trybOszczedny = naTelefonie;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: !trybOszczedny });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
+        // Cienie i pełna rozdzielczość bardzo obciążają telefon
+        renderer.shadowMap.enabled = !trybOszczedny;
+        renderer.setPixelRatio(trybOszczedny ? Math.min(1.5, window.devicePixelRatio || 1) : (window.devicePixelRatio || 1));
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
 
@@ -3423,9 +3453,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (!currentCombatTheme || currentCombatTheme.id !== 'wyspy') return;
 
             const warstwy = [
-                { y: -5.5, ile: 150, r: 7,  op: 0.5,  kolor: 0xdfe8f5, sx: 1.0 },
-                { y: -8.5, ile: 110, r: 10, op: 0.38, kolor: 0xc3d2e8, sx: 1.5 },
-                { y: -13,  ile: 80,  r: 14, op: 0.26, kolor: 0x9fb3d0, sx: 2.2 }
+                { y: -5.5, ile: trybOszczedny ? 55 : 150, r: 7,  op: 0.5,  kolor: 0xdfe8f5, sx: 1.0 },
+                { y: -8.5, ile: trybOszczedny ? 40 : 110, r: 10, op: 0.38, kolor: 0xc3d2e8, sx: 1.5 },
+                { y: -13,  ile: trybOszczedny ? 25 : 80,  r: 14, op: 0.26, kolor: 0x9fb3d0, sx: 2.2 }
             ];
             warstwy.forEach(w => {
                 const geo = new THREE.SphereGeometry(1, 8, 6);
@@ -15427,6 +15457,117 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         document.getElementById('title-click-exit').addEventListener('click', () => {
             window.location.href = 'https://www.google.pl';
         });
+
+        // ========================================================
+        // --- OBSŁUGA DOTYKU ---
+        // Drążek zastępuje klawisze w mieście, przyciski - skróty klawiszowe,
+        // dwa palce obracają kamerę w walce.
+        // ========================================================
+        function wlaczSterowanieDotykiem() {
+            if (!naTelefonie) return;
+            document.body.classList.add('mobilny');
+
+            const stick = document.getElementById('touch-stick');
+            const knob = document.getElementById('touch-stick-knob');
+            let palecStick = null;
+            const promien = 44;
+
+            function ustawKierunek(dx, dz) {
+                const prog = 0.28;
+                heroKeys.left  = dx < -prog;
+                heroKeys.right = dx >  prog;
+                heroKeys.up    = dz < -prog;
+                heroKeys.down  = dz >  prog;
+            }
+            function zeruj() {
+                heroKeys.left = heroKeys.right = heroKeys.up = heroKeys.down = false;
+                knob.style.transform = 'translate(-50%,-50%)';
+            }
+
+            stick.addEventListener('pointerdown', (e) => {
+                palecStick = e.pointerId;
+                stick.setPointerCapture(e.pointerId);
+                e.preventDefault();
+            });
+            stick.addEventListener('pointermove', (e) => {
+                if (palecStick !== e.pointerId) return;
+                const r = stick.getBoundingClientRect();
+                let dx = e.clientX - (r.left + r.width / 2);
+                let dz = e.clientY - (r.top + r.height / 2);
+                const dl = Math.hypot(dx, dz) || 1;
+                const ogr = Math.min(dl, promien);
+                const nx = (dx / dl) * ogr, nz = (dz / dl) * ogr;
+                knob.style.transform = `translate(calc(-50% + ${nx}px), calc(-50% + ${nz}px))`;
+                ustawKierunek(nx / promien, nz / promien);
+                e.preventDefault();
+            });
+            const koniec = (e) => { if (palecStick === e.pointerId) { palecStick = null; zeruj(); } };
+            stick.addEventListener('pointerup', koniec);
+            stick.addEventListener('pointercancel', koniec);
+
+            // Przyciski zamiast skrótów klawiszowych
+            document.querySelectorAll('.touch-btn').forEach(b => {
+                b.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const k = b.dataset.klawisz;
+                    if (k === 'i') toggleInventoryPanel();
+                    else if (k === 'tab') { if (gameMode === 'dream') selectNextSoldier(); }
+                    else if (k === 'obrotL') rotateCameraBy(-Math.PI / 8);
+                    else if (k === 'obrotP') rotateCameraBy(Math.PI / 8);
+                });
+            });
+
+            // Dwa palce: obrót kamery i przybliżanie
+            let palce = new Map();
+            let poprzedniKat = null;
+            window.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') palce.set(e.pointerId, e); }, true);
+            window.addEventListener('pointermove', (e) => {
+                if (e.pointerType !== 'touch' || !palce.has(e.pointerId)) return;
+                palce.set(e.pointerId, e);
+                if (palce.size !== 2) return;
+                const [a, b] = [...palce.values()];
+                const kat = Math.atan2(b.clientY - a.clientY, b.clientX - a.clientX);
+                if (poprzedniKat !== null) {
+                    let roznica = kat - poprzedniKat;
+                    if (roznica > Math.PI) roznica -= Math.PI * 2;
+                    if (roznica < -Math.PI) roznica += Math.PI * 2;
+                    if (Math.abs(roznica) > 0.01) rotateCameraBy(roznica);
+                }
+                poprzedniKat = kat;
+            }, true);
+            const zwolnij = (e) => { palce.delete(e.pointerId); if (palce.size < 2) poprzedniKat = null; };
+            window.addEventListener('pointerup', zwolnij, true);
+            window.addEventListener('pointercancel', zwolnij, true);
+
+            // Drążek tylko w mieście, przyciski obrotu tylko w walce
+            setInterval(() => {
+                const wMiescie = (gameMode === 'present' || gameMode === 'presentNight');
+                stick.style.display = wMiescie ? '' : 'none';
+                document.querySelectorAll('.touch-btn').forEach(b => {
+                    const k = b.dataset.klawisz;
+                    const tylkoWalka = (k === 'tab' || k === 'obrotL' || k === 'obrotP');
+                    b.style.display = (tylkoWalka && wMiescie) ? 'none' : '';
+                });
+            }, 400);
+
+            console.info('[mobilny] Sterowanie dotykiem włączone, tryb oszczędny obrazu aktywny.');
+        }
+
+        // Przełącznik trybu oszczędnego - działa też na komputerze, gdyby gra zwalniała
+        (function () {
+            const chk = document.getElementById('chk-oszczedny');
+            if (!chk) return;
+            chk.checked = trybOszczedny;
+            chk.addEventListener('change', () => {
+                trybOszczedny = chk.checked;
+                renderer.shadowMap.enabled = !trybOszczedny;
+                renderer.setPixelRatio(trybOszczedny ? Math.min(1.5, window.devicePixelRatio || 1) : (window.devicePixelRatio || 1));
+                updateUI(trybOszczedny ? 'Tryb oszczędny włączony - mniej efektów, płynniejszy obraz.'
+                                       : 'Tryb oszczędny wyłączony - pełna jakość obrazu.');
+            });
+        })();
+
+        wlaczSterowanieDotykiem();
 
         loadWarriorModel();   // model wojownika wczytujemy z wyprzedzeniem
         loadHeroModel();      // i bohatera Teraźniejszości

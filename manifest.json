@@ -1,0 +1,13 @@
+{
+  "name": "Warriors of the Night — Misja we śnie",
+  "short_name": "Warriors",
+  "description": "Taktyczna gra 3D: nocą wchodzisz w sny mieszkańców i oczyszczasz je z koszmarów.",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b0b12",
+  "theme_color": "#0b0b12",
+  "icons": [
+    { "src": "graphics/plansza_poczatkowa.jpg", "sizes": "512x512", "type": "image/jpeg", "purpose": "any" }
+  ]
+}
