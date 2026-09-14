@@ -10027,9 +10027,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 scene.add(mesh);
                 // Na planszach z kondygnacjami część wrogów pilnuje wyższych pięter
                 let spawnLevel = 0;
-                // Jeśli dla tego typu wgrano model 3D, zastępuje on dotychczasową bryłę
+                // Jeśli dla tego typu wgrano model 3D, zastępuje on dotychczasową bryłę.
+                // Pozycję trzeba przepisać - inaczej model trafia na scenę w punkcie (0,0,0)
+                // i wszystkie takie postacie lądują jedna na drugiej.
                 const zModelu = buildEnemyModelInstance(type);
-                if (zModelu) { scene.remove(mesh); mesh = zModelu; scene.add(mesh); }
+                if (zModelu) {
+                    scene.remove(mesh);
+                    zModelu.position.set(ex, ey + (zModelu.userData.yOffset || 0), ez);
+                    zModelu.rotation.copy(mesh.rotation);
+                    mesh = zModelu;
+                    scene.add(mesh);
+                }
 
                 if (currentCombatTheme && currentCombatTheme.id === 'newyork' && Math.random() < 0.45) {
                     const cand = [];
@@ -10041,6 +10049,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 mesh.lookAt(mesh.position.x + Math.sin(initialFacing), mesh.position.y, mesh.position.z + Math.cos(initialFacing));
                 noteEnemyEncountered(type);
                 enemies.push({ mesh: mesh, type: type, hp: maxHp, maxHp: maxHp, ap: maxAp, maxAp: maxAp, accuracyBonus: accuracyBonus, isDead: false, facingAngle: initialFacing, level: spawnLevel });
+                // Siatka zajętości musi znać TEGO wroga, zanim losujemy miejsce dla następnego -
+                // bez tego kolejni sprawdzali stan sprzed rozstawiania i lądowali na sobie.
+                refreshEnemyPositions();
                 refreshEnemyPositions();
             }
         }
@@ -11523,6 +11534,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     scene.add(m);
                     enemies.push({ mesh: m, type: 'standard', hp: 10, maxHp: 10, ap: 10, maxAp: 10,
                                    accuracyBonus: 0, isDead: false, facingAngle: Math.random() * Math.PI * 2, level: lvl });
+                    // Strażnicy dodawani są seryjnie - bez odświeżenia siatki kolejni
+                    // sprawdzaliby stan sprzed rozstawienia i stawali jeden na drugim.
+                    refreshEnemyPositions();
                 };
                 for (let i = 0; i < 5; i++) addGuard(minX + 3 + i * 5, minZ + 3, 0);
                 for (let i = 0; i < 5; i++) addGuard(minX + 3 + i * 5, maxZ - 3, 0);
