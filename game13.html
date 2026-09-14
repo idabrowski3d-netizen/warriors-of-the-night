@@ -10,6 +10,7 @@
     <link rel="manifest" href="manifest.json">
     <title>Warriors of the Night</title>
     <style>
+        html, body { height: 100%; overscroll-behavior: none; }
         body { margin: 0; overflow: hidden; background-color: #111; color: #fff; font-family: monospace; user-select: none; }
         
         /* Ekran Startowy */
@@ -462,6 +463,7 @@
         <button id="settings-toggle-btn">⚙ Ustawienia</button>
         <div id="settings-dropdown">
             <label><input type="checkbox" id="chk-oszczedny"> Tryb oszczędny (płynniej na telefonie)</label>
+            <label><input type="checkbox" id="chk-pelny-ekran"> Pełny ekran</label>
             <label><input type="checkbox" id="toggle-sfx" checked> Dźwięki</label>
             <label><input type="checkbox" id="toggle-music" checked> Muzyka / Otoczenie</label>
             <div style="height:1px; background:#444; margin:8px 0;"></div>
@@ -611,6 +613,7 @@
             <button class="touch-btn" data-klawisz="tab" title="Następny wojownik">👤</button>
             <button class="touch-btn" data-klawisz="obrotL" title="Obróć w lewo">↺</button>
             <button class="touch-btn" data-klawisz="obrotP" title="Obróć w prawo">↻</button>
+            <button class="touch-btn" id="btn-pelny-ekran" title="Pełny ekran">⛶</button>
         </div>
     </div>
 
@@ -15509,6 +15512,123 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Drążek zastępuje klawisze w mieście, przyciski - skróty klawiszowe,
         // dwa palce obracają kamerę w walce.
         // ========================================================
+        // ========================================================
+        // --- PEŁNY EKRAN ---
+        // Przeglądarka pozwala na to tylko w odpowiedzi na dotknięcie przez gracza,
+        // dlatego wywołujemy to przy pierwszym dotknięciu, a nie przy starcie.
+        // ========================================================
+        function czyPelnyEkran() {
+            return !!(document.fullscreenElement || document.webkitFullscreenElement);
+        }
+
+        function wejdzWPelnyEkran() {
+            const el = document.documentElement;
+            const f = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+            if (!f) return false;
+            try {
+                const p = f.call(el, { navigationUI: 'hide' });
+                if (p && p.then) p.then(zablokujOrientacje).catch(() => {});
+                else zablokujOrientacje();
+                return true;
+            } catch (e) { return false; }
+        }
+
+        function wyjdzZPelnegoEkranu() {
+            const f = document.exitFullscreen || document.webkitExitFullscreen;
+            if (f) { try { f.call(document); } catch (e) {} }
+        }
+
+        function zablokujOrientacje() {
+            // Gra jest pomyślana poziomo - jeśli telefon pozwala, wymuszamy tę orientację
+            try {
+                if (screen.orientation && screen.orientation.lock) {
+                    screen.orientation.lock('landscape').catch(() => {});
+                }
+            } catch (e) {}
+        }
+
+        function przelaczPelnyEkran() {
+            if (czyPelnyEkran()) wyjdzZPelnegoEkranu();
+            else wejdzWPelnyEkran();
+        }
+
+        function podepnijPelnyEkran() {
+            const btn = document.getElementById('btn-pelny-ekran');
+            if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); przelaczPelnyEkran(); });
+
+            // Pierwsze dotknięcie ekranu włącza pełny ekran - to jedyny moment,
+            // w którym przeglądarka na to pozwala
+            if (!naTelefonie) return;
+            const pierwszeDotkniecie = () => {
+                if (!czyPelnyEkran()) wejdzWPelnyEkran();
+                window.removeEventListener('pointerdown', pierwszeDotkniecie);
+            };
+            window.addEventListener('pointerdown', pierwszeDotkniecie);
+        }
+
+        // ========================================================
+        // --- PEŁNY EKRAN ---
+        // Przeglądarki wymagają gestu użytkownika, więc włączamy go przy pierwszym
+        // dotknięciu ekranu tytułowego. iPhone nie wspiera tego mechanizmu -
+        // tam pełny ekran daje dopiero dodanie gry do ekranu głównego.
+        // ========================================================
+        function czyPelnyEkran() {
+            return !!(document.fullscreenElement || document.webkitFullscreenElement);
+        }
+
+        function wlaczPelnyEkran() {
+            const el = document.documentElement;
+            try {
+                if (czyPelnyEkran()) return;
+                const zadanie = el.requestFullscreen ? el.requestFullscreen({ navigationUI: 'hide' })
+                              : (el.webkitRequestFullscreen ? el.webkitRequestFullscreen() : null);
+                if (zadanie && zadanie.then) {
+                    zadanie.then(zablokujPoziomo).catch(() => {});
+                } else {
+                    zablokujPoziomo();
+                }
+            } catch (e) { /* przeglądarka nie pozwala - gra działa dalej w oknie */ }
+        }
+
+        function wylaczPelnyEkran() {
+            try {
+                if (document.exitFullscreen) document.exitFullscreen();
+                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+            } catch (e) {}
+        }
+
+        function zablokujPoziomo() {
+            // Gra jest czytelniejsza w poziomie - próbujemy zablokować obrót
+            try {
+                if (screen.orientation && screen.orientation.lock) {
+                    screen.orientation.lock('landscape').catch(() => {});
+                }
+            } catch (e) {}
+        }
+
+        function podepnijPelnyEkran() {
+            // Pierwsze dotknięcie/kliknięcie uruchamia pełny ekran - tylko na dotykowych
+            if (!naTelefonie) return;
+            const raz = () => {
+                wlaczPelnyEkran();
+                window.removeEventListener('pointerdown', raz);
+            };
+            window.addEventListener('pointerdown', raz);
+
+            // Przycisk przełączający, gdyby gracz wyszedł z pełnego ekranu
+            const b = document.createElement('button');
+            b.id = 'btn-pelny-ekran';
+            b.className = 'touch-btn';
+            b.title = 'Pełny ekran';
+            b.innerText = '⛶';
+            b.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (czyPelnyEkran()) wylaczPelnyEkran(); else wlaczPelnyEkran();
+            });
+            const kontener = document.getElementById('touch-buttons');
+            if (kontener) kontener.appendChild(b);
+        }
+
         function wlaczSterowanieDotykiem() {
             if (!naTelefonie) return;
             document.body.classList.add('mobilny');
@@ -15592,6 +15712,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 document.querySelectorAll('.touch-btn').forEach(b => {
                     const k = b.dataset.klawisz;
                     const tylkoWalka = (k === 'tab' || k === 'obrotL' || k === 'obrotP');
+                    if (b.id === 'btn-pelny-ekran') { b.style.display = ''; return; }
                     b.style.display = (tylkoWalka && wMiescie) ? 'none' : '';
                 });
             }, 400);
@@ -15614,6 +15735,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         })();
 
         wlaczSterowanieDotykiem();
+        podepnijPelnyEkran();
+        podepnijPelnyEkran();
+        (function () {
+            const chk = document.getElementById('chk-pelny-ekran');
+            if (!chk) return;
+            chk.addEventListener('change', () => { przelaczPelnyEkran(); });
+            document.addEventListener('fullscreenchange', () => { chk.checked = czyPelnyEkran(); });
+        })();
 
         loadWarriorModel();   // model wojownika wczytujemy z wyprzedzeniem
         loadHeroModel();      // i bohatera Teraźniejszości
