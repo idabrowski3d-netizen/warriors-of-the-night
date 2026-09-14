@@ -12943,6 +12943,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (e.button !== 1) return;            // tylko rolka
             if (gameMode !== 'dream') return;
             e.preventDefault();
+            // Bez tego zdarzenie leci dalej do obsługi rozkazów i wojownik rusza się w tło
+            e.stopPropagation();
+            if (e.stopImmediatePropagation) e.stopImmediatePropagation();
             przeciaganieWidoku = { x: e.clientX, y: e.clientY };
             document.body.style.cursor = 'grabbing';
         }, true);
@@ -12969,6 +12972,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         window.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); });
 
         window.addEventListener('pointerdown', (event) => {
+            // Rozkazy wydaje się wyłącznie lewym przyciskiem; środkowy przesuwa widok,
+            // prawy jest wolny - inaczej każde kliknięcie ruszało wojownikiem.
+            if (event.button !== undefined && event.button !== 0) return;
+            if (przeciaganieWidoku) return;
             if (isUiClick(event)) return;
 
             if (isExploreMode()) {
