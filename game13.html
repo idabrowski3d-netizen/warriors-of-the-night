@@ -633,6 +633,18 @@
         </div>
     </div>
 
+    <div id="intro-overlay">
+        <div id="intro-box">
+            <div id="intro-karta"></div>
+            <div id="intro-tekst"></div>
+            <div id="intro-stopka">
+                <span id="intro-licznik"></span>
+                <button id="btn-intro-dalej" class="start-btn">Dalej</button>
+                <button id="btn-intro-pomin" class="start-btn" style="border-color:#7a7266;">Pomiń</button>
+            </div>
+        </div>
+    </div>
+
     <div id="touch-ui">
         <div id="touch-stick"><div id="touch-stick-knob"></div></div>
         <div id="touch-buttons">
@@ -15971,6 +15983,115 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const btnCloseInv = document.getElementById('btn-close-inventory');
         if (btnCloseInv) btnCloseInv.addEventListener('click', () => { document.getElementById('inventory-panel-overlay').style.display = 'none'; });
 
+        // ========================================================
+        // --- INTRO PO STWORZENIU POSTACI ---
+        // Krótka opowieść o tym, kim jest bohater i skąd ma swój dar.
+        // Tekst dobiera się do imienia, patrona i najmocniejszej cechy.
+        // ========================================================
+        let introKarty = [];
+        let introIndeks = 0;
+
+        function opisDaru(cecha) {
+            const opisy = {
+                zrecznosc: 'Nigdy nie potknąłeś się w ciemności. Stopy same znajdowały grunt, jakby ktoś szedł przed tobą i sprzątał drogę.',
+                witalnosc: 'Chorowałeś jak inni, ale gorączka ustępowała przed świtem. Mówiono, że masz w sobie coś, co nie chce ustąpić.',
+                madrosc: 'Rozumiałeś rzeczy, których nikt ci nie tłumaczył. Odpowiedzi przychodziły ci wcześniej niż pytania.',
+                silaPsychiczna: 'Strach cię omijał. Nie dlatego, że byłeś odważny - po prostu nie miał do ciebie dostępu.',
+                charyzma: 'Ludzie ci ufali, zanim zdążyłeś cokolwiek powiedzieć. Dzieci szły za tobą, psy przestawały szczekać.'
+            };
+            return opisy[cecha] || opisy.madrosc;
+        }
+
+        function najmocniejszaCecha() {
+            const klucze = ['zrecznosc', 'witalnosc', 'madrosc', 'silaPsychiczna', 'charyzma'];
+            let naj = klucze[0], wart = -1;
+            klucze.forEach(k => {
+                const v = playerCharacterStats[k] || 0;
+                if (v > wart) { wart = v; naj = k; }
+            });
+            return naj;
+        }
+
+        function zbudujIntro() {
+            const im = playerName || 'Bezimienny';
+            const patron = playerPatronKey || {};
+            const tytul = patron.title || 'twój patron';
+            const bio = patron.bio || '';
+            const cecha = najmocniejszaCecha();
+            const nazwaCechy = (STAT_INFO[cecha] ? STAT_INFO[cecha].name : cecha);
+
+            return [
+                {
+                    karta: 'Noc, w której przyszedłeś na świat',
+                    tekst: `Urodziłeś się w nocy, której nikt w okolicy nie zapomniał.\n\n` +
+                           `Burza zerwała dachy, a w samym środku wichury nad domem zrobiło się cicho. ` +
+                           `Akuszerka powiedziała później, że przez chwilę słyszała śpiew - i że nie był to żaden ` +
+                           `znany jej język.\n\n` +
+                           `Dano ci na imię <b>${im}</b>.`
+                },
+                {
+                    karta: 'Patron',
+                    tekst: `Nad twoją kołyską postawiono wizerunek: <b>${tytul}</b>.\n\n` +
+                           (bio ? `${bio}\n\n` : '') +
+                           `Matka mówiła, że to nie był przypadek - że imię samo cię znalazło. ` +
+                           `Cokolwiek w tym prawdy, coś z tamtej opieki w tobie zostało.`
+                },
+                {
+                    karta: 'Dar',
+                    tekst: `${opisDaru(cecha)}\n\n` +
+                           `Dopiero kapłan nazwał to po imieniu. Powiedział, że dostałeś <b>${nazwaCechy}</b> ` +
+                           `nie dla siebie - i że pewnego dnia upomni się o to ktoś, kto nie ma już własnych sił.`
+                },
+                {
+                    karta: 'Sny',
+                    tekst: `Miałeś dwanaście lat, gdy pierwszy raz wszedłeś w cudzy sen.\n\n` +
+                           `Był to sen sąsiada, który od tygodnia nie wstawał z łóżka. Zobaczyłeś tam coś, ` +
+                           `co siedziało mu na piersi i nie chciało zejść. Nie wiedziałeś jeszcze, że można ` +
+                           `to zabić. Uciekłeś.\n\n` +
+                           `Sąsiad umarł trzy dni później. Od tamtej pory już nie uciekasz.`
+                },
+                {
+                    karta: 'Teraz',
+                    tekst: `Za dnia jesteś jednym z wielu. Chodzisz po mieście, rozmawiasz z ludźmi, ` +
+                           `słuchasz o ich kłopotach.\n\n` +
+                           `Ale gdy zapada noc i miasto zasypia, <b>${im}</b> wchodzi tam, gdzie nikt inny nie wejdzie. ` +
+                           `W koszmary sąsiadów. Między to, co je dręczy, a nich samych.\n\n` +
+                           `Nie każdego uda ci się obudzić. Ale każdy, kogo zostawisz, będzie ci się śnił.`
+                }
+            ];
+        }
+
+        function pokazIntro(poZakonczeniu) {
+            introKarty = zbudujIntro();
+            introIndeks = 0;
+            document.getElementById('intro-overlay').style.display = 'flex';
+            rysujIntro();
+
+            const zamknij = () => {
+                document.getElementById('intro-overlay').style.display = 'none';
+                if (poZakonczeniu) poZakonczeniu();
+            };
+            const dalej = document.getElementById('btn-intro-dalej');
+            const pomin = document.getElementById('btn-intro-pomin');
+            dalej.onclick = (e) => {
+                e.stopPropagation();
+                introIndeks++;
+                if (introIndeks >= introKarty.length) { zamknij(); return; }
+                rysujIntro();
+            };
+            pomin.onclick = (e) => { e.stopPropagation(); zamknij(); };
+        }
+
+        function rysujIntro() {
+            const k = introKarty[introIndeks];
+            if (!k) return;
+            document.getElementById('intro-karta').innerText = k.karta;
+            document.getElementById('intro-tekst').innerHTML = k.tekst;
+            document.getElementById('intro-licznik').innerText = `${introIndeks + 1} / ${introKarty.length}`;
+            document.getElementById('btn-intro-dalej').innerText =
+                (introIndeks === introKarty.length - 1) ? 'Zaczynam' : 'Dalej';
+        }
+
         function submitPlayerName() {
             const input = document.getElementById('name-prompt-input');
             const name = input.value.trim();
@@ -15978,7 +16099,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             playerName = name;
             playerPatronKey = applyPatronBoost(name);
             document.getElementById('name-prompt-screen').style.display = 'none';
-            startPresentMode();
+            pokazIntro(() => startPresentMode());
         }
         document.getElementById('name-prompt-btn').addEventListener('click', submitPlayerName);
         document.getElementById('name-prompt-input').addEventListener('keydown', (e) => {
