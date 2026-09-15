@@ -56,8 +56,21 @@
             -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 16%, #000 84%, transparent 100%);
             mask-image: linear-gradient(to bottom, transparent 0%, #000 16%, #000 84%, transparent 100%);
         }
+        #intro-wideo {
+            position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+            object-fit: cover; opacity: 0; transition: opacity 0.8s ease;
+        }
+        #intro-wideo.widoczne { opacity: 0.55; }
+        /* Przyciemnienie, żeby tekst pozostał czytelny na każdym ujęciu */
+        #intro-zaslona {
+            position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, rgba(5,5,10,0.92) 0%, rgba(5,5,10,0.55) 35%,
+                        rgba(5,5,10,0.55) 65%, rgba(5,5,10,0.92) 100%);
+            pointer-events: none;
+        }
         #intro-tresc {
             position: absolute; left: 42px; right: 42px;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.95);
             font-size: 18px; line-height: 1.95; color: #ddd6c8; text-align: center;
             white-space: pre-wrap;
         }
@@ -702,6 +715,8 @@
     <div id="intro-overlay">
         <div id="intro-box">
             <div id="intro-okno">
+                <video id="intro-wideo" muted playsinline preload="auto"></video>
+                <div id="intro-zaslona"></div>
                 <div id="intro-tresc"></div>
             </div>
             <div id="intro-stopka">
@@ -16172,12 +16187,42 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             const koniec = () => {
                 if (introPrzewijanie) { clearInterval(introPrzewijanie); introPrzewijanie = null; }
+                try { wideo.pause(); wideo.removeAttribute('src'); wideo.load(); } catch (e) {}
                 document.getElementById('intro-overlay').style.display = 'none';
                 if (poZakonczeniu) poZakonczeniu();
             };
 
             const wysTekstu = () => tresc.scrollHeight || 1200;
             let ostatni = performance.now();
+
+            // --- FILMY DO KOLEJNYCH CZĘŚCI ---
+            // Każda część opowieści może mieć własne ujęcie w folderze mov/.
+            // Brak pliku nie przeszkadza - zostaje samo tło.
+            const wideo = document.getElementById('intro-wideo');
+            let biezacaScena = -1;
+
+            function ustawScene(nr) {
+                if (!wideo || nr === biezacaScena) return;
+                biezacaScena = nr;
+                const sciezka = `mov/scena${nr + 1}.mp4`;
+                wideo.classList.remove('widoczne');
+                // krótka przerwa na wygaszenie poprzedniego ujęcia
+                setTimeout(() => {
+                    if (biezacaScena !== nr) return;
+                    wideo.src = sciezka;
+                    wideo.loop = true;
+                    wideo.muted = true;
+                    const p = wideo.play();
+                    if (p && p.catch) p.catch(() => {});
+                }, 260);
+            }
+
+            wideo.addEventListener('loadeddata', () => { wideo.classList.add('widoczne'); });
+            wideo.addEventListener('error', () => {
+                // Brak pliku dla tej części - zostaje ciemne tło
+                wideo.classList.remove('widoczne');
+            });
+            ustawScene(0);
 
             if (introPrzewijanie) clearInterval(introPrzewijanie);
             introPrzewijanie = setInterval(() => {
@@ -16186,6 +16231,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 ostatni = teraz;
                 y -= predkosc * dt;
                 tresc.style.transform = `translateY(${y}px)`;
+
+                // Która część opowieści jest teraz na środku okna
+                const calosc = wysTekstu() + wysOkna;
+                const postep = Math.max(0, Math.min(0.999, (wysOkna - y) / calosc));
+                ustawScene(Math.floor(postep * karty.length));
                 // Tekst wyszedł górą - koniec
                 if (y < -wysTekstu()) koniec();
             }, 33);
