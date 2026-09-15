@@ -841,6 +841,51 @@
         // 2 tury albo czeka na pomoc towarzysza. Wtedy pająk podchodzi i truje -
         // po 5 turach zatruty sam staje się pająkiem.
         // ========================================================
+        // ========================================================
+        // --- PAJĄKI BOJĄ SIĘ ŚWIATŁA ---
+        // Ognisko, zapalona latarnia i Lampion Świętej Łucji tworzą krąg,
+        // w który pająki nie wejdą.
+        // ========================================================
+        const LIGHT_FEAR_RADIUS = 5;      // Lampion i latarnie
+        const CAMPFIRE_FEAR_RADIUS = 3;   // ognisko grzeje krócej - trzeba stać blisko
+
+        // Wojownicy niosący Lampion świecą sami z siebie
+        function nosiLampion(s) {
+            if (!s || s.isDead) return false;
+            const idx = soldiers.indexOf(s);
+            if (idx < 0) return false;
+            return playerInventory.some(it => it.name === 'Lampion Świętej Łucji' &&
+                (it.assignedTo === undefined ? 0 : it.assignedTo) === idx);
+        }
+
+        // Każde źródło ma własny zasięg - ognisko świeci słabiej niż Lampion
+        function zrodlaSwiatla() {
+            const lista = [];
+            if (typeof campfires !== 'undefined') {
+                campfires.forEach(o => lista.push({ x: o.position.x, z: o.position.z, r: CAMPFIRE_FEAR_RADIUS }));
+            }
+            if (typeof streetLamps !== 'undefined') {
+                streetLamps.forEach(o => {
+                    if (o.userData && o.userData.lit === false) return;
+                    lista.push({ x: o.position.x, z: o.position.z, r: LIGHT_FEAR_RADIUS });
+                });
+            }
+            soldiers.forEach(s => {
+                if (nosiLampion(s)) lista.push({ x: s.mesh.position.x, z: s.mesh.position.z, r: LIGHT_FEAR_RADIUS });
+            });
+            return lista;
+        }
+
+        function wSwietle(x, z, promien) {
+            return zrodlaSwiatla().some(o => Math.hypot(o.x - x, o.z - z) <= (promien || o.r || LIGHT_FEAR_RADIUS));
+        }
+
+        // Czy pająk boi się podejść do tego wojownika
+        function chronionyPrzezSwiatlo(s) {
+            if (!s || !s.mesh) return false;
+            return wSwietle(s.mesh.position.x, s.mesh.position.z);
+        }
+
         const WEB_RANGE = 10;
         const WEB_FREE_TURNS = 2;
         const VENOM_TURNS = 5;
@@ -13993,6 +14038,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     // Zombie wyczuwa zapach - nie potrzebuje widzieć celu
                     if (chebDist > getVisionRange()) continue;
                 } else if (!isInVisionCone(e, s.mesh.position.x, s.mesh.position.z)) continue;
+                // Pająki nie zapuszczają się w krąg światła
+                if ((e.type === 'spider_small' || e.type === 'spider_big') && chronionyPrzezSwiatlo(s)) continue;
                 let dist = Math.abs(Math.round(s.mesh.position.x) - ex) + Math.abs(Math.round(s.mesh.position.z) - ez);
                 if(dist < minDist) { minDist = dist; bestTarget = s; }
             }
@@ -14293,22 +14340,102 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 return;
             }
 
-            // Duży pająk najpierw próbuje oplątać cel z dystansu
-            if (e.type === 'spider_big' && e.ap >= 4) {
-                const ofiara = soldiers.find(s => !s.isDead && !s.isNPC && !isSoldierWebbed(s) && s.mesh.visible !== false &&
-                    Math.max(Math.abs(Math.round(s.mesh.position.x) - Math.round(e.mesh.position.x)),
-                             Math.abs(Math.round(s.mesh.position.z) - Math.round(e.mesh.position.z))) <= WEB_RANGE);
-                if (ofiara) {
-                    const dyst = Math.max(Math.abs(Math.round(ofiara.mesh.position.x) - Math.round(e.mesh.position.x)),
-                                          Math.abs(Math.round(ofiara.mesh.position.z) - Math.round(e.mesh.position.z)));
-                    if (dyst > 1) {
-                        e.ap -= 4;
-                        faceTowards(e, ofiara.mesh.position.x, ofiara.mesh.position.z);
-                        tryWebSoldier(e, ofiara);
-                        currentEnemyIndex++; setTimeout(processNextEnemy, 200);
+            // ========================================================
+            // --- ZACHOWANIE WIELKIEGO PAJĄKA ---
+            // Łowca, nie tchórz: dopóki ma punkty, oplątuje, truje albo tnie.
+            // Wcześniej po jednym nieudanym rzucie kończył turę i odchodził.
+            // ========================================================
+            if (e.type === 'spider_big' && !e.isDead && !(e.boundTurns > 0)) {
+                const widoczni = soldiers.filter(s => !s.isDead && !s.isNPC && !s.isAngel &&
+                    (s.level || 0) === (e.level || 0) &&
+                    !chronionyPrzezSwiatlo(s));   // do oświetlonych nie podchodzi
+                const dystDo = (s) => Math.max(
+                    Math.abs(Math.round(s.mesh.position.x) - Math.round(e.mesh.position.x)),
+                    Math.abs(Math.round(s.mesh.position.z) - Math.round(e.mesh.position.z)));
+
+                const dzialaj = () => {
+                    if (gameOver || e.isDead) { currentEnemyIndex++; setTimeout(processNextEnemy, 120); return; }
+                    const cele = widoczni.filter(s => !s.isDead && !chronionyPrzezSwiatlo(s));
+                    if (cele.length === 0) {
+                        // Wszyscy stoją w świetle - pająk trzyma się z dala
+                        if (soldiers.some(s => !s.isDead && chronionyPrzezSwiatlo(s))) {
+                            updateUI('WIELKI PAJĄK cofa się przed światłem.');
+                        }
+                        currentEnemyIndex++; setTimeout(processNextEnemy, 150); return;
+                    }
+                    if (e.ap <= 0) { currentEnemyIndex++; setTimeout(processNextEnemy, 150); return; }
+
+                    const obok = cele.filter(s => dystDo(s) === 1);
+                    const spetanyObok = obok.find(s => isSoldierWebbed(s));
+                    const spetanyDalej = cele.find(s => isSoldierWebbed(s) && dystDo(s) > 1);
+                    const wolnyWZasiegu = cele.filter(s => !isSoldierWebbed(s) && dystDo(s) > 1 && dystDo(s) <= WEB_RANGE)
+                                               .sort((a, b) => dystDo(a) - dystDo(b))[0];
+
+                    // 1) Spętany tuż obok - wpuszczamy jad
+                    if (spetanyObok && e.ap >= 3 && !(spetanyObok.venomTurns > 0)) {
+                        e.ap -= 3;
+                        faceTowards(e, spetanyObok.mesh.position.x, spetanyObok.mesh.position.z);
+                        animWroga(e, 'atak', true);
+                        tryVenom(e, spetanyObok);
+                        setTimeout(dzialaj, 320);
                         return;
                     }
-                }
+
+                    // 2) Ktoś obok - tniemy szczękami
+                    if (obok.length > 0 && e.ap >= 3) {
+                        const cel = obok[0];
+                        e.ap -= 3;
+                        faceTowards(e, cel.mesh.position.x, cel.mesh.position.z);
+                        animWroga(e, 'atak', true);
+                        if (!tryMeleeInterrupt(e, cel)) {
+                            applyDamageToUnit(cel, 5, e);
+                            updateUI('WIELKI PAJĄK tnie szczękami! (-5)');
+                            playFileSfx(AudioFiles.enemyOuch, 0.6);
+                            if (cel.hp <= 0) { playDyingSfx(); killUnitWithAnim(cel, () => refreshPlayerPositions()); }
+                        }
+                        checkGameOver();
+                        setTimeout(dzialaj, 320);
+                        return;
+                    }
+
+                    // 3) Wolny cel w zasięgu - pajęczyna
+                    if (wolnyWZasiegu && e.ap >= 4) {
+                        e.ap -= 4;
+                        faceTowards(e, wolnyWZasiegu.mesh.position.x, wolnyWZasiegu.mesh.position.z);
+                        animWroga(e, 'atak', true);
+                        tryWebSoldier(e, wolnyWZasiegu);
+                        setTimeout(dzialaj, 320);
+                        return;
+                    }
+
+                    // 4) Podchodzimy - najpierw do spętanego, potem do najbliższego
+                    const cel = spetanyDalej || cele.sort((a, b) => dystDo(a) - dystDo(b))[0];
+                    const ex2 = Math.round(e.mesh.position.x), ez2 = Math.round(e.mesh.position.z);
+                    const tx2 = Math.round(cel.mesh.position.x), tz2 = Math.round(cel.mesh.position.z);
+                    refreshEnemyPositions(); refreshPlayerPositions();
+                    const sciezka = findPath(ex2, ez2, tx2, tz2, e.level || 0, e);
+                    if (sciezka && sciezka.path.length > 1) {
+                        let walk = sciezka.path.slice(0, Math.min(sciezka.path.length - 1, e.ap));
+                        // Zatrzymujemy się przed kręgiem światła
+                        for (let k = 0; k < walk.length; k++) {
+                            if (wSwietle(walk[k].x, walk[k].z)) { walk = walk.slice(0, k); break; }
+                        }
+                        if (walk.length > 0) {
+                            e.ap -= walk.length;
+                            animWroga(e, 'walk');
+                            moveAlongPath({ mesh: e.mesh, userData: e.mesh.userData }, walk, 140, () => {
+                                animWroga(e, 'idle');
+                                refreshEnemyPositions(); updateFoW();
+                                setTimeout(dzialaj, 200);
+                            });
+                            return;
+                        }
+                    }
+                    currentEnemyIndex++; setTimeout(processNextEnemy, 150);
+                };
+
+                dzialaj();
+                return;
             }
 
             // Związany (sznur, pieśń) traci turę
@@ -14333,7 +14460,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     refreshEnemyPositions(); refreshPlayerPositions(); refreshNPCPositions();
                     const fp = findPath(ex, ez, tx2, tz2, eLvl, e);
                     if (!fp || fp.path.length === 0) continue;
-                    const walk = fp.path.slice(0, Math.max(1, Math.min(fp.path.length, e.ap)));
+                    let walk = fp.path.slice(0, Math.max(1, Math.min(fp.path.length, e.ap)));
+                    // Pająk zatrzymuje się przed kręgiem światła
+                    if (e.type === 'spider_small' || e.type === 'spider_big') {
+                        for (let k = 0; k < walk.length; k++) {
+                            if (wSwietle(walk[k].x, walk[k].z)) { walk = walk.slice(0, k); break; }
+                        }
+                        if (walk.length === 0) {
+                            updateUI('PAJĄK cofa się przed światłem.');
+                            currentEnemyIndex++; setTimeout(processNextEnemy, 150);
+                            return;
+                        }
+                    }
                     e.ap -= walk.length;
                     faceTowards(e, walk[walk.length - 1].x, walk[walk.length - 1].z);
                     SoundEngine.playStep(e.type);
