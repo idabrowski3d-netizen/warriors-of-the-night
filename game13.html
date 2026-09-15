@@ -835,6 +835,121 @@
             }
         }
 
+        // ========================================================
+        // --- PAJĘCZYNA I JAD ---
+        // Duży pająk oplata z dystansu; im bliżej, tym celniej. Spętany traci
+        // 2 tury albo czeka na pomoc towarzysza. Wtedy pająk podchodzi i truje -
+        // po 5 turach zatruty sam staje się pająkiem.
+        // ========================================================
+        const WEB_RANGE = 10;
+        const WEB_FREE_TURNS = 2;
+        const VENOM_TURNS = 5;
+
+        function webHitChance(dystans) {
+            // Tuż obok prawie pewne trafienie, na granicy zasięgu znikome
+            const t = Math.max(0, Math.min(1, 1 - (dystans - 1) / (WEB_RANGE - 1)));
+            return Math.round(20 + 65 * t);
+        }
+
+        function isSoldierWebbed(s) { return !!s && (s.webbedTurns || 0) > 0; }
+
+        function tryWebSoldier(pajak, cel) {
+            if (!cel || cel.isDead || cel.isNPC || isSoldierWebbed(cel)) return false;
+            const px = Math.round(pajak.mesh.position.x), pz = Math.round(pajak.mesh.position.z);
+            const cx = Math.round(cel.mesh.position.x), cz = Math.round(cel.mesh.position.z);
+            const d = Math.max(Math.abs(px - cx), Math.abs(pz - cz));
+            if (d < 1 || d > WEB_RANGE) return false;
+            const szansa = webHitChance(d);
+            if (Math.random() * 100 >= szansa) {
+                updateUI(`Pajęczyna przelatuje obok ${cel.name} (szansa ${szansa}%).`);
+                return false;
+            }
+            cel.webbedTurns = WEB_FREE_TURNS;
+            showFloatingWarning(`${cel.name} oplątany pajęczyną!`);
+            updateUI(`${cel.name} jest spętany - 2 tury na uwolnienie albo pomoc towarzysza.`);
+            attachWebVisual(cel);
+            return true;
+        }
+
+        function attachWebVisual(s) {
+            if (!s || s.webMesh) return;
+            const m = new THREE.Mesh(
+                new THREE.SphereGeometry(0.75, 10, 8),
+                new THREE.MeshBasicMaterial({ color: 0xeef2f6, transparent: true, opacity: 0.4, depthWrite: false })
+            );
+            m.userData.unitType = 'fx';
+            m.position.y = 0.9;
+            s.mesh.add(m);
+            s.webMesh = m;
+        }
+
+        function removeWebVisual(s) {
+            if (!s || !s.webMesh) return;
+            s.mesh.remove(s.webMesh);
+            s.webMesh = null;
+        }
+
+        function freeFromWeb(s, ktoPomogl) {
+            if (!isSoldierWebbed(s)) return false;
+            s.webbedTurns = 0;
+            removeWebVisual(s);
+            updateUI(ktoPomogl ? `${ktoPomogl.name} rozrywa pajęczynę krępującą ${s.name}.`
+                               : `${s.name} uwalnia się z pajęczyny.`);
+            return true;
+        }
+
+        // Zatrucie jadem - tylko na spętanym celu
+        function tryVenom(pajak, cel) {
+            if (!cel || cel.isDead || cel.isNPC) return false;
+            if (!isSoldierWebbed(cel)) return false;
+            if (cel.venomTurns > 0) return false;
+            cel.venomTurns = VENOM_TURNS;
+            showFloatingWarning(`${cel.name} zatruty jadem!`);
+            updateUI(`${cel.name} zatruty - za ${VENOM_TURNS} tur przemieni się w pająka. Uzdrowiciel może to odwrócić.`);
+            return true;
+        }
+
+        function cureVenom(cel) {
+            if (!cel || !cel.venomTurns) return false;
+            cel.venomTurns = 0;
+            updateUI(`${cel.name} zostaje oczyszczony z jadu.`);
+            return true;
+        }
+
+        function turnSoldierIntoSpider(s) {
+            const sx = Math.round(s.mesh.position.x), sz = Math.round(s.mesh.position.z);
+            const lvl = s.level || 0;
+            removeWebVisual(s);
+            s.isDead = true;
+            scene.remove(s.mesh);
+            const m = createSpiderMesh(false);
+            m.position.set(sx, getLevelY(sx, sz, lvl) + m.userData.yOffset, sz);
+            scene.add(m);
+            enemies.push({ mesh: m, type: 'spider_small', hp: 6, maxHp: 6, ap: 14, maxAp: 14,
+                           accuracyBonus: 0, isDead: false, facingAngle: 0, level: lvl });
+            refreshPlayerPositions(); refreshEnemyPositions();
+            showFloatingWarning(`${s.name} przemienia się w pająka!`);
+            updateFoW();
+            checkGameOver();
+        }
+
+        // Odliczanie pajęczyny i jadu na początku tury gracza
+        function tickSpiderEffects() {
+            soldiers.slice().forEach(s => {
+                if (s.isDead) return;
+                if (s.webbedTurns > 0) {
+                    s.webbedTurns--;
+                    if (s.webbedTurns <= 0) { freeFromWeb(s, null); }
+                    else updateUI(`${s.name} szarpie się w pajęczynie (jeszcze ${s.webbedTurns}).`);
+                }
+                if (s.venomTurns > 0) {
+                    s.venomTurns--;
+                    if (s.venomTurns <= 0) { turnSoldierIntoSpider(s); return; }
+                    if (s.venomTurns <= 2) updateUI(`${s.name} słabnie od jadu - przemiana za ${s.venomTurns}.`);
+                }
+            });
+        }
+
         // Zgon wroga - potwory mają własne odgłosy
         // ========================================================
         // --- INFEKCJA ZOMBIE ---
@@ -1206,6 +1321,8 @@
               palette: { grass:'#4a6a4a', grassDetail1:'#587a56', grassDetail2:'#3a563c', dirt:'#6a5a44', dirtDetail1:'#57492f', dirtDetail2:'#7c6c50', road:'#5a5648', roadDetail1:'#4a473c', roadDetail2:'#6b6656' } },
             { id: 'bagno', name: 'Mokradła',
               palette: { grass:'#3f4a2e', grassDetail1:'#4c5838', grassDetail2:'#333d24', dirt:'#4a4030', dirtDetail1:'#3b3326', dirtDetail2:'#5a4e3c', road:'#4a4638', roadDetail1:'#3d3a2e', roadDetail2:'#575244' } },
+            { id: 'amazonia', name: 'Amazonia',
+              palette: { grass:'#1f6b2e', grassDetail1:'#2b8a3b', grassDetail2:'#164f22', dirt:'#5c4426', dirtDetail1:'#6f5530', dirtDetail2:'#43301b', road:'#4a3a22', roadDetail1:'#5f4a2c', roadDetail2:'#382a18' } },
             { id: 'cyber', name: 'Cyber',
               palette: { grass:'#0b1220', grassDetail1:'#0e1a2c', grassDetail2:'#081019', dirt:'#0d1826', dirtDetail1:'#123049', dirtDetail2:'#0a1420', road:'#101c2e', roadDetail1:'#1b4a72', roadDetail2:'#0c1626' } },
             { id: 'cmentarzysko', name: 'Cmentarzysko',
@@ -1704,6 +1821,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function applyRandomSeason() {
             // Zamieć to zawsze środek zimy - biała trawa, ośnieżone korony i dachy
             if (currentCombatTheme && currentCombatTheme.id === 'zamiec') { currentSeason = 'zima'; return; }
+            // W dżungli panuje wieczne lato - bez śniegu, jesieni i zimy
+            if (currentCombatTheme && currentCombatTheme.id === 'amazonia') { currentSeason = 'lato'; return; }
             if (forcedSeason) { currentSeason = forcedSeason; return; }
             currentSeason = SEASON_KEYS[Math.floor(Math.random() * SEASON_KEYS.length)];
         }
@@ -1960,6 +2079,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const isSaharaMap = currentCombatTheme && currentCombatTheme.id === 'sahara';
             const isKatedraMap = currentCombatTheme && currentCombatTheme.id === 'katedra';
             const isCyberMap = currentCombatTheme && currentCombatTheme.id === 'cyber';
+            const isAmazoniaMap = currentCombatTheme && currentCombatTheme.id === 'amazonia';
             const isFloodMap = currentCombatTheme && currentCombatTheme.id === 'powodz';
             const roadType = (isVolcanoMap || isSaharaMap || isKatedraMap) ? 1 : 2; // wnętrze świątyni to kamienna posadzka // pustynia i wulkan nie mają asfaltu
             for(let z=0; z<mapDepth; z++) {
@@ -3915,7 +4035,82 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             scene.add(st); hospitalUpperMeshes.push(st);
         }
 
+        // W dżungli nie ma latarni - drogę oświetlają ogniska
+        function renderCampfires() {
+            if (!currentCombatTheme || currentCombatTheme.id !== 'amazonia') return;
+            const ile = 10 + Math.floor(Math.random() * 8);
+            for (let i = 0; i < ile; i++) {
+                let x = null, z = null;
+                for (let t = 0; t < 120; t++) {
+                    const cx = Math.floor(Math.random() * (mapWidth - 20)) + 10 - offsetX;
+                    const cz = Math.floor(Math.random() * (mapDepth - 20)) + 10 - offsetZ;
+                    if (!isWithinPlayBounds(cx, cz) || isObstacle(cx, cz)) continue;
+                    x = cx; z = cz; break;
+                }
+                if (x === null) continue;
+                const ty = getTerrainY(x, z);
+                const g = new THREE.Group();
+                // kamienny krąg
+                for (let k = 0; k < 7; k++) {
+                    const a = (k / 7) * Math.PI * 2;
+                    const kam = new THREE.Mesh(new THREE.SphereGeometry(0.16, 6, 5),
+                        new THREE.MeshLambertMaterial({ color: 0x6b6259 }));
+                    kam.position.set(Math.cos(a) * 0.5, 0.08, Math.sin(a) * 0.5);
+                    kam.scale.y = 0.7;
+                    g.add(kam);
+                }
+                // polana
+                [[-0.18, 0.5], [0.18, -0.5], [0, 0.1]].forEach(([dx, rot]) => {
+                    const kloda = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.75, 6),
+                        new THREE.MeshLambertMaterial({ color: 0x4a3423 }));
+                    kloda.position.set(dx, 0.16, 0);
+                    kloda.rotation.z = Math.PI / 2.4; kloda.rotation.y = rot;
+                    g.add(kloda);
+                });
+                // płomień
+                const plomien = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.7, 8),
+                    new THREE.MeshBasicMaterial({ color: 0xff8822, transparent: true, opacity: 0.85 }));
+                plomien.position.y = 0.55;
+                g.add(plomien);
+                const zar = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.4, 8),
+                    new THREE.MeshBasicMaterial({ color: 0xffe066 }));
+                zar.position.y = 0.42;
+                g.add(zar);
+
+                const sw = new THREE.PointLight(0xff9944, 1.5, 11, 1.4);
+                sw.position.y = 0.8;
+                g.add(sw);
+
+                g.position.set(x, ty, z);
+                g.userData.unitType = 'fx';
+                g.userData.plomien = plomien;
+                g.userData.zar = zar;
+                g.userData.lampLight = sw;
+                scene.add(g);
+                campfires.push(g);
+            }
+        }
+
+        let campfires = [];
+
+        function clearCampfires() {
+            campfires.forEach(o => scene.remove(o));
+            campfires = [];
+        }
+
+        function updateCampfires(time) {
+            if (campfires.length === 0) return;
+            campfires.forEach((o, i) => {
+                const p = 0.85 + 0.25 * Math.sin(time * 0.006 + i * 1.7);
+                if (o.userData.plomien) o.userData.plomien.scale.set(p, 1 + (p - 1) * 1.6, p);
+                if (o.userData.zar) o.userData.zar.scale.set(p, p, p);
+                if (o.userData.lampLight) o.userData.lampLight.intensity = 1.1 + 0.7 * (p - 0.85) * 4;
+            });
+        }
+
         function renderStreetLamps() {
+            // Dżungla nie zna latarni
+            if (currentCombatTheme && currentCombatTheme.id === 'amazonia') { renderCampfires(); return; }
             streetLamps.forEach(l => scene.remove(l));
             streetLamps = [];
             if (!isExploreMode() && gameMode !== 'dream') return;
@@ -7466,7 +7661,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             { label: '🌊 Rzeka (dźwięk)',  theme: 'alabama',      mission: 'standard' },
             { label: '🌊 Powódź',           theme: 'powodz',       mission: 'flood' },
             { label: '🧟 Cmentarzysko',     theme: 'cmentarzysko', mission: 'standard' },
-            { label: '🤖 Cyber',            theme: 'cyber',        mission: 'standard' }
+            { label: '🤖 Cyber',            theme: 'cyber',        mission: 'standard' },
+            { label: '🕷️ Amazonia',         theme: 'amazonia',     mission: 'standard' }
         ];
 
         function testStatusText() {
@@ -7801,7 +7997,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 soldiers: soldiers.filter(s => !s.isAngel).map(s => ({
                     x: s.mesh.position.x, z: s.mesh.position.z, hp: s.hp, maxHp: s.maxHp, ap: s.ap, maxAp: s.maxAp,
                     isDead: s.isDead, name: s.name, class: s.class, accuracyBonus: s.accuracyBonus,
-                    turnEnded: s.turnEnded, isKneeling: s.isKneeling, shieldHp: s.shieldHp, level: s.level || 0, crossUsed: s.crossUsed || 0, angelUsed: s.angelUsed || 0, infected: !!s.infected, infectionTick: s.infectionTick || 0, relicUses: { ...(s.relicUses || {}) }, levitateUsed: s.levitateUsed || 0, levitateTurns: s.levitateTurns || 0, stealthUsed: s.stealthUsed || 0, stealthActive: !!s.stealthActive, callUsed: s.callUsed || 0, summonedTurns: s.summonedTurns || 0,
+                    turnEnded: s.turnEnded, isKneeling: s.isKneeling, shieldHp: s.shieldHp, level: s.level || 0, crossUsed: s.crossUsed || 0, angelUsed: s.angelUsed || 0, infected: !!s.infected, infectionTick: s.infectionTick || 0, webbedTurns: s.webbedTurns || 0, venomTurns: s.venomTurns || 0, relicUses: { ...(s.relicUses || {}) }, levitateUsed: s.levitateUsed || 0, levitateTurns: s.levitateTurns || 0, stealthUsed: s.stealthUsed || 0, stealthActive: !!s.stealthActive, callUsed: s.callUsed || 0, summonedTurns: s.summonedTurns || 0,
                     shotsFired: s.shotsFired, shotsHit: s.shotsHit, kills: s.kills
                 })),
                 // Martwych pomijamy - inaczej po wczytaniu ich bryły wracały na planszę
@@ -7892,6 +8088,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             renderFloors();
             renderThemedLandmarkDecor();
             renderCornfields();
+            clearCampfires();
             renderRiver();
             buildCloudSea();
             renderStreetLamps();
@@ -7904,7 +8101,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 mesh.position.set(sd.x, ty + mesh.userData.yOffset, sd.z);
                 mesh.add(createNameSprite(sd.name));
                 scene.add(mesh);
-                const sObj = { mesh: mesh, hp: sd.hp, maxHp: sd.maxHp, ap: sd.ap, maxAp: sd.maxAp, isDead: sd.isDead, name: sd.name, class: sd.class, accuracyBonus: sd.accuracyBonus, turnEnded: sd.turnEnded, isKneeling: sd.isKneeling, shieldHp: sd.shieldHp, level: sd.level || 0, crossUsed: sd.crossUsed || 0, angelUsed: sd.angelUsed || 0, infected: !!sd.infected, infectionTick: sd.infectionTick || 0, relicUses: { ...(sd.relicUses || {}) }, levitateUsed: sd.levitateUsed || 0, levitateTurns: sd.levitateTurns || 0, stealthUsed: sd.stealthUsed || 0, stealthActive: !!sd.stealthActive, callUsed: sd.callUsed || 0, summonedTurns: sd.summonedTurns || 0, shotsFired: sd.shotsFired, shotsHit: sd.shotsHit, kills: sd.kills };
+                const sObj = { mesh: mesh, hp: sd.hp, maxHp: sd.maxHp, ap: sd.ap, maxAp: sd.maxAp, isDead: sd.isDead, name: sd.name, class: sd.class, accuracyBonus: sd.accuracyBonus, turnEnded: sd.turnEnded, isKneeling: sd.isKneeling, shieldHp: sd.shieldHp, level: sd.level || 0, crossUsed: sd.crossUsed || 0, angelUsed: sd.angelUsed || 0, infected: !!sd.infected, infectionTick: sd.infectionTick || 0, webbedTurns: sd.webbedTurns || 0, venomTurns: sd.venomTurns || 0, relicUses: { ...(sd.relicUses || {}) }, levitateUsed: sd.levitateUsed || 0, levitateTurns: sd.levitateTurns || 0, stealthUsed: sd.stealthUsed || 0, stealthActive: !!sd.stealthActive, callUsed: sd.callUsed || 0, summonedTurns: sd.summonedTurns || 0, shotsFired: sd.shotsFired, shotsHit: sd.shotsHit, kills: sd.kills };
                 if (sObj.levitateTurns > 0) attachLevitateAura(sObj); // przywróć poświatę lewitacji
                 if (sObj.stealthActive) setStealthLook(sObj, true);
                 return sObj;
@@ -7918,6 +8115,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             };
             // Nowe rasy mają własne bryły, nie budujemy ich z createCharacter
             const CUSTOM_ENEMY_MESH = { summoner: createSummonerMesh, stalker: createStalkerMesh, wisp: createWispMesh, koszmar: createBossMesh, zombie: createZombieMesh, vampire: createVampireMesh, strzyga: createStrzygaMesh,
+                                        spider_small: () => createSpiderMesh(false), spider_big: () => createSpiderMesh(true),
                                         robot: createRobotMesh, droid: createDroidMesh };
             enemies = (data.enemies || []).filter(ed => !ed.isDead).map(ed => {
                 const look = ENEMY_LOOKS[ed.type] || ENEMY_LOOKS.standard;
@@ -9630,7 +9828,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     hitStreak: 0, healsUsed: 0, shieldsUsed: 0, crossUsed: 0,
                     levitateUsed: 0, levitateTurns: 0,
                     stealthUsed: 0, stealthActive: false,
-                    callUsed: 0, summonedTurns: 0, hypnotizedBy: null, panicTurns: 0, angelUsed: 0, infected: false, infectionTick: 0,
+                    callUsed: 0, summonedTurns: 0, hypnotizedBy: null, panicTurns: 0, angelUsed: 0, infected: false, infectionTick: 0, webbedTurns: 0, venomTurns: 0, webMesh: null,
                     relicUses: {}, mindWardTurns: 0, invulnTurns: 0, reflectTurns: 0,
                     peaceTurns: 0, invisibleTurns: 0, regenTurns: 0, freeMoveTurns: 0
                 });
@@ -9663,6 +9861,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // ale NIE jest samowolny: nie wolno go wrzucać do puli "działających na własną rękę",
         // bo panika nie zużywa punktów ruchu i tura zapętlałaby się w nieskończoność.
         function isSoldierIncapacitated(s) {
+            if (isSoldierWebbed(s)) return true;   // spętany pajęczyną nie działa
             return isSoldierHypnotized(s) || isSoldierPanicking(s);
         }
 
@@ -9837,6 +10036,60 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             swiatlo.position.y = 1.1; g.add(swiatlo);
             g.userData.yOffset = 0.55;    // lewituje nad ziemią
             g.userData.unitType = 'droid';
+            return g;
+        }
+
+        // Pająki: mały jest zwinny i ciemny, duży masywny z jadowitym odwłokiem
+        function createSpiderMesh(duzy) {
+            const g = new THREE.Group();
+            const s = duzy ? 1.7 : 0.85;
+            const chityna = new THREE.MeshLambertMaterial({ color: duzy ? 0x3b2a1f : 0x241a14 });
+            const znak = new THREE.MeshBasicMaterial({ color: duzy ? 0xc8322a : 0x8a5a2a });
+
+            const odwlok = new THREE.Mesh(new THREE.SphereGeometry(0.42 * s, 12, 10), chityna);
+            odwlok.scale.set(1, 0.85, 1.25);
+            odwlok.position.set(0, 0.52 * s, -0.42 * s);
+            g.add(odwlok);
+
+            const plama = new THREE.Mesh(new THREE.SphereGeometry(0.17 * s, 8, 6), znak);
+            plama.scale.set(1, 0.3, 1.1);
+            plama.position.set(0, 0.85 * s, -0.5 * s);
+            g.add(plama);
+
+            const glowotul = new THREE.Mesh(new THREE.SphereGeometry(0.3 * s, 10, 8), chityna);
+            glowotul.scale.set(1, 0.8, 1.1);
+            glowotul.position.set(0, 0.5 * s, 0.25 * s);
+            g.add(glowotul);
+
+            [-1, 1].forEach(b => {
+                [0.08, 0.17].forEach((dx, i) => {
+                    const oko = new THREE.Mesh(new THREE.SphereGeometry(0.055 * s, 6, 5),
+                        new THREE.MeshBasicMaterial({ color: i ? 0xff5544 : 0xffdd66 }));
+                    oko.position.set(b * dx * s, (0.58 - i * 0.06) * s, 0.5 * s);
+                    g.add(oko);
+                });
+            });
+
+            [-1, 1].forEach(strona => {
+                for (let i = 0; i < 4; i++) {
+                    const kat = 0.5 - i * 0.42;
+                    const udo = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * s, 0.045 * s, 0.62 * s, 5), chityna);
+                    udo.position.set(strona * 0.38 * s, 0.6 * s, (0.2 - i * 0.22) * s);
+                    udo.rotation.z = strona * 0.9; udo.rotation.x = kat * 0.4;
+                    g.add(udo);
+                    const golen = new THREE.Mesh(new THREE.CylinderGeometry(0.04 * s, 0.025 * s, 0.68 * s, 5), chityna);
+                    golen.position.set(strona * 0.66 * s, 0.3 * s, (0.24 - i * 0.26) * s);
+                    golen.rotation.z = strona * -0.55; golen.rotation.x = kat * 0.4;
+                    g.add(golen);
+                }
+            });
+
+            if (duzy) {
+                const sw = new THREE.PointLight(0xc8322a, 0.5, 5, 1.6);
+                sw.position.y = 0.9; g.add(sw);
+            }
+            g.userData.yOffset = 0;
+            g.userData.unitType = duzy ? 'spider_big' : 'spider_small';
             return g;
         }
 
@@ -10054,9 +10307,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
                 // Cmentarzysko to domena nieumarłych - wśród zwykłych wrogów są tam wampiry
                 // Maszyny pilnują cyberprzestrzeni oraz ośrodków władzy
+                // Pająki - najczęściej w Amazonii, rzadziej w innych dzikich miejscach
+                const mapaPajakow = currentCombatTheme &&
+                    ['amazonia', 'bagno', 'nekropolia', 'cmentarzysko'].includes(currentCombatTheme.id);
+                const szansaPajaka = currentCombatTheme && currentCombatTheme.id === 'amazonia' ? 0.8 : 0.25;
+                const pajakWypadl = mapaPajakow && Math.random() < szansaPajaka;
                 const mapaMaszyn = currentCombatTheme &&
                     ['cyber', 'whitehouse', 'zhongnanhai'].includes(currentCombatTheme.id);
-                if (mapaMaszyn && Math.random() < (currentCombatTheme.id === 'cyber' ? 0.85 : 0.45)) {
+                if (pajakWypadl) {
+                    if (Math.random() < 0.78) { type = 'spider_small'; maxHp = 6; maxAp = 14; mesh = createSpiderMesh(false); }
+                    else { type = 'spider_big'; maxHp = 16; maxAp = 10; mesh = createSpiderMesh(true); }
+                } else if (mapaMaszyn && Math.random() < (currentCombatTheme.id === 'cyber' ? 0.85 : 0.45)) {
                     if (Math.random() < 0.5) { type = 'robot'; maxHp = 14; maxAp = 11; mesh = createRobotMesh(); }
                     else { type = 'droid'; maxHp = 8; maxAp = 12; mesh = createDroidMesh(); }
                 } else if (currentCombatTheme && currentCombatTheme.id === 'cmentarzysko' && Math.random() < 0.55) {
@@ -12402,7 +12663,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             active.ap -= healCost;
             active.healsUsed = (active.healsUsed || 0) + 1;
             target.hp = target.maxHp || 10; // pełne uleczenie do wartości startowej misji
-            const bylZarazony = cureInfection(target);   // uzdrowienie zmywa też trupi jad
+            const bylZarazony = cureInfection(target);
+            cureVenom(target);
+            freeFromWeb(target, active);   // uzdrowienie zmywa też trupi jad
             const who = target === active ? 'siebie' : (target.isNPC ? 'cywila' : target.name);
             updateUI(`${active.name} leczy ${who} do pełni sił! (+${bestDeficit} HP)` + (bylZarazony ? ' Zaraza ustąpiła.' : '') + ` [${active.healsUsed}/${healLimit}]`);
             updateUI();
@@ -12702,7 +12965,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z), ey = getLevelY(ex, ez, e.level || 0);
                 const dist = Math.abs(px - ex) + Math.abs(pz - ez);
                 // Wręcz tylko na tej samej kondygnacji
-                if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'summoner' || e.type === 'zombie' || e.type === 'strzyga' || e.type === 'robot') return ((e.level || 0) === (active.level || 0) && Math.max(Math.abs(px - ex), Math.abs(pz - ez)) === 1 && Math.abs(ey - py) <= 1 && e.type !== 'summoner');
+                if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'summoner' || e.type === 'zombie' || e.type === 'strzyga' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big') return ((e.level || 0) === (active.level || 0) && Math.max(Math.abs(px - ex), Math.abs(pz - ez)) === 1 && Math.abs(ey - py) <= 1 && e.type !== 'summoner');
                 return (dist <= getVisionRange() && checkLineOfSight3D(ex, ey+1, ez, px, py+0.5, pz) && !floorsBlockShot(ex, ez, e.level || 0, px, pz, active.level || 0));
             });
 
@@ -13107,6 +13370,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     Math.round(s.mesh.position.x) === targetX &&
                     Math.round(s.mesh.position.z) === targetZ &&
                     (s.level || 0) === viewLevel);
+                // Kliknięcie na spętanego towarzysza z sąsiedniego pola uwalnia go
+                const spetany = soldiers.find(s => !s.isDead && s !== active && isSoldierWebbed(s) &&
+                    Math.round(s.mesh.position.x) === targetX && Math.round(s.mesh.position.z) === targetZ);
+                if (spetany && active.ap >= 2 &&
+                    Math.max(Math.abs(targetX - Math.round(active.mesh.position.x)),
+                             Math.abs(targetZ - Math.round(active.mesh.position.z))) <= 1) {
+                    active.ap -= 2;
+                    freeFromWeb(spetany, active);
+                    updateUI();
+                    return;
+                }
+
                 if (naTymPolu !== -1) {
                     activeSoldierIndex = naTymPolu;
                     updateCameraPosition();
@@ -13278,6 +13553,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     checkSarcophagi();
                     checkCivilianScream();
             tickInfections();
+            tickSpiderEffects();
             tickRelicEffects();
                     updatePrisonerVisibility();
                     // Relikwia podnosi się samoczynnie, gdy wojownik na nią wejdzie
@@ -14017,6 +14293,24 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 return;
             }
 
+            // Duży pająk najpierw próbuje oplątać cel z dystansu
+            if (e.type === 'spider_big' && e.ap >= 4) {
+                const ofiara = soldiers.find(s => !s.isDead && !s.isNPC && !isSoldierWebbed(s) && s.mesh.visible !== false &&
+                    Math.max(Math.abs(Math.round(s.mesh.position.x) - Math.round(e.mesh.position.x)),
+                             Math.abs(Math.round(s.mesh.position.z) - Math.round(e.mesh.position.z))) <= WEB_RANGE);
+                if (ofiara) {
+                    const dyst = Math.max(Math.abs(Math.round(ofiara.mesh.position.x) - Math.round(e.mesh.position.x)),
+                                          Math.abs(Math.round(ofiara.mesh.position.z) - Math.round(e.mesh.position.z)));
+                    if (dyst > 1) {
+                        e.ap -= 4;
+                        faceTowards(e, ofiara.mesh.position.x, ofiara.mesh.position.z);
+                        tryWebSoldier(e, ofiara);
+                        currentEnemyIndex++; setTimeout(processNextEnemy, 200);
+                        return;
+                    }
+                }
+            }
+
             // Związany (sznur, pieśń) traci turę
             if (e.boundTurns && e.boundTurns > 0) {
                 updateUI('Wróg szarpie się w więzach i traci turę.');
@@ -14173,7 +14467,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // bez celu w zasięgu zachowuje się jak zwykły wróg (podchodzi) - obsłuży to dalszy kod
             }
 
-            if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'zombie' || e.type === 'robot') {
+            if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'zombie' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big') {
                 const meleeCostE = (e.type === 'brute') ? shootCost : 3; // szybsze rasy uderzają taniej
                 const chebDystans = Math.max(Math.abs(px - ex), Math.abs(pz - ez));
                 if (e.ap >= meleeCostE && tLvl === eLvl && chebDystans === 1 && Math.abs(ey - py) <= 1) {
@@ -14194,7 +14488,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     let isHit = Math.random() < 0.85; 
                     SoundEngine.playShoot();
                     slideObject(e.mesh, px, py + e.mesh.userData.yOffset, pz, 150, () => {
-                        const meleeDmg = (e.type === 'brute') ? 6 : (e.type === 'stalker' ? 4 : (e.type === 'zombie' ? 3 : (e.type === 'robot' ? 5 : 3)));
+                        const meleeDmg = (e.type === 'brute') ? 6 : (e.type === 'stalker' ? 4 : (e.type === 'zombie' ? 3 : (e.type === 'robot' ? 5 : (e.type === 'spider_big' ? 5 : (e.type === 'spider_small' ? 3 : 3)))));
+                        // Duży pająk przy spętanym celu sięga po jad zamiast zwykłego ciosu
+                        if (e.type === 'spider_big' && isSoldierWebbed(bestTarget)) tryVenom(e, bestTarget);
                         if (e.type === 'zombie' && !bestTarget.isNPC) tryInfectSoldier(bestTarget);
                         if(isHit) { SoundEngine.playHit(); applyDamageToUnit(bestTarget, meleeDmg); updateUI(bestTarget.isNPC ? "Cywil trafiony!" : `Otrzymałeś cios! (-${meleeDmg} HP)`); if (!bestTarget.isNPC && bestTarget.hp > 0) chatter(bestTarget, bestTarget.hp <= 3 ? CHATTER_LOW_HP : CHATTER_HIT_TAKEN, 0.6); } else { updateUI("Unik! Duży obcy spudłował."); }
                         if(bestTarget.hp <= 0) { 
@@ -14213,7 +14509,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     return;
                 }
             } else {
-                if (e.type !== 'summoner' && e.type !== 'zombie' && e.type !== 'strzyga' && e.type !== 'robot' && e.ap >= shootCost && dist <= getVisionRange() && checkLineOfSight3D(ex, ey+1, ez, px, py+0.5, pz) && !floorsBlockShot(ex, ez, eLvl, px, pz, tLvl)) {
+                if (e.type !== 'summoner' && e.type !== 'zombie' && e.type !== 'strzyga' && e.type !== 'robot' && e.type !== 'spider_small' && e.type !== 'spider_big' && e.ap >= shootCost && dist <= getVisionRange() && checkLineOfSight3D(ex, ey+1, ez, px, py+0.5, pz) && !floorsBlockShot(ex, ez, eLvl, px, pz, tLvl)) {
                     e.ap -= shootCost;
                     faceTowards(e, px, pz);
                     animWroga(e, 'atak', true);
@@ -14464,6 +14760,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (soldiers.length > 0 || isExploreMode()) renderMinimap();
             updateShadowFollow();
             updateCloudSea(dt);
+            updateCampfires(time);
             updateWarriorMixers(dt * spowolnienieCzasu);
             updateThemeMusic();
             updateEveningAmbient();
@@ -14550,6 +14847,21 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                       'Nie dotyka gruntu, więc nie zatrzyma go błoto ani przeszkody terenu. Razi celną wiązką z dystansu. ' +
                       'Wątły - kilka trafień wystarczy, by spadł.',
                 stats: [['Punkty życia', '8'], ['Punkty ruchu', '12'], ['Premia do celności', 'brak'], ['Styl walki', 'ostrzał wiązką z dystansu']]
+            },
+            {
+                id: 'spider_small', title: 'Pająk',
+                text: 'Ciemny, zwinny łowca wielkości psa. Osiem odnóży niesie go szybciej, niż zdąży się mrugnąć.\\n\\n' +
+                      'Nie strzela - dopada i tnie szczękami. Sam w sobie wątły, ale rzadko poluje w pojedynkę. ' +
+                      'Najliczniejszy w Amazonii.',
+                stats: [['Punkty życia', '6'], ['Punkty ruchu', '14'], ['Premia do celności', 'brak'], ['Styl walki', 'wyłącznie wręcz (3 obr.)']]
+            },
+            {
+                id: 'spider_big', title: 'Wielki Pająk',
+                text: 'Masywny, z nabrzmiałym odwłokiem znaczonym krwistą plamą. Spotykany rzadko - i lepiej, żeby tak zostało.\\n\\n' +
+                      'Z odległości do 10 pól ciska pajęczyną; im bliżej, tym celniej. Spętany wojownik traci dwie tury ' +
+                      'albo czeka, aż towarzysz rozerwie oplot. Wtedy pająk podchodzi i wpuszcza jad - po pięciu turach ' +
+                      'zatruty sam staje się pająkiem. Uzdrowiciel odwraca i oplot, i zatrucie.',
+                stats: [['Punkty życia', '16'], ['Punkty ruchu', '10'], ['Zasięg pajęczyny', '10 pól'], ['Styl walki', 'pajęczyna, jad, cios wręcz (5 obr.)']]
             },
             {
                 id: 'strzyga', title: 'Strzyga',
@@ -14663,6 +14975,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 zombie:   createZombieMesh,
                 vampire:  createVampireMesh,
                 strzyga:  createStrzygaMesh,
+                spider_small: () => createSpiderMesh(false),
+                spider_big:   () => createSpiderMesh(true),
                 robot:    createRobotMesh,
                 droid:    createDroidMesh,
                 koszmar:  createBossMesh
