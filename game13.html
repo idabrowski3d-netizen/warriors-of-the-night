@@ -966,6 +966,7 @@
 
         const WEB_RANGE = 10;
         const WEB_FREE_TURNS = 2;
+        const WEB_STRUGGLE_CHANCE = 30;   // szansa na rozerwanie oplotu własnymi siłami
         const VENOM_TURNS = 5;
 
         function webHitChance(dystans) {
@@ -9989,7 +9990,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // ale NIE jest samowolny: nie wolno go wrzucać do puli "działających na własną rękę",
         // bo panika nie zużywa punktów ruchu i tura zapętlałaby się w nieskończoność.
         function isSoldierIncapacitated(s) {
-            if (isSoldierWebbed(s)) return true;   // spętany pajęczyną nie działa
             return isSoldierHypnotized(s) || isSoldierPanicking(s);
         }
 
@@ -12733,6 +12733,20 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (active.isEscortee) { updateUI('Powierzony nie potrafi walczyć.'); return; }
             if (active.turnEnded) { updateUI("Ten wojownik zakończył już ruch w tej turze."); return; }
             const meleeCost = 3;
+            // Spętany nie sięgnie wroga - może tylko szarpać się w oplocie
+            if (isSoldierWebbed(active)) {
+                if (active.ap < meleeCost) { updateUI(`Za mało PA, by szarpnąć się w pajęczynie (potrzeba ${meleeCost}).`); return; }
+                active.ap -= meleeCost;
+                playWarriorAnimAny(active.mesh, ['attack'], true);
+                if (Math.random() * 100 < WEB_STRUGGLE_CHANCE) {
+                    freeFromWeb(active, null);
+                    showFloatingWarning('Pajęczyna pęka!');
+                } else {
+                    updateUI(`${active.name} szarpie się, ale oplot trzyma (szansa ${WEB_STRUGGLE_CHANCE}%).`);
+                }
+                updateUI();
+                return;
+            }
             if (active.ap < meleeCost) { updateUI(`Za mało AP (potrzeba ${meleeCost})!`); return; }
             const ax = Math.round(active.mesh.position.x), az = Math.round(active.mesh.position.z);
             // Ukos też się liczy - stąd Chebyshev zamiast sumy odległości
@@ -13529,6 +13543,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     return;
                 }
 
+                if (isSoldierWebbed(active)) {
+                    updateUI('Pajęczyna trzyma - najpierw trzeba się uwolnić.');
+                    return;
+                }
                 const startX = Math.round(active.mesh.position.x), startZ = Math.round(active.mesh.position.z);
                 const startY = getLevelY(startX, startZ, active.level || 0);
                 const clickedEnemyPre = enemies.find(e => !e.isDead && Math.round(e.mesh.position.x) === targetX && Math.round(e.mesh.position.z) === targetZ);
