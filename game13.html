@@ -10135,6 +10135,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
             g.userData.yOffset = 0;
             g.userData.unitType = duzy ? 'spider_big' : 'spider_small';
+            g.userData.boiSieSwiatla = true;   // rozpoznanie przy każdym kroku
             return g;
         }
 
@@ -10574,6 +10575,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         let activeAnimations = [];
         function slideObject(mesh, targetX, targetY, targetZ, duration, callback) {
             duration = duration / (spowolnienieCzasu || 1);   // w zwolnionym tempie ruch trwa dłużej
+
+            // Pająki nie wchodzą w krąg światła - sprawdzamy to przy KAŻDYM kroku,
+            // niezależnie od tego, która część kodu każe im się ruszyć.
+            if (mesh && mesh.userData && mesh.userData.boiSieSwiatla && gameMode === 'dream') {
+                if (wSwietle(targetX, targetZ)) {
+                    if (callback) callback();
+                    return;
+                }
+            }
             // Wrogowie z modelem 3D chodzą na wiele sposobów (patrol, pościg, obchodzenie
             // przeszkód). Zamiast łatać każdą ścieżkę z osobna, animację marszu włączamy tu -
             // w jedynym miejscu, przez które przechodzi każdy ich krok.
