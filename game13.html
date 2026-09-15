@@ -12,6 +12,72 @@
     <style>
         html, body { height: 100%; overscroll-behavior: none; }
         /* Celownik pojawia się po najechaniu na wroga - od razu widać, że da się strzelić */
+        /* --- STEROWANIE DOTYKIEM --- */
+        #touch-ui { display: none; }
+        body.mobilny #touch-ui { display: block; }
+        #touch-stick {
+            position: absolute; left: 18px; bottom: 22px;
+            width: 128px; height: 128px; border-radius: 50%;
+            background: rgba(255,255,255,0.07); border: 2px solid rgba(255,255,255,0.22);
+            z-index: 60; touch-action: none;
+        }
+        #touch-stick-knob {
+            position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+            width: 54px; height: 54px; border-radius: 50%;
+            background: rgba(120,190,255,0.55); border: 2px solid rgba(255,255,255,0.5);
+            pointer-events: none;
+        }
+        #touch-buttons {
+            position: absolute; right: 14px; bottom: 22px;
+            display: grid; grid-template-columns: repeat(2, 60px); gap: 10px; z-index: 60;
+        }
+        .touch-btn {
+            width: 60px; height: 60px; border-radius: 12px; font-size: 24px;
+            background: rgba(20,24,34,0.8); color: #cfe4ff;
+            border: 2px solid rgba(120,190,255,0.5); touch-action: manipulation;
+        }
+        .touch-btn:active { background: rgba(120,190,255,0.35); }
+
+        /* --- INTRO: tekst przepływa przez okno z dołu do góry --- */
+        #intro-overlay {
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at 50% 40%, #14121c 0%, #05050a 78%);
+            z-index: 120; align-items: center; justify-content: center;
+        }
+        #intro-box {
+            max-width: 760px; width: 88%;
+            border: 1px solid rgba(255,214,140,0.25); border-radius: 10px;
+            padding: 0 0 18px; background: rgba(10,9,14,0.75);
+            box-shadow: 0 0 70px rgba(255,200,120,0.07) inset;
+        }
+        #intro-okno {
+            position: relative; height: min(62vh, 460px); overflow: hidden;
+            padding: 0 42px; border-radius: 10px 10px 0 0;
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 16%, #000 84%, transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0%, #000 16%, #000 84%, transparent 100%);
+        }
+        #intro-tresc {
+            position: absolute; left: 42px; right: 42px;
+            font-size: 18px; line-height: 1.95; color: #ddd6c8; text-align: center;
+            white-space: pre-wrap;
+        }
+        #intro-tresc b { color: #ffd98a; }
+        #intro-tresc .naglowek {
+            display: block; margin: 42px 0 10px;
+            font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #c9a96a;
+        }
+        #intro-stopka { display: flex; gap: 12px; justify-content: center; padding-top: 14px; }
+
+        /* --- MAŁE EKRANY --- */
+        @media (max-width: 900px), (pointer: coarse) {
+            #action-buttons button, .start-btn { min-height: 44px; font-size: 14px; }
+            #settings-menu { transform: scale(0.9); transform-origin: top right; }
+            #inventory-panel-box { width: 99vw; }
+            #minimap-container { transform: scale(0.85); transform-origin: top right; }
+            #intro-tresc { font-size: 15px; left: 20px; right: 20px; }
+            #intro-okno { padding: 0 20px; height: min(58vh, 380px); }
+        }
+
         body.celownik, body.celownik canvas {
             cursor: url("data:image/svg+xml;utf8,\
 <svg xmlns='http://www.w3.org/2000/svg' width='38' height='38' viewBox='0 0 38 38'>\
@@ -635,12 +701,12 @@
 
     <div id="intro-overlay">
         <div id="intro-box">
-            <div id="intro-karta"></div>
-            <div id="intro-tekst"></div>
+            <div id="intro-okno">
+                <div id="intro-tresc"></div>
+            </div>
             <div id="intro-stopka">
-                <span id="intro-licznik"></span>
-                <button id="btn-intro-dalej" class="start-btn">Dalej</button>
-                <button id="btn-intro-pomin" class="start-btn" style="border-color:#7a7266;">Pomiń</button>
+                <button id="btn-intro-szybciej" class="start-btn" style="border-color:#7a7266;">Szybciej</button>
+                <button id="btn-intro-pomin" class="start-btn">Pomiń</button>
             </div>
         </div>
     </div>
@@ -5553,6 +5619,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                        atak: 'mutant_fight',   smierc: 'mutant_death',  cios: 'mutant_hit',  wysokosc: 2.6 },
             fast:    { plik: 'models/demon.glb',   idle: 'demon_idle',   walk: 'demon_walk',
                        atak: 'demon_fight',    smierc: 'demon_death',   cios: 'demon_hit',   wysokosc: 1.5 },
+            spider_small: { plik: 'models/spider.glb', idle: 'spider_idle', walk: 'spider_walk',
+                       atak: 'spider_attack', smierc: 'spider_death', cios: 'spider_hit', wysokosc: 0.9 },
+            spider_big:   { plik: 'models/spider.glb', idle: 'spider_idle', walk: 'spider_walk',
+                       atak: 'spider_attack', smierc: 'spider_death', cios: 'spider_hit', wysokosc: 1.9 },
             strzyga: { plik: 'models/strzyga.glb', idle: 'strzyga_idle', walk: 'strzyga_walk',
                        atak: 'strzyga_attack', smierc: 'strzyga_death', cios: 'strzyga_hit',
                        specjalna: 'strzyga_scream', wysokosc: 1.9 }
@@ -5651,6 +5721,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 akcje[n].loop = THREE.LoopOnce;
                 akcje[n].clampWhenFinished = true;
             });
+            // Model bez animacji też jest w porządku - stoi nieruchomo zamiast znikać
             if (akcje[cfg.idle]) akcje[cfg.idle].play();
 
             grupa.userData.mixer = mixer;
@@ -16061,35 +16132,55 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             ];
         }
 
-        function pokazIntro(poZakonczeniu) {
-            introKarty = zbudujIntro();
-            introIndeks = 0;
-            document.getElementById('intro-overlay').style.display = 'flex';
-            rysujIntro();
+        let introPrzewijanie = null;
 
-            const zamknij = () => {
+        function pokazIntro(poZakonczeniu) {
+            const karty = zbudujIntro();
+            const tresc = document.getElementById('intro-tresc');
+            const okno = document.getElementById('intro-okno');
+
+            // Jeden ciągły tekst: nagłówek, akapit, nagłówek, akapit...
+            tresc.innerHTML = karty.map(k =>
+                `<span class="naglowek">${k.karta}</span>${k.tekst}`
+            ).join('\n\n') + '\n\n\n';
+
+            document.getElementById('intro-overlay').style.display = 'flex';
+
+            // Start pod dolną krawędzią okna
+            const wysOkna = okno.clientHeight || 420;
+            let y = wysOkna;
+            let predkosc = 26;          // pikseli na sekundę
+            tresc.style.transform = `translateY(${y}px)`;
+
+            const koniec = () => {
+                if (introPrzewijanie) { clearInterval(introPrzewijanie); introPrzewijanie = null; }
                 document.getElementById('intro-overlay').style.display = 'none';
                 if (poZakonczeniu) poZakonczeniu();
             };
-            const dalej = document.getElementById('btn-intro-dalej');
-            const pomin = document.getElementById('btn-intro-pomin');
-            dalej.onclick = (e) => {
-                e.stopPropagation();
-                introIndeks++;
-                if (introIndeks >= introKarty.length) { zamknij(); return; }
-                rysujIntro();
-            };
-            pomin.onclick = (e) => { e.stopPropagation(); zamknij(); };
-        }
 
-        function rysujIntro() {
-            const k = introKarty[introIndeks];
-            if (!k) return;
-            document.getElementById('intro-karta').innerText = k.karta;
-            document.getElementById('intro-tekst').innerHTML = k.tekst;
-            document.getElementById('intro-licznik').innerText = `${introIndeks + 1} / ${introKarty.length}`;
-            document.getElementById('btn-intro-dalej').innerText =
-                (introIndeks === introKarty.length - 1) ? 'Zaczynam' : 'Dalej';
+            const wysTekstu = () => tresc.scrollHeight || 1200;
+            let ostatni = performance.now();
+
+            if (introPrzewijanie) clearInterval(introPrzewijanie);
+            introPrzewijanie = setInterval(() => {
+                const teraz = performance.now();
+                const dt = Math.min(0.1, (teraz - ostatni) / 1000);
+                ostatni = teraz;
+                y -= predkosc * dt;
+                tresc.style.transform = `translateY(${y}px)`;
+                // Tekst wyszedł górą - koniec
+                if (y < -wysTekstu()) koniec();
+            }, 33);
+
+            const szybciej = document.getElementById('btn-intro-szybciej');
+            const pomin = document.getElementById('btn-intro-pomin');
+            szybciej.onclick = (e) => {
+                e.stopPropagation();
+                predkosc = (predkosc < 100) ? 110 : 26;
+                szybciej.innerText = (predkosc > 100) ? 'Wolniej' : 'Szybciej';
+            };
+            pomin.onclick = (e) => { e.stopPropagation(); koniec(); };
+            szybciej.innerText = 'Szybciej';
         }
 
         function submitPlayerName() {
