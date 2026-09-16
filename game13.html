@@ -81,14 +81,52 @@
         }
         #intro-stopka { display: flex; gap: 12px; justify-content: center; padding-top: 14px; }
 
-        /* --- MAŁE EKRANY --- */
+        /* --- MAŁE EKRANY ---
+           Na telefonie interfejs walki musi zajmować jak najmniej miejsca:
+           mniejsze napisy, ciaśniejsze odstępy, panele przy samych krawędziach. */
         @media (max-width: 900px), (pointer: coarse) {
-            #action-buttons button, .start-btn { min-height: 44px; font-size: 14px; }
-            #settings-menu { transform: scale(0.9); transform-origin: top right; }
+            /* panel informacyjny w lewym górnym rogu */
+            #ui-container { top: 6px; left: 6px; padding: 6px 8px; border-radius: 4px; }
+            #ui-container h1 { font-size: 12px; margin: 0 0 3px 0; }
+            #ui-container p, #ui-container div { font-size: 10px; line-height: 1.35; }
+            #turn-indicator { font-size: 13px; margin-top: 4px; }
+            #message-log { font-size: 11px; margin-top: 6px; min-height: 14px; }
+
+            /* przyciski akcji - niższe i węższe, ale nadal wygodne pod palec */
+            button { padding: 6px 8px; font-size: 11px; }
+            #controls { bottom: 96px; left: 6px; gap: 5px; flex-wrap: wrap; max-width: 62vw; }
+            #controls button { min-height: 38px; padding: 5px 7px; font-size: 11px; }
+            /* Przyciski obrotu zostają - na tablecie bywają jedyną drogą,
+               gdy nie włączy się pełne sterowanie dotykiem */
+            #camera-rotate-controls { bottom: 96px; right: 6px; gap: 5px; }
+            #camera-rotate-controls button { min-height: 38px; padding: 5px 8px; font-size: 11px; }
+            .start-btn { min-height: 40px; font-size: 13px; }
+
+            /* mapa taktyczna i podpowiedzi */
+            #minimap-container { top: 6px; right: 6px; padding: 4px; transform: scale(0.72); transform-origin: top right; }
+            #minimap-label { font-size: 8px; margin-bottom: 2px; }
+            #ap-tooltip { font-size: 10px; padding: 4px 6px; }
+            #instructions { display: none; }             /* na telefonie tylko zabiera miejsce */
+
+            #settings-menu { transform: scale(0.82); transform-origin: top right; }
             #inventory-panel-box { width: 99vw; }
-            #minimap-container { transform: scale(0.85); transform-origin: top right; }
             #intro-tresc { font-size: 15px; left: 20px; right: 20px; }
             #intro-okno { padding: 0 20px; height: min(58vh, 380px); }
+
+            /* sterowanie dotykiem nieco mniejsze, żeby nie zasłaniało planszy */
+            #touch-stick { width: 104px; height: 104px; left: 10px; bottom: 12px; }
+            #touch-stick-knob { width: 44px; height: 44px; }
+            #touch-buttons { right: 8px; bottom: 12px; grid-template-columns: repeat(2, 50px); gap: 7px; }
+            .touch-btn { width: 50px; height: 50px; font-size: 20px; border-radius: 10px; }
+        }
+
+        /* Bardzo wąskie ekrany - jeszcze ciaśniej */
+        @media (max-width: 560px) {
+            #ui-container h1 { font-size: 11px; }
+            #ui-container p, #ui-container div { font-size: 9px; }
+            #controls { max-width: 58vw; }
+            #controls button { font-size: 10px; padding: 4px 6px; min-height: 34px; }
+            #minimap-container { transform: scale(0.6); }
         }
 
         body.celownik, body.celownik canvas {
