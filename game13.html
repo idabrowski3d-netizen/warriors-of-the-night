@@ -27,9 +27,15 @@
             background: rgba(120,190,255,0.55); border: 2px solid rgba(255,255,255,0.5);
             pointer-events: none;
         }
+        /* Przybliżanie przy lewej krawędzi - zawsze w tym samym, widocznym miejscu */
+        #touch-zoom {
+            position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+            display: flex; flex-direction: column; gap: 8px; z-index: 60;
+        }
         #touch-buttons {
-            position: absolute; right: 14px; bottom: 22px;
-            display: grid; grid-template-columns: repeat(2, 60px); gap: 10px; z-index: 60;
+            position: absolute; right: 12px; bottom: 16px; z-index: 60;
+            display: flex; flex-wrap: wrap-reverse; justify-content: flex-end;
+            gap: 8px; max-width: 46vw;
         }
         .touch-btn {
             width: 60px; height: 60px; border-radius: 12px; font-size: 24px;
@@ -115,8 +121,9 @@
 
             /* sterowanie dotykiem nieco mniejsze, żeby nie zasłaniało planszy */
             #touch-stick { width: 104px; height: 104px; left: 10px; bottom: 12px; }
+            #touch-zoom { left: 8px; gap: 6px; }
             #touch-stick-knob { width: 44px; height: 44px; }
-            #touch-buttons { right: 8px; bottom: 12px; grid-template-columns: repeat(2, 50px); gap: 7px; }
+            #touch-buttons { right: 8px; bottom: 10px; gap: 6px; max-width: 52vw; }
             .touch-btn { width: 50px; height: 50px; font-size: 20px; border-radius: 10px; }
         }
 
@@ -766,14 +773,16 @@
 
     <div id="touch-ui">
         <div id="touch-stick"><div id="touch-stick-knob"></div></div>
+        <div id="touch-zoom">
+            <button class="touch-btn" data-klawisz="blizej" title="Przybliż">+</button>
+            <button class="touch-btn" data-klawisz="dalej" title="Oddal">&minus;</button>
+        </div>
         <div id="touch-buttons">
             <button class="touch-btn" data-klawisz="i" title="Ekwipunek">🎒</button>
             <button class="touch-btn" data-klawisz="tab" title="Następny wojownik">👤</button>
             <button class="touch-btn" data-klawisz="obrotL" title="Obróć w lewo">↺</button>
             <button class="touch-btn" data-klawisz="obrotP" title="Obróć w prawo">↻</button>
             <button class="touch-btn" data-klawisz="powrot" title="Widok na wojownika">🎯</button>
-            <button class="touch-btn" data-klawisz="blizej" title="Przybliż">＋</button>
-            <button class="touch-btn" data-klawisz="dalej" title="Oddal">－</button>
             <button class="touch-btn" id="btn-pelny-ekran" title="Pełny ekran">⛶</button>
         </div>
     </div>
@@ -16713,7 +16722,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 });
             }, 400);
 
-            console.info('[mobilny] Sterowanie dotykiem włączone, tryb oszczędny obrazu aktywny.');
+            const ile = document.querySelectorAll('.touch-btn').length;
+            console.info(`[mobilny] Sterowanie dotykiem włączone. Przycisków: ${ile}. Tryb oszczędny aktywny.`);
         }
 
         // Przełącznik trybu oszczędnego - działa też na komputerze, gdyby gra zwalniała
