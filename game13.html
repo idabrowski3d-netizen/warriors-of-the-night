@@ -2227,7 +2227,132 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             else clearWeatherParticles();
         }
 
+        // ========================================================
+        // --- PALMY ---
+        // Wysokie, smukłe, z pękiem liści na samym czubku. Trzy gatunki:
+        // kokosowa (lekko wygięta), daktylowa (prosta, pierzasta) i wachlarzowa.
+        // ========================================================
+        const PALM_LEAF_COLORS = [0x2f7d32, 0x3d8b40, 0x256b2a, 0x4a9a52, 0x1f5f26];
+
+        function createPalmTree(x, y, z, gatunek) {
+            const g = new THREE.Group();
+            const rodzaj = gatunek || ['kokosowa', 'daktylowa', 'wachlarzowa'][Math.floor(Math.random() * 3)];
+            const wysokosc = (rodzaj === 'daktylowa' ? 4.6 : 3.8) + Math.random() * 2.2;
+            const wygiecie = (rodzaj === 'kokosowa') ? (Math.random() - 0.5) * 0.5 : 0;
+            const koraKolor = rodzaj === 'daktylowa' ? 0x6b5637 : 0x7a6244;
+            const kora = new THREE.MeshLambertMaterial({ color: koraKolor });
+
+            // Pień z segmentów - lekko zwęża się ku górze i może się wyginać
+            const segmentow = 7;
+            const hSeg = wysokosc / segmentow;
+            let px = 0, pz = 0;
+            for (let i = 0; i < segmentow; i++) {
+                const t = i / segmentow;
+                const r = 0.22 * (1 - t * 0.45);
+                const seg = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.92, r, hSeg * 1.06, 7), kora);
+                px += wygiecie * hSeg * 0.35;
+                seg.position.set(px, hSeg * (i + 0.5), pz);
+                seg.rotation.z = -wygiecie * 0.35;
+                g.add(seg);
+                // pierścienie po opadłych liściach
+                if (rodzaj === 'daktylowa' && i > 0) {
+                    const p = new THREE.Mesh(new THREE.TorusGeometry(r * 1.08, 0.028, 5, 8),
+                        new THREE.MeshLambertMaterial({ color: 0x5a4830 }));
+                    p.rotation.x = Math.PI / 2;
+                    p.position.set(px, hSeg * i, pz);
+                    g.add(p);
+                }
+            }
+
+            const czubekY = wysokosc;
+            const czubekX = px;
+            const kolorLisci = PALM_LEAF_COLORS[Math.floor(Math.random() * PALM_LEAF_COLORS.length)];
+            const lisc = new THREE.MeshLambertMaterial({ color: kolorLisci, side: THREE.DoubleSide });
+
+            // Cztery duże liście na czubku, rozłożone dookoła
+            const ile = 4;
+            const obrotBazowy = Math.random() * Math.PI * 2;
+            for (let i = 0; i < ile; i++) {
+                const kat = obrotBazowy + (i / ile) * Math.PI * 2;
+                const dlugosc = 1.9 + Math.random() * 0.8;
+
+                if (rodzaj === 'wachlarzowa') {
+                    // szeroki, płaski wachlarz
+                    const w = new THREE.Mesh(new THREE.CircleGeometry(dlugosc * 0.62, 7, 0, Math.PI), lisc);
+                    w.position.set(czubekX + Math.cos(kat) * 0.28, czubekY + 0.12, Math.sin(kat) * 0.28);
+                    w.rotation.set(-Math.PI / 2.6, 0, kat);
+                    g.add(w);
+                } else {
+                    // pióro: trzon i dwa rzędy listków
+                    const trzon = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, dlugosc, 5), lisc);
+                    trzon.position.set(czubekX + Math.cos(kat) * dlugosc * 0.35, czubekY + 0.18, Math.sin(kat) * dlugosc * 0.35);
+                    trzon.rotation.z = Math.PI / 2 - 0.55;
+                    trzon.rotation.y = -kat;
+                    g.add(trzon);
+
+                    const listkow = 5;
+                    for (let k = 1; k <= listkow; k++) {
+                        const t = k / (listkow + 1);
+                        const szer = 0.5 * (1 - t * 0.55);
+                        [-1, 1].forEach(strona => {
+                            const l = new THREE.Mesh(new THREE.CircleGeometry(szer, 5, 0, Math.PI), lisc);
+                            l.position.set(
+                                czubekX + Math.cos(kat) * dlugosc * t,
+                                czubekY + 0.2 - t * t * 0.9,
+                                Math.sin(kat) * dlugosc * t
+                            );
+                            l.rotation.set(-Math.PI / 2 + strona * 0.5, 0, kat);
+                            g.add(l);
+                        });
+                    }
+                }
+            }
+
+            // Kokosy pod koroną
+            if (rodzaj === 'kokosowa' && Math.random() < 0.7) {
+                const ileK = 2 + Math.floor(Math.random() * 3);
+                for (let i = 0; i < ileK; i++) {
+                    const a = Math.random() * Math.PI * 2;
+                    const k = new THREE.Mesh(new THREE.SphereGeometry(0.15, 7, 6),
+                        new THREE.MeshLambertMaterial({ color: 0x5a4028 }));
+                    k.position.set(czubekX + Math.cos(a) * 0.22, czubekY - 0.18, Math.sin(a) * 0.22);
+                    g.add(k);
+                }
+            }
+            // Daktyle
+            if (rodzaj === 'daktylowa' && Math.random() < 0.55) {
+                const kisc = new THREE.Mesh(new THREE.SphereGeometry(0.26, 8, 6),
+                    new THREE.MeshLambertMaterial({ color: 0xa8641f }));
+                kisc.scale.set(1, 0.7, 1);
+                kisc.position.set(czubekX + 0.25, czubekY - 0.25, 0.1);
+                g.add(kisc);
+            }
+
+            g.position.set(x, y, z);
+            g.userData.unitType = 'tree';
+            g.userData.palma = rodzaj;
+            scene.add(g);
+            obstacleMeshes.push(g);
+            return g;
+        }
+
+        // Na których planszach rosną palmy i jak często
+        function szansaNaPalme() {
+            if (!currentCombatTheme) return 0;
+            switch (currentCombatTheme.id) {
+                case 'amazonia': return 0.75;
+                case 'sahara':   return 0.85;
+                case 'alabama':  return 0.35;
+                case 'wyspy':    return 0.45;
+                case 'powodz':   return 0.40;
+                default:         return 0;
+            }
+        }
+
         function createTree(x, y, z) {
+            // Na ciepłych planszach część drzew to palmy
+            if (Math.random() < szansaNaPalme()) return createPalmTree(x, y, z);
+
             const treeGroup = new THREE.Group();
             const sizeScale = 0.55 + Math.random() * 1.65; // od niskich (parter) po wysokie (3 piętra)
             const trunkHeight = 0.8 + Math.random() * 0.6;
