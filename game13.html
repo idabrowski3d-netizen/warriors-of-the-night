@@ -16226,6 +16226,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const koniec = () => {
                 if (introPrzewijanie) { clearInterval(introPrzewijanie); introPrzewijanie = null; }
                 try { wideo.pause(); wideo.removeAttribute('src'); wideo.load(); } catch (e) {}
+                zatrzymajLektora();
                 document.getElementById('intro-overlay').style.display = 'none';
                 if (poZakonczeniu) poZakonczeniu();
             };
@@ -16239,17 +16240,42 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const wideo = document.getElementById('intro-wideo');
             let biezacaScena = -1;
 
+            // Lektor do każdej sceny. Brak pliku = sam obraz, bez ostrzeżeń w grze.
+            let lektor = null;
+
+            function zatrzymajLektora() {
+                if (!lektor) return;
+                try { lektor.pause(); lektor.src = ''; } catch (e) {}
+                lektor = null;
+            }
+
+            function odtworzLektora(nr) {
+                zatrzymajLektora();
+                if (!SoundEngine.sfxEnabled && !SoundEngine.musicEnabled) return;
+                try {
+                    lektor = new Audio(`audio/lektor_scena${nr + 1}.ogg`);
+                    lektor.volume = 0.9;
+                    lektor.addEventListener('error', () => {
+                        console.info(`[audio] Brak lektor_scena${nr + 1}.ogg - ta scena leci bez narracji.`);
+                        lektor = null;
+                    }, { once: true });
+                    const p = lektor.play();
+                    if (p && p.catch) p.catch(() => {});
+                } catch (e) { lektor = null; }
+            }
+
             function ustawScene(nr) {
                 if (!wideo || nr === biezacaScena) return;
                 biezacaScena = nr;
                 const sciezka = `mov/scena${nr + 1}.mp4`;
                 wideo.classList.remove('widoczne');
+                odtworzLektora(nr);
                 // krótka przerwa na wygaszenie poprzedniego ujęcia
                 setTimeout(() => {
                     if (biezacaScena !== nr) return;
                     wideo.src = sciezka;
                     wideo.loop = true;
-                    wideo.muted = true;
+                    wideo.muted = true;   // dźwięk niesie lektor, nie film
                     const p = wideo.play();
                     if (p && p.catch) p.catch(() => {});
                 }, 260);
