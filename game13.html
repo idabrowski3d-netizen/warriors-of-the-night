@@ -772,6 +772,8 @@
             <button class="touch-btn" data-klawisz="obrotL" title="Obróć w lewo">↺</button>
             <button class="touch-btn" data-klawisz="obrotP" title="Obróć w prawo">↻</button>
             <button class="touch-btn" data-klawisz="powrot" title="Widok na wojownika">🎯</button>
+            <button class="touch-btn" data-klawisz="blizej" title="Przybliż">＋</button>
+            <button class="touch-btn" data-klawisz="dalej" title="Oddal">－</button>
             <button class="touch-btn" id="btn-pelny-ekran" title="Pełny ekran">⛶</button>
         </div>
     </div>
@@ -1544,6 +1546,12 @@
         
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
         let cameraAngle = Math.PI / 4; const cameraRadius = 20; const cameraHeight = 25;
+        let kameraZoom = 1;                       // 1 = domyślnie, mniej = bliżej
+        const ZOOM_MIN = 0.45, ZOOM_MAX = 2.2;
+        function ustawZoom(v) {
+            kameraZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, v));
+            applyCameraPosition();
+        }
         
         // ========================================================
         // --- TRYB MOBILNY ---
@@ -12595,8 +12603,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const py = cameraFollowTarget.y;
             const pz = cameraFollowTarget.z + cameraPanOffset.z;
             // Podczas rozmowy kamera podjeżdża bliżej i niżej
-            const promien = cameraRadius * (1 - 0.55 * rozmowaZoom);
-            const wysokosc = cameraHeight * (1 - 0.62 * rozmowaZoom);
+            const promien = cameraRadius * (1 - 0.55 * rozmowaZoom) * kameraZoom;
+            const wysokosc = cameraHeight * (1 - 0.62 * rozmowaZoom) * kameraZoom;
             camera.position.set(px + Math.cos(cameraAngle) * promien, py + wysokosc, pz + Math.sin(cameraAngle) * promien);
             camera.lookAt(px, py + 1.2 * rozmowaZoom, pz);
         }
@@ -13485,10 +13493,53 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         window.addEventListener('pointerup', koniecPrzeciagania, true);
         window.addEventListener('pointercancel', koniecPrzeciagania, true);
         // Środkowy przycisk domyślnie włącza przewijanie strony - blokujemy
+        window.addEventListener('wheel', (e) => {
+            if (gameMode !== 'dream') return;
+            if (isUiClick(e)) return;
+            e.preventDefault();
+            ustawZoom(kameraZoom * (e.deltaY > 0 ? 1.12 : 0.89));
+        }, { passive: false });
+
         window.addEventListener('auxclick', (e) => { if (e.button === 1) e.preventDefault(); });
         window.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); });
 
-        window.addEventListener('pointerdown', (event) => {
+        // ========================================================
+        // --- ROZKAZY A DOTYK ---
+        // Palcem łatwo trafić w planszę podczas obracania czy przybliżania.
+        // Dlatego dotykiem rozkaz wychodzi dopiero po PUSZCZENIU palca i tylko
+        // wtedy, gdy było to krótkie dotknięcie jednym palcem, bez przesunięcia.
+        // ========================================================
+        let dotykStart = null;
+        const TAP_MAX_MS = 450;
+        const TAP_MAX_PRZESUNIECIE = 14;   // pikseli
+
+        window.addEventListener('pointerdown', (e) => {
+            if (e.pointerType !== 'touch') return;
+            if (isUiClick(e)) { dotykStart = null; return; }
+            dotykStart = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId, palce: 1 };
+        }, true);
+
+        window.addEventListener('pointerdown', (e) => {
+            // Drugi palec unieważnia dotknięcie - to gest, nie rozkaz
+            if (e.pointerType === 'touch' && dotykStart && e.pointerId !== dotykStart.id) dotykStart = null;
+        }, true);
+
+        window.addEventListener('pointermove', (e) => {
+            if (e.pointerType !== 'touch' || !dotykStart || e.pointerId !== dotykStart.id) return;
+            if (Math.hypot(e.clientX - dotykStart.x, e.clientY - dotykStart.y) > TAP_MAX_PRZESUNIECIE) {
+                dotykStart = null;   // przesunięcie = obracanie lub przesuwanie widoku
+            }
+        }, true);
+
+        window.addEventListener('pointerup', (e) => {
+            if (e.pointerType !== 'touch' || !dotykStart || e.pointerId !== dotykStart.id) { dotykStart = null; return; }
+            const krotkie = (performance.now() - dotykStart.t) <= TAP_MAX_MS;
+            const wMiejscu = Math.hypot(e.clientX - dotykStart.x, e.clientY - dotykStart.y) <= TAP_MAX_PRZESUNIECIE;
+            dotykStart = null;
+            if (krotkie && wMiejscu) obsluzRozkaz(e);
+        }, true);
+
+        function obsluzRozkaz(event) {
             // Rozkazy wydaje się wyłącznie lewym przyciskiem; środkowy przesuwa widok,
             // prawy jest wolny - inaczej każde kliknięcie ruszało wojownikiem.
             if (event.button !== undefined && event.button !== 0) return;
@@ -13778,7 +13829,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     checkEnemyOverwatch(() => { if (!gameOver) { isPlayerTurn = true; autoSelectActiveSoldier(); } }); 
                 });
             }
+        }
+
+        // Myszą rozkaz wychodzi od razu; dotyk przechodzi przez sprawdzenie powyżej
+        window.addEventListener('pointerdown', (event) => {
+            if (event.pointerType === 'touch') return;
+            obsluzRozkaz(event);
         });
+
 
         function endEnemyTurn() {
             clearTimeout(enemyTurnTimeout); currentEnemyIndex = 0; isPlayerTurn = true;
@@ -16598,12 +16656,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     else if (k === 'obrotL') rotateCameraBy(-Math.PI / 8);
                     else if (k === 'obrotP') rotateCameraBy(Math.PI / 8);
                     else if (k === 'powrot') { updateCameraPosition(); updateUI('Widok wrócił do wojownika.'); }
+                    else if (k === 'blizej') ustawZoom(kameraZoom * 0.82);
+                    else if (k === 'dalej') ustawZoom(kameraZoom * 1.22);
                 });
             });
 
             // Dwa palce: obrót kamery i przybliżanie
             let palce = new Map();
-            let poprzedniKat = null, poprzedniSrodek = null;
+            let poprzedniKat = null, poprzedniSrodek = null, poprzedniRozstaw = null;
             window.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') palce.set(e.pointerId, e); }, true);
             window.addEventListener('pointermove', (e) => {
                 if (e.pointerType !== 'touch' || !palce.has(e.pointerId)) return;
@@ -16612,6 +16672,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const [a, b] = [...palce.values()];
                 const kat = Math.atan2(b.clientY - a.clientY, b.clientX - a.clientX);
                 const srodek = { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 };
+                const rozstaw = Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY);
+                // Szczypanie: rozsunięcie palców przybliża, zsunięcie oddala
+                if (poprzedniRozstaw && rozstaw > 0) {
+                    const stosunek = poprzedniRozstaw / rozstaw;
+                    if (Math.abs(1 - stosunek) > 0.005) ustawZoom(kameraZoom * stosunek);
+                }
+                poprzedniRozstaw = rozstaw;
                 if (poprzedniKat !== null) {
                     let roznica = kat - poprzedniKat;
                     if (roznica > Math.PI) roznica -= Math.PI * 2;
@@ -16630,7 +16697,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 poprzedniSrodek = srodek;
                 poprzedniKat = kat;
             }, true);
-            const zwolnij = (e) => { palce.delete(e.pointerId); if (palce.size < 2) { poprzedniKat = null; poprzedniSrodek = null; } };
+            const zwolnij = (e) => { palce.delete(e.pointerId); if (palce.size < 2) { poprzedniKat = null; poprzedniSrodek = null; poprzedniRozstaw = null; } };
             window.addEventListener('pointerup', zwolnij, true);
             window.addEventListener('pointercancel', zwolnij, true);
 
