@@ -13971,7 +13971,22 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Na telefonie to samo robią dwa palce przesuwane równolegle.
         // ========================================================
         let przeciaganieWidoku = null;
-        const stickWektor = { x: 0, z: 0 };   // wychylenie drążka w trybie walki
+        // Przytrzymanie palca przy krawędzi ekranu przesuwa widok w tę stronę.
+        // Wygodniejsze od drążka, który na poziomym telefonie kolidował z przyciskami.
+        const stickWektor = { x: 0, z: 0 };
+        const KRAWEDZ_UDZIAL = 0.13;      // szerokość pasa czułego, w ułamku ekranu
+
+        function wektorKrawedzi(x, y) {
+            const w = window.innerWidth, h = window.innerHeight;
+            const mx = Math.max(60, w * KRAWEDZ_UDZIAL);
+            const my = Math.max(60, h * KRAWEDZ_UDZIAL);
+            let vx = 0, vz = 0;
+            if (x < mx) vx = -(1 - x / mx);
+            else if (x > w - mx) vx = (1 - (w - x) / mx);
+            if (y < my) vz = -(1 - y / my);
+            else if (y > h - my) vz = (1 - (h - y) / my);
+            return { x: vx, z: vz };
+        }
 
         function przesunWidokDrazkiem(dt) {
             if (gameMode !== 'dream' || kinoAktywne) return;
@@ -14026,6 +14041,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         };
         window.addEventListener('pointerup', koniecPrzeciagania, true);
         window.addEventListener('pointercancel', koniecPrzeciagania, true);
+        window.addEventListener('pointercancel', () => { stickWektor.x = 0; stickWektor.z = 0; }, true);
         // Środkowy przycisk domyślnie włącza przewijanie strony - blokujemy
         window.addEventListener('wheel', (e) => {
             if (gameMode !== 'dream') return;
@@ -14047,9 +14063,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const TAP_MAX_MS = 450;
         const TAP_MAX_PRZESUNIECIE = 14;   // pikseli
 
+        function odswiezKrawedz(e) {
+            if (gameMode !== 'dream' || isUiClick(e)) { stickWektor.x = 0; stickWektor.z = 0; return false; }
+            const v = wektorKrawedzi(e.clientX, e.clientY);
+            stickWektor.x = v.x; stickWektor.z = v.z;
+            return (v.x !== 0 || v.z !== 0);
+        }
+
         window.addEventListener('pointerdown', (e) => {
             if (e.pointerType !== 'touch') return;
             if (isUiClick(e)) { dotykStart = null; return; }
+            // Palec przy krawędzi przesuwa widok, a nie wydaje rozkazu
+            if (odswiezKrawedz(e)) { dotykStart = null; return; }
             dotykStart = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId, palce: 1 };
         }, true);
 
@@ -14059,6 +14084,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }, true);
 
         window.addEventListener('pointermove', (e) => {
+            if (e.pointerType === 'touch' && gameMode === 'dream' && (stickWektor.x || stickWektor.z)) {
+                odswiezKrawedz(e);   // palec przesuwa się wzdłuż krawędzi
+            }
             if (e.pointerType !== 'touch' || !dotykStart || e.pointerId !== dotykStart.id) return;
             if (Math.hypot(e.clientX - dotykStart.x, e.clientY - dotykStart.y) > TAP_MAX_PRZESUNIECIE) {
                 dotykStart = null;   // przesunięcie = obracanie lub przesuwanie widoku
@@ -14066,6 +14094,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }, true);
 
         window.addEventListener('pointerup', (e) => {
+            if (e.pointerType === 'touch') { stickWektor.x = 0; stickWektor.z = 0; }
             if (e.pointerType !== 'touch' || !dotykStart || e.pointerId !== dotykStart.id) { dotykStart = null; return; }
             const krotkie = (performance.now() - dotykStart.t) <= TAP_MAX_MS;
             const wMiejscu = Math.hypot(e.clientX - dotykStart.x, e.clientY - dotykStart.y) <= TAP_MAX_PRZESUNIECIE;
@@ -17309,12 +17338,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const promien = 44;
 
             function ustawKierunek(dx, dz) {
-                if (gameMode === 'dream') {
-                    // W walce drążek przesuwa kamerę - bohaterem steruje się dotykiem pola
-                    stickWektor.x = Math.abs(dx) > 0.14 ? dx : 0;
-                    stickWektor.z = Math.abs(dz) > 0.14 ? dz : 0;
-                    return;
-                }
                 const prog = 0.28;
                 heroKeys.left  = dx < -prog;
                 heroKeys.right = dx >  prog;
@@ -17406,8 +17429,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Drążek tylko w mieście, przyciski obrotu tylko w walce
             setInterval(() => {
                 const wMiescie = (gameMode === 'present' || gameMode === 'presentNight');
-                // Drążek działa i w mieście (ruch bohatera), i w walce (przesuwanie widoku)
-                stick.style.display = (wMiescie || gameMode === 'dream') ? '' : 'none';
+                stick.style.display = wMiescie ? '' : 'none';
                 document.querySelectorAll('.touch-btn').forEach(b => {
                     const k = b.dataset.klawisz;
                     const tylkoWalka = (k === 'tab' || k === 'obrotL' || k === 'obrotP' || k === 'powrot');
