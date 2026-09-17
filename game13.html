@@ -83,73 +83,6 @@
         }
         #intro-stopka { display: flex; gap: 12px; justify-content: center; padding-top: 14px; }
 
-        /* --- MAŁE EKRANY ---
-           Na telefonie interfejs walki musi zajmować jak najmniej miejsca:
-           mniejsze napisy, ciaśniejsze odstępy, panele przy samych krawędziach. */
-        @media (max-width: 900px), (pointer: coarse) {
-            /* panel informacyjny w lewym górnym rogu */
-            #ui-container { top: 6px; left: 6px; padding: 6px 8px; border-radius: 4px; }
-            #ui-container h1 { font-size: 12px; margin: 0 0 3px 0; }
-            #ui-container p, #ui-container div { font-size: 10px; line-height: 1.35; }
-            #turn-indicator { font-size: 13px; margin-top: 4px; }
-            #message-log { font-size: 11px; margin-top: 6px; min-height: 14px; }
-
-            /* przyciski akcji - niższe i węższe, ale nadal wygodne pod palec */
-            button { padding: 6px 8px; font-size: 11px; }
-            /* Lewy dolny róg należy do drążka - przyciski zaczynają się za nim */
-            #controls { bottom: 10px; left: 132px; gap: 5px; flex-wrap: wrap; max-width: calc(100vw - 420px); }
-            #controls button { min-height: 38px; padding: 5px 7px; font-size: 11px; }
-            /* Przyciski obrotu zostają - na tablecie bywają jedyną drogą,
-               gdy nie włączy się pełne sterowanie dotykiem */
-            /* Przyciski obrotu chowamy tylko wtedy, gdy zastąpiły je przyciski dotykowe */
-            #camera-rotate-controls { bottom: 10px; right: 6px; gap: 5px; }
-            #camera-rotate-controls button { min-height: 36px; padding: 5px 8px; font-size: 11px; }
-            #camera-rotate-controls button { min-height: 38px; padding: 5px 8px; font-size: 11px; }
-            .start-btn { min-height: 40px; font-size: 13px; }
-
-            /* mapa taktyczna i podpowiedzi */
-            #zegar-gry {
-            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
-            z-index: 6; pointer-events: none; text-align: center;
-            background: rgba(0,0,0,0.6); border: 1px solid rgba(255,214,140,0.35);
-            border-radius: 6px; padding: 5px 14px; line-height: 1.25;
-        }
-        .zegar-godzina { display: block; font-size: 19px; color: #ffd98a; letter-spacing: 1px; }
-        .zegar-data { display: block; font-size: 11px; color: #c9bfa8; }
-        .zegar-swieto { display: block; font-size: 10px; color: #9fe09f; letter-spacing: 1px; }
-        @media (max-width: 900px), (pointer: coarse) {
-            #zegar-gry { top: 4px; padding: 3px 9px; }
-            .zegar-godzina { font-size: 14px; }
-            .zegar-data { font-size: 9px; }
-            .zegar-swieto { font-size: 8px; }
-        }
-
-        #minimap-container { top: 6px; right: 6px; padding: 4px; transform: scale(0.72); transform-origin: top right; }
-            #minimap-label { font-size: 8px; margin-bottom: 2px; }
-            #ap-tooltip { font-size: 10px; padding: 4px 6px; }
-            #instructions { display: none; }             /* na telefonie tylko zabiera miejsce */
-
-            #settings-menu { transform: scale(0.82); transform-origin: top right; }
-            #inventory-panel-box { width: 99vw; }
-            #intro-tresc { font-size: 15px; left: 20px; right: 20px; }
-            #intro-okno { padding: 0 20px; height: min(58vh, 380px); }
-
-            /* sterowanie dotykiem nieco mniejsze, żeby nie zasłaniało planszy */
-            #touch-stick { width: 104px; height: 104px; left: 10px; bottom: 12px; }
-            #touch-stick-knob { width: 44px; height: 44px; }
-            #touch-buttons { right: 8px; bottom: 10px; gap: 6px; max-width: 52vw; }
-            .touch-btn { width: 50px; height: 50px; font-size: 20px; border-radius: 10px; }
-        }
-
-        /* Bardzo wąskie ekrany - jeszcze ciaśniej */
-        @media (max-width: 560px) {
-            #ui-container h1 { font-size: 11px; }
-            #ui-container p, #ui-container div { font-size: 9px; }
-            #controls { left: 120px; max-width: calc(100vw - 380px); }
-            #controls button { font-size: 10px; padding: 4px 6px; min-height: 34px; }
-            #minimap-container { transform: scale(0.6); }
-        }
-
         body.celownik, body.celownik canvas {
             cursor: url("data:image/svg+xml;utf8,\
 <svg xmlns='http://www.w3.org/2000/svg' width='38' height='38' viewBox='0 0 38 38'>\
@@ -617,6 +550,70 @@
         #npc-dialogue-buttons { display: flex; gap: 16px; }
         #npc-dialogue-buttons button { border-color: #aa66ff; font-size: 15px; padding: 8px 24px; }
         #npc-dialogue-buttons button:hover { background: #aa66ff; color: #000; }
+        /* ================= MAŁE EKRANY =================
+           Zasada: lewy dolny róg należy wyłącznie do drążka,
+           przyciski akcji tworzą poziomy pas obok niego,
+           przyciski dotykowe siedzą w prawym dolnym rogu.          */
+        @media (max-width: 1000px), (pointer: coarse) {
+            /* --- panel informacyjny --- */
+            #ui-container { top: 4px; left: 4px; padding: 5px 7px; border-radius: 4px; max-width: 42vw; }
+            #ui-container * { font-size: 10px !important; line-height: 1.3 !important; }
+            #ui-container h1 { font-size: 12px !important; margin: 0 0 2px 0 !important; }
+            #turn-indicator { font-size: 11px !important; }
+            #message-log { font-size: 10px !important; margin-top: 4px !important; }
+            #instructions { display: none !important; }
+
+            /* --- zegar: pod mapą taktyczną. Góra ekranu jest zajęta przez Ustawienia
+                   i panel snu, a lewy dolny róg należy do drążka --- */
+            #zegar-gry { top: 168px; right: 6px; left: auto; bottom: auto; transform: none; padding: 2px 7px; }
+            .zegar-godzina { font-size: 12px !important; }
+            .zegar-data, .zegar-swieto { font-size: 8px !important; }
+
+            /* --- mapa taktyczna --- */
+            #minimap-container { top: 4px; right: 4px; padding: 3px; transform: scale(0.55); transform-origin: top right; }
+
+            /* --- pas przycisków akcji: poziomo, obok drążka --- */
+            #controls {
+                position: absolute !important;
+                left: 126px !important; right: 190px !important; bottom: 6px !important;
+                top: auto !important; width: auto !important;
+                display: flex !important; flex-direction: row !important; flex-wrap: wrap !important;
+                align-content: flex-end; justify-content: flex-start; gap: 4px !important;
+            }
+            #controls button {
+                min-height: 32px !important; padding: 3px 6px !important;
+                font-size: 10px !important; white-space: nowrap;
+            }
+            #camera-rotate-controls { bottom: 6px; right: 6px; gap: 4px; }
+            #camera-rotate-controls button { min-height: 32px; padding: 3px 6px; font-size: 10px; }
+            body.mobilny #camera-rotate-controls { display: none; }
+
+            .start-btn { min-height: 38px; font-size: 12px; }
+            #settings-menu { transform: scale(0.78); transform-origin: top right; }
+            #inventory-panel-box { width: 99vw; }
+            #ap-tooltip { font-size: 10px; padding: 3px 5px; }
+            #intro-tresc { font-size: 15px; left: 20px; right: 20px; }
+            #intro-okno { padding: 0 20px; height: min(58vh, 380px); }
+
+            /* --- sterowanie dotykiem --- */
+            #touch-stick { width: 106px; height: 106px; left: 8px; bottom: 8px; }
+            #touch-stick-knob { width: 44px; height: 44px; }
+            #touch-buttons {
+                right: 6px; bottom: 6px; gap: 5px; max-width: 176px;
+            }
+            .touch-btn { width: 52px; height: 52px; font-size: 20px; border-radius: 10px; }
+        }
+
+        /* --- telefon trzymany pionowo: mniej miejsca w poziomie --- */
+        @media (max-width: 560px) {
+            #ui-container { max-width: 56vw; }
+            #controls { left: 120px !important; right: 6px !important; bottom: 120px !important; }
+            #controls button { font-size: 9px !important; min-height: 30px !important; }
+            #touch-buttons { max-width: 176px; }
+            #minimap-container { transform: scale(0.45); }
+            #zegar-gry { top: 140px; }
+        }
+
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
@@ -790,8 +787,8 @@
         <div id="touch-buttons">
             <button class="touch-btn" data-klawisz="i" title="Ekwipunek">🎒</button>
             <button class="touch-btn" data-klawisz="tab" title="Następny wojownik">👤</button>
-            <button class="touch-btn" data-klawisz="obrotL" title="Obróć w lewo">↺</button>
-            <button class="touch-btn" data-klawisz="obrotP" title="Obróć w prawo">↻</button>
+            <button class="touch-btn" data-klawisz="obrotL" title="Obróć w lewo">◀</button>
+            <button class="touch-btn" data-klawisz="obrotP" title="Obróć w prawo">▶</button>
             <button class="touch-btn" data-klawisz="powrot" title="Widok na wojownika">🎯</button>
             <button class="touch-btn" data-klawisz="blizej" title="Przybliż">+</button>
             <button class="touch-btn" data-klawisz="dalej" title="Oddal">&minus;</button>
@@ -17310,7 +17307,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             b.id = 'btn-pelny-ekran';
             b.className = 'touch-btn';
             b.title = 'Pełny ekran';
-            b.innerText = '⛶';
+            b.innerText = '⤢';
             b.addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (czyPelnyEkran()) wylaczPelnyEkran(); else wlaczPelnyEkran();
