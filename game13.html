@@ -15,6 +15,7 @@
         /* --- STEROWANIE DOTYKIEM --- */
         #touch-ui { display: none; }
         body.mobilny #touch-ui { display: block; }
+        body.mobilny #camera-rotate-controls { display: none; }
         #touch-stick {
             position: absolute; left: 18px; bottom: 22px;
             width: 128px; height: 128px; border-radius: 50%;
@@ -26,11 +27,6 @@
             width: 54px; height: 54px; border-radius: 50%;
             background: rgba(120,190,255,0.55); border: 2px solid rgba(255,255,255,0.5);
             pointer-events: none;
-        }
-        /* Przybliżanie przy lewej krawędzi - zawsze w tym samym, widocznym miejscu */
-        #touch-zoom {
-            position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
-            display: flex; flex-direction: column; gap: 8px; z-index: 60;
         }
         #touch-buttons {
             position: absolute; right: 12px; bottom: 16px; z-index: 60;
@@ -100,11 +96,14 @@
 
             /* przyciski akcji - niższe i węższe, ale nadal wygodne pod palec */
             button { padding: 6px 8px; font-size: 11px; }
-            #controls { bottom: 96px; left: 6px; gap: 5px; flex-wrap: wrap; max-width: 62vw; }
+            /* Lewy dolny róg należy do drążka - przyciski zaczynają się za nim */
+            #controls { bottom: 10px; left: 132px; gap: 5px; flex-wrap: wrap; max-width: calc(100vw - 420px); }
             #controls button { min-height: 38px; padding: 5px 7px; font-size: 11px; }
             /* Przyciski obrotu zostają - na tablecie bywają jedyną drogą,
                gdy nie włączy się pełne sterowanie dotykiem */
-            #camera-rotate-controls { bottom: 96px; right: 6px; gap: 5px; }
+            /* Przyciski obrotu chowamy tylko wtedy, gdy zastąpiły je przyciski dotykowe */
+            #camera-rotate-controls { bottom: 10px; right: 6px; gap: 5px; }
+            #camera-rotate-controls button { min-height: 36px; padding: 5px 8px; font-size: 11px; }
             #camera-rotate-controls button { min-height: 38px; padding: 5px 8px; font-size: 11px; }
             .start-btn { min-height: 40px; font-size: 13px; }
 
@@ -137,7 +136,6 @@
 
             /* sterowanie dotykiem nieco mniejsze, żeby nie zasłaniało planszy */
             #touch-stick { width: 104px; height: 104px; left: 10px; bottom: 12px; }
-            #touch-zoom { left: 8px; gap: 6px; }
             #touch-stick-knob { width: 44px; height: 44px; }
             #touch-buttons { right: 8px; bottom: 10px; gap: 6px; max-width: 52vw; }
             .touch-btn { width: 50px; height: 50px; font-size: 20px; border-radius: 10px; }
@@ -147,7 +145,7 @@
         @media (max-width: 560px) {
             #ui-container h1 { font-size: 11px; }
             #ui-container p, #ui-container div { font-size: 9px; }
-            #controls { max-width: 58vw; }
+            #controls { left: 120px; max-width: calc(100vw - 380px); }
             #controls button { font-size: 10px; padding: 4px 6px; min-height: 34px; }
             #minimap-container { transform: scale(0.6); }
         }
@@ -789,16 +787,14 @@
 
     <div id="touch-ui">
         <div id="touch-stick"><div id="touch-stick-knob"></div></div>
-        <div id="touch-zoom">
-            <button class="touch-btn" data-klawisz="blizej" title="Przybliż">+</button>
-            <button class="touch-btn" data-klawisz="dalej" title="Oddal">&minus;</button>
-        </div>
         <div id="touch-buttons">
             <button class="touch-btn" data-klawisz="i" title="Ekwipunek">🎒</button>
             <button class="touch-btn" data-klawisz="tab" title="Następny wojownik">👤</button>
             <button class="touch-btn" data-klawisz="obrotL" title="Obróć w lewo">↺</button>
             <button class="touch-btn" data-klawisz="obrotP" title="Obróć w prawo">↻</button>
             <button class="touch-btn" data-klawisz="powrot" title="Widok na wojownika">🎯</button>
+            <button class="touch-btn" data-klawisz="blizej" title="Przybliż">+</button>
+            <button class="touch-btn" data-klawisz="dalej" title="Oddal">&minus;</button>
             <button class="touch-btn" id="btn-pelny-ekran" title="Pełny ekran">⛶</button>
         </div>
     </div>
@@ -14073,8 +14069,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         window.addEventListener('pointerdown', (e) => {
             if (e.pointerType !== 'touch') return;
             if (isUiClick(e)) { dotykStart = null; return; }
-            // Palec przy krawędzi przesuwa widok, a nie wydaje rozkazu
-            if (odswiezKrawedz(e)) { dotykStart = null; return; }
+
             dotykStart = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId, palce: 1 };
         }, true);
 
@@ -14084,9 +14079,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }, true);
 
         window.addEventListener('pointermove', (e) => {
-            if (e.pointerType === 'touch' && gameMode === 'dream' && (stickWektor.x || stickWektor.z)) {
-                odswiezKrawedz(e);   // palec przesuwa się wzdłuż krawędzi
-            }
             if (e.pointerType !== 'touch' || !dotykStart || e.pointerId !== dotykStart.id) return;
             if (Math.hypot(e.clientX - dotykStart.x, e.clientY - dotykStart.y) > TAP_MAX_PRZESUNIECIE) {
                 dotykStart = null;   // przesunięcie = obracanie lub przesuwanie widoku
@@ -14094,7 +14086,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }, true);
 
         window.addEventListener('pointerup', (e) => {
-            if (e.pointerType === 'touch') { stickWektor.x = 0; stickWektor.z = 0; }
             if (e.pointerType !== 'touch' || !dotykStart || e.pointerId !== dotykStart.id) { dotykStart = null; return; }
             const krotkie = (performance.now() - dotykStart.t) <= TAP_MAX_MS;
             const wMiejscu = Math.hypot(e.clientX - dotykStart.x, e.clientY - dotykStart.y) <= TAP_MAX_PRZESUNIECIE;
@@ -17338,6 +17329,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const promien = 44;
 
             function ustawKierunek(dx, dz) {
+                if (gameMode === 'dream') {
+                    stickWektor.x = Math.abs(dx) > 0.14 ? dx : 0;
+                    stickWektor.z = Math.abs(dz) > 0.14 ? dz : 0;
+                    return;
+                }
                 const prog = 0.28;
                 heroKeys.left  = dx < -prog;
                 heroKeys.right = dx >  prog;
@@ -17429,7 +17425,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Drążek tylko w mieście, przyciski obrotu tylko w walce
             setInterval(() => {
                 const wMiescie = (gameMode === 'present' || gameMode === 'presentNight');
-                stick.style.display = wMiescie ? '' : 'none';
+                // Drążek w mieście steruje bohaterem, w walce przesuwa widok
+                stick.style.display = (wMiescie || gameMode === 'dream') ? '' : 'none';
                 document.querySelectorAll('.touch-btn').forEach(b => {
                     const k = b.dataset.klawisz;
                     const tylkoWalka = (k === 'tab' || k === 'obrotL' || k === 'obrotP' || k === 'powrot');
