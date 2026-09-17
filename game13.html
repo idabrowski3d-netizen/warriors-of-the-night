@@ -109,7 +109,23 @@
             .start-btn { min-height: 40px; font-size: 13px; }
 
             /* mapa taktyczna i podpowiedzi */
-            #minimap-container { top: 6px; right: 6px; padding: 4px; transform: scale(0.72); transform-origin: top right; }
+            #zegar-gry {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 6; pointer-events: none; text-align: center;
+            background: rgba(0,0,0,0.6); border: 1px solid rgba(255,214,140,0.35);
+            border-radius: 6px; padding: 5px 14px; line-height: 1.25;
+        }
+        .zegar-godzina { display: block; font-size: 19px; color: #ffd98a; letter-spacing: 1px; }
+        .zegar-data { display: block; font-size: 11px; color: #c9bfa8; }
+        .zegar-swieto { display: block; font-size: 10px; color: #9fe09f; letter-spacing: 1px; }
+        @media (max-width: 900px), (pointer: coarse) {
+            #zegar-gry { top: 4px; padding: 3px 9px; }
+            .zegar-godzina { font-size: 14px; }
+            .zegar-data { font-size: 9px; }
+            .zegar-swieto { font-size: 8px; }
+        }
+
+        #minimap-container { top: 6px; right: 6px; padding: 4px; transform: scale(0.72); transform-origin: top right; }
             #minimap-label { font-size: 8px; margin-bottom: 2px; }
             #ap-tooltip { font-size: 10px; padding: 4px 6px; }
             #instructions { display: none; }             /* na telefonie tylko zabiera miejsce */
@@ -845,6 +861,7 @@
         <div id="sleeping-vital-bar"></div>
     </div>
 
+    <div id="zegar-gry"></div>
     <div id="minimap-container">
         <div id="minimap-label">MAPA TAKTYCZNA</div>
         <canvas id="minimap-canvas" width="140" height="280"></canvas>
@@ -1784,6 +1801,102 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         };
         const PRESENT_TIME_KEYS = ['rano', 'poludnie', 'wieczor'];
         const COMBAT_TIME_KEYS = ['rano', 'poludnie', 'wieczor', 'noc'];
+        // ========================================================
+        // --- CZAS W GRZE ---
+        // Nowa gra startuje od bieżącej daty i godziny. Czas płynie wolniej niż
+        // rzeczywisty, pora dnia wynika z godziny, a po nocnych misjach wstaje
+        // kolejny dzień. Data trafia do zapisu razem z resztą postępu.
+        // ========================================================
+        let czasGry = new Date();
+        const TEMPO_CZASU = 60;          // 1 sekunda rzeczywista = 1 minuta w grze
+        let ostatniTikZegara = performance.now();
+
+        const DNI_TYGODNIA = ['niedziela', 'poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota'];
+        const MIESIACE = ['stycznia', 'lutego', 'marca', 'kwietnia', 'maja', 'czerwca',
+                          'lipca', 'sierpnia', 'września', 'października', 'listopada', 'grudnia'];
+
+        // Święta o stałej dacie - w te dni modlitwa w kościele daje więcej Łaski
+        const SWIETA = {
+            '1-1':   'Świętej Bożej Rodzicielki',
+            '1-6':   'Objawienie Pańskie',
+            '2-2':   'Ofiarowanie Pańskie',
+            '3-19':  'Świętego Józefa',
+            '3-25':  'Zwiastowanie Pańskie',
+            '5-3':   'Najświętszej Maryi Panny Królowej Polski',
+            '6-24':  'Narodzenie Świętego Jana Chrzciciela',
+            '6-29':  'Świętych Piotra i Pawła',
+            '8-15':  'Wniebowzięcie Najświętszej Maryi Panny',
+            '9-8':   'Narodzenie Najświętszej Maryi Panny',
+            '9-29':  'Świętych Archaniołów',
+            '10-2':  'Świętych Aniołów Stróżów',
+            '11-1':  'Wszystkich Świętych',
+            '11-2':  'Dzień Zaduszny',
+            '12-8':  'Niepokalane Poczęcie',
+            '12-25': 'Boże Narodzenie',
+            '12-26': 'Świętego Szczepana'
+        };
+
+        function swietoDnia(d) {
+            const data = d || czasGry;
+            return SWIETA[`${data.getMonth() + 1}-${data.getDate()}`] || null;
+        }
+
+        function czyNiedziela(d) { return (d || czasGry).getDay() === 0; }
+
+        // Mnożnik Łaski za modlitwę: święto podwaja, niedziela daje półtora raza
+        function mnoznikLaski() {
+            if (swietoDnia()) return 2;
+            if (czyNiedziela()) return 1.5;
+            return 1;
+        }
+
+        function poraZGodziny(h) {
+            if (h >= 5 && h < 11) return 'rano';
+            if (h >= 11 && h < 17) return 'poludnie';
+            if (h >= 17 && h < 21) return 'wieczor';
+            return 'noc';
+        }
+
+        function formatCzasu() {
+            const g = String(czasGry.getHours()).padStart(2, '0');
+            const m = String(czasGry.getMinutes()).padStart(2, '0');
+            return `${g}:${m}`;
+        }
+
+        function formatDaty() {
+            return `${DNI_TYGODNIA[czasGry.getDay()]}, ${czasGry.getDate()} ${MIESIACE[czasGry.getMonth()]}`;
+        }
+
+        // Nocna misja kończy się o świcie kolejnego dnia
+        function przesunNaNastepnyDzien() {
+            czasGry = new Date(czasGry.getTime());
+            czasGry.setDate(czasGry.getDate() + 1);
+            czasGry.setHours(6, 30, 0, 0);
+            odswiezZegar();
+        }
+
+        function odswiezZegar() {
+            const el = document.getElementById('zegar-gry');
+            if (!el) return;
+            const wMiescie = (gameMode === 'present' || gameMode === 'presentNight');
+            el.style.display = wMiescie ? '' : 'none';
+            if (!wMiescie) return;
+            const swieto = swietoDnia();
+            el.innerHTML = `<span class="zegar-godzina">${formatCzasu()}</span>` +
+                           `<span class="zegar-data">${formatDaty()}</span>` +
+                           (swieto ? `<span class="zegar-swieto">${swieto}</span>`
+                                   : (czyNiedziela() ? `<span class="zegar-swieto">niedziela</span>` : ''));
+        }
+
+        function tikZegara() {
+            const teraz = performance.now();
+            const dt = teraz - ostatniTikZegara;
+            ostatniTikZegara = teraz;
+            if (gameMode !== 'present' && gameMode !== 'presentNight') return;
+            czasGry = new Date(czasGry.getTime() + dt * TEMPO_CZASU);
+            odswiezZegar();
+        }
+
         let currentTimeOfDay = 'poludnie';
 
         function applyTimeOfDay(presetKey) {
@@ -1800,7 +1913,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             currentLightOffset = p.lightOffset;
         }
         function applyRandomPresentTimeOfDay() {
-            applyTimeOfDay(PRESENT_TIME_KEYS[Math.floor(Math.random() * PRESENT_TIME_KEYS.length)]);
+            // Pora dnia wynika z godziny na zegarze, a nie z losowania
+            applyTimeOfDay(poraZGodziny(czasGry.getHours()));
         }
         function applyRandomCombatTimeOfDay() {
             if (forcedTimeOfDay) { applyTimeOfDay(forcedTimeOfDay); return; }
@@ -4061,11 +4175,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
             soulPrayerNeeded = false;
             heroQuestItems.soulLaidToRest = true; // duch zaznał spokoju - nawiedzany mieszkaniec będzie wolny
-            playerStats.grace += 3;
+            const mnoznik = mnoznikLaski();
+            const zyskLaski = Math.round(3 * mnoznik);
+            playerStats.grace += zyskLaski;
             playerStats.goodDeeds += 1;
             playerStats.level = 1 + Math.floor(playerStats.goodDeeds / 3);
             updatePlayerStatsUI();
-            showDialogue('[Uczynek względem duszy: Modlić się za zmarłych]\nStawiasz symboliczną świeczkę i szepczesz cichą modlitwę za spokój duszy zmarłej... Gdzieś w zaświatach ktoś w końcu odnalazł spokój. (+3 Grace)\n\nJeśli ktoś w miasteczku skarżył się na nawiedzenia - teraz powinien zaznać spokoju.', 'OK', null, null, null);
+            if (mnoznik > 1) {
+                const powod = swietoDnia() ? `święto: ${swietoDnia()}` : 'niedziela';
+                showFloatingWarning(`${powod} - modlitwa ma dziś większą moc (+${zyskLaski} Łaski)`);
+            }
+            showDialogue('[Uczynek względem duszy: Modlić się za zmarłych]\nStawiasz symboliczną świeczkę i szepczesz cichą modlitwę za spokój duszy zmarłej... Gdzieś w zaświatach ktoś w końcu odnalazł spokój. (+\' + zyskLaski + \' Grace)\n\nJeśli ktoś w miasteczku skarżył się na nawiedzenia - teraz powinien zaznać spokoju.', 'OK', null, null, null);
         }
 
         function spawnDepartedSoul() {
@@ -8249,12 +8369,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         function buildSaveData() {
+            // czasGry zapisujemy jako liczbę milisekund - odporne na różnice stref
             return {
                 grace: playerStats.grace,
                 level: playerStats.level,
                 mission: playerStats.mission,
                 goodDeeds: playerStats.goodDeeds,
                 playerName: playerName,
+                czasGry: czasGry.getTime(),
                 playerPatronKey: playerPatronKey,
                 // Kopie, nie referencje - inaczej późniejsze zmiany stanu gry
                 // po cichu modyfikowałyby już zbudowany zapis
@@ -8276,6 +8398,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             playerStats.mission = data.mission || 0;
             playerStats.goodDeeds = data.goodDeeds || 0;
             playerName = data.playerName || '';
+            if (typeof data.czasGry === 'number') { czasGry = new Date(data.czasGry); odswiezZegar(); }
+            if (typeof arguments[0].czasGry === 'number') { czasGry = new Date(arguments[0].czasGry); odswiezZegar(); }
             playerPatronKey = data.playerPatronKey || null;
             if (data.playerCharacterStats) playerCharacterStats = { ...data.playerCharacterStats };
             recruitedWarriors = (data.recruitedWarriors || []).map(w => ({ ...w }));
@@ -13166,6 +13290,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         document.getElementById('btn-return-present').addEventListener('click', () => {
             document.getElementById('game-over-screen').style.display = 'none';
             document.getElementById('start-screen').style.display = 'none';
+            przesunNaNastepnyDzien();   // nocna wyprawa kończy się o świcie
             returnToPresentFromDream();
         });
         document.getElementById('btn-turn').addEventListener('click', () => { 
@@ -15235,7 +15360,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             updateRoofs(); 
             updateHouseWalls();
             if (isExploreMode()) {
-                updateHeroMovement(dt);
+                tikZegara();
+            updateHeroMovement(dt);
             updateRozmowaZoom(dt);
             if (rozmowaZoom > 0.001 && isExploreMode()) applyCameraPosition();
                 if (gameMode === 'present') { 
@@ -16513,6 +16639,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (!name) { input.focus(); return; }
             playerName = name;
             playerPatronKey = applyPatronBoost(name);
+            czasGry = new Date();   // nowa gra startuje od bieżącej daty i godziny
             document.getElementById('name-prompt-screen').style.display = 'none';
             pokazIntro(() => startPresentMode());
         }
