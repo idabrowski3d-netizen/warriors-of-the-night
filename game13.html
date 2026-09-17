@@ -14834,6 +14834,49 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     Math.abs(Math.round(s.mesh.position.x) - Math.round(e.mesh.position.x)),
                     Math.abs(Math.round(s.mesh.position.z) - Math.round(e.mesh.position.z)));
 
+                // Wielki pająk raz na misję ściąga pobratymców z okolicy
+                if (!e.wezwalPomoc && widoczni.length > 0) {
+                    e.wezwalPomoc = true;
+                    const ex0 = Math.round(e.mesh.position.x), ez0 = Math.round(e.mesh.position.z);
+                    let sciagniete = 0;
+                    enemies.forEach(inny => {
+                        if (inny.isDead || inny.type !== 'spider_small') return;
+                        const d = Math.hypot(inny.mesh.position.x - ex0, inny.mesh.position.z - ez0);
+                        if (d > 22) return;
+                        inny.wezwanyPrzez = e;       // ruszają w stronę wielkiego
+                        inny.ap = getEffectiveMaxAp(inny);
+                        sciagniete++;
+                    });
+                    // Jeśli w pobliżu nie ma nikogo, wywołuje z ukrycia dwa nowe
+                    if (sciagniete === 0) {
+                        for (let i = 0; i < 2; i++) {
+                            let spot = null;
+                            for (let t = 0; t < 60; t++) {
+                                const a = Math.random() * Math.PI * 2;
+                                const r = 4 + Math.random() * 5;
+                                const nx = Math.round(ex0 + Math.cos(a) * r), nz = Math.round(ez0 + Math.sin(a) * r);
+                                if (!isWithinPlayBounds(nx, nz) || !canStandAt(nx, nz, e.level || 0)) continue;
+                                if (isUnitAtLevel(nx, nz, e.level || 0, null)) continue;
+                                if (wSwietle(nx, nz)) continue;
+                                spot = [nx, nz]; break;
+                            }
+                            if (!spot) continue;
+                            const m = createSpiderMesh(false);
+                            m.position.set(spot[0], getLevelY(spot[0], spot[1], e.level || 0) + m.userData.yOffset, spot[1]);
+                            scene.add(m);
+                            enemies.push({ mesh: m, type: 'spider_small', hp: 6, maxHp: 6, ap: 14, maxAp: 14,
+                                           accuracyBonus: 0, isDead: false, facingAngle: 0, level: e.level || 0 });
+                            refreshEnemyPositions();
+                            sciagniete++;
+                        }
+                    }
+                    if (sciagniete > 0) {
+                        showFloatingWarning('WIELKI PAJĄK wzywa pobratymców!');
+                        updateUI(`Z mroku nadchodzi ${sciagniete} ${sciagniete === 1 ? 'pająk' : 'pająków'}.`);
+                        updateFoW();
+                    }
+                }
+
                 const dzialaj = () => {
                     if (gameOver || e.isDead) { currentEnemyIndex++; setTimeout(processNextEnemy, 120); return; }
                     const cele = widoczni.filter(s => !s.isDead && !chronionyPrzezSwiatlo(s));
@@ -15157,8 +15200,117 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             if (e.ap > 0) {
                 refreshEnemyPositions(); refreshPlayerPositions(); refreshNPCPositions();
+
+                // ========================================================
+                // --- PLANOWANIE RUCHU ---
+                // Wróg nie idzie już na oślep krok po kroku. Najpierw liczy,
+                // czy zdąży dojść I uderzyć; jeśli nie - szuka osłony,
+                // a strzelec dodatkowo pozycji z boku, nie na wprost.
+                // ========================================================
+                const walczyWrecz = ['brute', 'stalker', 'wisp', 'zombie', 'robot', 'spider_small', 'spider_big'].includes(e.type);
+                const kosztAkcji = walczyWrecz ? 3 : shootCost;
+
+                // Czy z tego pola widać cel (do strzału)
+                function widacZ(zx, zz) {
+                    const zy = getLevelY(zx, zz, eLvl);
+                    return checkLineOfSight3D(zx, zy + 1, zz, px, py + 0.5, pz) &&
+                           !floorsBlockShot(zx, zz, eLvl, px, pz, tLvl);
+                }
+
+                // Ocena pola: osłona przed celem, obejście z boku, bliskość
+                function ocenPole(zx, zz) {
+                    let punkty = 0;
+                    if (getCoverObstacle(zx, zz, px, pz)) punkty += 40;       // trudniej go trafić
+                    const d = Math.max(Math.abs(zx - px), Math.abs(zz - pz));
+                    if (walczyWrecz) {
+                        punkty += Math.max(0, 30 - d * 3);                    // im bliżej, tym lepiej
+                    } else {
+                        if (widacZ(zx, zz)) punkty += 35;                     // strzelec musi widzieć cel
+                        if (d >= 4 && d <= getVisionRange() - 4) punkty += 20; // wygodny dystans
+                        // obejście: premia za stanie z innej strony niż pozostali wrogowie
+                        const mojKat = Math.atan2(zz - pz, zx - px);
+                        let rozproszenie = 0;
+                        enemies.forEach(inny => {
+                            if (inny === e || inny.isDead) return;
+                            const k = Math.atan2(inny.mesh.position.z - pz, inny.mesh.position.x - px);
+                            let r = Math.abs(mojKat - k);
+                            if (r > Math.PI) r = Math.PI * 2 - r;
+                            rozproszenie += Math.min(r, 1.6);
+                        });
+                        punkty += Math.min(30, rozproszenie * 10);
+                    }
+                    return punkty;
+                }
+
                 let pathData = null;
-                if (dist <= 25) { pathData = findPath(ex, ez, px, pz, eLvl, e); }
+                if (dist <= 25) pathData = findPath(ex, ez, px, pz, eLvl, e);
+
+                // 1) Czy da się dojść tak, by starczyło na cios?
+                //    Trasę prowadzimy na WOLNE pole obok celu - na samego wojownika
+                //    ścieżki nie ma, bo pole jest zajęte.
+                let dojscie = null;
+                if (walczyWrecz && dist <= 25) {
+                    let najkrotsza = null;
+                    [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1]].forEach(d => {
+                        const nx = px + d[0], nz = pz + d[1];
+                        if (!isWithinPlayBounds(nx, nz) || !canStandAt(nx, nz, eLvl)) return;
+                        if (isUnitAtLevel(nx, nz, eLvl, e)) return;
+                        if ((e.type === 'spider_small' || e.type === 'spider_big') && wSwietle(nx, nz)) return;
+                        const sc = findPath(ex, ez, nx, nz, eLvl, e);
+                        if (!sc || sc.path.length === 0) return;
+                        if (!najkrotsza || sc.path.length < najkrotsza.path.length) najkrotsza = sc;
+                    });
+                    dojscie = najkrotsza;
+                }
+
+                if (dojscie) {
+                    const doDyspozycji = Math.max(0, e.ap - kosztAkcji);
+                    const potrzeba = dojscie.path.length;
+                    if (potrzeba > 0 && potrzeba <= doDyspozycji) {
+                        const walk = dojscie.path.slice(0, potrzeba);
+                        e.ap -= walk.length;
+                        animWroga(e, 'walk');
+                        faceTowards(e, px, pz);
+                        moveAlongPath({ mesh: e.mesh, userData: e.mesh.userData }, walk, 150, () => {
+                            animWroga(e, 'idle');
+                            refreshEnemyPositions(); updateFoW();
+                            // po dojściu wraca do tej samej tury i uderza
+                            setTimeout(processNextEnemy, 120);   // ten sam wróg działa dalej w swojej turze
+                        });
+                        return;
+                    }
+                }
+
+                // 2) Nie zdąży uderzyć - szuka lepszego pola w zasięgu ruchu
+                if (!walczyWrecz || !pathData || pathData.path.length === 0 || e.ap > kosztAkcji) {
+                    const zasieg = Math.min(e.ap, 8);
+                    let najlepsze = null, najPunkty = ocenPole(ex, ez) + 6;   // premia za pozostanie
+                    for (let dx = -zasieg; dx <= zasieg; dx++) {
+                        for (let dz = -zasieg; dz <= zasieg; dz++) {
+                            const zx = ex + dx, zz = ez + dz;
+                            if (Math.max(Math.abs(dx), Math.abs(dz)) > zasieg) continue;
+                            if (!isWithinPlayBounds(zx, zz) || !canStandAt(zx, zz, eLvl)) continue;
+                            if (isUnitAtLevel(zx, zz, eLvl, e)) continue;
+                            if ((e.type === 'spider_small' || e.type === 'spider_big') && wSwietle(zx, zz)) continue;
+                            const p = ocenPole(zx, zz);
+                            if (p <= najPunkty) continue;
+                            const sc = findPath(ex, ez, zx, zz, eLvl, e);
+                            if (!sc || sc.path.length === 0 || sc.path.length > e.ap - (walczyWrecz ? 0 : kosztAkcji)) continue;
+                            najPunkty = p; najlepsze = sc;
+                        }
+                    }
+                    if (najlepsze) {
+                        const walk = najlepsze.path.slice(0, Math.min(najlepsze.path.length, e.ap));
+                        e.ap -= walk.length;
+                        animWroga(e, 'walk');
+                        moveAlongPath({ mesh: e.mesh, userData: e.mesh.userData }, walk, 150, () => {
+                            animWroga(e, 'idle');
+                            refreshEnemyPositions(); updateFoW();
+                            setTimeout(processNextEnemy, 120);   // ten sam wróg działa dalej w swojej turze
+                        });
+                        return;
+                    }
+                }
                 
                 if (pathData && pathData.path.length > 0) {
                     let nextStep = pathData.path[0];
