@@ -13971,6 +13971,22 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Na telefonie to samo robią dwa palce przesuwane równolegle.
         // ========================================================
         let przeciaganieWidoku = null;
+        const stickWektor = { x: 0, z: 0 };   // wychylenie drążka w trybie walki
+
+        function przesunWidokDrazkiem(dt) {
+            if (gameMode !== 'dream' || kinoAktywne) return;
+            if (stickWektor.x === 0 && stickWektor.z === 0) return;
+            const predkosc = 26 * (cameraHeight / 25) * kameraZoom;
+            const cos = Math.cos(cameraAngle), sin = Math.sin(cameraAngle);
+            const dx = stickWektor.x * predkosc * dt;
+            const dz = stickWektor.z * predkosc * dt;
+            cameraPanOffset.set(
+                cameraPanOffset.x + (-dx * sin - dz * cos),
+                0,
+                cameraPanOffset.z + (dx * cos - dz * sin)
+            );
+            applyCameraPosition();
+        }
 
         function ekranNaPlansze(dx, dy) {
             // Przeliczamy ruch myszy na kierunki planszy z uwzględnieniem obrotu kamery
@@ -15777,6 +15793,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             updateHouseWalls();
             if (isExploreMode()) {
                 tikZegara();
+            przesunWidokDrazkiem(dt);
             updateNocnaSmierc(dt);
             updateHeroMovement(dt);
             updateRozmowaZoom(dt);
@@ -17292,6 +17309,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const promien = 44;
 
             function ustawKierunek(dx, dz) {
+                if (gameMode === 'dream') {
+                    // W walce drążek przesuwa kamerę - bohaterem steruje się dotykiem pola
+                    stickWektor.x = Math.abs(dx) > 0.14 ? dx : 0;
+                    stickWektor.z = Math.abs(dz) > 0.14 ? dz : 0;
+                    return;
+                }
                 const prog = 0.28;
                 heroKeys.left  = dx < -prog;
                 heroKeys.right = dx >  prog;
@@ -17300,6 +17323,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
             function zeruj() {
                 heroKeys.left = heroKeys.right = heroKeys.up = heroKeys.down = false;
+                stickWektor.x = 0; stickWektor.z = 0;
                 knob.style.transform = 'translate(-50%,-50%)';
             }
 
@@ -17382,7 +17406,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Drążek tylko w mieście, przyciski obrotu tylko w walce
             setInterval(() => {
                 const wMiescie = (gameMode === 'present' || gameMode === 'presentNight');
-                stick.style.display = wMiescie ? '' : 'none';
+                // Drążek działa i w mieście (ruch bohatera), i w walce (przesuwanie widoku)
+                stick.style.display = (wMiescie || gameMode === 'dream') ? '' : 'none';
                 document.querySelectorAll('.touch-btn').forEach(b => {
                     const k = b.dataset.klawisz;
                     const tylkoWalka = (k === 'tab' || k === 'obrotL' || k === 'obrotP' || k === 'powrot');
