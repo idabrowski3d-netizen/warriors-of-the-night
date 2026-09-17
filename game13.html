@@ -13938,20 +13938,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Przytrzymanie palca przy krawędzi ekranu przesuwa widok w tę stronę.
         // Wygodniejsze od drążka, który na poziomym telefonie kolidował z przyciskami.
         const stickWektor = { x: 0, z: 0 };
-        const KRAWEDZ_UDZIAL = 0.13;      // szerokość pasa czułego, w ułamku ekranu
-
-        function wektorKrawedzi(x, y) {
-            const w = window.innerWidth, h = window.innerHeight;
-            const mx = Math.max(60, w * KRAWEDZ_UDZIAL);
-            const my = Math.max(60, h * KRAWEDZ_UDZIAL);
-            let vx = 0, vz = 0;
-            if (x < mx) vx = -(1 - x / mx);
-            else if (x > w - mx) vx = (1 - (w - x) / mx);
-            if (y < my) vz = -(1 - y / my);
-            else if (y > h - my) vz = (1 - (h - y) / my);
-            return { x: vx, z: vz };
-        }
-
         function przesunWidokDrazkiem(dt) {
             if (gameMode !== 'dream' || kinoAktywne) return;
             if (stickWektor.x === 0 && stickWektor.z === 0) return;
@@ -14026,13 +14012,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         let dotykStart = null;
         const TAP_MAX_MS = 450;
         const TAP_MAX_PRZESUNIECIE = 14;   // pikseli
-
-        function odswiezKrawedz(e) {
-            if (gameMode !== 'dream' || isUiClick(e)) { stickWektor.x = 0; stickWektor.z = 0; return false; }
-            const v = wektorKrawedzi(e.clientX, e.clientY);
-            stickWektor.x = v.x; stickWektor.z = v.z;
-            return (v.x !== 0 || v.z !== 0);
-        }
 
         window.addEventListener('pointerdown', (e) => {
             if (e.pointerType !== 'touch') return;
@@ -17314,26 +17293,42 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 knob.style.transform = 'translate(-50%,-50%)';
             }
 
+            // Drążek śledzimy na poziomie okna - przechwytywanie wskaźnika bywa
+            // przerywane przez inne nasłuchy i wychylenie potrafiło się zaciąć.
+            function aktualizujDrazek(e) {
+                const r = stick.getBoundingClientRect();
+                const srodekX = r.left + r.width / 2;
+                const srodekY = r.top + r.height / 2;
+                let dx = e.clientX - srodekX;
+                let dy = e.clientY - srodekY;
+                const dl = Math.hypot(dx, dy);
+                const ogr = Math.min(dl, promien) || 0;
+                const nx = dl ? (dx / dl) * ogr : 0;
+                const ny = dl ? (dy / dl) * ogr : 0;
+                knob.style.transform = `translate(calc(-50% + ${nx}px), calc(-50% + ${ny}px))`;
+                ustawKierunek(nx / promien, ny / promien);
+            }
+
             stick.addEventListener('pointerdown', (e) => {
                 palecStick = e.pointerId;
-                stick.setPointerCapture(e.pointerId);
+                aktualizujDrazek(e);
                 e.preventDefault();
+                e.stopPropagation();
             });
-            stick.addEventListener('pointermove', (e) => {
-                if (palecStick !== e.pointerId) return;
-                const r = stick.getBoundingClientRect();
-                let dx = e.clientX - (r.left + r.width / 2);
-                let dz = e.clientY - (r.top + r.height / 2);
-                const dl = Math.hypot(dx, dz) || 1;
-                const ogr = Math.min(dl, promien);
-                const nx = (dx / dl) * ogr, nz = (dz / dl) * ogr;
-                knob.style.transform = `translate(calc(-50% + ${nx}px), calc(-50% + ${nz}px))`;
-                ustawKierunek(nx / promien, nz / promien);
+
+            window.addEventListener('pointermove', (e) => {
+                if (palecStick === null || e.pointerId !== palecStick) return;
+                aktualizujDrazek(e);
                 e.preventDefault();
-            });
-            const koniec = (e) => { if (palecStick === e.pointerId) { palecStick = null; zeruj(); } };
-            stick.addEventListener('pointerup', koniec);
-            stick.addEventListener('pointercancel', koniec);
+            }, true);
+
+            const puscDrazek = (e) => {
+                if (palecStick === null || (e && e.pointerId !== palecStick)) return;
+                palecStick = null;
+                zeruj();
+            };
+            window.addEventListener('pointerup', puscDrazek, true);
+            window.addEventListener('pointercancel', puscDrazek, true);
 
             // Przyciski zamiast skrótów klawiszowych
             document.querySelectorAll('.touch-btn').forEach(b => {
