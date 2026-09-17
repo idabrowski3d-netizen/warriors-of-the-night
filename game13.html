@@ -6197,6 +6197,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Zgon wroga z dokończeniem animacji upadku
         function zabijWroga(wrog, poZgonie) {
             if (!wrog) return;
+            // Śmierci nie da się zabić - odstępuje i wraca w kolejnym śnie
+            if (wrog.nieDoZabicia) { odpedzSmierc(wrog, null); if (poZgonie) poZgonie(); return; }
             wrog.isDead = true;
             const u = wrog.mesh && wrog.mesh.userData;
             const cfg = (u && u.isEnemyModel) ? ENEMY_MODELS[u.enemyKind] : null;
@@ -9087,6 +9089,63 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         let nightEnemies = [];
         let heroTouchCooldown = 0;
 
+        // Śmierć w nocnym mieście - nie zabija, ale odbiera całą Łaskę
+        let nocnaSmierc = null;
+
+        function spawnNocnaSmierc() {
+            nocnaSmierc = null;
+            if (Math.random() >= SMIERC_SZANSA) return;
+            if (!hero) return;
+            let spot = null;
+            for (let t = 0; t < 300; t++) {
+                const cx = Math.floor(Math.random() * (mapWidth - 20)) + 10 - offsetX;
+                const cz = Math.floor(Math.random() * (mapDepth - 20)) + 10 - offsetZ;
+                if (!isWithinPlayBounds(cx, cz) || isObstacle(cx, cz)) continue;
+                if (Math.hypot(cx - hero.mesh.position.x, cz - hero.mesh.position.z) < 26) continue;
+                spot = [cx, cz]; break;
+            }
+            if (!spot) return;
+            const m = createDeathMesh();
+            m.position.set(spot[0], getTerrainY(spot[0], spot[1]) + m.userData.yOffset, spot[1]);
+            scene.add(m);
+            nocnaSmierc = { mesh: m, zlapala: false };
+            showFloatingWarning('Ktoś wysoki stoi na końcu ulicy...');
+        }
+
+        function updateNocnaSmierc(dt) {
+            if (!nocnaSmierc || !hero || hero.isDead) return;
+            if (gameMode !== 'presentNight') { scene.remove(nocnaSmierc.mesh); nocnaSmierc = null; return; }
+            const m = nocnaSmierc.mesh;
+            const dx = hero.mesh.position.x - m.position.x;
+            const dz = hero.mesh.position.z - m.position.z;
+            const d = Math.hypot(dx, dz) || 1;
+
+            // Dzwon i światło latarni odstraszają ją tak samo jak Cienie
+            if (performance.now() < shadowsFleeUntil) {
+                m.position.x -= (dx / d) * 4 * dt;
+                m.position.z -= (dz / d) * 4 * dt;
+                return;
+            }
+            // Idzie wolno, ale nieubłaganie
+            const predkosc = 2.1;
+            m.position.x += (dx / d) * predkosc * dt;
+            m.position.z += (dz / d) * predkosc * dt;
+            m.position.y = getTerrainY(Math.round(m.position.x), Math.round(m.position.z));
+            m.lookAt(hero.mesh.position.x, m.position.y, hero.mesh.position.z);
+
+            if (d < 1.3 && !nocnaSmierc.zlapala) {
+                nocnaSmierc.zlapala = true;
+                const stracone = playerStats.grace;
+                playerStats.grace = 0;
+                updatePlayerStatsUI();
+                showFloatingWarning('Śmierć chwyta cię za ramię - cała Łaska przepada!');
+                updateUI(`Śmierć odebrała ci całą Łaskę (${stracone}). Trzeba zasłużyć na nią od nowa.`);
+                playDyingSfx();
+                // po zabraniu Łaski odchodzi
+                setTimeout(() => { if (nocnaSmierc) { scene.remove(nocnaSmierc.mesh); nocnaSmierc = null; } }, 900);
+            }
+        }
+
         function spawnNightEnemies() {
             nightEnemies.forEach(e => {
                 scene.remove(e.mesh);
@@ -9219,6 +9278,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             resetWarriorMixers();
             spawnSleepingNPCs();
             spawnNightEnemies();
+            spawnNocnaSmierc();
             markLampsForNight();
             spawnNightWatchman();
             spawnDepartedSoul();
@@ -10539,6 +10599,78 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             g.userData.unitType = duzy ? 'spider_big' : 'spider_small';
             g.userData.boiSieSwiatla = true;   // rozpoznanie przy każdym kroku
             return g;
+        }
+
+        // ========================================================
+        // --- ŚMIERĆ ---
+        // Nie da się jej zabić - można ją tylko odpędzić. Wraca w kolejnych snach.
+        // ========================================================
+        function createDeathMesh() {
+            const g = new THREE.Group();
+            const s = 2.0;   // dwukrotnie wyższa od wojownika
+            const plotno = new THREE.MeshLambertMaterial({ color: 0x14121a });
+
+            // szata - stożek rozszerzający się ku dołowi
+            const szata = new THREE.Mesh(new THREE.ConeGeometry(0.55 * s, 1.7 * s, 10), plotno);
+            szata.position.y = 0.85 * s;
+            g.add(szata);
+            const kaptur = new THREE.Mesh(new THREE.SphereGeometry(0.3 * s, 10, 8), plotno);
+            kaptur.scale.set(1, 1.15, 1);
+            kaptur.position.y = 1.78 * s;
+            g.add(kaptur);
+            // pustka pod kapturem
+            const mrok = new THREE.Mesh(new THREE.SphereGeometry(0.22 * s, 8, 6),
+                new THREE.MeshBasicMaterial({ color: 0x000000 }));
+            mrok.position.set(0, 1.74 * s, 0.16 * s);
+            g.add(mrok);
+            // dwa zimne punkty zamiast oczu
+            [-1, 1].forEach(b => {
+                const oko = new THREE.Mesh(new THREE.SphereGeometry(0.045 * s, 6, 5),
+                    new THREE.MeshBasicMaterial({ color: 0x7fe8ff }));
+                oko.position.set(b * 0.09 * s, 1.76 * s, 0.3 * s);
+                g.add(oko);
+            });
+            // kostiste dłonie
+            [-1, 1].forEach(b => {
+                const dlon = new THREE.Mesh(new THREE.SphereGeometry(0.1 * s, 7, 6),
+                    new THREE.MeshLambertMaterial({ color: 0xd8d2c4 }));
+                dlon.position.set(b * 0.5 * s, 1.0 * s, 0.18 * s);
+                g.add(dlon);
+            });
+            // kosa
+            const drzewce = new THREE.Mesh(new THREE.CylinderGeometry(0.045 * s, 0.05 * s, 2.5 * s, 6),
+                new THREE.MeshLambertMaterial({ color: 0x4a3a28 }));
+            drzewce.position.set(0.62 * s, 1.15 * s, 0.2 * s);
+            drzewce.rotation.z = 0.16;
+            g.add(drzewce);
+            const ostrze = new THREE.Mesh(new THREE.TorusGeometry(0.55 * s, 0.055 * s, 6, 14, Math.PI * 0.75),
+                new THREE.MeshLambertMaterial({ color: 0xbfc6cc }));
+            ostrze.position.set(0.72 * s, 2.3 * s, 0.2 * s);
+            ostrze.rotation.set(Math.PI / 2, 0, 1.1);
+            g.add(ostrze);
+
+            const swiatlo = new THREE.PointLight(0x5fd8ff, 0.7, 9, 1.6);
+            swiatlo.position.y = 1.7 * s;
+            g.add(swiatlo);
+
+            g.userData.yOffset = 0;
+            g.userData.unitType = 'smierc';
+            return g;
+        }
+
+        const SMIERC_SZANSA = 0.25;      // na misję
+        const SMIERC_HP = 20;
+
+        // Odpędzona, nie zabita - znika ze sceny i może wrócić w kolejnym śnie
+        function odpedzSmierc(sm, kto) {
+            if (!sm || sm.isDead) return;
+            sm.isDead = true;
+            scene.remove(sm.mesh);
+            refreshEnemyPositions();
+            showFloatingWarning('Śmierć odstępuje... na razie.');
+            updateUI(kto ? `${kto.name} odpędza Śmierć. Ona nie ginie - wróci.`
+                         : 'Śmierć odstępuje. Nie da się jej zabić.');
+            playFileSfx(AudioFiles.enemyDead, 0.7);
         }
 
         function createStrzygaMesh() {
@@ -12156,7 +12288,35 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         // Rozstawienie celów wybranej misji - wywoływane po rozstawieniu oddziału i wrogów
+        // Śmierć wchodzi do snu z własną szansą, niezależnie od reszty wrogów
+        function sprobujWezwacSmierc() {
+            if (Math.random() >= SMIERC_SZANSA) return;
+            const anchorS = soldiers[0];
+            if (!anchorS) return;
+            const ax = Math.round(anchorS.mesh.position.x), az = Math.round(anchorS.mesh.position.z);
+            let spot = null;
+            for (let t = 0; t < 400; t++) {
+                const cx = Math.floor(Math.random() * (mapWidth - 16)) + 8 - offsetX;
+                const cz = Math.floor(Math.random() * (mapDepth - 16)) + 8 - offsetZ;
+                if (!isWithinPlayBounds(cx, cz) || !canStandAt(cx, cz, 0)) continue;
+                if (isUnitAtLevel(cx, cz, 0, null)) continue;
+                if (Math.hypot(cx - ax, cz - az) < 18) continue;   // nie tuż przy oddziale
+                spot = [cx, cz]; break;
+            }
+            if (!spot) return;
+            const m = createDeathMesh();
+            m.position.set(spot[0], getLevelY(spot[0], spot[1], 0) + m.userData.yOffset, spot[1]);
+            scene.add(m);
+            enemies.push({ mesh: m, type: 'smierc', hp: SMIERC_HP, maxHp: SMIERC_HP,
+                           ap: 12, maxAp: 12, accuracyBonus: 0, isDead: false,
+                           facingAngle: 0, level: 0, nieDoZabicia: true });
+            refreshEnemyPositions();
+            showFloatingWarning('Coś wysokiego przechodzi przez sen...');
+            updateUI('W tym śnie jest Śmierć. Nie zabijesz jej - możesz ją tylko odpędzić.');
+        }
+
         function setupMissionObjectives() {
+            sprobujWezwacSmierc();
             clearMissionObjectives();
             if (currentMissionType === 'standard') {
                 // Serce śpiącego ukryte gdzieś na planszy, zamknięte w grzechu
@@ -13437,7 +13597,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z), ey = getLevelY(ex, ez, e.level || 0);
                 const dist = Math.abs(px - ex) + Math.abs(pz - ez);
                 // Wręcz tylko na tej samej kondygnacji
-                if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'summoner' || e.type === 'zombie' || e.type === 'strzyga' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big') return ((e.level || 0) === (active.level || 0) && Math.max(Math.abs(px - ex), Math.abs(pz - ez)) === 1 && Math.abs(ey - py) <= 1 && e.type !== 'summoner');
+                if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'summoner' || e.type === 'zombie' || e.type === 'strzyga' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big' || e.type === 'smierc') return ((e.level || 0) === (active.level || 0) && Math.max(Math.abs(px - ex), Math.abs(pz - ez)) === 1 && Math.abs(ey - py) <= 1 && e.type !== 'summoner');
                 return (dist <= getVisionRange() && checkLineOfSight3D(ex, ey+1, ez, px, py+0.5, pz) && !floorsBlockShot(ex, ez, e.level || 0, px, pz, active.level || 0));
             });
 
@@ -15129,7 +15289,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // bez celu w zasięgu zachowuje się jak zwykły wróg (podchodzi) - obsłuży to dalszy kod
             }
 
-            if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'zombie' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big') {
+            if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'zombie' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big' || e.type === 'smierc') {
                 const meleeCostE = (e.type === 'brute') ? shootCost : 3; // szybsze rasy uderzają taniej
                 const chebDystans = Math.max(Math.abs(px - ex), Math.abs(pz - ez));
                 if (e.ap >= meleeCostE && tLvl === eLvl && chebDystans === 1 && Math.abs(ey - py) <= 1) {
@@ -15150,7 +15310,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     let isHit = Math.random() < 0.85; 
                     SoundEngine.playShoot();
                     slideObject(e.mesh, px, py + e.mesh.userData.yOffset, pz, 150, () => {
-                        const meleeDmg = (e.type === 'brute') ? 6 : (e.type === 'stalker' ? 4 : (e.type === 'zombie' ? 3 : (e.type === 'robot' ? 5 : (e.type === 'spider_big' ? 5 : (e.type === 'spider_small' ? 3 : 3)))));
+                        const meleeDmg = (e.type === 'brute') ? 6 : (e.type === 'stalker' ? 4 : (e.type === 'zombie' ? 3 : (e.type === 'robot' ? 5 : (e.type === 'spider_big' ? 5 : (e.type === 'spider_small' ? 3 : (e.type === 'smierc' ? 7 : 3))))));
                         // Duży pająk przy spętanym celu sięga po jad zamiast zwykłego ciosu
                         if (e.type === 'spider_big' && isSoldierWebbed(bestTarget)) tryVenom(e, bestTarget);
                         if (e.type === 'zombie' && !bestTarget.isNPC) tryInfectSoldier(bestTarget);
@@ -15171,7 +15331,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     return;
                 }
             } else {
-                if (e.type !== 'summoner' && e.type !== 'zombie' && e.type !== 'strzyga' && e.type !== 'robot' && e.type !== 'spider_small' && e.type !== 'spider_big' && e.ap >= shootCost && dist <= getVisionRange() && checkLineOfSight3D(ex, ey+1, ez, px, py+0.5, pz) && !floorsBlockShot(ex, ez, eLvl, px, pz, tLvl)) {
+                if (e.type !== 'summoner' && e.type !== 'zombie' && e.type !== 'strzyga' && e.type !== 'robot' && e.type !== 'spider_small' && e.type !== 'spider_big' && e.type !== 'smierc' && e.ap >= shootCost && dist <= getVisionRange() && checkLineOfSight3D(ex, ey+1, ez, px, py+0.5, pz) && !floorsBlockShot(ex, ez, eLvl, px, pz, tLvl)) {
                     e.ap -= shootCost;
                     faceTowards(e, px, pz);
                     animWroga(e, 'atak', true);
@@ -15513,6 +15673,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             updateHouseWalls();
             if (isExploreMode()) {
                 tikZegara();
+            updateNocnaSmierc(dt);
             updateHeroMovement(dt);
             updateRozmowaZoom(dt);
             if (rozmowaZoom > 0.001 && isExploreMode()) applyCameraPosition();
