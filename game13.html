@@ -596,6 +596,7 @@
         <button id="settings-toggle-btn">⚙ Ustawienia</button>
         <div id="settings-dropdown">
             <label><input type="checkbox" id="chk-oszczedny"> Tryb oszczędny (płynniej na telefonie)</label>
+            <label><input type="checkbox" id="chk-drazek"> Podgląd drążka (diagnostyka)</label>
             <label><input type="checkbox" id="chk-pelny-ekran"> Pełny ekran</label>
             <label><input type="checkbox" id="toggle-sfx" checked> Dźwięki</label>
             <label><input type="checkbox" id="toggle-music" checked> Muzyka / Otoczenie</label>
@@ -13938,7 +13939,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Przytrzymanie palca przy krawędzi ekranu przesuwa widok w tę stronę.
         // Wygodniejsze od drążka, który na poziomym telefonie kolidował z przyciskami.
         const stickWektor = { x: 0, z: 0 };
+        let drazekAktywny = false;
+
         function przesunWidokDrazkiem(dt) {
+            // Gdy nikt nie trzyma drążka, wychylenie musi zgasnąć - inaczej
+            // ostatni kierunek przewijałby planszę w nieskończoność.
+            if (!drazekAktywny) { stickWektor.x = 0; stickWektor.z = 0; }
             if (gameMode !== 'dream' || kinoAktywne) return;
             if (stickWektor.x === 0 && stickWektor.z === 0) return;
             const predkosc = 26 * (cameraHeight / 25) * kameraZoom;
@@ -17307,10 +17313,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const ny = dl ? (dy / dl) * ogr : 0;
                 knob.style.transform = `translate(calc(-50% + ${nx}px), calc(-50% + ${ny}px))`;
                 ustawKierunek(nx / promien, ny / promien);
+                // Podgląd diagnostyczny - włączany w Ustawieniach
+                if (window.__pokazDrazek) {
+                    const el = document.getElementById('message-log');
+                    if (el) el.innerText = `drążek: x=${(nx / promien).toFixed(2)} y=${(ny / promien).toFixed(2)}`;
+                }
             }
 
             stick.addEventListener('pointerdown', (e) => {
                 palecStick = e.pointerId;
+                drazekAktywny = true;
                 aktualizujDrazek(e);
                 e.preventDefault();
                 e.stopPropagation();
@@ -17325,10 +17337,40 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const puscDrazek = (e) => {
                 if (palecStick === null || (e && e.pointerId !== palecStick)) return;
                 palecStick = null;
+                drazekAktywny = false;
                 zeruj();
             };
             window.addEventListener('pointerup', puscDrazek, true);
             window.addEventListener('pointercancel', puscDrazek, true);
+
+            // Druga, niezależna droga: zdarzenia dotykowe. Na części telefonów
+            // zdarzenia wskaźnika bywają przechwytywane przez inne nasłuchy,
+            // a wtedy wychylenie zostawało zapamiętane z ostatniej pozycji.
+            function zTouch(ev) {
+                if (!ev.touches || ev.touches.length === 0) return null;
+                const r = stick.getBoundingClientRect();
+                // bierzemy palec najbliższy drążkowi
+                let naj = null, najD = Infinity;
+                for (let i = 0; i < ev.touches.length; i++) {
+                    const t = ev.touches[i];
+                    const d = Math.hypot(t.clientX - (r.left + r.width / 2), t.clientY - (r.top + r.height / 2));
+                    if (d < najD) { najD = d; naj = t; }
+                }
+                return naj;
+            }
+            stick.addEventListener('touchstart', (ev) => {
+                const t = zTouch(ev);
+                if (t) { palecStick = 'touch'; drazekAktywny = true; aktualizujDrazek(t); }
+                ev.preventDefault(); ev.stopPropagation();
+            }, { passive: false });
+            stick.addEventListener('touchmove', (ev) => {
+                const t = zTouch(ev);
+                if (t) aktualizujDrazek(t);
+                ev.preventDefault(); ev.stopPropagation();
+            }, { passive: false });
+            const koniecTouch = (ev) => { palecStick = null; drazekAktywny = false; zeruj(); if (ev) ev.preventDefault(); };
+            stick.addEventListener('touchend', koniecTouch, { passive: false });
+            stick.addEventListener('touchcancel', koniecTouch, { passive: false });
 
             // Przyciski zamiast skrótów klawiszowych
             document.querySelectorAll('.touch-btn').forEach(b => {
@@ -17414,6 +17456,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 updateUI(trybOszczedny ? 'Tryb oszczędny włączony - mniej efektów, płynniejszy obraz.'
                                        : 'Tryb oszczędny wyłączony - pełna jakość obrazu.');
             });
+        })();
+
+        (function () {
+            const d = document.getElementById('chk-drazek');
+            if (d) d.addEventListener('change', () => { window.__pokazDrazek = d.checked; });
         })();
 
         wlaczSterowanieDotykiem();
