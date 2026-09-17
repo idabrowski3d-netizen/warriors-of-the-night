@@ -13951,21 +13951,28 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const cos = Math.cos(cameraAngle), sin = Math.sin(cameraAngle);
             const dx = stickWektor.x * predkosc * dt;
             const dz = stickWektor.z * predkosc * dt;
+            // Kierunki liczone z ustawienia kamery:
+            //   w prawo na ekranie  = ( sin, -cos)
+            //   w dół na ekranie    = ( cos,  sin)
+            // Wcześniej miały odwrotny znak, więc widok jechał w przeciwną stronę.
             cameraPanOffset.set(
-                cameraPanOffset.x + (-dx * sin - dz * cos),
+                // Kierunki ekranu w świecie: w prawo = (sin, -cos), w dół = (cos, sin)
+                cameraPanOffset.x + (dx * sin + dz * cos),
                 0,
-                cameraPanOffset.z + (dx * cos - dz * sin)
+                cameraPanOffset.z + (-dx * cos + dz * sin)
             );
             applyCameraPosition();
         }
 
         function ekranNaPlansze(dx, dy) {
-            // Przeliczamy ruch myszy na kierunki planszy z uwzględnieniem obrotu kamery
+            // Kierunki ekranu w świecie: w prawo = (sin, -cos), w dół = (cos, sin).
+            // Przy przeciąganiu rolką plansza ma iść ZA kursorem, więc widok
+            // przesuwamy w stronę przeciwną do ruchu myszy.
             const skala = 0.06 * (cameraHeight / 25);
             const cos = Math.cos(cameraAngle), sin = Math.sin(cameraAngle);
             return {
-                x: (-dx * sin - dy * cos) * skala,
-                z: ( dx * cos - dy * sin) * skala
+                x: -(dx * sin + dy * cos) * skala,
+                z: -(-dx * cos + dy * sin) * skala
             };
         }
 
