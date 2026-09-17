@@ -10673,6 +10673,100 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             playFileSfx(AudioFiles.enemyDead, 0.7);
         }
 
+        // ========================================================
+        // --- OGARY PIEKIELNE ---
+        // Czarne psy wielkości lwa. Polują stadem: obierają JEDNĄ ofiarę
+        // i osaczają ją ze wszystkich stron, nie zważając na resztę oddziału.
+        // ========================================================
+        function createHellhoundMesh() {
+            const g = new THREE.Group();
+            const s = 1.25;
+            const siersc = new THREE.MeshLambertMaterial({ color: 0x141116 });
+            const zar = new THREE.MeshBasicMaterial({ color: 0xff2a12 });
+
+            const tulow = new THREE.Mesh(new THREE.SphereGeometry(0.42 * s, 12, 9), siersc);
+            tulow.scale.set(1, 0.82, 1.65);
+            tulow.position.y = 0.72 * s;
+            g.add(tulow);
+
+            const kark = new THREE.Mesh(new THREE.SphereGeometry(0.3 * s, 10, 8), siersc);
+            kark.scale.set(1, 0.95, 1.1);
+            kark.position.set(0, 0.86 * s, 0.5 * s);
+            g.add(kark);
+
+            const leb = new THREE.Mesh(new THREE.BoxGeometry(0.34 * s, 0.3 * s, 0.46 * s), siersc);
+            leb.position.set(0, 0.86 * s, 0.86 * s);
+            g.add(leb);
+            const pysk = new THREE.Mesh(new THREE.BoxGeometry(0.2 * s, 0.17 * s, 0.3 * s), siersc);
+            pysk.position.set(0, 0.79 * s, 1.12 * s);
+            g.add(pysk);
+
+            // czerwone ślepia
+            [-1, 1].forEach(b => {
+                const oko = new THREE.Mesh(new THREE.SphereGeometry(0.06 * s, 7, 6), zar);
+                oko.position.set(b * 0.1 * s, 0.93 * s, 1.03 * s);
+                g.add(oko);
+                const ucho = new THREE.Mesh(new THREE.ConeGeometry(0.08 * s, 0.22 * s, 4), siersc);
+                ucho.position.set(b * 0.13 * s, 1.06 * s, 0.78 * s);
+                ucho.rotation.z = b * 0.25;
+                g.add(ucho);
+            });
+            // kły
+            [-1, 1].forEach(b => {
+                const kiel = new THREE.Mesh(new THREE.ConeGeometry(0.03 * s, 0.11 * s, 4),
+                    new THREE.MeshBasicMaterial({ color: 0xe8e2d4 }));
+                kiel.position.set(b * 0.06 * s, 0.73 * s, 1.24 * s);
+                kiel.rotation.x = Math.PI;
+                g.add(kiel);
+            });
+
+            // cztery łapy
+            [[-1, 0.55], [1, 0.55], [-1, -0.45], [1, -0.45]].forEach(([bx, bz]) => {
+                const lapa = new THREE.Mesh(new THREE.CylinderGeometry(0.075 * s, 0.09 * s, 0.7 * s, 6), siersc);
+                lapa.position.set(bx * 0.26 * s, 0.35 * s, bz * s);
+                g.add(lapa);
+            });
+
+            const ogon = new THREE.Mesh(new THREE.CylinderGeometry(0.03 * s, 0.07 * s, 0.75 * s, 5), siersc);
+            ogon.position.set(0, 0.92 * s, -0.78 * s);
+            ogon.rotation.x = -0.75;
+            g.add(ogon);
+
+            // żar na grzbiecie
+            for (let i = 0; i < 3; i++) {
+                const isk = new THREE.Mesh(new THREE.SphereGeometry(0.05 * s, 6, 5), zar);
+                isk.position.set(0, 1.0 * s, (0.3 - i * 0.35) * s);
+                g.add(isk);
+            }
+            const sw = new THREE.PointLight(0xff3a18, 0.6, 5, 1.7);
+            sw.position.set(0, 0.9 * s, 0.9 * s);
+            g.add(sw);
+
+            g.userData.yOffset = 0;
+            g.userData.unitType = 'ogar';
+            return g;
+        }
+
+        // Plansze, na których grasują ogary
+        function szansaNaOgary(bossowa) {
+            if (!currentCombatTheme) return 0;
+            const dozwolone = ['kremlin', 'whitehouse', 'zhongnanhai', 'wulkan', 'cmentarzysko', 'nekropolia'];
+            if (!dozwolone.includes(currentCombatTheme.id)) return 0;
+            return bossowa ? 0.6 : 0.3;
+        }
+
+        // Stado obiera JEDNĄ ofiarę - wspólną dla wszystkich ogarów
+        let ofiaraStada = null;
+
+        function wybierzOfiareStada() {
+            const kandydaci = soldiers.filter(s => !s.isDead && !s.isNPC && !s.isAngel && s.mesh.visible !== false);
+            if (kandydaci.length === 0) { ofiaraStada = null; return null; }
+            if (ofiaraStada && !ofiaraStada.isDead && kandydaci.includes(ofiaraStada)) return ofiaraStada;
+            // Najsłabszy - stado wyczuwa, kogo dobić najszybciej
+            ofiaraStada = kandydaci.reduce((a, b) => (a.hp <= b.hp ? a : b));
+            return ofiaraStada;
+        }
+
         function createStrzygaMesh() {
             const g = new THREE.Group();
             const ghostMat = new THREE.MeshBasicMaterial({ color: 0xeef2f5, transparent: true, opacity: 0.55, depthWrite: false });
@@ -10891,10 +10985,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const mapaPajakow = currentCombatTheme &&
                     ['amazonia', 'bagno', 'nekropolia', 'cmentarzysko'].includes(currentCombatTheme.id);
                 const szansaPajaka = currentCombatTheme && currentCombatTheme.id === 'amazonia' ? 0.8 : 0.25;
-                const pajakWypadl = mapaPajakow && Math.random() < szansaPajaka;
+                const bossowa = (currentMissionType === 'boss');
+                const ogarWypadl = Math.random() < szansaNaOgary(bossowa);
+                const pajakWypadl = !ogarWypadl && mapaPajakow && Math.random() < szansaPajaka;
                 const mapaMaszyn = currentCombatTheme &&
                     ['cyber', 'whitehouse', 'zhongnanhai'].includes(currentCombatTheme.id);
-                if (pajakWypadl) {
+                if (ogarWypadl) {
+                    type = 'ogar'; maxHp = 9; maxAp = 18; mesh = createHellhoundMesh();
+                } else if (pajakWypadl) {
                     if (Math.random() < 0.78) { type = 'spider_small'; maxHp = 6; maxAp = 14; mesh = createSpiderMesh(false); }
                     else { type = 'spider_big'; maxHp = 16; maxAp = 10; mesh = createSpiderMesh(true); }
                 } else if (mapaMaszyn && Math.random() < (currentCombatTheme.id === 'cyber' ? 0.85 : 0.45)) {
@@ -11968,6 +12066,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function startGame(count) {
             zerujKursor();
             resetWarriorMixers();   // stare modele odchodzą razem z poprzednią misją
+            ofiaraStada = null;
             if (znacznikWroga) { scene.remove(znacznikWroga); znacznikWroga = null; }
             resetDostrzezonych();
             clearTimeout(enemyTurnTimeout); 
@@ -13597,7 +13696,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z), ey = getLevelY(ex, ez, e.level || 0);
                 const dist = Math.abs(px - ex) + Math.abs(pz - ez);
                 // Wręcz tylko na tej samej kondygnacji
-                if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'summoner' || e.type === 'zombie' || e.type === 'strzyga' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big' || e.type === 'smierc') return ((e.level || 0) === (active.level || 0) && Math.max(Math.abs(px - ex), Math.abs(pz - ez)) === 1 && Math.abs(ey - py) <= 1 && e.type !== 'summoner');
+                if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'summoner' || e.type === 'zombie' || e.type === 'strzyga' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big' || e.type === 'smierc' || e.type === 'ogar') return ((e.level || 0) === (active.level || 0) && Math.max(Math.abs(px - ex), Math.abs(pz - ez)) === 1 && Math.abs(ey - py) <= 1 && e.type !== 'summoner');
                 return (dist <= getVisionRange() && checkLineOfSight3D(ex, ey+1, ez, px, py+0.5, pz) && !floorsBlockShot(ex, ez, e.level || 0, px, pz, active.level || 0));
             });
 
@@ -14679,6 +14778,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     // Zombie wyczuwa zapach - nie potrzebuje widzieć celu
                     if (chebDist > getVisionRange()) continue;
                 } else if (!isInVisionCone(e, s.mesh.position.x, s.mesh.position.z)) continue;
+                // Ogary trzymają się jednej ofiary i nie rozpraszają się na innych
+                if (e.type === 'ogar') {
+                    const ofiara = wybierzOfiareStada();
+                    if (ofiara && s !== ofiara) continue;
+                }
                 // Pająki nie zapuszczają się w krąg światła
                 if ((e.type === 'spider_small' || e.type === 'spider_big') && chronionyPrzezSwiatlo(s)) continue;
                 let dist = Math.abs(Math.round(s.mesh.position.x) - ex) + Math.abs(Math.round(s.mesh.position.z) - ez);
@@ -15289,7 +15393,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // bez celu w zasięgu zachowuje się jak zwykły wróg (podchodzi) - obsłuży to dalszy kod
             }
 
-            if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'zombie' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big' || e.type === 'smierc') {
+            if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'zombie' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big' || e.type === 'smierc' || e.type === 'ogar') {
                 const meleeCostE = (e.type === 'brute') ? shootCost : 3; // szybsze rasy uderzają taniej
                 const chebDystans = Math.max(Math.abs(px - ex), Math.abs(pz - ez));
                 if (e.ap >= meleeCostE && tLvl === eLvl && chebDystans === 1 && Math.abs(ey - py) <= 1) {
@@ -15310,7 +15414,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     let isHit = Math.random() < 0.85; 
                     SoundEngine.playShoot();
                     slideObject(e.mesh, px, py + e.mesh.userData.yOffset, pz, 150, () => {
-                        const meleeDmg = (e.type === 'brute') ? 6 : (e.type === 'stalker' ? 4 : (e.type === 'zombie' ? 3 : (e.type === 'robot' ? 5 : (e.type === 'spider_big' ? 5 : (e.type === 'spider_small' ? 3 : (e.type === 'smierc' ? 7 : 3))))));
+                        const meleeDmg = (e.type === 'brute') ? 6 : (e.type === 'stalker' ? 4 : (e.type === 'zombie' ? 3 : (e.type === 'robot' ? 5 : (e.type === 'spider_big' ? 5 : (e.type === 'spider_small' ? 3 : (e.type === 'smierc' ? 7 : (e.type === 'ogar' ? 4 : 3)))))));
                         // Duży pająk przy spętanym celu sięga po jad zamiast zwykłego ciosu
                         if (e.type === 'spider_big' && isSoldierWebbed(bestTarget)) tryVenom(e, bestTarget);
                         if (e.type === 'zombie' && !bestTarget.isNPC) tryInfectSoldier(bestTarget);
@@ -15331,7 +15435,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     return;
                 }
             } else {
-                if (e.type !== 'summoner' && e.type !== 'zombie' && e.type !== 'strzyga' && e.type !== 'robot' && e.type !== 'spider_small' && e.type !== 'spider_big' && e.type !== 'smierc' && e.ap >= shootCost && dist <= getVisionRange() && checkLineOfSight3D(ex, ey+1, ez, px, py+0.5, pz) && !floorsBlockShot(ex, ez, eLvl, px, pz, tLvl)) {
+                if (e.type !== 'summoner' && e.type !== 'zombie' && e.type !== 'strzyga' && e.type !== 'robot' && e.type !== 'spider_small' && e.type !== 'spider_big' && e.type !== 'smierc' && e.type !== 'ogar' && e.ap >= shootCost && dist <= getVisionRange() && checkLineOfSight3D(ex, ey+1, ez, px, py+0.5, pz) && !floorsBlockShot(ex, ez, eLvl, px, pz, tLvl)) {
                     e.ap -= shootCost;
                     faceTowards(e, px, pz);
                     animWroga(e, 'atak', true);
