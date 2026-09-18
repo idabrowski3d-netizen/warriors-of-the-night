@@ -807,6 +807,7 @@
         <button id="btn-abilities" style="border-color: #ddbb55; display: none;">✝ Umiejętności</button>
         <button id="btn-end-soldier-turn" style="border-color: #888888;">Koniec ruchu</button>
         <button id="btn-turn" style="border-color: #ffaa00;">Zakończ Turę</button>
+        <button id="btn-ucieczka" style="border-color: #cc4444;" title="Przerwij sen - stracisz całą Łaskę">Przerwij sen</button>
         <div id="level-indicator" style="display:none; position:absolute; top:-34px; left:50%; transform:translateX(-50%); color:#99ddff; font-size:14px; background:rgba(0,0,0,0.6); padding:4px 12px; border-radius:4px; white-space:nowrap;">Poziom: parter</div>
         <button id="btn-level-up" style="border-color: #99ddff;">▲ Piętro wyżej</button>
         <button id="btn-level-down" style="border-color: #99ddff;">▼ Piętro niżej</button>
@@ -2428,9 +2429,28 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
         }
 
+        // Palma jest znacznie szersza niż zwykłe drzewo - potrzebuje wolnej przestrzeni,
+        // inaczej jej korona wrasta w sąsiednie drzewa.
+        const PALMA_ODSTEP = 3;
+        let palmyPozycje = [];
+
+        function maMiejsceNaPalme(x, z) {
+            for (const p of palmyPozycje) {
+                if (Math.hypot(p.x - x, p.z - z) < PALMA_ODSTEP) return false;
+            }
+            for (const m of obstacleMeshes) {
+                if (!m.userData || m.userData.unitType !== 'tree') continue;
+                if (Math.hypot(m.position.x - x, m.position.z - z) < PALMA_ODSTEP) return false;
+            }
+            return true;
+        }
+
         function createTree(x, y, z) {
-            // Na ciepłych planszach część drzew to palmy
-            if (Math.random() < szansaNaPalme()) return createPalmTree(x, y, z);
+            // Na ciepłych planszach część drzew to palmy - o ile jest dla nich miejsce
+            if (Math.random() < szansaNaPalme() && maMiejsceNaPalme(x, z)) {
+                palmyPozycje.push({ x: x, z: z });
+                return createPalmTree(x, y, z);
+            }
 
             const treeGroup = new THREE.Group();
             const sizeScale = 0.55 + Math.random() * 1.65; // od niskich (parter) po wysokie (3 piętra)
@@ -3273,7 +3293,51 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         const w = 5 + Math.floor(Math.random() * 3), d = 5 + Math.floor(Math.random() * 3);
                         placeSpecialBuilding(w, d, 0x5a4a34, null, 1, [[Math.floor(w/2), 0]], []);
                     }
-                } else if (currentCombatTheme.id === 'cyber') {
+                }
+                // Naturalne osłony - głazy i skalne występy. Dają wrogom za czym
+                // się chować w drodze do oddziału.
+                if (currentCombatTheme && !['cyber', 'katedra'].includes(currentCombatTheme.id)) {
+                    // Więcej osłon = wrogowie mają czym się zasłaniać w drodze do oddziału
+                    const ile = 170 + Math.floor(Math.random() * 110);
+                    for (let t = 0; t < ile; t++) {
+                        const gx = Math.floor(Math.random() * (mapWidth - 14)) + 7 - offsetX;
+                        const gz = Math.floor(Math.random() * (mapDepth - 14)) + 7 - offsetZ;
+                        if (!isWithinPlayBounds(gx, gz) || isObstacle(gx, gz)) continue;
+                        if (terrainTypeMap[gx + offsetX][gz + offsetZ] >= 2) continue;   // nie na wodzie
+                        // Grupki po 1-3 głazy, żeby tworzyły osłony, a nie kropki
+                        const wielkosc = 1 + Math.floor(Math.random() * 3);
+                        for (let k = 0; k < wielkosc; k++) {
+                            const ox = gx + (k === 0 ? 0 : Math.round(Math.random() * 2 - 1));
+                            const oz = gz + (k === 0 ? 0 : Math.round(Math.random() * 2 - 1));
+                            if (!isWithinPlayBounds(ox, oz) || isObstacle(ox, oz)) continue;
+                            addObstacle(ox, oz, 'rock');
+                        }
+                    }
+                }
+                // Dłuższe osłony: kamienne murki, zwalone pnie, grzbiety skalne.
+                // Pojedyncze głazy dają osłonę punktową, te - całe odcinki do przebiegnięcia.
+                if (currentCombatTheme && !['cyber', 'katedra'].includes(currentCombatTheme.id)) {
+                    const ilePasm = 16 + Math.floor(Math.random() * 14);
+                    for (let t = 0; t < ilePasm; t++) {
+                        const sx = Math.floor(Math.random() * (mapWidth - 24)) + 12 - offsetX;
+                        const sz = Math.floor(Math.random() * (mapDepth - 24)) + 12 - offsetZ;
+                        if (!isWithinPlayBounds(sx, sz) || isObstacle(sx, sz)) continue;
+                        if (terrainTypeMap[sx + offsetX][sz + offsetZ] >= 2) continue;
+                        const dlugosc = 3 + Math.floor(Math.random() * 6);
+                        const poziomo = Math.random() < 0.5;
+                        let przerwa = Math.floor(Math.random() * dlugosc);   // luka do przejścia
+                        for (let k = 0; k < dlugosc; k++) {
+                            if (k === przerwa) continue;
+                            const ox = sx + (poziomo ? k : 0);
+                            const oz = sz + (poziomo ? 0 : k);
+                            if (!isWithinPlayBounds(ox, oz) || isObstacle(ox, oz)) continue;
+                            if (terrainTypeMap[ox + offsetX][oz + offsetZ] >= 2) continue;
+                            addObstacle(ox, oz, 'rock');
+                        }
+                    }
+                }
+
+                if (currentCombatTheme.id === 'cyber') {
                     // Siatka bloków danych - regularna, jak wnętrze układu scalonego
                     for (let t = 0; t < 260; t++) {
                         const bx = Math.floor(Math.random() * (mapWidth - 24)) + 12 - offsetX;
@@ -8503,6 +8567,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             renderFloors();
             renderThemedLandmarkDecor();
             renderCornfields();
+            palmyPozycje = [];   // odstępy liczymy od nowa dla każdej planszy
             clearCampfires();
             renderRiver();
             buildCloudSea();
@@ -8534,7 +8599,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                         robot: createRobotMesh, droid: createDroidMesh };
             enemies = (data.enemies || []).filter(ed => !ed.isDead).map(ed => {
                 const look = ENEMY_LOOKS[ed.type] || ENEMY_LOOKS.standard;
-                const mesh = CUSTOM_ENEMY_MESH[ed.type]
+                // Jeśli dla tego typu wgrano model 3D, po wczytaniu zapisu też z niego korzystamy
+                const zModelu = buildEnemyModelInstance(ed.type);
+                const mesh = zModelu ? zModelu
+                    : CUSTOM_ENEMY_MESH[ed.type]
                     ? CUSTOM_ENEMY_MESH[ed.type]()
                     : createCharacter(look.body, look.face, 0x111111, look.scale, ed.type);
                 const ty = getLevelY(Math.round(ed.x), Math.round(ed.z), ed.level || 0);
@@ -12032,6 +12100,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             zerujKursor();
             resetWarriorMixers();   // stare modele odchodzą razem z poprzednią misją
             ofiaraStada = null;
+            mapaZagrozenia = null;
             if (znacznikWroga) { scene.remove(znacznikWroga); znacznikWroga = null; }
             resetDostrzezonych();
             clearTimeout(enemyTurnTimeout); 
@@ -12170,6 +12239,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             document.getElementById('enemies-count').innerText = enemies.filter(e => !e.isDead).length; 
 
             updateReserveButton();
+            const btnU = document.getElementById('btn-ucieczka');
+            if (btnU) btnU.style.display = (gameMode === 'dream' && !gameOver) ? '' : 'none';
             const kneelBtn = document.getElementById('btn-kneel');
             kneelBtn.innerText = (active && active.isKneeling) ? 'Wstań' : 'Przyklęknij';
             refreshActiveLevelView();
@@ -13517,6 +13588,30 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             przesunNaNastepnyDzien();   // nocna wyprawa kończy się o świcie
             returnToPresentFromDream();
         });
+        // Wyjście awaryjne z nieprzechodzalnego snu. Kosztuje całą Łaskę,
+        // więc nie opłaca się używać go zamiast walki.
+        document.getElementById('btn-ucieczka').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (gameMode !== 'dream' || gameOver) return;
+            const laska = playerStats.grace;
+            showDialogue(
+                `Przerwać sen i wrócić do siebie?\n\nŚpiący zostanie sam ze swoim koszmarem. ` +
+                `Stracisz całą zgromadzoną Łaskę (${laska}).`,
+                'Przerywam', 'Zostaję',
+                () => {
+                    playerStats.grace = 0;
+                    updatePlayerStatsUI();
+                    showFloatingWarning(`Sen przerwany. Łaska przepadła (${laska}).`);
+                    updateUI('Wycofałeś się ze snu. Śpiący pozostał sam.');
+                    gameOver = true;
+                    lastMissionWon = false;
+                    document.getElementById('game-over-screen').style.display = 'none';
+                    returnToPresentFromDream();
+                },
+                null
+            );
+        });
+
         document.getElementById('btn-turn').addEventListener('click', () => { 
             if (isPlayerTurn && !gameOver) {
                 // Zostawione punkty NIE przepadają - są zapasem na wartę podczas tury wroga.
@@ -14684,7 +14779,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 return;
             }
             isPlayerTurn = false; updateUI("Tura obcych..."); highlightMesh.visible = false; document.getElementById('ap-tooltip').style.display = 'none';
+            budujMapeZagrozen();   // jedna wspólna ocena terenu dla całej tury
             enemies.forEach(e => { if(!e.isDead) e.ap = getEffectiveMaxAp(e); }); 
+            zbudujMapeZagrozenia();
             npcs.forEach(n => { if(!n.isDead) n.ap = getEffectiveMaxAp(n); });
             clearTimeout(enemyTurnTimeout);
             enemyTurnTimeout = setTimeout(() => { if (!isPlayerTurn && !gameOver) { console.warn("Watchdog!"); updateUI("AI utknęło! Awaryjny powrót tury."); endEnemyTurn(); } }, 15000);
@@ -14746,6 +14843,88 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // przeczesywać całą planszę w poszukiwaniu ostatniego z nich.
         function huntingModeActive() {
             return npcs.every(n => n.isDead || n.fleeing || n.revealed);
+        }
+
+        // ========================================================
+        // --- MAPA ZAGROŻENIA ---
+        // Liczona raz na turę wroga. Dla każdego pola mówi, jak jest tam
+        // niebezpiecznie i czy jest osłona. Dzięki wspólnej mapie wszyscy
+        // przeciwnicy oceniają teren tak samo i przestają się miotać.
+        // ========================================================
+        let mapaZagrozen = null;
+
+        function budujMapeZagrozen() {
+            const cele = soldiers.filter(s => !s.isDead && !s.isNPC && !s.isAngel);
+            mapaZagrozen = { cele: cele, pola: new Map() };
+        }
+
+        function kluczPola(x, z) { return x + ':' + z; }
+
+        // Ocena pola liczona raz i zapamiętywana na czas tury
+        function ocenPoleZMapy(x, z, lvl) {
+            if (!mapaZagrozen) budujMapeZagrozen();
+            const k = kluczPola(x, z);
+            if (mapaZagrozen.pola.has(k)) return mapaZagrozen.pola.get(k);
+
+            let zagrozenie = 0, oslona = 0, najblizszy = Infinity;
+            const y = getLevelY(x, z, lvl);
+            mapaZagrozen.cele.forEach(s => {
+                const sx = Math.round(s.mesh.position.x), sz = Math.round(s.mesh.position.z);
+                const d = Math.max(Math.abs(sx - x), Math.abs(sz - z));
+                if (d < najblizszy) najblizszy = d;
+                if (d > getVisionRange()) return;
+                const sy = getLevelY(sx, sz, s.level || 0);
+                const widzi = checkLineOfSight3D(sx, sy + 1, sz, x, y + 0.5, z) &&
+                              !floorsBlockShot(sx, sz, s.level || 0, x, z, lvl);
+                if (!widzi) return;
+                // im bliżej strzelca i im mniej osłony, tym groźniej
+                zagrozenie += Math.max(4, 30 - d);
+                if (getCoverObstacle(x, z, sx, sz)) oslona += 1;
+            });
+            const wynik = { zagrozenie: zagrozenie, oslona: oslona, najblizszy: najblizszy };
+            mapaZagrozen.pola.set(k, wynik);
+            return wynik;
+        }
+
+        // ========================================================
+        // --- MAPA ZAGROŻENIA ---
+        // Liczona raz na turę wroga. Dla każdego pola mówi, ilu wojowników
+        // je ostrzeliwuje i czy jest tam osłona. Dzięki temu wrogowie nie
+        // przeliczają wszystkiego od nowa przy każdym kroku i nie kręcą się w kółko.
+        // ========================================================
+        let mapaZagrozenia = null;
+        let mapaZagrozeniaTura = -1;
+
+        function zbudujMapeZagrozenia() {
+            const g = [];
+            for (let x = 0; x < mapWidth; x++) { g[x] = new Float32Array(mapDepth); }
+            const zywi = soldiers.filter(s => !s.isDead && !s.isNPC && !s.isAngel);
+            zywi.forEach(s => {
+                const sx = Math.round(s.mesh.position.x), sz = Math.round(s.mesh.position.z);
+                const zasieg = Math.min(getVisionRange(), 20);
+                for (let dx = -zasieg; dx <= zasieg; dx++) {
+                    for (let dz = -zasieg; dz <= zasieg; dz++) {
+                        const wx = sx + dx, wz = sz + dz;
+                        const mx = wx + offsetX, mz = wz + offsetZ;
+                        if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
+                        const d = Math.max(Math.abs(dx), Math.abs(dz));
+                        if (d > zasieg) continue;
+                        // Im bliżej wojownika, tym groźniej; osłona zmniejsza zagrożenie
+                        let waga = 1 - d / (zasieg + 1);
+                        if (getCoverObstacle(wx, wz, sx, sz)) waga *= 0.35;
+                        g[mx][mz] += waga;
+                    }
+                }
+            });
+            mapaZagrozenia = g;
+            mapaZagrozeniaTura = combatTurnCounter;
+        }
+
+        function zagrozenieNa(x, z) {
+            if (!mapaZagrozenia) return 0;
+            const mx = Math.round(x) + offsetX, mz = Math.round(z) + offsetZ;
+            if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return 0;
+            return mapaZagrozenia[mx][mz];
         }
 
         function processNextEnemy() {
@@ -15479,15 +15658,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
                 // Ocena pola: osłona przed celem, obejście z boku, bliskość
                 function ocenPole(zx, zz) {
+                    const info = ocenPoleZMapy(zx, zz, eLvl);
                     let punkty = 0;
-                    if (getCoverObstacle(zx, zz, px, pz)) punkty += 40;       // trudniej go trafić
+                    punkty += info.oslona * 40;                 // osłona przed strzelcami
+                    punkty -= Math.min(45, info.zagrozenie);    // pola pod ostrzałem są gorsze
                     const d = Math.max(Math.abs(zx - px), Math.abs(zz - pz));
                     if (walczyWrecz) {
-                        punkty += Math.max(0, 30 - d * 3);                    // im bliżej, tym lepiej
+                        punkty += Math.max(0, 40 - d * 4);      // liczy się dojście do celu
                     } else {
-                        if (widacZ(zx, zz)) punkty += 35;                     // strzelec musi widzieć cel
-                        if (d >= 4 && d <= getVisionRange() - 4) punkty += 20; // wygodny dystans
-                        // obejście: premia za stanie z innej strony niż pozostali wrogowie
+                        if (widacZ(zx, zz)) punkty += 35;       // strzelec musi widzieć cel
+                        if (d >= 4 && d <= getVisionRange() - 4) punkty += 20;
                         const mojKat = Math.atan2(zz - pz, zx - px);
                         let rozproszenie = 0;
                         enemies.forEach(inny => {
@@ -15499,6 +15679,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         });
                         punkty += Math.min(30, rozproszenie * 10);
                     }
+                    // Kara za wracanie tam, gdzie się już było - koniec miotania się
+                    if (e.ostatniePola && e.ostatniePola.includes(kluczPola(zx, zz))) punkty -= 35;
                     return punkty;
                 }
 
@@ -15544,7 +15726,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // 2) Nie zdąży uderzyć - szuka lepszego pola w zasięgu ruchu
                 if (!walczyWrecz || !pathData || pathData.path.length === 0 || e.ap > kosztAkcji) {
                     const zasieg = Math.min(e.ap, 8);
-                    let najlepsze = null, najPunkty = ocenPole(ex, ez) + 6;   // premia za pozostanie
+                    // Wyraźna premia za pozostanie w miejscu: ruch musi się realnie opłacać,
+                    // inaczej wróg przestępuje z pola na pole i marnuje punkty.
+                    let najlepsze = null, najPunkty = ocenPole(ex, ez) + 14;
                     for (let dx = -zasieg; dx <= zasieg; dx++) {
                         for (let dz = -zasieg; dz <= zasieg; dz++) {
                             const zx = ex + dx, zz = ez + dz;
@@ -15559,9 +15743,46 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             najPunkty = p; najlepsze = sc;
                         }
                     }
+                    // Jeśli żadne pole nie jest wyraźnie lepsze, a cel jest daleko -
+                    // trzeba się zbliżyć. Inaczej wróg stoi całą bitwę i marnuje punkty.
+                    if (!najlepsze && dojscie && dist > 1) {
+                        const ile = Math.min(dojscie.path.length, e.ap);
+                        if (ile > 0) najlepsze = { path: dojscie.path.slice(0, ile) };
+                    }
+                    if (!najlepsze && !walczyWrecz && pathData && dist > getVisionRange() - 2) {
+                        const ile = Math.min(pathData.path.length - 1, Math.max(0, e.ap - kosztAkcji));
+                        if (ile > 0) najlepsze = { path: pathData.path.slice(0, ile) };
+                    }
+
+                    // Ostrożność nie może przerodzić się w stanie w miejscu: jeśli wybrane
+                    // pole nie przybliża do celu, a wróg nie może zaatakować - idzie wprost.
+                    if (najlepsze && walczyWrecz) {
+                        const koniec = najlepsze.path[najlepsze.path.length - 1];
+                        const dTeraz = Math.max(Math.abs(ex - px), Math.abs(ez - pz));
+                        const dPo = Math.max(Math.abs(koniec.x - px), Math.abs(koniec.z - pz));
+                        if (dPo >= dTeraz) najlepsze = null;
+                    }
+                    if (!najlepsze && dojscie && dojscie.path.length > 0 && e.ap > 0) {
+                        const walk = dojscie.path.slice(0, Math.min(dojscie.path.length, e.ap));
+                        if (walk.length > 0) {
+                            e.ap -= walk.length;
+                            animWroga(e, 'walk');
+                            faceTowards(e, px, pz);
+                            moveAlongPath({ mesh: e.mesh, userData: e.mesh.userData }, walk, 150, () => {
+                                animWroga(e, 'idle');
+                                refreshEnemyPositions(); updateFoW();
+                                setTimeout(processNextEnemy, 120);
+                            });
+                            return;
+                        }
+                    }
+
                     if (najlepsze) {
+                        // Zapamiętujemy opuszczane pole, żeby za chwilę na nie nie wracać
+                        e.ostatniePola = (e.ostatniePola || []).concat([{ x: ex, z: ez }]).slice(-4);
                         const walk = najlepsze.path.slice(0, Math.min(najlepsze.path.length, e.ap));
                         e.ap -= walk.length;
+                        e.ostatniePola = (e.ostatniePola || []).concat([kluczPola(ex, ez)]).slice(-3);
                         animWroga(e, 'walk');
                         moveAlongPath({ mesh: e.mesh, userData: e.mesh.userData }, walk, 150, () => {
                             animWroga(e, 'idle');
