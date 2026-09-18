@@ -585,6 +585,58 @@
         body.mobilny #touch-buttons { right: 6px !important; bottom: 6px !important; gap: 5px !important; max-width: 174px !important; }
         body.mobilny .touch-btn { width: 52px !important; height: 52px !important; font-size: 19px !important; border-radius: 10px !important; }
 
+
+        /* ================= IKONY PRZYCISKÓW =================
+           Arkusz graphics/ikony_small.png (1000x81, 11 ikon).
+           Szerokość przycisku = najmniejszy odstęp między ikonami, dzięki
+           czemu sąsiednie kółka wypadają poza kadr.                      */
+        .ma-ikone {
+            width: 46px !important; height: 46px !important;
+            padding: 0 !important; border: none !important;
+            background-color: transparent !important;
+            background-image: url('graphics/ikony_small.png');
+            background-repeat: no-repeat;
+            background-size: 638.9px 51.7px;
+            font-size: 0 !important; color: transparent !important;
+            overflow: hidden; flex: 0 0 auto;
+        }
+        .ma-ikone:active { filter: brightness(1.35); }
+        .ma-ikone:disabled { filter: grayscale(0.85) brightness(0.55); }
+
+        #btn-next.ma-ikone { background-position: -2.9px center; }
+        #btn-kneel.ma-ikone { background-position: -51.4px center; }
+        #btn-reserve.ma-ikone { background-position: -99.0px center; }
+        #btn-melee.ma-ikone { background-position: -145.0px center; }
+        #btn-abilities.ma-ikone { background-position: -191.7px center; }
+        #btn-end-soldier-turn.ma-ikone { background-position: -239.9px center; }
+        #btn-turn.ma-ikone { background-position: -287.2px center; }
+        #btn-save-combat.ma-ikone { background-position: -336.4px center; }
+        #btn-ucieczka.ma-ikone { background-position: -386.2px center; }
+        #btn-left.ma-ikone { background-position: -536.0px center; }
+        #btn-right.ma-ikone { background-position: -586.8px center; }
+
+        #btn-reserve.ma-ikone { position: relative; }
+        #btn-reserve.ma-ikone::after {
+            content: attr(data-ile);
+            position: absolute; right: 0; bottom: -1px;
+            font-size: 12px; color: #cfe9ff; text-shadow: 0 1px 3px #000;
+        }
+
+        body.mobilny .ma-ikone {
+            width: 38px !important; height: 38px !important;
+            background-size: 527.8px 42.8px;
+        }
+        body.mobilny #btn-next.ma-ikone { background-position: -2.4px center; }
+        body.mobilny #btn-kneel.ma-ikone { background-position: -42.5px center; }
+        body.mobilny #btn-reserve.ma-ikone { background-position: -81.8px center; }
+        body.mobilny #btn-melee.ma-ikone { background-position: -119.8px center; }
+        body.mobilny #btn-abilities.ma-ikone { background-position: -158.3px center; }
+        body.mobilny #btn-end-soldier-turn.ma-ikone { background-position: -198.2px center; }
+        body.mobilny #btn-turn.ma-ikone { background-position: -237.2px center; }
+        body.mobilny #btn-save-combat.ma-ikone { background-position: -277.9px center; }
+        body.mobilny #btn-ucieczka.ma-ikone { background-position: -319.0px center; }
+        body.mobilny #btn-left.ma-ikone { background-position: -442.8px center; }
+        body.mobilny #btn-right.ma-ikone { background-position: -484.8px center; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
@@ -12372,6 +12424,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const b = document.getElementById('btn-reserve');
             if (!b) return;
             b.innerText = apReserve === 0 ? 'Rezerwa PA: brak' : `Rezerwa PA: ${apReserve}`;
+            b.dataset.ile = apReserve === 0 ? '' : String(apReserve);
+            b.title = apReserve === 0 ? 'Rezerwa punktów ruchu: brak'
+                                      : `Rezerwa punktów ruchu: ${apReserve}`;
             b.style.background = apReserve > 0 ? 'rgba(102,170,204,0.25)' : '';
         }
 
@@ -17689,6 +17744,32 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         (function () {
             const d = document.getElementById('chk-drazek');
             if (d) d.addEventListener('change', () => { window.__pokazDrazek = d.checked; });
+        })();
+
+        // Ikony na przyciskach - tylko jeśli arkusz faktycznie się wczyta.
+        // Gdy pliku brakuje, zostają dotychczasowe napisy.
+        (function () {
+            const mapaIkon = {
+                'btn-next': 1, 'btn-kneel': 2, 'btn-reserve': 3, 'btn-melee': 4,
+                'btn-abilities': 5, 'btn-end-soldier-turn': 6, 'btn-turn': 7,
+                'btn-save-combat': 8, 'btn-ucieczka': 9, 'btn-left': 10, 'btn-right': 11
+            };
+            const probny = new Image();
+            probny.onload = () => {
+                Object.keys(mapaIkon).forEach(id => {
+                    const b = document.getElementById(id);
+                    if (!b) return;
+                    // Napis wędruje do podpowiedzi - na przycisku zostaje sama ikona
+                    if (!b.title) b.title = (b.innerText || '').replace(/\s*\[.*?\]/, '').trim();
+                    b.classList.add('ma-ikone');
+                });
+                window.__ikonyGotowe = true;
+                console.info('[ikony] Arkusz wczytany - przyciski mają ikony.');
+            };
+            probny.onerror = () => {
+                console.info('[ikony] Brak graphics/ikony_small.png - przyciski zostają z samymi napisami.');
+            };
+            probny.src = 'graphics/ikony_small.png';
         })();
 
         wlaczSterowanieDotykiem();
