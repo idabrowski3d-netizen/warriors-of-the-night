@@ -12331,6 +12331,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // pozostałe typy misji nie miałyby tu sensu
             if (currentCombatTheme && currentCombatTheme.id === 'powodz') currentMissionType = 'flood';
             // Eskorta: oddział startuje przy jednej krawędzi, portal stoi przy przeciwnej
+            // Na zalanej planszy prawie wszystko jest wodą i portal nie ma gdzie stanąć -
+            // eskorta zamieniłaby się po cichu w zwykłą misję, więc jej tam nie dajemy.
+            if (currentMissionType === 'escort' && currentCombatTheme && currentCombatTheme.id === 'powodz') {
+                currentMissionType = 'standard';
+            }
             if (currentMissionType === 'escort') escortEdge = (Math.random() < 0.5) ? 'north' : 'south';
             else if (currentMissionType === 'flood') currentMissionType = 'standard';
             decideFoldForMission();
@@ -12686,7 +12691,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (d > bestD) { bestD = d; best = { x: jx, z: jz }; }
                 }
                 if (best) { floodStart = best; clusterX = best.x; clusterZ = best.z; }
-            } else             if (currentMissionType === 'escort') {
+            }
+
+            // Osobny etap: cel eskorty i sam Powierzony. Wcześniej ten fragment
+            // wisiał na drugim "else if" o tym samym warunku, więc nigdy się nie
+            // wykonywał - misja eskorty startowała bez cywila.
+            if (currentMissionType === 'escort') {
                 // Kapliczka u góry mapy, cywil startuje przy oddziale na dole
                 // Portal stoi przy krawędzi PRZECIWNEJ do miejsca startu oddziału
                 let tx = null, tz = null;
@@ -12713,12 +12723,30 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         const cz = Math.floor(Math.random() * mapDepth) - offsetZ;
                         if (!isWithinPlayBounds(cx, cz) || isObstacle(cx, cz) || !isOpenSpot(cx, cz)) continue;
                         const d = Math.hypot(cx - ax0, cz - az0);
-                        if (d <= bestD || d < 60) continue;
+                        if (d <= bestD || d < 30) continue;
                         if (!findPath(ax0, az0, cx, cz, 0, anchor0)) continue;
                         bestD = d; tx = cx; tz = cz;
                     }
                 }
-                if (tx === null) { currentMissionType = 'standard'; return; }
+                // Ostatecznie wystarczy jakiekolwiek osiągalne pole z dala od startu -
+                // lepszy bliższy portal niż misja eskorty bez Powierzonego.
+                if (tx === null && anchor0) {
+                    let bestD = -1;
+                    for (let t = 0; t < 1500; t++) {
+                        const cx = Math.floor(Math.random() * mapWidth) - offsetX;
+                        const cz = Math.floor(Math.random() * mapDepth) - offsetZ;
+                        if (!isWithinPlayBounds(cx, cz) || isObstacle(cx, cz) || !isOpenSpot(cx, cz)) continue;
+                        const d = Math.hypot(cx - ax0, cz - az0);
+                        if (d <= bestD || d < 12) continue;
+                        if (!findPath(ax0, az0, cx, cz, 0, anchor0)) continue;
+                        bestD = d; tx = cx; tz = cz;
+                        if (bestD > 45) break;
+                    }
+                }
+                if (tx === null) {
+                    console.warn('[eskorta] Nie znaleziono miejsca na portal - misja zmieniona na zwykłą.');
+                    currentMissionType = 'standard'; return;
+                }
                 escortTarget = { x: tx, z: tz };
                 escortPortalMesh = createEscortPortal(tx, tz);
 
