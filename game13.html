@@ -588,32 +588,50 @@
 
         /* ================= IKONY PRZYCISKÓW =================
            Arkusz graphics/ikony_small.png (1000x81, 11 ikon).
-           Szerokość przycisku = najmniejszy odstęp między ikonami, dzięki
-           czemu sąsiednie kółka wypadają poza kadr.                      */
+           Wysokość przycisku = pełna wysokość ikony (nic nie jest ucinane),
+           szerokość = najmniejszy odstęp, więc sąsiedzi wypadają poza kadr. */
         .ma-ikone {
-            width: 46px !important; height: 46px !important;
+            width: 43px !important; height: 48px !important;
             padding: 0 !important; border: none !important;
             background-color: transparent !important;
-            background-image: url('graphics/ikony_small.png');
-            background-repeat: no-repeat;
-            background-size: 638.9px 51.7px;
+            background-image: url('graphics/ikony_small.png') !important;
+            background-repeat: no-repeat !important;
+            background-size: 592.6px 48.0px !important;
             font-size: 0 !important; color: transparent !important;
             overflow: hidden; flex: 0 0 auto;
+            transition: filter 0.12s, transform 0.12s;
         }
-        .ma-ikone:active { filter: brightness(1.35); }
-        .ma-ikone:disabled { filter: grayscale(0.85) brightness(0.55); }
+        /* Domyślna reguła przycisków używa SKRÓTU "background", który kasuje
+           także obrazek tła - dlatego ikona znikała przy najechaniu.
+           Tu przywracamy go jawnie razem z pozostałymi właściwościami. */
+        .ma-ikone:hover:not(:disabled),
+        .ma-ikone:focus:not(:disabled) {
+            background-image: url('graphics/ikony_small.png') !important;
+            background-color: transparent !important;
+            background-repeat: no-repeat !important;
+            color: transparent !important;
+            outline: none;
+            filter: brightness(1.45) drop-shadow(0 0 6px rgba(140,210,255,0.85));
+            transform: scale(1.08);
+        }
+        .ma-ikone:active:not(:disabled) {
+            background-image: url('graphics/ikony_small.png') !important;
+            background-color: transparent !important;
+            filter: brightness(1.7); transform: scale(0.94);
+        }
+        .ma-ikone:disabled { filter: grayscale(0.85) brightness(0.5); }
 
-        #btn-next.ma-ikone { background-position: -2.9px center; }
-        #btn-kneel.ma-ikone { background-position: -51.4px center; }
-        #btn-reserve.ma-ikone { background-position: -99.0px center; }
-        #btn-melee.ma-ikone { background-position: -145.0px center; }
-        #btn-abilities.ma-ikone { background-position: -191.7px center; }
-        #btn-end-soldier-turn.ma-ikone { background-position: -239.9px center; }
-        #btn-turn.ma-ikone { background-position: -287.2px center; }
-        #btn-save-combat.ma-ikone { background-position: -336.4px center; }
-        #btn-ucieczka.ma-ikone { background-position: -386.2px center; }
-        #btn-left.ma-ikone { background-position: -536.0px center; }
-        #btn-right.ma-ikone { background-position: -586.8px center; }
+        #btn-next.ma-ikone { background-position: -2.7px center !important; }
+        #btn-kneel.ma-ikone { background-position: -47.7px center !important; }
+        #btn-reserve.ma-ikone { background-position: -91.9px center !important; }
+        #btn-melee.ma-ikone { background-position: -134.5px center !important; }
+        #btn-abilities.ma-ikone { background-position: -177.8px center !important; }
+        #btn-end-soldier-turn.ma-ikone { background-position: -222.5px center !important; }
+        #btn-turn.ma-ikone { background-position: -266.4px center !important; }
+        #btn-save-combat.ma-ikone { background-position: -312.0px center !important; }
+        #btn-ucieczka.ma-ikone { background-position: -358.2px center !important; }
+        #btn-left.ma-ikone { background-position: -497.2px center !important; }
+        #btn-right.ma-ikone { background-position: -544.3px center !important; }
 
         #btn-reserve.ma-ikone { position: relative; }
         #btn-reserve.ma-ikone::after {
@@ -623,20 +641,20 @@
         }
 
         body.mobilny .ma-ikone {
-            width: 38px !important; height: 38px !important;
-            background-size: 527.8px 42.8px;
+            width: 36px !important; height: 40px !important;
+            background-size: 493.8px 40.0px !important;
         }
-        body.mobilny #btn-next.ma-ikone { background-position: -2.4px center; }
-        body.mobilny #btn-kneel.ma-ikone { background-position: -42.5px center; }
-        body.mobilny #btn-reserve.ma-ikone { background-position: -81.8px center; }
-        body.mobilny #btn-melee.ma-ikone { background-position: -119.8px center; }
-        body.mobilny #btn-abilities.ma-ikone { background-position: -158.3px center; }
-        body.mobilny #btn-end-soldier-turn.ma-ikone { background-position: -198.2px center; }
-        body.mobilny #btn-turn.ma-ikone { background-position: -237.2px center; }
-        body.mobilny #btn-save-combat.ma-ikone { background-position: -277.9px center; }
-        body.mobilny #btn-ucieczka.ma-ikone { background-position: -319.0px center; }
-        body.mobilny #btn-left.ma-ikone { background-position: -442.8px center; }
-        body.mobilny #btn-right.ma-ikone { background-position: -484.8px center; }
+        body.mobilny #btn-next.ma-ikone { background-position: -2.2px center !important; }
+        body.mobilny #btn-kneel.ma-ikone { background-position: -39.8px center !important; }
+        body.mobilny #btn-reserve.ma-ikone { background-position: -76.5px center !important; }
+        body.mobilny #btn-melee.ma-ikone { background-position: -112.1px center !important; }
+        body.mobilny #btn-abilities.ma-ikone { background-position: -148.1px center !important; }
+        body.mobilny #btn-end-soldier-turn.ma-ikone { background-position: -185.4px center !important; }
+        body.mobilny #btn-turn.ma-ikone { background-position: -222.0px center !important; }
+        body.mobilny #btn-save-combat.ma-ikone { background-position: -260.0px center !important; }
+        body.mobilny #btn-ucieczka.ma-ikone { background-position: -298.5px center !important; }
+        body.mobilny #btn-left.ma-ikone { background-position: -414.3px center !important; }
+        body.mobilny #btn-right.ma-ikone { background-position: -453.6px center !important; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
@@ -859,11 +877,11 @@
         <button id="btn-abilities" style="border-color: #ddbb55; display: none;">✝ Umiejętności</button>
         <button id="btn-end-soldier-turn" style="border-color: #888888;">Koniec ruchu</button>
         <button id="btn-turn" style="border-color: #ffaa00;">Zakończ Turę</button>
+        <button id="btn-save-combat" style="border-color: #ffcc66;">💾 Zapisz grę</button>
         <button id="btn-ucieczka" style="border-color: #cc4444;" title="Przerwij sen - stracisz całą Łaskę">Przerwij sen</button>
         <div id="level-indicator" style="display:none; position:absolute; top:-34px; left:50%; transform:translateX(-50%); color:#99ddff; font-size:14px; background:rgba(0,0,0,0.6); padding:4px 12px; border-radius:4px; white-space:nowrap;">Poziom: parter</div>
         <button id="btn-level-up" style="border-color: #99ddff;">▲ Piętro wyżej</button>
         <button id="btn-level-down" style="border-color: #99ddff;">▼ Piętro niżej</button>
-        <button id="btn-save-combat" style="border-color: #ffcc66;">💾 Zapisz grę</button>
     </div>
     <div id="instructions">Zarządzaj całym oddziałem!<br>Klawisz Tab przełącza wojaków.<br>Uważaj na zwiadowców!</div>
 
@@ -6016,10 +6034,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                        atak: 'mutant_fight',   smierc: 'mutant_death',  cios: 'mutant_hit',  wysokosc: 2.6 },
             fast:    { plik: 'models/demon.glb',   idle: 'demon_idle',   walk: 'demon_walk',
                        atak: 'demon_fight',    smierc: 'demon_death',   cios: 'demon_hit',   wysokosc: 1.5 },
-            spider_small: { plik: 'models/spider.glb', idle: 'spider_idle', walk: 'spider_walk',
-                       atak: 'spider_attack', smierc: 'spider_death', cios: 'spider_hit', wysokosc: 0.9 },
-            spider_big:   { plik: 'models/spider.glb', idle: 'spider_idle', walk: 'spider_walk',
-                       atak: 'spider_attack', smierc: 'spider_death', cios: 'spider_hit', wysokosc: 1.9 },
+            spider:  { plik: 'models/spider.glb',  idle: 'spider_idle', walk: 'spider_walk',
+                       atak: 'spider_attack', smierc: 'spider_death', cios: 'spider_hit', wysokosc: 1.0 },
+            spider2: { plik: 'models/spider2.glb', idle: 'spider_idle', walk: 'spider_walk',
+                       atak: 'spider_attack', smierc: 'spider_death', cios: 'spider_hit', wysokosc: 1.0 },
             strzyga: { plik: 'models/strzyga.glb', idle: 'strzyga_idle', walk: 'strzyga_walk',
                        atak: 'strzyga_attack', smierc: 'strzyga_death', cios: 'strzyga_hit',
                        specjalna: 'strzyga_scream', wysokosc: 1.9 }
@@ -8537,7 +8555,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     x: e.mesh.position.x, z: e.mesh.position.z, type: e.type, hp: e.hp, maxHp: e.maxHp,
                     ap: e.ap, maxAp: e.maxAp, accuracyBonus: e.accuracyBonus, isDead: e.isDead, facingAngle: e.facingAngle, level: e.level || 0,
                     isBoss: !!e.isBoss, bossTurn: e.bossTurn || 0, hasOpened: !!e.hasOpened,
-                    blindedTurns: e.blindedTurns || 0, blindedFrom: e.blindedFrom || null
+                    blindedTurns: e.blindedTurns || 0, blindedFrom: e.blindedFrom || null,
+                    gatunek: (e.gatunek === undefined ? null : e.gatunek)
                 })),
                 npcs: npcs.filter(n => !n.isDead).map(n => ({
                     x: n.mesh.position.x, z: n.mesh.position.z, hp: n.hp, maxHp: n.maxHp, ap: n.ap, maxAp: n.maxAp,
@@ -8652,7 +8671,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             enemies = (data.enemies || []).filter(ed => !ed.isDead).map(ed => {
                 const look = ENEMY_LOOKS[ed.type] || ENEMY_LOOKS.standard;
                 // Jeśli dla tego typu wgrano model 3D, po wczytaniu zapisu też z niego korzystamy
-                const zModelu = buildEnemyModelInstance(ed.type);
+                // Pająk odtwarzany jest ze swoim gatunkiem - inaczej po wczytaniu
+                // zmieniłby wygląd i rozmiar
+                const zModelu = (ed.gatunek !== null && ed.gatunek !== undefined && PAJAKI_GATUNKI[ed.gatunek])
+                    ? zbudujPajaka(ed.gatunek)
+                    : buildEnemyModelInstance(ed.type);
                 const mesh = zModelu ? zModelu
                     : CUSTOM_ENEMY_MESH[ed.type]
                     ? CUSTOM_ENEMY_MESH[ed.type]()
@@ -8662,7 +8685,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 scene.add(mesh);
                 const fa = ed.facingAngle || 0;
                 mesh.lookAt(mesh.position.x + Math.sin(fa), mesh.position.y, mesh.position.z + Math.cos(fa));
-                return { mesh: mesh, type: ed.type, hp: ed.hp, maxHp: ed.maxHp, ap: ed.ap, maxAp: ed.maxAp, accuracyBonus: ed.accuracyBonus, isDead: ed.isDead, facingAngle: fa, level: ed.level || 0, isBoss: !!ed.isBoss, bossTurn: ed.bossTurn || 0, hasOpened: !!ed.hasOpened, blindedTurns: ed.blindedTurns || 0, blindedFrom: ed.blindedFrom || null };
+                return { mesh: mesh, type: ed.type, hp: ed.hp, maxHp: ed.maxHp, ap: ed.ap, maxAp: ed.maxAp, accuracyBonus: ed.accuracyBonus, isDead: ed.isDead, facingAngle: fa, level: ed.level || 0, isBoss: !!ed.isBoss, bossTurn: ed.bossTurn || 0, hasOpened: !!ed.hasOpened, blindedTurns: ed.blindedTurns || 0, blindedFrom: ed.blindedFrom || null, gatunek: (ed.gatunek === undefined ? null : ed.gatunek) };
             });
 
             npcs.forEach(n => scene.remove(n.mesh));
@@ -10631,6 +10654,117 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return g;
         }
 
+        // ========================================================
+        // --- GATUNKI PAJĄKÓW ---
+        // Osiem odmian różniących się teksturą, wielkością i statystykami.
+        // Na jednej planszy pojawiają się najwyżej dwa losowe gatunki.
+        // ========================================================
+        const PAJAKI_GATUNKI = [
+            { tex: 1, nazwa: 'Mroczny Tkacz',      model: 'spider',  typ: 'spider_small', hp: 5,  ap: 16, skala: 0.80, dmg: 2, kolor: 0x241a14,
+              mapy: ['nekropolia', 'cmentarzysko', 'katedra'] },
+            { tex: 2, nazwa: 'Piaskowy Łowca',     model: 'spider',  typ: 'spider_small', hp: 7,  ap: 14, skala: 0.95, dmg: 3, kolor: 0x7a6242,
+              mapy: ['sahara', 'wioska', 'alabama'] },
+            { tex: 3, nazwa: 'Jadowity Skoczek',   model: 'spider2', typ: 'spider_small', hp: 4,  ap: 20, skala: 0.70, dmg: 4, kolor: 0x2f5a2a,
+              mapy: ['amazonia', 'bagno', 'powodz'] },
+            { tex: 4, nazwa: 'Pancerny Gnieciuch', model: 'spider2', typ: 'spider_small', hp: 12, ap: 9,  skala: 1.15, dmg: 4, kolor: 0x4a4038,
+              mapy: ['wulkan', 'kremlin', 'zhongnanhai'] },
+            { tex: 5, nazwa: 'Wdowa Kasztanowa',   model: 'spider',  typ: 'spider_big',   hp: 13, ap: 13, skala: 1.45, dmg: 4, kolor: 0x5a2b1c,
+              mapy: ['amazonia', 'alabama', 'powodz'] },
+            { tex: 6, nazwa: 'Matka Sieci',        model: 'spider2', typ: 'spider_big',   hp: 20, ap: 8,  skala: 1.85, dmg: 6, kolor: 0x3b2a1f,
+              mapy: ['amazonia', 'bagno', 'nekropolia'] },
+            { tex: 7, nazwa: 'Blady Żniwiarz',     model: 'spider',  typ: 'spider_big',   hp: 15, ap: 11, skala: 1.60, dmg: 5, kolor: 0x8a8272,
+              mapy: ['cmentarzysko', 'nekropolia', 'zamiec'] },
+            { tex: 8, nazwa: 'Popielna Zmora',     model: 'spider2', typ: 'spider_big',   hp: 17, ap: 12, skala: 1.70, dmg: 5, kolor: 0x2a2630,
+              mapy: ['wulkan', 'sahara', 'whitehouse'] }
+        ];
+
+        // Buduje pająka danego gatunku: model (jeden z dwóch), rozmiar i tekstura.
+        // Gdy modelu brak, wraca do bryły zbudowanej w kodzie.
+        function zbudujPajaka(nrGat) {
+            const g = PAJAKI_GATUNKI[nrGat];
+            let mesh = buildEnemyModelInstance(g.model);
+            if (mesh) {
+                mesh.scale.multiplyScalar(g.skala);
+                nalozTeksturePajaka(mesh, g.tex);
+            } else {
+                mesh = createSpiderMesh(g.typ === 'spider_big');
+                mesh.scale.multiplyScalar(g.skala / (g.typ === 'spider_big' ? 1.7 : 0.85));
+                mesh.traverse(ch => {
+                    if (ch.isMesh && ch.material && ch.material.color && !ch.userData.znak) {
+                        ch.material = ch.material.clone();
+                        ch.material.color.setHex(g.kolor);
+                    }
+                });
+            }
+            mesh.userData.unitType = g.typ;
+            mesh.userData.boiSieSwiatla = true;
+            mesh.userData.gatunekPajaka = nrGat;
+            return mesh;
+        }
+
+        // Dwa do trzech gatunków wylosowanych na daną planszę
+        let gatunkiMisji = [];
+
+        function wylosujGatunkiPajakow() {
+            gatunkiMisji = [];
+            const id = currentCombatTheme ? currentCombatTheme.id : null;
+            let pula = PAJAKI_GATUNKI.map((g, i) => i).filter(i => !id || PAJAKI_GATUNKI[i].mapy.includes(id));
+            // Gdy do planszy nie przypisano nikogo, bierzemy dowolne - lepsze to
+            // niż plansza z pająkami w opisie i bez pająków na mapie
+            if (pula.length === 0) pula = PAJAKI_GATUNKI.map((g, i) => i);
+
+            const ile = Math.min(pula.length, 2 + Math.floor(Math.random() * 2));   // 2 lub 3
+            pula.sort(() => Math.random() - 0.5);
+            gatunkiMisji = pula.slice(0, ile);
+            // Przynajmniej jeden mały, żeby stado miało kim atakować
+            if (!gatunkiMisji.some(i => PAJAKI_GATUNKI[i].typ === 'spider_small')) {
+                const male = pula.filter(i => PAJAKI_GATUNKI[i].typ === 'spider_small');
+                if (male.length) gatunkiMisji[gatunkiMisji.length - 1] = male[0];
+            }
+            gatunkiMisji.forEach(i => teksturaPajaka(PAJAKI_GATUNKI[i].tex));
+        }
+
+        function losowyGatunekPajaka(duzy) {
+            if (gatunkiMisji.length === 0) wylosujGatunkiPajakow();
+            const chce = duzy ? 'spider_big' : 'spider_small';
+            const pasujace = gatunkiMisji.filter(i => PAJAKI_GATUNKI[i].typ === chce);
+            const zbior = pasujace.length ? pasujace : gatunkiMisji;
+            return zbior[Math.floor(Math.random() * zbior.length)];
+        }
+
+        // Tekstury wczytujemy raz, na żądanie
+        const teksturyPajakow = {};
+        function teksturaPajaka(nr) {
+            if (teksturyPajakow[nr] !== undefined) return teksturyPajakow[nr];
+            teksturyPajakow[nr] = null;
+            try {
+                const l = new THREE.TextureLoader();
+                l.load(`graphics/texture_spider${nr}.jpg`,
+                    (t) => {
+                        if (t.encoding !== undefined) t.encoding = THREE.LinearEncoding;
+                        t.flipY = false;
+                        teksturyPajakow[nr] = t;
+                        // podmieniamy u pająków, które już stoją na planszy
+                        enemies.forEach(e => { if (e.gatunek === nr - 1) nalozTeksturePajaka(e.mesh, nr); });
+                    },
+                    undefined,
+                    () => { console.info(`[pająki] Brak graphics/texture_spider${nr}.jpg`); });
+            } catch (e) { }
+            return teksturyPajakow[nr];
+        }
+
+        function nalozTeksturePajaka(mesh, nr) {
+            const t = teksturyPajakow[nr];
+            if (!mesh || !t) return;
+            mesh.traverse(ch => {
+                if (!ch.isMesh && !ch.isSkinnedMesh) return;
+                if (ch.material) {
+                    const m = Array.isArray(ch.material) ? ch.material : [ch.material];
+                    m.forEach(mat => { mat.map = t; mat.color.setHex(0xffffff); mat.needsUpdate = true; });
+                }
+            });
+        }
+
         // Pająki: mały jest zwinny i ciemny, duży masywny z jadowitym odwłokiem
         function createSpiderMesh(duzy) {
             const g = new THREE.Group();
@@ -11030,6 +11164,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const mainForceCount = combatLandmarkPos ? Math.ceil(enemyCount * 0.65) : 0; // ok. 2/3 to garnizon przy budynku, reszta to patrole
             for (let i = 0; i < enemyCount; i++) { 
                 let ex, ez, valid = false, attempts = 0;
+                let gatunekTegoWroga = null;
                 // Jeśli plansza ma główny budynek (Kreml, Biały Dom itd.) - główne siły wroga
                 // skupiają się w jego pobliżu, a mniejsze patrole są rozrzucone losowo po reszcie planszy.
                 const nearLandmark = combatLandmarkPos && i < mainForceCount;
@@ -11078,8 +11213,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (ogarWypadl) {
                     type = 'ogar'; maxHp = 9; maxAp = 18; mesh = createHellhoundMesh();
                 } else if (pajakWypadl) {
-                    if (Math.random() < 0.78) { type = 'spider_small'; maxHp = 6; maxAp = 14; mesh = createSpiderMesh(false); }
-                    else { type = 'spider_big'; maxHp = 16; maxAp = 10; mesh = createSpiderMesh(true); }
+                    const nrGat = losowyGatunekPajaka(Math.random() >= 0.78);
+                    const gat = PAJAKI_GATUNKI[nrGat];
+                    type = gat.typ; maxHp = gat.hp; maxAp = gat.ap;
+                    mesh = zbudujPajaka(nrGat);
+                    gatunekTegoWroga = nrGat;
                 } else if (mapaMaszyn && Math.random() < (currentCombatTheme.id === 'cyber' ? 0.85 : 0.45)) {
                     if (Math.random() < 0.5) { type = 'robot'; maxHp = 14; maxAp = 11; mesh = createRobotMesh(); }
                     else { type = 'droid'; maxHp = 8; maxAp = 12; mesh = createDroidMesh(); }
@@ -11138,7 +11276,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const initialFacing = Math.random() * Math.PI * 2;
                 mesh.lookAt(mesh.position.x + Math.sin(initialFacing), mesh.position.y, mesh.position.z + Math.cos(initialFacing));
                 noteEnemyEncountered(type);
-                enemies.push({ mesh: mesh, type: type, hp: maxHp, maxHp: maxHp, ap: maxAp, maxAp: maxAp, accuracyBonus: accuracyBonus, isDead: false, facingAngle: initialFacing, level: spawnLevel });
+                enemies.push({ mesh: mesh, type: type, hp: maxHp, maxHp: maxHp, ap: maxAp, maxAp: maxAp, accuracyBonus: accuracyBonus, isDead: false, facingAngle: initialFacing, level: spawnLevel, gatunek: gatunekTegoWroga });
                 // Siatka zajętości musi znać TEGO wroga, zanim losujemy miejsce dla następnego -
                 // bez tego kolejni sprawdzali stan sprzed rozstawiania i lądowali na sobie.
                 refreshEnemyPositions();
@@ -12171,6 +12309,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const dreamTheme = (pendingDream && !forcedThemeId) ? COMBAT_THEMES.find(t => t.id === pendingDream.themeId) : null;
             const forced = forcedThemeId ? COMBAT_THEMES.find(t => t.id === forcedThemeId) : dreamTheme;
             currentCombatTheme = forced || availableThemes[Math.floor(Math.random() * availableThemes.length)];
+            wylosujGatunkiPajakow();   // gatunki zależą od planszy, więc dopiero teraz
             terrainMats = createTerrainTextures(currentCombatTheme.palette);
 
             applyRandomCombatTimeOfDay();
@@ -15644,7 +15783,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     let isHit = Math.random() < 0.85; 
                     SoundEngine.playShoot();
                     slideObject(e.mesh, px, py + e.mesh.userData.yOffset, pz, 150, () => {
-                        const meleeDmg = (e.type === 'brute') ? 6 : (e.type === 'stalker' ? 4 : (e.type === 'zombie' ? 3 : (e.type === 'robot' ? 5 : (e.type === 'spider_big' ? 5 : (e.type === 'spider_small' ? 3 : (e.type === 'smierc' ? 7 : (e.type === 'ogar' ? 4 : 3)))))));
+                        const meleeDmg = (e.type === 'brute') ? 6 : (e.type === 'stalker' ? 4 : (e.type === 'zombie' ? 3 : (e.type === 'robot' ? 5 : (e.gatunek !== null && e.gatunek !== undefined && PAJAKI_GATUNKI[e.gatunek] ? PAJAKI_GATUNKI[e.gatunek].dmg : (e.type === 'spider_big' ? 5 : (e.type === 'spider_small' ? 3 : (e.type === 'smierc' ? 7 : (e.type === 'ogar' ? 4 : 3))))))));
                         // Duży pająk przy spętanym celu sięga po jad zamiast zwykłego ciosu
                         if (e.type === 'spider_big' && isSoldierWebbed(bestTarget)) tryVenom(e, bestTarget);
                         if (e.type === 'zombie' && !bestTarget.isNPC) tryInfectSoldier(bestTarget);
