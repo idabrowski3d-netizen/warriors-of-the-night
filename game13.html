@@ -8370,12 +8370,28 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 smierc: createDeathMesh
             };
 
-            const W_RZEDZIE = 7;
+            const W_RZEDZIE = 5;
+            let pominietych = 0;
             lista.forEach((w, i) => {
                 const kol = i % W_RZEDZIE, rzad = Math.floor(i / W_RZEDZIE);
-                const ex = bx + 6 + kol * 3;
-                const ez = bz - 6 - rzad * 4;
-                if (!isWithinPlayBounds(ex, ez)) return;
+                let ex = bx + 5 + kol * 3;
+                let ez = bz - 5 - rzad * 4;
+                // Gdy pole wypada poza planszę, szukamy najbliższego wolnego -
+                // inaczej część rodzajów w ogóle by się nie pokazała
+                if (!isWithinPlayBounds(ex, ez) || isUnitAtLevel(ex, ez, 0, null)) {
+                    let znaleziono = false;
+                    for (let r = 1; r <= 30 && !znaleziono; r++) {
+                        for (let dx = -r; dx <= r && !znaleziono; dx++) {
+                            for (let dz = -r; dz <= r && !znaleziono; dz++) {
+                                const nx = ex + dx, nz = ez + dz;
+                                if (!isWithinPlayBounds(nx, nz)) continue;
+                                if (!canStandAt(nx, nz, 0) || isUnitAtLevel(nx, nz, 0, null)) continue;
+                                ex = nx; ez = nz; znaleziono = true;
+                            }
+                        }
+                    }
+                    if (!znaleziono) { pominietych++; return; }
+                }
                 // robimy miejsce - arena ma być czytelna
                 for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) usunPrzeszkode(ex + dx, ez + dz);
 
@@ -8399,7 +8415,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             refreshEnemyPositions();
             updateFoW();
-            updateUI(`ARENA TESTOWA: ${enemies.length} rodzajów wrogów. Każdy podpisany nazwą.`);
+            updateUI(`ARENA TESTOWA: ${enemies.length} z ${lista.length} rodzajów wrogów. Każdy podpisany nazwą.`);
+            if (pominietych > 0) console.warn(`[arena] Nie zmieściło się ${pominietych} rodzajów.`);
             showFloatingWarning('Arena testowa - wszyscy wrogowie');
         }
 
@@ -10893,6 +10910,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Gdy modelu brak, wraca do bryły zbudowanej w kodzie.
         function zbudujPajaka(nrGat) {
             const g = PAJAKI_GATUNKI[nrGat];
+            teksturaPajaka(g.tex);   // zamawiamy wczytanie, jeśli jeszcze go nie ma
             let mesh = buildEnemyModelInstance(g.model);
             if (mesh) {
                 mesh.scale.multiplyScalar(g.skala);
@@ -10956,7 +10974,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         t.flipY = false;
                         teksturyPajakow[nr] = t;
                         // podmieniamy u pająków, które już stoją na planszy
-                        enemies.forEach(e => { if (e.gatunek === nr - 1) nalozTeksturePajaka(e.mesh, nr); });
+                        enemies.forEach(e => {
+                            if (e.gatunek === null || e.gatunek === undefined) return;
+                            if (PAJAKI_GATUNKI[e.gatunek] && PAJAKI_GATUNKI[e.gatunek].tex === nr) nalozTeksturePajaka(e.mesh, nr);
+                        });
                     },
                     undefined,
                     () => { console.info(`[pająki] Brak graphics/texture_spider${nr}.jpg`); });
@@ -10969,11 +10990,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (!mesh || !t) return;
             mesh.traverse(ch => {
                 if (!ch.isMesh && !ch.isSkinnedMesh) return;
-                if (ch.material) {
-                    const m = Array.isArray(ch.material) ? ch.material : [ch.material];
-                    m.forEach(mat => { mat.map = t; mat.color.setHex(0xffffff); mat.needsUpdate = true; });
+                if (!ch.material) return;
+                // Klony modelu WSPÓŁDZIELĄ materiał - bez własnej kopii każda kolejna
+                // tekstura nadpisywałaby wszystkie pająki na planszy.
+                if (Array.isArray(ch.material)) {
+                    ch.material = ch.material.map(m => { const k = m.clone(); k.map = t; if (k.color) k.color.setHex(0xffffff); k.needsUpdate = true; return k; });
+                } else {
+                    const k = ch.material.clone();
+                    k.map = t; if (k.color) k.color.setHex(0xffffff); k.needsUpdate = true;
+                    ch.material = k;
                 }
             });
+            mesh.userData.teksturaNr = nr;
         }
 
         // Pająki: mały jest zwinny i ciemny, duży masywny z jadowitym odwłokiem
