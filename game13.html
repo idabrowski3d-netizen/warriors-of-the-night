@@ -6149,6 +6149,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                        atak: 'demon_fight',    smierc: 'demon_death',   cios: 'demon_hit',   wysokosc: 1.5 },
             spider:  { plik: 'models/spider.glb',  idle: 'spider_idle', walk: 'spider_walk',
                        atak: 'spider_attack', smierc: 'spider_death', cios: 'spider_hit', wysokosc: 1.0 },
+            // Cywile - trzy sylwetki, każda z własnym kompletem animacji
+            cywil_women:  { plik: 'models/women.glb',  idle: 'women_idle',  walk: 'women_run',
+                       atak: null, smierc: 'women_death',  cios: null, wysokosc: 1.7 },
+            cywil_women2: { plik: 'models/women2.glb', idle: 'women2_idle', walk: 'women2_run',
+                       atak: null, smierc: 'women2_death', cios: null, wysokosc: 1.7 },
+            cywil_men:    { plik: 'models/men.glb',    idle: 'men_idle',    walk: 'men_run',
+                       atak: null, smierc: 'men_death',    cios: null, wysokosc: 1.8 },
             spider2: { plik: 'models/spider2.glb', idle: 'spider_idle', walk: 'spider_walk',
                        atak: 'spider_attack', smierc: 'spider_death', cios: 'spider_hit', wysokosc: 1.0 },
             strzyga: { plik: 'models/strzyga.glb', idle: 'strzyga_idle', walk: 'strzyga_walk',
@@ -6157,6 +6164,25 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         };
 
         const wrogModele = {};   // typ -> { proto, klipy, gotowy }
+
+        // ========================================================
+        // --- MODELE CYWILI ---
+        // Trzy sylwetki losowane przy tworzeniu. Brak pliku = dotychczasowa bryła.
+        // ========================================================
+        const CYWILE_MODELE = ['cywil_women', 'cywil_women2', 'cywil_men'];
+
+        function zbudujCywila(wariant) {
+            const klucz = wariant || CYWILE_MODELE[Math.floor(Math.random() * CYWILE_MODELE.length)];
+            const zModelu = buildEnemyModelInstance(klucz);
+            if (zModelu) {
+                zModelu.userData.unitType = 'npc';
+                zModelu.userData.wariantCywila = klucz;
+                return zModelu;
+            }
+            const bryla = createCharacter(0xd9c48f, 0xffccaa, 0x553311, 0.95, 'npc', true);
+            bryla.userData.wariantCywila = klucz;
+            return bryla;
+        }
 
         function loadEnemyModels() {
             if (typeof THREE.GLTFLoader === 'undefined') return;
@@ -6432,10 +6458,19 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (!unit) return;
             unit.isDead = true;
             const m = unit.mesh;
-            const maModel = m && m.userData && m.userData.isModel && m.userData.actions && m.userData.actions.death;
+            // Cywile i wrogowie mają własne nazwy animacji zgonu (women_death,
+            // men_death...), więc najpierw pytamy o nazwę właściwą dla modelu.
+            let nazwaZgonu = 'death';
+            if (m && m.userData && m.userData.isEnemyModel) {
+                const cfgZ = ENEMY_MODELS[m.userData.enemyKind];
+                if (cfgZ && cfgZ.smierc) nazwaZgonu = cfgZ.smierc;
+            }
+            const maModel = m && m.userData && m.userData.isModel && m.userData.actions && m.userData.actions[nazwaZgonu];
             if (maModel) {
-                playWarriorAnim(m, 'death');
-                const dl = (warriorModelClips.death ? warriorModelClips.death.duration : 2) * 1000;
+                playWarriorAnim(m, nazwaZgonu);
+                const klip = m.userData.actions[nazwaZgonu];
+                const dl = ((klip && klip._clip && klip._clip.duration) ||
+                            (warriorModelClips.death ? warriorModelClips.death.duration : 2)) * 1000;
                 setTimeout(() => { scene.remove(m); if (poZgonie) poZgonie(); }, Math.min(3000, dl));
             } else {
                 scene.remove(m);
@@ -6624,7 +6659,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (cand.length) npcLevel = cand[Math.floor(Math.random() * cand.length)];
                 }
                 const ny = getLevelY(nx, nz, npcLevel);
-                const mesh = createCharacter(0xd9c48f, 0xffccaa, 0x553311, 0.95, 'npc', true);
+                const mesh = zbudujCywila();
                 mesh.position.set(nx, ny + mesh.userData.yOffset, nz);
                 scene.add(mesh);
                 npcs.push({ mesh: mesh, hp: 8, maxHp: 8, ap: 8, maxAp: 8, isDead: false, isNPC: true, level: npcLevel });
@@ -8301,6 +8336,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // zamiast czekać, aż wylosuje się sama.
         // ========================================================
         let testSquadSize = 1;
+        // Misja odpalona z panelu testowego nie liczy się do postępu gracza -
+        // inaczej sprawdzanie plansz zawyżałoby statystyki i rekrutację.
+        let misjaTestowa = false;
 
         const TEST_PRESETS = [
             { label: '👹 Boss KOSZMAR',    theme: null,           mission: 'boss' },
@@ -8562,6 +8600,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         function runTestMission() {
+            misjaTestowa = true;
             document.getElementById('test-overlay').style.display = 'none';
             // Zamykamy tylko rozwijaną listę - sam pasek Ustawień musi zostać widoczny,
             // żeby dało się od razu wybrać kolejną misję testową bez restartu gry.
@@ -8918,7 +8957,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             npcs.forEach(n => scene.remove(n.mesh));
             npcs = (data.npcs || []).filter(nd => !nd.isDead).map(nd => {
-                const mesh = createCharacter(0xd9c48f, 0xffccaa, 0x553311, 0.95, 'npc', true);
+                const mesh = zbudujCywila();
                 const ty = getLevelY(Math.round(nd.x), Math.round(nd.z), nd.level || 0);
                 mesh.position.set(nd.x, ty + mesh.userData.yOffset, nd.z);
                 scene.add(mesh);
@@ -10565,7 +10604,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             // Licznik misji (napędza rekrutację i cykl pór roku) liczy tylko UKOŃCZONE misje,
             // czyli takie, w których pokonano wszystkich wrogów. Przegrana nie posuwa postępu.
-            const wonThisMission = lastMissionWon;
+            const wonThisMission = lastMissionWon && !misjaTestowa;
+            if (misjaTestowa && lastMissionWon) {
+                updateUI('Misja testowa ukończona - postęp gracza pozostaje bez zmian.');
+            }
             if (wonThisMission) playerStats.mission += 1;
             currentMissionStory = null;
 
@@ -12996,7 +13038,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 for (const d of [[1,0],[-1,0],[0,1],[0,-1],[2,0],[0,2]]) {
                     if (!isObstacle(px + d[0], pz + d[1]) && !isUnitAtLevel(px + d[0], pz + d[1], 0, null)) { px += d[0]; pz += d[1]; break; }
                 }
-                const mesh = createCharacter(0xd9c48f, 0xffccaa, 0x553311, 0.95, 'npc', true);
+                const mesh = zbudujCywila();
                 mesh.position.set(px, getTerrainY(px, pz) + mesh.userData.yOffset, pz);
                 mesh.add(createNameSprite('Powierzony'));
                 scene.add(mesh);
@@ -13039,7 +13081,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 spots.forEach(([dx, dz]) => {
                     const nx = bx + dx, nz = bz + dz;
                     if (isObstacle(nx, nz)) return;
-                    const m = createCharacter(0xc9b48f, 0xffccaa, 0x553311, 0.95, 'npc', true);
+                    const m = zbudujCywila();
                     m.position.set(nx, getTerrainY(nx, nz) + m.userData.yOffset, nz);
                     scene.add(m);
                     const pr = { mesh: m, hp: 6, maxHp: 6, ap: 6, maxAp: 6, isDead: false, isNPC: true,
@@ -13117,7 +13159,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
                 // --- więzień w najdalszej komnacie, niewidoczny do czasu zbliżenia ---
                 const px = maxX - 3, pz = (floodEdge === 'north') ? (maxZ - 3) : (minZ + 3);
-                const pm = createCharacter(0xc9b48f, 0xffccaa, 0x553311, 0.95, 'npc', true);
+                const pm = zbudujCywila();
                 pm.position.set(px, getTerrainY(px, pz) + pm.userData.yOffset, pz);
                 pm.visible = false;
                 scene.add(pm);
@@ -14969,7 +15011,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const fleePath = fleePathData.path.slice(0, n.ap);
                 if (fleePath.length === 0) { processNPCTurn(idx + 1, callback); return; }
                 n.ap -= fleePath.length;
+                animWroga(n, 'walk');   // cywile mają bieg zamiast marszu
                 moveAlongPath({ mesh: n.mesh, userData: n.mesh.userData }, fleePath, 150, () => {
+                    animWroga(n, 'idle');
                     setTimeout(() => processNPCTurn(idx + 1, callback), 200);
                 });
                 return;
@@ -15020,7 +15064,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             setTimeout(() => {
                 cameraFocusMesh = n.mesh;
                 updateUI("Cywil ucieka przed zagrożeniem!");
+                animWroga(n, 'walk');
                 moveAlongPath({ mesh: n.mesh, userData: n.mesh.userData }, path, 150, () => {
+                    animWroga(n, 'idle');
                     cameraFocusMesh = null;
                     setTimeout(() => processNPCTurn(idx + 1, callback), 200);
                 });
@@ -18210,6 +18256,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             btn.addEventListener('click', (e) => {
                 const count = parseInt(e.currentTarget.dataset.count, 10);
                 try {
+                    misjaTestowa = false;   // zwykła misja liczy się do postępu
                     startGame(count);
                     // Dopiero po poprawnym uruchomieniu gry chowamy menu
                     document.getElementById('start-screen').style.display = 'none';
