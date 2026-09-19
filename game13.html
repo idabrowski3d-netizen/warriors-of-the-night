@@ -8320,8 +8320,105 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             { label: '🌊 Powódź',           theme: 'powodz',       mission: 'flood' },
             { label: '🧟 Cmentarzysko',     theme: 'cmentarzysko', mission: 'standard' },
             { label: '🤖 Cyber',            theme: 'cyber',        mission: 'standard' },
-            { label: '🕷️ Amazonia',         theme: 'amazonia',     mission: 'standard' }
+            { label: '🕷️ Amazonia',         theme: 'amazonia',     mission: 'standard' },
+            { label: '🧪 ARENA - wszyscy wrogowie', arena: true }
         ];
+
+        // ========================================================
+        // --- ARENA TESTOWA ---
+        // Wszystkie rodzaje wrogów naraz, ustawieni w rzędach i podpisani.
+        // Dostępna wyłącznie z panelu testowego.
+        // ========================================================
+        function uruchomAreneTestowa() {
+            forcedThemeId = 'alabama';
+            forcedMissionType = 'standard';
+            testSquadSize = 3;
+            runTestMission();
+
+            // Sprzątamy wrogów z losowej misji - chcemy tylko tych z listy
+            enemies.forEach(e => scene.remove(e.mesh));
+            enemies = [];
+
+            const lista = [
+                { typ: 'standard',  hp: 10, ap: 10, opis: 'Podstawowy' },
+                { typ: 'fast',      hp: 8,  ap: 12, opis: 'Szybki' },
+                { typ: 'brute',     hp: 14, ap: 11, opis: 'Duży' },
+                { typ: 'summoner',  hp: 12, ap: 8,  opis: 'Przywoływacz' },
+                { typ: 'stalker',   hp: 10, ap: 14, opis: 'Skradający' },
+                { typ: 'wisp',      hp: 5,  ap: 16, opis: 'Duszek' },
+                { typ: 'zombie',    hp: 4,  ap: 8,  opis: 'Zombie' },
+                { typ: 'vampire',   hp: 15, ap: 12, opis: 'Wampir' },
+                { typ: 'strzyga',   hp: 9,  ap: 18, opis: 'Strzyga' },
+                { typ: 'robot',     hp: 14, ap: 11, opis: 'Robot' },
+                { typ: 'droid',     hp: 8,  ap: 12, opis: 'Droid' },
+                { typ: 'ogar',      hp: 9,  ap: 18, opis: 'Ogar piekielny' },
+                { typ: 'smierc',    hp: SMIERC_HP, ap: 12, opis: 'Śmierć', nieDoZabicia: true }
+            ];
+            // Wszystkie osiem gatunków pająków
+            PAJAKI_GATUNKI.forEach((g, i) => {
+                lista.push({ typ: g.typ, hp: g.hp, ap: g.ap, opis: g.nazwa, gatunek: i });
+            });
+
+            const anchorS = soldiers[0];
+            const bx = Math.round(anchorS.mesh.position.x);
+            const bz = Math.round(anchorS.mesh.position.z);
+
+            const BUDOWA = {
+                summoner: createSummonerMesh, stalker: createStalkerMesh, wisp: createWispMesh,
+                zombie: createZombieMesh, vampire: createVampireMesh, strzyga: createStrzygaMesh,
+                robot: createRobotMesh, droid: createDroidMesh, ogar: createHellhoundMesh,
+                smierc: createDeathMesh
+            };
+
+            const W_RZEDZIE = 7;
+            lista.forEach((w, i) => {
+                const kol = i % W_RZEDZIE, rzad = Math.floor(i / W_RZEDZIE);
+                const ex = bx + 6 + kol * 3;
+                const ez = bz - 6 - rzad * 4;
+                if (!isWithinPlayBounds(ex, ez)) return;
+                // robimy miejsce - arena ma być czytelna
+                for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) usunPrzeszkode(ex + dx, ez + dz);
+
+                let mesh;
+                if (w.gatunek !== undefined) mesh = zbudujPajaka(w.gatunek);
+                else if (BUDOWA[w.typ]) mesh = BUDOWA[w.typ]();
+                else {
+                    mesh = buildEnemyModelInstance(w.typ) ||
+                           createCharacter(0xff4444, 0xaaffaa, 0x111111, 1, w.typ);
+                }
+                mesh.position.set(ex, getLevelY(ex, ez, 0) + (mesh.userData.yOffset || 0), ez);
+                mesh.add(createNameSprite(w.opis));
+                scene.add(mesh);
+                enemies.push({
+                    mesh: mesh, type: w.typ, hp: w.hp, maxHp: w.hp, ap: w.ap, maxAp: w.ap,
+                    accuracyBonus: 0, isDead: false, facingAngle: Math.PI, level: 0,
+                    gatunek: (w.gatunek === undefined ? null : w.gatunek),
+                    nieDoZabicia: !!w.nieDoZabicia
+                });
+            });
+
+            refreshEnemyPositions();
+            updateFoW();
+            updateUI(`ARENA TESTOWA: ${enemies.length} rodzajów wrogów. Każdy podpisany nazwą.`);
+            showFloatingWarning('Arena testowa - wszyscy wrogowie');
+        }
+
+        function usunPrzeszkode(x, z) {
+            const mx = x + offsetX, mz = z + offsetZ;
+            if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return;
+            if (!obstacleGrid[mx][mz]) return;
+            obstacleGrid[mx][mz] = null;
+            for (let i = obstaclePositions.length - 1; i >= 0; i--) {
+                const p = obstaclePositions[i];
+                if (Math.round(p.x) === x && Math.round(p.z) === z) obstaclePositions.splice(i, 1);
+            }
+            for (let i = obstacleMeshes.length - 1; i >= 0; i--) {
+                const m = obstacleMeshes[i];
+                if (Math.round(m.position.x) === x && Math.round(m.position.z) === z) {
+                    scene.remove(m); obstacleMeshes.splice(i, 1);
+                }
+            }
+        }
 
         function testStatusText() {
             const th = forcedThemeId ? (COMBAT_THEMES.find(t => t.id === forcedThemeId) || {}).name : 'losowa';
@@ -8343,6 +8440,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const presets = document.getElementById('test-presets');
             presets.innerHTML = '';
             TEST_PRESETS.forEach(p => presets.appendChild(mk(p.label, false, () => {
+                if (p.arena) { uruchomAreneTestowa(); return; }
                 forcedThemeId = p.theme; forcedMissionType = p.mission;
                 runTestMission();
             }, 'preset')));
