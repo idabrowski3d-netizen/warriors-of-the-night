@@ -1225,12 +1225,16 @@
             const lvl = s.level || 0;
             s.isDead = true;
             scene.remove(s.mesh);
-            const m = createZombieMesh();
+            // Model 3D, jeśli wgrany - inaczej dotychczasowa bryła
+            const m = buildEnemyModelInstance('zombie') || createZombieMesh();
             m.position.set(sx, getLevelY(sx, sz, lvl) + m.userData.yOffset, sz);
             scene.add(m);
             enemies.push({ mesh: m, type: 'zombie', hp: 4, maxHp: 4, ap: 8, maxAp: 8,
                            accuracyBonus: 0, isDead: false, facingAngle: 0, level: lvl });
             refreshPlayerPositions(); refreshEnemyPositions();
+            // Przemiana też jest powstaniem - odtwarzamy to samo wstawanie
+            const powstaly = enemies[enemies.length - 1];
+            if (powstaly && powstaly.mesh.userData.isEnemyModel) animWroga(powstaly, 'specjalna', true);
             showFloatingWarning(`${s.name} obraca się w zombie!`);
             playFileSfx(AudioFiles.zombieWakeup, 0.8);
             updateFoW();
@@ -6137,7 +6141,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // ========================================================
         const ENEMY_MODELS = {
             zombie:  { plik: 'models/zombie.glb',  idle: 'zombie_idle',  walk: 'zombie_walk',
-                       atak: 'zombie_attack',  smierc: 'zombie_death',  cios: 'zombie_hit',  wysokosc: 1.8 },
+                       atak: 'zombie_attack',  smierc: 'zombie_death',  cios: 'zombie_hit',
+                       specjalna: 'zombie_up',  wysokosc: 1.8 },   // zombie_up - wychodzenie z grobu
             vampire: { plik: 'models/vampire.glb', idle: 'vampire_idle', walk: 'vampire_walk',
                        atak: 'vampire_attack', smierc: 'vampire_death', cios: 'vampire_hit',
                        specjalna: 'vampire_hypnotize', wysokosc: 2.0,
@@ -13659,7 +13664,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     spot = [zx, zz]; break;
                 }
                 if (!spot) return;
-                const m = createZombieMesh();
+                // Model 3D, jeśli wgrany - inaczej dotychczasowa bryła
+            const m = buildEnemyModelInstance('zombie') || createZombieMesh();
                 m.position.set(spot[0], getTerrainY(spot[0], spot[1]) + m.userData.yOffset, spot[1]);
                 scene.add(m);
                 enemies.push({ mesh: m, type: 'zombie', hp: 4, maxHp: 4, ap: 8, maxAp: 8,
@@ -13667,6 +13673,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 noteEnemyEncountered('zombie');
                 refreshEnemyPositions();
                 updateUI('Wieko sarkofagu pęka - wychodzi ZOMBIE!');
+                // Zombie najpierw dźwiga się z grobu, dopiero potem staje w gotowości
+                const swiezy = enemies[enemies.length - 1];
+                if (swiezy && swiezy.mesh.userData.isEnemyModel) animWroga(swiezy, 'specjalna', true);
                 playFileSfx(AudioFiles.zombieWakeup, 0.7);
                 updateFoW();
             });
