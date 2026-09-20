@@ -6161,6 +6161,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             cywil_men:    { plik: 'models/men.glb',    idle: 'men_idle',    walk: 'men_run',
                        atak: null, smierc: 'men_death',    cios: null, wysokosc: 1.8,
                        idleAlt: 'man_idle', walkAlt: 'man_run', smiercAlt: 'man_death' },
+            standard: { plik: 'models/standard.glb', idle: 'standard_idle', walk: 'standard_run',
+                       atak: 'standard_attack', smierc: 'standard_death', cios: 'standard_hit', wysokosc: 1.8 },
             spider2: { plik: 'models/spider2.glb', idle: 'spider_idle', walk: 'spider_walk',
                        atak: 'spider_attack', smierc: 'spider_death', cios: 'spider_hit', wysokosc: 1.0 },
             strzyga: { plik: 'models/strzyga.glb', idle: 'strzyga_idle', walk: 'strzyga_walk',
@@ -8454,7 +8456,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             enemies = [];
 
             const lista = [
-                { typ: 'standard',  hp: 10, ap: 10, opis: 'Podstawowy' },
+                { typ: 'standard',  hp: 10, ap: 10, opis: 'Rozpruwacz' },
                 { typ: 'fast',      hp: 8,  ap: 12, opis: 'Szybki' },
                 { typ: 'brute',     hp: 14, ap: 11, opis: 'Duży' },
                 { typ: 'summoner',  hp: 12, ap: 8,  opis: 'Przywoływacz' },
@@ -14446,7 +14448,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (distanceXY === 0) { msg = `Twoja pozycja`; remainingAP = active.ap; } 
                 else if (hoveredEnemy) {
                     ustawKursorCelownika(hoveredEnemy, active);
-                    let eName = hoveredEnemy.type === 'brute' ? 'DUŻY (Walka wręcz)' : (hoveredEnemy.type === 'fast' ? 'SZYBKI (Zwiadowca)' : 'PODSTAWOWY');
+                    let eName = hoveredEnemy.type === 'brute' ? 'DUŻY (Walka wręcz)' : (hoveredEnemy.type === 'fast' ? 'SZYBKI (Zwiadowca)' : 'ROZPRUWACZ');
                     remainingAP = active.ap - shootCost;
 
                     const startY = getTerrainY(startX, startZ);
@@ -16771,8 +16773,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // ========================================================
         const BESTIARY_ENTRIES = [
             {
-                id: 'standard', title: 'Cień',
-                text: 'Najczęstszy mieszkaniec cudzych koszmarów. Przybiera postać człowieka o rozmytych rysach i czerwonawej poświacie. ' +
+                id: 'standard', title: 'Rozpruwacz',
+                text: 'Najczęstszy mieszkaniec cudzych koszmarów. Postać człowieka o rozmytych rysach i czerwonawej poświacie, ' +
+                      'z rękami zakończonymi czymś, co bardziej przypomina narzędzia niż palce. ' +
                       'Nie jest ani szczególnie silny, ani szybki - jego siłą jest liczba. Tam, gdzie pojawia się jeden, zwykle czai się kilku kolejnych.\n\n' +
                       'Zwykle trzyma pozycję i ostrzeliwuje z dystansu. Podchodzi bliżej dopiero wtedy, gdy straci cel z oczu.',
                 stats: [['Punkty życia', '10'], ['Punkty ruchu', '10'], ['Premia do celności', 'brak'], ['Styl walki', 'ostrzał z dystansu']]
