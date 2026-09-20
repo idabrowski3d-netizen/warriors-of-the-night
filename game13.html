@@ -6150,12 +6150,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             spider:  { plik: 'models/spider.glb',  idle: 'spider_idle', walk: 'spider_walk',
                        atak: 'spider_attack', smierc: 'spider_death', cios: 'spider_hit', wysokosc: 1.0 },
             // Cywile - trzy sylwetki, każda z własnym kompletem animacji
+            // Nazwy bywają zapisane raz przez "woman", raz przez "women" - przyjmujemy
+            // obie pisownie, żeby nie trzeba było eksportować modelu ponownie.
             cywil_women:  { plik: 'models/women.glb',  idle: 'women_idle',  walk: 'women_run',
-                       atak: null, smierc: 'women_death',  cios: null, wysokosc: 1.7 },
+                       atak: null, smierc: 'women_death',  cios: null, wysokosc: 1.7,
+                       idleAlt: 'woman_idle', walkAlt: 'woman_run', smiercAlt: 'woman_death' },
             cywil_women2: { plik: 'models/women2.glb', idle: 'women2_idle', walk: 'women2_run',
-                       atak: null, smierc: 'women2_death', cios: null, wysokosc: 1.7 },
+                       atak: null, smierc: 'women2_death', cios: null, wysokosc: 1.7,
+                       idleAlt: 'woman2_idle', walkAlt: 'woman2_run', smiercAlt: 'woman2_death' },
             cywil_men:    { plik: 'models/men.glb',    idle: 'men_idle',    walk: 'men_run',
-                       atak: null, smierc: 'men_death',    cios: null, wysokosc: 1.8 },
+                       atak: null, smierc: 'men_death',    cios: null, wysokosc: 1.8,
+                       idleAlt: 'man_idle', walkAlt: 'man_run', smiercAlt: 'man_death' },
             spider2: { plik: 'models/spider2.glb', idle: 'spider_idle', walk: 'spider_walk',
                        atak: 'spider_attack', smierc: 'spider_death', cios: 'spider_hit', wysokosc: 1.0 },
             strzyga: { plik: 'models/strzyga.glb', idle: 'strzyga_idle', walk: 'strzyga_walk',
@@ -6171,16 +6176,87 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // ========================================================
         const CYWILE_MODELE = ['cywil_women', 'cywil_women2', 'cywil_men'];
 
+        // Odwrócone barwy dają trzy dodatkowe sylwetki bez nowych plików.
+        // Gotowe tekstury trzymamy w podręcznej pamięci - przerabianie obrazu
+        // jest kosztowne, a ta sama tekstura wraca przy każdym cywilu.
+        const odwroconeTekstury = new Map();
+
+        function odwrocTeksture(zrodlo) {
+            if (!zrodlo || !zrodlo.image) return null;
+            if (odwroconeTekstury.has(zrodlo)) return odwroconeTekstury.get(zrodlo);
+            let wynik = null;
+            try {
+                const img = zrodlo.image;
+                const w = img.width || img.videoWidth, h = img.height || img.videoHeight;
+                if (!w || !h) return null;
+                const cv = document.createElement('canvas');
+                cv.width = w; cv.height = h;
+                const ctx = cv.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                const dane = ctx.getImageData(0, 0, w, h);
+                const p = dane.data;
+                for (let i = 0; i < p.length; i += 4) {
+                    p[i] = 255 - p[i];
+                    p[i + 1] = 255 - p[i + 1];
+                    p[i + 2] = 255 - p[i + 2];
+                }
+                ctx.putImageData(dane, 0, 0);
+                wynik = new THREE.CanvasTexture(cv);
+                wynik.flipY = zrodlo.flipY;
+                wynik.wrapS = zrodlo.wrapS; wynik.wrapT = zrodlo.wrapT;
+                if (zrodlo.encoding !== undefined) wynik.encoding = zrodlo.encoding;
+                wynik.needsUpdate = true;
+            } catch (e) {
+                wynik = null;   // np. tekstura z innego serwera - zostaje zwykła
+            }
+            odwroconeTekstury.set(zrodlo, wynik);
+            return wynik;
+        }
+
+        function odwrocBarwyPostaci(mesh) {
+            let cokolwiek = false;
+            mesh.traverse(ch => {
+                if (!ch.isMesh && !ch.isSkinnedMesh) return;
+                if (!ch.material) return;
+                const przerob = (m) => {
+                    // Własna kopia materiału - klony modelu współdzielą oryginał
+                    const k = m.clone();
+                    const odw = odwrocTeksture(m.map);
+                    if (odw) { k.map = odw; cokolwiek = true; }
+                    else if (k.color) {
+                        // Bez tekstury odwracamy sam kolor materiału
+                        const h = k.color.getHex();
+                        k.color.setHex(0xffffff - h);
+                        cokolwiek = true;
+                    }
+                    k.needsUpdate = true;
+                    return k;
+                };
+                ch.material = Array.isArray(ch.material) ? ch.material.map(przerob) : przerob(ch.material);
+            });
+            return cokolwiek;
+        }
+
         function zbudujCywila(wariant) {
-            const klucz = wariant || CYWILE_MODELE[Math.floor(Math.random() * CYWILE_MODELE.length)];
+            // Sześć odmian: trzy sylwetki w barwach zwykłych i odwróconych
+            let klucz = wariant, odwrocone = false;
+            if (!klucz) {
+                klucz = CYWILE_MODELE[Math.floor(Math.random() * CYWILE_MODELE.length)];
+                odwrocone = Math.random() < 0.5;
+            } else if (klucz.endsWith('_inv')) {
+                klucz = klucz.slice(0, -4); odwrocone = true;
+            }
+
             const zModelu = buildEnemyModelInstance(klucz);
             if (zModelu) {
                 zModelu.userData.unitType = 'npc';
-                zModelu.userData.wariantCywila = klucz;
+                if (odwrocone) odwrocBarwyPostaci(zModelu);
+                zModelu.userData.wariantCywila = klucz + (odwrocone ? '_inv' : '');
                 return zModelu;
             }
             const bryla = createCharacter(0xd9c48f, 0xffccaa, 0x553311, 0.95, 'npc', true);
-            bryla.userData.wariantCywila = klucz;
+            if (odwrocone) odwrocBarwyPostaci(bryla);
+            bryla.userData.wariantCywila = klucz + (odwrocone ? '_inv' : '');
             return bryla;
         }
 
@@ -11853,6 +11929,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 };
             }
             if (path.length === 0) { if (callback) callback(); return; }
+            meshData.__krokow = meshData.__krokow || 0;
 
             // Przed pierwszym krokiem zapisujemy wrogów, których wojownik już widzi -
             // inaczej zatrzymywałby się od razu na kimś, kogo obserwuje od dawna.
@@ -11870,6 +11947,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             SoundEngine.playStep(meshData.mesh.userData.unitType); 
             
             slideObject(meshData.mesh, nextStep.x, targetY, nextStep.z, durationPerTile, () => {
+                meshData.__krokow = (meshData.__krokow || 0) + 1;   // liczymy pola faktycznie przebyte
                 const czyGracz = meshData.mesh.userData.unitType === 'player';
                 if (czyGracz || meshData.mesh.userData.unitType === 'npc') updateFoW();
 
@@ -11880,13 +11958,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (zauwazony) {
                         const zwrot = path.length;
                         path.length = 0;
-                        // Punkty za pola, których nie przeszedł, wracają do puli -
-                        // inaczej zatrzymanie karałoby gracza za czujność.
+                        // Punkty odejmuje dopiero wywołanie zwrotne, i to za CAŁĄ
+                        // zaplanowaną trasę. Wcześniejsze dodawanie tu było bezskuteczne
+                        // (pula była jeszcze pełna), a potem znikała całość - stąd zera
+                        // i wartości ujemne. Teraz zapisujemy, ile pól faktycznie przeszedł.
                         const idacy = meshData.__zolnierz;
-                        if (idacy && !idacy.isDead) {
-                            idacy.ap = Math.min(getEffectiveMaxAp(idacy), (idacy.ap || 0) + zwrot);
-                        }
-                        updateUI(`Wróg w zasięgu wzroku! Marsz przerwany, ${zwrot} ${zwrot === 1 ? 'punkt wraca' : 'PA wraca'} do puli.`);
+                        if (idacy) idacy.__przeszedlPol = (meshData.__krokow || 0);
+                        updateUI(`Wróg w zasięgu wzroku! Marsz przerwany, ${zwrot} ${zwrot === 1 ? 'punkt zostaje' : 'PA zostaje'} w puli.`);
                         showFloatingWarning('Dostrzeżono wroga - zatrzymanie!');
                         pokazDostrzezonegoWroga(zauwazony, idacy);
                     }
@@ -12091,7 +12169,27 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
         }
 
-        function checkLineOfSight3D(x0, y0, z0, x1, y1, z1) {
+        // ========================================================
+        // --- WYSOKOŚĆ PRZESZKÓD ---
+        // Niska przeszkoda (murek, ławka, beczka, nagrobek, krzak) nie zasłania
+        // widoku - przeciwnika za nią widać. Nadal jednak utrudnia strzał,
+        // bo cel się za nią chowa. Wysoka zasłania zupełnie.
+        // ========================================================
+        const NISKIE_PRZESZKODY = ['rock', 'kloda', 'lawka', 'kosz', 'zywoplot', 'beczka',
+                                   'nagrobek', 'crate', 'barrel', 'bush', 'grave', 'tombstone'];
+
+        function czyNiskaPrzeszkoda(obs) {
+            if (!obs) return false;
+            if (obs.wysoka) return false;
+            return NISKIE_PRZESZKODY.indexOf(obs.type) !== -1;
+        }
+
+        // Widoczność: to samo co linia strzału, ale niskie przeszkody nie zasłaniają
+        function czyWidacPrzez(x0, y0, z0, x1, y1, z1) {
+            return checkLineOfSight3D(x0, y0, z0, x1, y1, z1, true);
+        }
+
+        function checkLineOfSight3D(x0, y0, z0, x1, y1, z1, tylkoWidocznosc) {
             let dx = x1 - x0, dy = y1 - y0, dz = z1 - z0, steps = Math.max(Math.abs(dx), Math.abs(dy), Math.abs(dz));
             if (steps === 0) return true;
             let xInc = dx / steps, yInc = dy / steps, zInc = dz / steps, x = x0, y = y0, z = z0;
@@ -12111,6 +12209,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (obs.type === 'river') { continue; }
                     // Ogrodzenie ma prześwity między prętami - widać i strzela się przez nie
                     if (obs.type === 'grave-fence') { continue; }
+                    // Niska przeszkoda zasłania strzał, ale nie widok
+                    if (tylkoWidocznosc && czyNiskaPrzeszkoda(obs)) { continue; }
                     if (obs.type !== 'house-window') {
                         // Ściana sięga tylu kondygnacji, ile ma budynek - inaczej pocisk przelatywałby przez nią na piętrach
                         let obsHeight = (obs.type === 'house-wall') ? Math.max(2, (obs.floors || 1) * FLOOR_HEIGHT) : 1;
@@ -12414,11 +12514,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             if (mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth) {
                                 // Widoczność na własnej kondygnacji
                                 if (!floorsBlockShot(px, pz, sLvl, tx, tz, sLvl) &&
-                                    checkLineOfSight3D(px, py, pz, tx, getLevelY(tx, tz, sLvl), tz)) {
+                                    czyWidacPrzez(px, py, pz, tx, getLevelY(tx, tz, sLvl), tz)) {
                                     fowVisible[sLvl][mx][mz] = 1; fowExplored[sLvl][mx][mz] = 1;
                                 }
                                 // Z góry widać też ulicę pod sobą - i teren pozostaje odsłonięty
-                                if (sLvl > 0 && checkLineOfSight3D(px, py, pz, tx, heightMap[mx][mz], tz) &&
+                                if (sLvl > 0 && czyWidacPrzez(px, py, pz, tx, heightMap[mx][mz], tz) &&
                                     !floorsBlockShot(px, pz, sLvl, tx, tz, 0)) {
                                     fowVisible[0][mx][mz] = 1; fowExplored[0][mx][mz] = 1;
                                 }
@@ -12439,7 +12539,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             const tx = px + dx, tz = pz + dz;
                             let mx = tx + offsetX, mz = tz + offsetZ;
                             if (mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth) {
-                                if (checkLineOfSight3D(px, py, pz, tx, getLevelY(tx, tz, nLvl), tz)) {
+                                if (czyWidacPrzez(px, py, pz, tx, getLevelY(tx, tz, nLvl), tz)) {
                                     fowVisible[nLvl][mx][mz] = 1; fowExplored[nLvl][mx][mz] = 1;
                                 }
                             }
@@ -13512,7 +13612,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (e.isDead) return false;
                     const d = Math.hypot(e.mesh.position.x - nx, e.mesh.position.z - nz);
                     if (d > getVisionRange()) return false;
-                    return checkLineOfSight3D(nx, getLevelY(Math.round(nx), Math.round(nz), n.level || 0) + 1, nz,
+                    return czyWidacPrzez(nx, getLevelY(Math.round(nx), Math.round(nz), n.level || 0) + 1, nz,
                                               e.mesh.position.x, e.mesh.position.y + 0.5, e.mesh.position.z);
                 });
                 if (!widzi) return;
@@ -14260,7 +14360,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const dist = Math.abs(px - ex) + Math.abs(pz - ez);
                 // Wręcz tylko na tej samej kondygnacji
                 if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'summoner' || e.type === 'zombie' || e.type === 'strzyga' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big' || e.type === 'smierc' || e.type === 'ogar') return ((e.level || 0) === (active.level || 0) && Math.max(Math.abs(px - ex), Math.abs(pz - ez)) === 1 && Math.abs(ey - py) <= 1 && e.type !== 'summoner');
-                return (dist <= getVisionRange() && checkLineOfSight3D(ex, ey+1, ez, px, py+0.5, pz) && !floorsBlockShot(ex, ez, e.level || 0, px, pz, active.level || 0));
+                return (dist <= getVisionRange() && czyWidacPrzez(ex, ey+1, ez, px, py+0.5, pz) && !floorsBlockShot(ex, ez, e.level || 0, px, pz, active.level || 0));
             });
 
             if (overwatchEnemy) {
@@ -14919,7 +15019,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (shieldBubble && shieldBubble.caster === active) clearShieldBubble("Osłona znika - rzucający ruszył się z miejsca.");
                 
                 moveAlongPath({mesh: active.mesh, userData: active.mesh.userData, __zolnierz: active}, clonedPath, 150, () => {
-                    if (!(active.freeMoveTurns > 0)) active.ap -= finalCost; updateUI(partialMove ? `${active.name} zatrzymał się${apReserve > 0 ? " - zachowuje " + apReserve + " PA rezerwy." : " - brak dalszych PA."}` : "Ruch zakończony."); 
+                    // Gdy marsz przerwało dostrzeżenie wroga, płacimy tylko za przebyte pola
+                    const doZaplaty = (active.__przeszedlPol !== undefined && active.__przeszedlPol !== null)
+                        ? Math.min(finalCost, active.__przeszedlPol) : finalCost;
+                    active.__przeszedlPol = null;
+                    if (!(active.freeMoveTurns > 0)) active.ap = Math.max(0, active.ap - doZaplaty);
+                    updateUI(partialMove ? `${active.name} zatrzymał się${apReserve > 0 ? " - zachowuje " + apReserve + " PA rezerwy." : " - brak dalszych PA."}` : "Ruch zakończony."); 
                     refreshPlayerPositions();
                     checkPrisonerRescue();
                     checkSarcophagi();
@@ -14957,6 +15062,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Rany obniżają też pulę punktów ruchu
             soldiers.forEach(s => { if(!s.isDead) { s.ap = getEffectiveMaxAp(s); s.turnEnded = false; } });
             combatTurnCounter++;
+            // Posiłki przybywają na początku tury gracza, żeby zdążył zareagować
+            if (combatTurnCounter > 1 && (combatTurnCounter - 1) % POSILKI_CO_ILE_RUND === 0) przyslijPosilki();
             checkCivilianScream();
             // Zabezpieczenie: gdyby wampir zginął w inny sposób, trans i tak pryska
             soldiers.forEach(s => { if (s.hypnotizedBy && s.hypnotizedBy.isDead) { s.hypnotizedBy = null; } });
@@ -15024,7 +15131,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (e.isDead) continue;
                 const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z), ey = getTerrainY(ex, ez);
                 const dist = Math.abs(ex - nx) + Math.abs(ez - nz);
-                if (dist <= getVisionRange() && checkLineOfSight3D(nx, ny + 1, nz, ex, ey + 0.5, ez)) {
+                if (dist <= getVisionRange() && czyWidacPrzez(nx, ny + 1, nz, ex, ey + 0.5, ez)) {
                     if (dist < nearestDist) { nearestDist = dist; nearestEnemy = e; }
                 }
             }
@@ -15381,7 +15488,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (d < najblizszy) najblizszy = d;
                 if (d > getVisionRange()) return;
                 const sy = getLevelY(sx, sz, s.level || 0);
-                const widzi = checkLineOfSight3D(sx, sy + 1, sz, x, y + 0.5, z) &&
+                const widzi = czyWidacPrzez(sx, sy + 1, sz, x, y + 0.5, z) &&
                               !floorsBlockShot(sx, sz, s.level || 0, x, z, lvl);
                 if (!widzi) return;
                 // im bliżej strzelca i im mniej osłony, tym groźniej
@@ -15432,6 +15539,96 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const mx = Math.round(x) + offsetX, mz = Math.round(z) + offsetZ;
             if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return 0;
             return mapaZagrozenia[mx][mz];
+        }
+
+        // ========================================================
+        // --- POSIŁKI ZŁEGO ---
+        // Co pięć rund sen zostaje naruszony: przybywa tylu wrogów, ilu
+        // wojowników liczy oddział. Zmusza to do działania, zamiast czekania.
+        // ========================================================
+        const POSILKI_CO_ILE_RUND = 5;
+
+        function przyslijPosilki() {
+            if (gameOver || gameMode !== 'dream') return;
+            const zywi = soldiers.filter(s => !s.isDead && !s.isNPC && !s.isEscortee && !s.isAngel);
+            if (zywi.length === 0) return;
+            const ilu = Math.max(1, Math.min(4, zywi.length));
+
+            // Wchodzą z brzegu pola widzenia - nie na głowę oddziału,
+            // ale i nie tak daleko, by ich marsz zajął pół misji.
+            const kotwica = zywi[Math.floor(Math.random() * zywi.length)];
+            const kx = Math.round(kotwica.mesh.position.x), kz = Math.round(kotwica.mesh.position.z);
+            const zasieg = getVisionRange();
+
+            // Sprawdzamy drogę do WOLNEGO pola obok oddziału - na pole zajęte
+            // przez wojownika ścieżki nie ma i żaden posiłek by się nie pojawił.
+            let celDrogi = null;
+            for (const d of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1],[2,0],[0,2],[-2,0],[0,-2]]) {
+                const px2 = kx + d[0], pz2 = kz + d[1];
+                if (!isWithinPlayBounds(px2, pz2) || !canStandAt(px2, pz2, 0)) continue;
+                if (isUnitAtLevel(px2, pz2, 0, null)) continue;
+                celDrogi = [px2, pz2]; break;
+            }
+
+            let przybylo = 0;
+            for (let i = 0; i < ilu; i++) {
+                let spot = null;
+                for (let t = 0; t < 250; t++) {
+                    const kat = Math.random() * Math.PI * 2;
+                    const dyst = zasieg * (0.75 + Math.random() * 0.5);
+                    const nx = Math.round(kx + Math.cos(kat) * dyst);
+                    const nz = Math.round(kz + Math.sin(kat) * dyst);
+                    if (!isWithinPlayBounds(nx, nz) || !canStandAt(nx, nz, 0)) continue;
+                    if (isUnitAtLevel(nx, nz, 0, null)) continue;
+                    if (celDrogi && !findPath(nx, nz, celDrogi[0], celDrogi[1], 0, kotwica)) continue;   // musi móc dojść
+                    spot = [nx, nz]; break;
+                }
+                if (!spot) continue;
+
+                const w = wylosujPosilek();
+                const mesh = w.budowa();
+                mesh.position.set(spot[0], getLevelY(spot[0], spot[1], 0) + (mesh.userData.yOffset || 0), spot[1]);
+                scene.add(mesh);
+                enemies.push({
+                    mesh: mesh, type: w.typ, hp: w.hp, maxHp: w.hp, ap: w.ap, maxAp: w.ap,
+                    accuracyBonus: 0, isDead: false, facingAngle: Math.random() * Math.PI * 2,
+                    level: 0, gatunek: (w.gatunek === undefined ? null : w.gatunek), posilek: true
+                });
+                refreshEnemyPositions();
+                przybylo++;
+            }
+
+            if (przybylo === 0) return;
+            updateFoW();
+            showFloatingWarning('Zły przysłał posiłki!');
+            updateUI(`Sen drży - Zły przysyła posiłki. Nadchodzi ${przybylo} ${przybylo === 1 ? 'wróg' : 'wrogów'}.`);
+            try { playFileSfx(AudioFiles.enemyOuch, 0.5); } catch (e) {}
+        }
+
+        // Rodzaj posiłku dobrany do planszy - te same reguły, co przy rozstawianiu
+        function wylosujPosilek() {
+            const id = currentCombatTheme ? currentCombatTheme.id : '';
+            const mozliwe = [];
+            if (szansaNaOgary(false) > 0) mozliwe.push({ typ: 'ogar', hp: 9, ap: 18, budowa: createHellhoundMesh });
+            if (gatunkiMisji && gatunkiMisji.length) {
+                const nr = gatunkiMisji[Math.floor(Math.random() * gatunkiMisji.length)];
+                const g = PAJAKI_GATUNKI[nr];
+                mozliwe.push({ typ: g.typ, hp: g.hp, ap: g.ap, gatunek: nr, budowa: () => zbudujPajaka(nr) });
+            }
+            if (['cyber', 'whitehouse', 'zhongnanhai'].includes(id)) {
+                mozliwe.push({ typ: 'robot', hp: 14, ap: 11, budowa: createRobotMesh });
+                mozliwe.push({ typ: 'droid', hp: 8, ap: 12, budowa: createDroidMesh });
+            }
+            if (['nekropolia', 'cmentarzysko'].includes(id)) {
+                mozliwe.push({ typ: 'strzyga', hp: 9, ap: 18, budowa: createStrzygaMesh });
+                mozliwe.push({ typ: 'vampire', hp: 15, ap: 12, budowa: createVampireMesh });
+            }
+            // Zawsze dostępne
+            mozliwe.push({ typ: 'standard', hp: 10, ap: 10,
+                budowa: () => buildEnemyModelInstance('standard') || createCharacter(0xff4444, 0xaaffaa, 0x111111, 1, 'standard') });
+            mozliwe.push({ typ: 'fast', hp: 8, ap: 12,
+                budowa: () => buildEnemyModelInstance('fast') || createCharacter(0xff4444, 0xaaffaa, 0x111111, 1, 'fast') });
+            return mozliwe[Math.floor(Math.random() * mozliwe.length)];
         }
 
         function processNextEnemy() {
@@ -16013,7 +16210,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     }
                 }
                 // kula ognia - mocniejsza od zwykłego strzału
-                if (bdist <= getVisionRange() && checkLineOfSight3D(ex, ey + 1, ez, bpx, bpy + 0.5, bpz)
+                if (bdist <= getVisionRange() && czyWidacPrzez(ex, ey + 1, ez, bpx, bpy + 0.5, bpz)
                     && !floorsBlockShot(ex, ez, eLvl, bpx, bpz, btLvl)) {
                     faceTowards(e, bpx, bpz);
                     playFileSfx(AudioFiles.laserShot, 0.6);
@@ -16042,7 +16239,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const SUMMON_COST = 4;
                 const wispCount = enemies.filter(w => !w.isDead && w.type === 'wisp').length;
                 if (e.ap >= SUMMON_COST && dist <= getVisionRange() && wispCount < 4 &&
-                    checkLineOfSight3D(ex, ey + 1, ez, px, py + 0.5, pz) &&
+                    czyWidacPrzez(ex, ey + 1, ez, px, py + 0.5, pz) &&
                     !floorsBlockShot(ex, ez, eLvl, px, pz, tLvl)) {
                     // znajdź wolne pole przy celu
                     let spot = null;
