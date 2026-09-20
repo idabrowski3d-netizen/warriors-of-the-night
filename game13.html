@@ -6138,9 +6138,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const ENEMY_MODELS = {
             zombie:  { plik: 'models/zombie.glb',  idle: 'zombie_idle',  walk: 'zombie_walk',
                        atak: 'zombie_attack',  smierc: 'zombie_death',  cios: 'zombie_hit',  wysokosc: 1.8 },
-            vampire: { plik: 'models/wampir.glb',  idle: 'wampir_idle',  walk: 'wampir_walk',
-                       atak: 'wampir_attack',  smierc: 'wampir_death',  cios: 'wampir_hit',
-                       specjalna: 'wampir_hypnotize', wysokosc: 2.0 },
+            vampire: { plik: 'models/vampire.glb', idle: 'vampire_idle', walk: 'vampire_walk',
+                       atak: 'vampire_attack', smierc: 'vampire_death', cios: 'vampire_hit',
+                       specjalna: 'vampire_hypnotize', wysokosc: 2.0,
+                       // przyjmujemy też polską pisownię, gdyby plik był starszy
+                       idleAlt: 'wampir_idle', walkAlt: 'wampir_walk', atakAlt: 'wampir_attack',
+                       smiercAlt: 'wampir_death', ciosAlt: 'wampir_hit', specjalnaAlt: 'wampir_hypnotize' },
             brute:   { plik: 'models/mutant.glb',  idle: 'mutant_idle',  walk: 'mutant_walk',
                        // dopuszczamy literówkę z eksportu - inaczej postać stoi bez ruchu
                        idleAlt: 'mutant_idel',
@@ -15907,6 +15910,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     && !soldiers.some(s => s.hypnotizedBy === e) && e.ap >= 4) {
                     e.ap -= 4;
                     faceTowards(e, vx, vz);
+                    animWroga(e, 'specjalna', true);   // wampir rzuca urok
                     playFileSfx(AudioFiles.vampireHypno, 0.75);
                     const resist = getHypnosisResistance(bestTarget);
                     const chance = Math.max(10, 65 - resist);
