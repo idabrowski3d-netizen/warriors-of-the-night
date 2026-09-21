@@ -4981,6 +4981,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         function renderObstacles() {
+            // Rysujemy od zera. Funkcja bywa wołana kilka razy (po dodaniu celów misji,
+            // po wczytaniu zapisu) i wcześniej za każdym razem DOKŁADAŁA bryły - w zwykłej
+            // misji każda przeszkoda istniała podwójnie, a po wczytaniu zapisu na scenie
+            // zostawały przeszkody z poprzedniej planszy.
+            obstacleMeshes.forEach(m => scene.remove(m));
+            obstacleMeshes = [];
             const resistantMat = new THREE.MeshLambertMaterial({ color: 0x444444 }); const destructibleMat = new THREE.MeshLambertMaterial({ color: 0xaaaaaa }); 
             const wallGeo = new THREE.BoxGeometry(1, 1, 1);
             shrines = [];
@@ -6143,6 +6149,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             zombie:  { plik: 'models/zombie.glb',  idle: 'zombie_idle',  walk: 'zombie_walk',
                        atak: 'zombie_attack',  smierc: 'zombie_death',  cios: 'zombie_hit',
                        specjalna: 'zombie_up',  wysokosc: 1.98 },   // +10% wzrostu; zombie_up - wychodzenie z grobu
+            zombie2: { plik: 'models/zombie2.glb', idle: 'zombie2_idle', walk: 'zombie2_walk',
+                       atak: 'zombie2_attack', smierc: 'zombie2_death', cios: 'zombie2_hit',
+                       specjalna: 'zombie2_wake', wysokosc: 1.98 },   // zombie2_wake - wychodzenie z grobu
             vampire: { plik: 'models/vampire.glb', idle: 'vampire_idle', walk: 'vampire_walk',
                        atak: 'vampire_attack', smierc: 'vampire_death', cios: 'vampire_hit',
                        specjalna: 'vampire_hypnotize', wysokosc: 2.4,   // +20% wzrostu
@@ -6169,6 +6178,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             cywil_men:    { plik: 'models/men.glb',    idle: 'men_idle',    walk: 'men_run',
                        atak: null, smierc: 'men_death',    cios: null, wysokosc: 1.8,
                        idleAlt: 'man_idle', walkAlt: 'man_run', smiercAlt: 'man_death' },
+            summoner: { plik: 'models/przywolywacz.glb', idle: 'przywolywacz_idle', walk: 'przywolywacz_walk',
+                       atak: 'przywolywacz_attack', smierc: 'przywolywacz_death', cios: 'przywolywacz_hit', wysokosc: 2.0 },
             standard: { plik: 'models/standard.glb', idle: 'standard_idle', walk: 'standard_run',
                        atak: 'standard_attack', smierc: 'standard_death', cios: 'standard_hit', wysokosc: 1.98 },   // +10% wzrostu
             spider2: { plik: 'models/spider2.glb', idle: 'spider_idle', walk: 'spider_walk',
@@ -6354,7 +6365,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
         }
 
-        function buildEnemyModelInstance(typ) {
+        // Zombie ma dwa wyglądy. Losujemy go tutaj, bo przez tę funkcję przechodzi
+        // KAŻDE tworzenie zombie: rozstawianie, sarkofag, przemiana, posiłki, arena.
+        function losowyWariantZombie() {
+            const gotowe = ['zombie', 'zombie2'].filter(k => wrogModele[k] && wrogModele[k].gotowy);
+            if (gotowe.length === 0) return 'zombie';
+            return gotowe[Math.floor(Math.random() * gotowe.length)];
+        }
+
+        function buildEnemyModelInstance(typ, dokladnie) {
+            // "dokladnie" wyłącza losowanie - arena musi pokazać oba wyglądy
+            if (typ === 'zombie' && !dokladnie) typ = losowyWariantZombie();
             const wpis = wrogModele[typ];
             if (!wpis || !wpis.gotowy || !wpis.proto) return null;
             let klon;
@@ -6538,6 +6559,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Zgon wroga z dokończeniem animacji upadku
         function zabijWroga(wrog, poZgonie) {
             if (!wrog) return;
+            // Pokonany wróg trafia do Kroniki bez względu na to, skąd przyszedł -
+            // wcześniej liczyło się tylko rozstawienie na starcie misji
+            noteEnemyEncountered(wrog.type);
             if (wrog.elita && !wrog.nagrodaWydana) {
                 wrog.nagrodaWydana = true;
                 let zabojca = isPlayerTurn ? getActiveSoldier() : null;
@@ -8109,7 +8133,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         if (traf) {
                             cel.hp -= dmg; if (cel.hp > 0) wrogOberwal(cel);
                             tekst += ` Cios za ${dmg}!`;
-                            if (cel.hp <= 0) { cel.isDead = true; scene.remove(cel.mesh); s.kills = (s.kills || 0) + 1;
+                            if (cel.hp <= 0) { cel.isDead = true; scene.remove(cel.mesh); s.kills = (s.kills || 0) + 1; zliczRodzaj(s, cel);
                                 releaseHypnotized(cel); refreshEnemyPositions(); playEnemyDeathSfx(cel); tekst += ' Wróg powalony!'; }
                         } else tekst += ' Cios chybia.';
                     }
@@ -8126,7 +8150,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (!cel) return 'Nie widzisz celu.';
                     const dmg = 8; cel.hp -= dmg; if (cel.hp > 0) wrogOberwal(cel);
                     let t = `Włócznia przeszywa wroga za ${dmg}!`;
-                    if (cel.hp <= 0) { cel.isDead = true; scene.remove(cel.mesh); s.kills = (s.kills || 0) + 1;
+                    if (cel.hp <= 0) { cel.isDead = true; scene.remove(cel.mesh); s.kills = (s.kills || 0) + 1; zliczRodzaj(s, cel);
                         releaseHypnotized(cel); refreshEnemyPositions(); playEnemyDeathSfx(cel); t += ' Powalony!'; }
                     return t; } },
             'Pastorał Jana Pawła': { nazwa: 'Zwołanie', stat: 'charyzma', koszt: 2,
@@ -8455,6 +8479,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Misja odpalona z panelu testowego nie liczy się do postępu gracza -
         // inaczej sprawdzanie plansz zawyżałoby statystyki i rekrutację.
         let misjaTestowa = false;
+        // Arena służy do oglądania wrogów - nie może odblokowywać wpisów w Kronice
+        let arenaAktywna = false;
 
         const TEST_PRESETS = [
             { label: '👹 Boss KOSZMAR',    theme: null,           mission: 'boss' },
@@ -8492,6 +8518,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Sprzątamy wrogów z losowej misji - chcemy tylko tych z listy
             enemies.forEach(e => scene.remove(e.mesh));
             enemies = [];
+            // Od tej chwili nic z areny nie trafia do Kroniki; kasujemy też
+            // spotkania z misji, którą arena właśnie zastąpiła
+            arenaAktywna = true;
+            bestiaryPendingUnlock = [];
 
             const lista = [
                 { typ: 'standard',  hp: 10, ap: 10, opis: 'Rozpruwacz' },
@@ -8500,7 +8530,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 { typ: 'summoner',  hp: 12, ap: 8,  opis: 'Przywoływacz' },
                 { typ: 'stalker',   hp: 10, ap: 14, opis: 'Skradający' },
                 { typ: 'wisp',      hp: 5,  ap: 16, opis: 'Duszek' },
-                { typ: 'zombie',    hp: 4,  ap: 8,  opis: 'Zombie' },
+                { typ: 'zombie',    hp: 4,  ap: 8,  opis: 'Zombie',    model: 'zombie' },
+                { typ: 'zombie',    hp: 4,  ap: 8,  opis: 'Zombie II', model: 'zombie2' },
                 { typ: 'vampire',   hp: 15, ap: 12, opis: 'Drakula' },
                 { typ: 'strzyga',   hp: 9,  ap: 18, opis: 'Strzyga' },
                 { typ: 'robot',     hp: 14, ap: 11, opis: 'Robot' },
@@ -8551,6 +8582,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
                 let mesh;
                 if (w.gatunek !== undefined) mesh = zbudujPajaka(w.gatunek);
+                // Konkretny wariant modelu, jeśli wskazany (np. drugi wygląd zombie)
+                else if (w.model && buildEnemyModelInstance(w.model, true)) mesh = buildEnemyModelInstance(w.model, true);
                 // Model 3D przed bryłą - inaczej arena pokazywała wersje rysowane w kodzie
                 else if (buildEnemyModelInstance(w.typ)) mesh = buildEnemyModelInstance(w.typ);
                 else if (BUDOWA[w.typ]) mesh = BUDOWA[w.typ]();
@@ -8719,6 +8752,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function runTestMission() {
             misjaTestowa = true;
+            arenaAktywna = false;
             document.getElementById('test-overlay').style.display = 'none';
             // Zamykamy tylko rozwijaną listę - sam pasek Ustawień musi zostać widoczny,
             // żeby dało się od razu wybrać kolejną misję testową bez restartu gry.
@@ -8849,8 +8883,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const d = JSON.parse(raw);
                 const stamp = d.isCombat ? (d.progress && d.progress.savedAt) : d.savedAt;
                 const when = stamp ? new Date(stamp).toLocaleString('pl-PL') : 'nieznana data';
-                const what = d.isCombat ? (d.autoLabel ? `bitwa - ${d.autoLabel}` : 'bitwa') : 'postęp w mieście';
-                return { ok: true, text: `${what}, ${when}`, data: d };
+                // Nazwa planszy i tura - od razu widać, który zapis się wczyta
+                let what;
+                if (d.isCombat) {
+                    const plansza = (d.currentCombatTheme && d.currentCombatTheme.name) || 'nieznana plansza';
+                    const tura = d.combatTurnCounter ? `, tura ${d.combatTurnCounter}` : '';
+                    what = `BITWA: ${plansza}${tura}`;
+                } else {
+                    what = 'MIASTO (postęp poza snem)';
+                }
+                return { ok: true, text: `${what} - ${when}`, data: d };
             } catch (e) { return { ok: false }; }
         }
 
@@ -8901,6 +8943,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function buildCombatSaveData() {
             return {
                 isCombat: true,
+                combatTurnCounter: combatTurnCounter,
                 progress: buildSaveData(),
                 currentCombatTheme: currentCombatTheme,
                 currentTimeOfDay: currentTimeOfDay,
@@ -8932,7 +8975,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     x: s.mesh.position.x, z: s.mesh.position.z, hp: s.hp, maxHp: s.maxHp, ap: s.ap, maxAp: s.maxAp,
                     isDead: s.isDead, name: s.name, class: s.class, accuracyBonus: s.accuracyBonus,
                     turnEnded: s.turnEnded, isKneeling: s.isKneeling, shieldHp: s.shieldHp, level: s.level || 0, crossUsed: s.crossUsed || 0, angelUsed: s.angelUsed || 0, infected: !!s.infected, infectionTick: s.infectionTick || 0, webbedTurns: s.webbedTurns || 0, venomTurns: s.venomTurns || 0, relicUses: { ...(s.relicUses || {}) }, levitateUsed: s.levitateUsed || 0, levitateTurns: s.levitateTurns || 0, stealthUsed: s.stealthUsed || 0, stealthActive: !!s.stealthActive, callUsed: s.callUsed || 0, summonedTurns: s.summonedTurns || 0,
-                    shotsFired: s.shotsFired, shotsHit: s.shotsHit, kills: s.kills
+                    shotsFired: s.shotsFired, shotsHit: s.shotsHit, kills: s.kills,
+                    zabiciRodzaje: { ...(s.zabiciRodzaje || {}) }
                 })),
                 // Martwych pomijamy - inaczej po wczytaniu ich bryły wracały na planszę
                 // jako nieruchome "powidoki", w które nie dało się strzelić.
@@ -8941,7 +8985,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     ap: e.ap, maxAp: e.maxAp, accuracyBonus: e.accuracyBonus, isDead: e.isDead, facingAngle: e.facingAngle, level: e.level || 0,
                     isBoss: !!e.isBoss, bossTurn: e.bossTurn || 0, hasOpened: !!e.hasOpened,
                     blindedTurns: e.blindedTurns || 0, blindedFrom: e.blindedFrom || null,
-                    gatunek: (e.gatunek === undefined ? null : e.gatunek), elita: !!e.elita
+                    gatunek: (e.gatunek === undefined ? null : e.gatunek), elita: !!e.elita,
+                    wariantModelu: (e.mesh && e.mesh.userData && e.mesh.userData.enemyKind) || null
                 })),
                 npcs: npcs.filter(n => !n.isDead).map(n => ({
                     x: n.mesh.position.x, z: n.mesh.position.z, hp: n.hp, maxHp: n.maxHp, ap: n.ap, maxAp: n.maxAp,
@@ -8975,7 +9020,24 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             specialNPCs.forEach(n => scene.remove(n.mesh)); specialNPCs = [];
             if (departedSoul) { scene.remove(departedSoul.mesh); departedSoul = null; }
             if (cemeteryCandleMesh) { scene.remove(cemeteryCandleMesh); cemeteryCandleMesh = null; }
+            // Usuwamy WSZYSTKO z poprzedniej planszy. Rysowanie przeszkód dokłada
+            // nowe bryły, nie kasując starych - przy zwykłym starcie misji robi to
+            // generator mapy, ale wczytanie zapisu go pomija. Bez tego przeszkody,
+            // palmy i ozdoby bieżącej misji zostawały nałożone na zapisaną planszę.
+            obstacleMeshes.forEach(m => scene.remove(m)); obstacleMeshes = [];
+            houses = [];
+            try { obstacleMap.clear(); } catch (e) {}
+            try { clearCampfires(); } catch (e) {}
+            try { streetLamps.forEach(l => scene.remove(l)); streetLamps = []; } catch (e) {}
+            try { if (typeof palmyPozycje !== 'undefined') palmyPozycje = []; } catch (e) {}
+            try { if (znacznikWroga) { scene.remove(znacznikWroga); znacznikWroga = null; } } catch (e) {}
+            // Stare jednostki - wróg i żołnierz z bieżącej misji nie mogą zostać na scenie
+            enemies.forEach(e => { if (e.mesh) scene.remove(e.mesh); });
+            soldiers.forEach(s => { if (s.mesh) scene.remove(s.mesh); });
+            npcs.forEach(n => { if (n.mesh) scene.remove(n.mesh); });
+
             currentCombatTheme = data.currentCombatTheme;
+            if (typeof data.combatTurnCounter === 'number') combatTurnCounter = data.combatTurnCounter;
             applyTimeOfDay(data.currentTimeOfDay);
             currentSeason = data.currentSeason;
             foldZ = (typeof data.foldZ === 'number') ? data.foldZ : null;
@@ -9037,7 +9099,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 mesh.position.set(sd.x, ty + mesh.userData.yOffset, sd.z);
                 mesh.add(createNameSprite(sd.name));
                 scene.add(mesh);
-                const sObj = { mesh: mesh, hp: sd.hp, maxHp: sd.maxHp, ap: sd.ap, maxAp: sd.maxAp, isDead: sd.isDead, name: sd.name, class: sd.class, accuracyBonus: sd.accuracyBonus, turnEnded: sd.turnEnded, isKneeling: sd.isKneeling, shieldHp: sd.shieldHp, level: sd.level || 0, crossUsed: sd.crossUsed || 0, angelUsed: sd.angelUsed || 0, infected: !!sd.infected, infectionTick: sd.infectionTick || 0, webbedTurns: sd.webbedTurns || 0, venomTurns: sd.venomTurns || 0, relicUses: { ...(sd.relicUses || {}) }, levitateUsed: sd.levitateUsed || 0, levitateTurns: sd.levitateTurns || 0, stealthUsed: sd.stealthUsed || 0, stealthActive: !!sd.stealthActive, callUsed: sd.callUsed || 0, summonedTurns: sd.summonedTurns || 0, shotsFired: sd.shotsFired, shotsHit: sd.shotsHit, kills: sd.kills };
+                const sObj = { mesh: mesh, hp: sd.hp, maxHp: sd.maxHp, ap: sd.ap, maxAp: sd.maxAp, isDead: sd.isDead, name: sd.name, class: sd.class, accuracyBonus: sd.accuracyBonus, turnEnded: sd.turnEnded, isKneeling: sd.isKneeling, shieldHp: sd.shieldHp, level: sd.level || 0, crossUsed: sd.crossUsed || 0, angelUsed: sd.angelUsed || 0, infected: !!sd.infected, infectionTick: sd.infectionTick || 0, webbedTurns: sd.webbedTurns || 0, venomTurns: sd.venomTurns || 0, relicUses: { ...(sd.relicUses || {}) }, levitateUsed: sd.levitateUsed || 0, levitateTurns: sd.levitateTurns || 0, stealthUsed: sd.stealthUsed || 0, stealthActive: !!sd.stealthActive, callUsed: sd.callUsed || 0, summonedTurns: sd.summonedTurns || 0, shotsFired: sd.shotsFired, shotsHit: sd.shotsHit, kills: sd.kills, zabiciRodzaje: { ...(sd.zabiciRodzaje || {}) } };
                 if (sObj.levitateTurns > 0) attachLevitateAura(sObj); // przywróć poświatę lewitacji
                 if (sObj.stealthActive) setStealthLook(sObj, true);
                 return sObj;
@@ -9058,9 +9120,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // Jeśli dla tego typu wgrano model 3D, po wczytaniu zapisu też z niego korzystamy
                 // Pająk odtwarzany jest ze swoim gatunkiem - inaczej po wczytaniu
                 // zmieniłby wygląd i rozmiar
+                // Wariant modelu wraca z zapisu - zombie nie zmieni wyglądu po wczytaniu
                 const zModelu = (ed.gatunek !== null && ed.gatunek !== undefined && PAJAKI_GATUNKI[ed.gatunek])
                     ? zbudujPajaka(ed.gatunek)
-                    : buildEnemyModelInstance(ed.type);
+                    : (ed.wariantModelu && wrogModele[ed.wariantModelu] && wrogModele[ed.wariantModelu].gotowy
+                        ? buildEnemyModelInstance(ed.wariantModelu)
+                        : buildEnemyModelInstance(ed.type));
                 const mesh = zModelu ? zModelu
                     : CUSTOM_ENEMY_MESH[ed.type]
                     ? CUSTOM_ENEMY_MESH[ed.type]()
@@ -9072,6 +9137,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 mesh.lookAt(mesh.position.x + Math.sin(fa), mesh.position.y, mesh.position.z + Math.cos(fa));
                 return { mesh: mesh, type: ed.type, hp: ed.hp, maxHp: ed.maxHp, ap: ed.ap, maxAp: ed.maxAp, accuracyBonus: ed.accuracyBonus, isDead: ed.isDead, facingAngle: fa, level: ed.level || 0, isBoss: !!ed.isBoss, bossTurn: ed.bossTurn || 0, hasOpened: !!ed.hasOpened, blindedTurns: ed.blindedTurns || 0, blindedFrom: ed.blindedFrom || null, gatunek: (ed.gatunek === undefined ? null : ed.gatunek), elita: !!ed.elita, dmgBonus: ed.elita ? 1 : 0 };
             });
+
+            // Lista spotkań nie jest zapisywana - odtwarzamy ją z wrogów na planszy,
+            // inaczej po wczytaniu gry w trakcie misji nic by nie trafiło do Kroniki
+            enemies.forEach(e => noteEnemyEncountered(e.type));
 
             // Elita odzyskuje poświatę i rozmiar - statystyki wróciły z zapisu
             enemies.forEach(e => {
@@ -9139,7 +9208,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 } else {
                     const data = buildSaveData();
                     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
-                    alert('Gra zapisana! (GRACE: ' + data.grace + ', Level: ' + data.level + ', Misja: ' + data.mission + ', GOOD DEEDS: ' + data.goodDeeds + ')');
+                    alert('Zapisano postęp w MIEŚCIE - wczytanie przeniesie cię do miasta, a kolejny sen wylosuje nową planszę.\n\n' +
+                          '(GRACE: ' + data.grace + ', Level: ' + data.level + ', Misja: ' + data.mission + ', GOOD DEEDS: ' + data.goodDeeds + ')');
                 }
             } catch (e) {
                 console.error('[save] Nie udało się zapisać gry:', e);
@@ -9154,7 +9224,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const data = JSON.parse(raw);
                 if (data.isCombat) {
                     restoreCombatFromSave(data);
-                    alert('Wczytano zapisaną bitwę.');
+                    const pl = (data.currentCombatTheme && data.currentCombatTheme.name) || '?';
+                    alert(`Wczytano zapisaną bitwę - plansza: ${pl}.`);
                 } else {
                     applySaveData(data);
                     alert('Wczytano zapis z: ' + new Date(data.savedAt).toLocaleString('pl-PL'));
@@ -9415,6 +9486,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function startPresentMode(atPosition) {
             zerujKursor();
+            arenaAktywna = false;
             resetWarriorMixers();
             gameMode = 'present';
             gameOver = false;
@@ -12717,7 +12789,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 updateUI(`${victim.name} uprzedza cios i uderza pierwszy! (-${dmg} HP)`);
                 if (enemy.hp <= 0) {
                     enemy.isDead = true; scene.remove(enemy.mesh);
-                    victim.kills = (victim.kills || 0) + 1;
+                    victim.kills = (victim.kills || 0) + 1; zliczRodzaj(victim, enemy);
                     releaseHypnotized(enemy);
                     refreshEnemyPositions();
                     updateUI(`${victim.name} powala wroga, zanim ten zdążył zaatakować!`);
@@ -12907,6 +12979,35 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if(msg !== "") { const log = document.getElementById('message-log'); log.innerText = msg; setTimeout(() => { if(log.innerText === msg) log.innerText = ""; }, 4000); }
         }
 
+        // Zabici w bieżącej misji, z podziałem na rodzaje. Na koniec misji trafiają
+        // do trwałych statystyk wojownika, obok ogólnej liczby pokonanych.
+        function zliczRodzaj(zolnierz, wrog) {
+            if (!zolnierz || !wrog) return;
+            let klucz = wrog.type || '?';
+            // pająki liczymy po gatunku - "Matka Sieci" mówi więcej niż "wielki pająk"
+            if (wrog.gatunek !== null && wrog.gatunek !== undefined && PAJAKI_GATUNKI[wrog.gatunek]) {
+                klucz = 'pajak:' + wrog.gatunek;
+            }
+            zolnierz.zabiciRodzaje = zolnierz.zabiciRodzaje || {};
+            zolnierz.zabiciRodzaje[klucz] = (zolnierz.zabiciRodzaje[klucz] || 0) + 1;
+        }
+
+        function nazwaRodzaju(klucz) {
+            if (klucz.startsWith('pajak:')) {
+                const g = PAJAKI_GATUNKI[parseInt(klucz.slice(6), 10)];
+                return g ? g.nazwa : 'Pająk';
+            }
+            const n = NAZWY_WROGOW[klucz];
+            if (!n) return klucz;
+            // "SZYBKI (Zwiadowca)" -> "Szybki (Zwiadowca)"
+            return n.charAt(0) + n.slice(1).toLowerCase().replace(/\(([a-ząćęłńóśźż])/, (m, l) => '(' + l.toUpperCase());
+        }
+
+        function sumujRodzaje(cel, zrodlo) {
+            if (!zrodlo) return;
+            Object.keys(zrodlo).forEach(k => { cel[k] = (cel[k] || 0) + zrodlo[k]; });
+        }
+
         function finalizeMissionCombatStats() {
             let summaryLines = [];
             soldiers.forEach((s, i) => {
@@ -12918,14 +13019,23 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     heroCombatStats.totalShots += shots;
                     heroCombatStats.totalHits += hits;
                     heroCombatStats.totalKills += kills;
+                    if (!misjaTestowa) {
+                        heroCombatStats.rodzaje = heroCombatStats.rodzaje || {};
+                        sumujRodzaje(heroCombatStats.rodzaje, s.zabiciRodzaje);
+                    }
                 } else {
                     const companion = recruitedWarriors[i - 1];
                     if (companion) {
                         companion.totalShots = (companion.totalShots || 0) + shots;
                         companion.totalHits = (companion.totalHits || 0) + hits;
                         companion.totalKills = (companion.totalKills || 0) + kills;
+                        if (!misjaTestowa) {
+                            companion.rodzaje = companion.rodzaje || {};
+                            sumujRodzaje(companion.rodzaje, s.zabiciRodzaje);
+                        }
                     }
                 }
+                s.zabiciRodzaje = {};   // licznik misji wyzerowany - suma już zapisana
             });
             const newLore = commitBestiaryUnlocks();
             if (newLore > 0) summaryLines.push(newLore === 1 ? 'Nowy wpis w Kronice [H]!' : `Nowe wpisy w Kronice [H]: ${newLore}`);
@@ -14059,7 +14169,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 playFileSfx(AudioFiles.enemyOuch, 0.6);
                 if (target.hp <= 0) {
                     target.isDead = true; scene.remove(target.mesh);
-                    active.kills = (active.kills || 0) + 1;
+                    active.kills = (active.kills || 0) + 1; zliczRodzaj(active, target);
                     chatter(active, CHATTER_KILL, 0.6); playEnemyDeathSfx(target); zglosZabojstwo(active, target);
                     zabijWroga(target);
                 }
@@ -14278,6 +14388,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 () => {
                     playerStats.grace = 0;
                     updatePlayerStatsUI();
+                    commitBestiaryUnlocks();   // to, co zobaczyłeś, zostaje w Kronice
                     showFloatingWarning(`Sen przerwany. Łaska przepadła (${laska}).`);
                     updateUI('Wycofałeś się ze snu. Śpiący pozostał sam.');
                     gameOver = true;
@@ -14406,7 +14517,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             const gainOw = awardHitBonus(shooter);
                             target.hp -= 5; if (target.hp > 0) wrogOberwal(target); updateUI(`TRAFIENIE Z WARTY! (Szansa: ${hitChance}%) +${gainOw}% celności dla ${shooter.name}!`);
                             playFileSfx(AudioFiles.enemyOuch, 0.6);
-                            if (target.hp <= 0) { shooter.kills = (shooter.kills || 0) + 1; releaseHypnotized(target); chatter(shooter, CHATTER_KILL, 0.6); playEnemyDeathSfx(target); zglosZabojstwo(shooter, target); zabijWroga(target); }
+                            if (target.hp <= 0) { shooter.kills = (shooter.kills || 0) + 1; zliczRodzaj(shooter, target); releaseHypnotized(target); chatter(shooter, CHATTER_KILL, 0.6); playEnemyDeathSfx(target); zglosZabojstwo(shooter, target); zabijWroga(target); }
                             else chatter(shooter, CHATTER_HIT, 0.5);
                         } else { 
                             if (targetCover && targetCover.type !== 'wall-resistant') { destroyObstacle(targetCover); updateUI("Pudło z warty! Mur zniszczony."); }
@@ -15005,7 +15116,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                     const gainHit = awardHitBonus(active); clickedEnemy.hp -= 5; if (clickedEnemy.hp > 0) wrogOberwal(clickedEnemy); updateUI(`Trafienie! (Szansa: ${hitChance}%) +${gainHit}% celności dla ${active.name}!`); 
                                     playFileSfx(AudioFiles.enemyOuch, 0.6);
                                     if (clickedEnemy.hp <= 0) {
-                                        releaseHypnotized(clickedEnemy); active.kills = (active.kills || 0) + 1; chatter(active, CHATTER_KILL, 0.6); playEnemyDeathSfx(clickedEnemy); zglosZabojstwo(active, clickedEnemy); zabijWroga(clickedEnemy); }
+                                        releaseHypnotized(clickedEnemy); active.kills = (active.kills || 0) + 1; zliczRodzaj(active, clickedEnemy); chatter(active, CHATTER_KILL, 0.6); playEnemyDeathSfx(clickedEnemy); zglosZabojstwo(active, clickedEnemy); zabijWroga(clickedEnemy); }
                                     else chatter(active, CHATTER_HIT, 0.5);
                                 }
                                 else { 
@@ -15310,7 +15421,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             cel.hp -= 5; if (cel.hp > 0) wrogOberwal(cel);
                             if (cel.hp <= 0) {
                                 cel.isDead = true; scene.remove(cel.mesh);
-                                s.kills = (s.kills || 0) + 1;
+                                s.kills = (s.kills || 0) + 1; zliczRodzaj(s, cel);
                                 releaseHypnotized(cel); refreshEnemyPositions(); playEnemyDeathSfx(cel); zglosZabojstwo(s, cel);
                             }
                         }
@@ -15335,7 +15446,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         updateUI(`${s.name} uderza wręcz na własną rękę! (-${dmg})`);
                         if (obok.hp <= 0) {
                             obok.isDead = true; scene.remove(obok.mesh);
-                            s.kills = (s.kills || 0) + 1;
+                            s.kills = (s.kills || 0) + 1; zliczRodzaj(s, obok);
                             releaseHypnotized(obok); refreshEnemyPositions(); playEnemyDeathSfx(obok); zglosZabojstwo(s, obok);
                         }
                     } else updateUI(`${s.name} atakuje wręcz, ale chybia.`);
@@ -15621,6 +15732,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // wojowników liczy oddział. Zmusza to do działania, zamiast czekania.
         // ========================================================
         const POSILKI_CO_ILE_RUND = 5;
+        const POSILKI_MIN_DYSTANS = 50;   // tyle pól co najmniej od każdego wojownika
 
         function przyslijPosilki() {
             if (gameOver || gameMode !== 'dream') return;
@@ -15646,16 +15758,31 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             let przybylo = 0;
             for (let i = 0; i < ilu; i++) {
+                // Posiłki zjawiają się co najmniej POSILKI_MIN_DYSTANS pól od KAŻDEGO
+                // wojownika - mają nadciągać z oddali, a nie wyrastać tuż obok.
+                const dalekoOdWszystkich = (x, z) => zywi.every(s =>
+                    Math.hypot(s.mesh.position.x - x, s.mesh.position.z - z) >= POSILKI_MIN_DYSTANS);
+                const nadajeSie = (nx, nz) => {
+                    if (!isWithinPlayBounds(nx, nz) || !canStandAt(nx, nz, 0)) return false;
+                    if (isUnitAtLevel(nx, nz, 0, null)) return false;
+                    if (!dalekoOdWszystkich(nx, nz)) return false;
+                    if (celDrogi && !findPath(nx, nz, celDrogi[0], celDrogi[1], 0, kotwica)) return false;   // musi móc dojść
+                    return true;
+                };
                 let spot = null;
-                for (let t = 0; t < 250; t++) {
+                // 1) pierścień 50-65 pól wokół oddziału
+                for (let t = 0; t < 250 && !spot; t++) {
                     const kat = Math.random() * Math.PI * 2;
-                    const dyst = zasieg * (0.75 + Math.random() * 0.5);
+                    const dyst = POSILKI_MIN_DYSTANS + Math.random() * 15;
                     const nx = Math.round(kx + Math.cos(kat) * dyst);
                     const nz = Math.round(kz + Math.sin(kat) * dyst);
-                    if (!isWithinPlayBounds(nx, nz) || !canStandAt(nx, nz, 0)) continue;
-                    if (isUnitAtLevel(nx, nz, 0, null)) continue;
-                    if (celDrogi && !findPath(nx, nz, celDrogi[0], celDrogi[1], 0, kotwica)) continue;   // musi móc dojść
-                    spot = [nx, nz]; break;
+                    if (nadajeSie(nx, nz)) spot = [nx, nz];
+                }
+                // 2) gdy pierścień wychodzi poza planszę - dowolne dalekie pole
+                for (let t = 0; t < 600 && !spot; t++) {
+                    const nx = Math.floor(Math.random() * mapWidth) - offsetX;
+                    const nz = Math.floor(Math.random() * mapDepth) - offsetZ;
+                    if (nadajeSie(nx, nz)) spot = [nx, nz];
                 }
                 if (!spot) continue;
 
@@ -15668,6 +15795,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     accuracyBonus: 0, isDead: false, facingAngle: Math.random() * Math.PI * 2,
                     level: 0, gatunek: (w.gatunek === undefined ? null : w.gatunek), posilek: true
                 });
+                noteEnemyEncountered(w.typ);
                 refreshEnemyPositions();
                 przybylo++;
             }
@@ -16443,6 +16571,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (spot) {
                         e.ap -= SUMMON_COST;
                         faceTowards(e, px, pz);
+                        animWroga(e, 'atak', true);   // gest przywołania
                         const wm = createWispMesh();
                         const wy = getLevelY(spot[0], spot[1], tLvl);
                         wm.position.set(spot[0], wy + wm.userData.yOffset, spot[1]);
@@ -16950,11 +17079,19 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
             const squadDiv = document.getElementById('stats-squad-info');
             const heroAcc = heroCombatStats.totalShots > 0 ? Math.round((heroCombatStats.totalHits / heroCombatStats.totalShots) * 100) : 0;
-            let squadHtml = `<b>Oddział (${getMaxSquadSize()}/4):</b><br>${playerName || 'Ty'} - ${WARRIOR_CLASSES.uniwersalna.name} <span style="color:#aaa;">(łącznie: ${heroAcc}% cel., ${heroCombatStats.totalKills} pokonanych)</span>`;
+            // Lista pokonanych wg rodzaju - od najczęstszych
+            const rozbicie = (rodzaje) => {
+                if (!rodzaje) return '';
+                const w = Object.keys(rodzaje).sort((a, b) => rodzaje[b] - rodzaje[a]);
+                if (w.length === 0) return '';
+                return '<br><span style="color:#8fb3c9; font-size:0.9em; padding-left:12px; display:inline-block;">' +
+                       w.map(k => nazwaRodzaju(k) + ' ×' + rodzaje[k]).join(', ') + '</span>';
+            };
+            let squadHtml = `<b>Oddział (${getMaxSquadSize()}/4):</b><br>${playerName || 'Ty'} - ${WARRIOR_CLASSES.uniwersalna.name} <span style="color:#aaa;">(łącznie: ${heroAcc}% cel., ${heroCombatStats.totalKills} pokonanych)</span>` + rozbicie(heroCombatStats.rodzaje);
             recruitedWarriors.forEach(w => {
                 const c = WARRIOR_CLASSES[w.class] || WARRIOR_CLASSES.uniwersalna;
                 const acc = w.totalShots > 0 ? Math.round((w.totalHits / w.totalShots) * 100) : 0;
-                squadHtml += `<br>${w.name} - ${c.name} <span style="color:#aaa;">(łącznie: ${acc}% cel., ${w.totalKills || 0} pokonanych)</span>`;
+                squadHtml += `<br>${w.name} - ${c.name} <span style="color:#aaa;">(łącznie: ${acc}% cel., ${w.totalKills || 0} pokonanych)</span>` + rozbicie(w.rodzaje);
             });
             const nextSlot = getNextRecruitSlot();
             if (nextSlot) {
@@ -17009,6 +17146,29 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                       'Nie dotyka gruntu, więc nie zatrzyma go błoto ani przeszkody terenu. Razi celną wiązką z dystansu. ' +
                       'Wątły - kilka trafień wystarczy, by spadł.',
                 stats: [['Punkty życia', '8'], ['Punkty ruchu', '12'], ['Premia do celności', 'brak'], ['Styl walki', 'ostrzał wiązką z dystansu']]
+            },
+            {
+                id: 'ogar', title: 'Ogar Piekielny',
+                text: 'Czarny pies wielkości lwa, ze ślepiami żarzącymi się jak węgle i tlącym się grzbietem. ' +
+                      'Nigdy nie poluje sam.\\n\\n' +
+                      'Stado wybiera jedną ofiarę - zwykle najsłabszego z oddziału - i osacza ją ze wszystkich stron, ' +
+                      'nie zważając na resztę. Dopiero gdy ofiara padnie, przerzuca się na następnego. ' +
+                      'Pojedynczy ogar nie jest groźny; groźne jest to, że nigdy nie jest pojedynczy. ' +
+                      'Grasuje na Kremlu, w Białym Domu, w Zhongnanhai, w kraterze wulkanu i wśród grobów - ' +
+                      'najczęściej tam, gdzie czeka Koszmar.',
+                stats: [['Punkty życia', '9'], ['Punkty ruchu', '18'], ['Premia do celności', 'brak'],
+                        ['Styl walki', 'wręcz, stadem (4 obr.)']]
+            },
+            {
+                id: 'smierc', title: 'Śmierć',
+                text: 'Wysoka postać w czarnej szacie, z pustką pod kapturem i kosą w kościstych dłoniach. ' +
+                      'Dwukrotnie przewyższa wojownika.\\n\\n' +
+                      'Nie da się jej zabić. Można ją jedynie odpędzić - po wyczerpaniu sił odstępuje, ' +
+                      'lecz wraca w kolejnych snach. Jej kosa zadaje cięższe rany niż cokolwiek innego w koszmarach.\\n\\n' +
+                      'Nocą potrafi zjawić się także w mieście. Nie walczy wtedy, lecz idzie powoli ku tobie - ' +
+                      'a gdy dosięgnie, odbiera całą zgromadzoną Łaskę. Odstrasza ją kościelny dzwon.',
+                stats: [['Punkty życia', '20 (nie do zabicia)'], ['Punkty ruchu', '12'], ['Szansa pojawienia', '25% na sen'],
+                        ['Styl walki', 'kosa, wręcz (7 obr.)']]
             },
             {
                 id: 'spider_small', title: 'Pająk',
@@ -17122,10 +17282,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             if (previewModel) {
                 previewScene.remove(previewModel);
-                previewModel.traverse(ch => {
-                    if (ch.geometry) ch.geometry.dispose();
-                    if (ch.material) ch.material.dispose();
-                });
+                // Klon modelu 3D WSPÓŁDZIELI geometrię z oryginałem - zwolnienie jej
+                // zepsułoby tego wroga także na planszy. Sprzątamy tylko bryły z kodu.
+                const zModelu = previewModel.userData && (previewModel.userData.isEnemyModel || previewModel.userData.isModel);
+                if (!zModelu) {
+                    previewModel.traverse(ch => {
+                        if (ch.geometry) ch.geometry.dispose();
+                        if (ch.material) ch.material.dispose();
+                    });
+                }
                 previewModel = null;
             }
             // Potwory o własnych bryłach pokazujemy dokładnie tak, jak wyglądają w grze.
@@ -17141,11 +17306,27 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 spider_big:   () => createSpiderMesh(true),
                 robot:    createRobotMesh,
                 droid:    createDroidMesh,
-                koszmar:  createBossMesh
+                koszmar:  createBossMesh,
+                ogar:     createHellhoundMesh,
+                smierc:   createDeathMesh
             };
             const PREVIEW_SCALE = { koszmar: 0.42, vampire: 0.9, wisp: 1.5, strzyga: 1.0, zombie: 1.05 };
 
-            if (CUSTOM_PREVIEW[typeId]) {
+            // Najpierw model 3D - Kronika ma pokazywać wroga tak, jak wygląda na planszy
+            let zModelu = null;
+            if (typeId === 'spider_small' || typeId === 'spider_big') {
+                const nr = PAJAKI_GATUNKI.findIndex(g => g.typ === typeId);
+                if (nr >= 0) {
+                    const g = PAJAKI_GATUNKI[nr];
+                    if (wrogModele[g.model] && wrogModele[g.model].gotowy) zModelu = zbudujPajaka(nr);
+                }
+            } else {
+                zModelu = buildEnemyModelInstance(typeId);
+            }
+
+            if (zModelu) {
+                previewModel = zModelu;
+            } else if (CUSTOM_PREVIEW[typeId]) {
                 previewModel = CUSTOM_PREVIEW[typeId]();
                 const s = PREVIEW_SCALE[typeId];
                 if (s) previewModel.scale.multiplyScalar ? previewModel.scale.multiplyScalar(s)
@@ -17177,6 +17358,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function noteEnemyEncountered(type) {
             if (!type) return;
+            if (arenaAktywna) return;   // arena niczego nie odblokowuje
             if (bestiaryUnlocked.indexOf(type) === -1 && bestiaryPendingUnlock.indexOf(type) === -1) {
                 bestiaryPendingUnlock.push(type);
             }
@@ -17184,12 +17366,42 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         // Wywoływane po zakończeniu misji - dopiero wtedy wiedza trafia do Kroniki
         function commitBestiaryUnlocks() {
+            if (arenaAktywna) { bestiaryPendingUnlock = []; return 0; }
             let added = 0;
             bestiaryPendingUnlock.forEach(t => {
                 if (bestiaryUnlocked.indexOf(t) === -1) { bestiaryUnlocked.push(t); added++; }
             });
             bestiaryPendingUnlock = [];
             return added;
+        }
+
+        // Ilu wrogów danego wpisu pokonał oddział we wszystkich misjach.
+        // Pająki sumujemy po wszystkich gatunkach danego rodzaju, a obok podajemy rozbicie.
+        function pokonaniWKronice(idWpisu) {
+            const ktoIle = [];   // [imię, liczba]
+            const gatunki = {};  // nazwa gatunku -> liczba
+            let razem = 0;
+            const pasuje = (klucz) => {
+                if (klucz.startsWith('pajak:')) {
+                    const g = PAJAKI_GATUNKI[parseInt(klucz.slice(6), 10)];
+                    return g && g.typ === idWpisu ? g.nazwa : null;
+                }
+                return klucz === idWpisu ? true : null;
+            };
+            const policz = (imie, rodzaje) => {
+                if (!rodzaje) return;
+                let jego = 0;
+                Object.keys(rodzaje).forEach(k => {
+                    const p = pasuje(k);
+                    if (!p) return;
+                    jego += rodzaje[k];
+                    if (typeof p === 'string') gatunki[p] = (gatunki[p] || 0) + rodzaje[k];
+                });
+                if (jego > 0) { ktoIle.push([imie, jego]); razem += jego; }
+            };
+            policz(playerName || 'Ty', heroCombatStats.rodzaje);
+            recruitedWarriors.forEach(w => policz(w.name, w.rodzaje));
+            return { razem, ktoIle: ktoIle.sort((a, b) => b[1] - a[1]), gatunki };
         }
 
         function renderBestiary() {
@@ -17224,6 +17436,24 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             entry.stats.forEach(([k, v]) => {
                 html += '<div>' + k + ': <span class="bestiary-stat">' + v + '</span></div>';
             });
+            html += '</div>';
+
+            // Dorobek oddziału przeciwko temu wrogowi - ze wszystkich misji
+            const pk = pokonaniWKronice(entry.id);
+            html += '<div style="border-top:1px solid #4a4238;padding-top:10px;margin-top:10px;">';
+            if (pk.razem === 0) {
+                html += '<div style="color:#8a8070;">Twój oddział jeszcze żadnego nie pokonał.</div>';
+            } else {
+                html += '<div>Pokonanych przez oddział: <span class="bestiary-stat" style="font-size:1.15em;">' + pk.razem + '</span></div>';
+                html += '<div style="color:#b9ad96;font-size:0.92em;margin-top:4px;">' +
+                        pk.ktoIle.map(([n, l]) => n + ' ×' + l).join(', ') + '</div>';
+                const g = Object.keys(pk.gatunki);
+                if (g.length > 0) {
+                    html += '<div style="color:#8fb3c9;font-size:0.92em;margin-top:4px;">Gatunki: ' +
+                            g.sort((a, b) => pk.gatunki[b] - pk.gatunki[a]).map(n => n + ' ×' + pk.gatunki[n]).join(', ') +
+                            '</div>';
+                }
+            }
             html += '</div>';
             content.innerHTML = html;
         }
@@ -18657,6 +18887,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const count = parseInt(e.currentTarget.dataset.count, 10);
                 try {
                     misjaTestowa = false;   // zwykła misja liczy się do postępu
+                    arenaAktywna = false;
                     startGame(count);
                     // Dopiero po poprawnym uruchomieniu gry chowamy menu
                     document.getElementById('start-screen').style.display = 'none';
