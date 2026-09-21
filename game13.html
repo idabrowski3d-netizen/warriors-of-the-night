@@ -6142,10 +6142,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const ENEMY_MODELS = {
             zombie:  { plik: 'models/zombie.glb',  idle: 'zombie_idle',  walk: 'zombie_walk',
                        atak: 'zombie_attack',  smierc: 'zombie_death',  cios: 'zombie_hit',
-                       specjalna: 'zombie_up',  wysokosc: 1.8 },   // zombie_up - wychodzenie z grobu
+                       specjalna: 'zombie_up',  wysokosc: 1.98 },   // +10% wzrostu; zombie_up - wychodzenie z grobu
             vampire: { plik: 'models/vampire.glb', idle: 'vampire_idle', walk: 'vampire_walk',
                        atak: 'vampire_attack', smierc: 'vampire_death', cios: 'vampire_hit',
-                       specjalna: 'vampire_hypnotize', wysokosc: 2.0,
+                       specjalna: 'vampire_hypnotize', wysokosc: 2.4,   // +20% wzrostu
                        // przyjmujemy też polską pisownię, gdyby plik był starszy
                        idleAlt: 'wampir_idle', walkAlt: 'wampir_walk', atakAlt: 'wampir_attack',
                        smiercAlt: 'wampir_death', ciosAlt: 'wampir_hit', specjalnaAlt: 'wampir_hypnotize' },
@@ -6170,7 +6170,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                        atak: null, smierc: 'men_death',    cios: null, wysokosc: 1.8,
                        idleAlt: 'man_idle', walkAlt: 'man_run', smiercAlt: 'man_death' },
             standard: { plik: 'models/standard.glb', idle: 'standard_idle', walk: 'standard_run',
-                       atak: 'standard_attack', smierc: 'standard_death', cios: 'standard_hit', wysokosc: 1.8 },
+                       atak: 'standard_attack', smierc: 'standard_death', cios: 'standard_hit', wysokosc: 1.98 },   // +10% wzrostu
             spider2: { plik: 'models/spider2.glb', idle: 'spider_idle', walk: 'spider_walk',
                        atak: 'spider_attack', smierc: 'spider_death', cios: 'spider_hit', wysokosc: 1.0 },
             strzyga: { plik: 'models/strzyga.glb', idle: 'strzyga_idle', walk: 'strzyga_walk',
@@ -6271,7 +6271,19 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         function loadEnemyModels() {
-            if (typeof THREE.GLTFLoader === 'undefined') return;
+            if (typeof THREE.GLTFLoader === 'undefined') {
+                console.warn('[model] Brak GLTFLoader - żaden model 3D się nie wczyta.');
+                return;
+            }
+            // Podsumowanie po chwili - od razu widać, czego brakuje
+            setTimeout(() => {
+                const ok = [], brak = [];
+                Object.keys(ENEMY_MODELS).forEach(t => {
+                    (wrogModele[t] && wrogModele[t].gotowy ? ok : brak).push(t);
+                });
+                console.info(`[model] Wczytane (${ok.length}): ${ok.join(', ') || '-'}`);
+                if (brak.length) console.warn(`[model] Brakujące (${brak.length}): ${brak.join(', ')}`);
+            }, 8000);
             Object.keys(ENEMY_MODELS).forEach(typ => {
                 const cfg = ENEMY_MODELS[typ];
                 wrogModele[typ] = { proto: null, klipy: {}, gotowy: false };
@@ -6330,10 +6342,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         wrogModele[typ].proto = proto;
                         wrogModele[typ].gotowy = true;
                         console.info(`[model] Wczytano wroga '${typ}'. Animacje: ${Object.keys(wrogModele[typ].klipy).join(', ')}`);
-                    }, undefined, () => {
-                        // brak pliku to normalna sytuacja - zostaje dotychczasowa bryła
+                    }, undefined, (err) => {
+                        // Brak pliku bywa normalny, ale cisza utrudnia szukanie przyczyny,
+                        // gdy plik JEST wgrany, a mimo to się nie pojawia.
+                        console.warn(`[model] Nie wczytano '${typ}' z ${cfg.plik}` +
+                                     (err && err.message ? ` - ${err.message}` : ' - sprawdź nazwę pliku i katalog models/'));
                     });
-                } catch (e) { /* zostaje bryła */ }
+                } catch (e) {
+                    console.warn(`[model] Błąd przy '${typ}' (${cfg.plik}): ${e.message}`);
+                }
             });
         }
 
@@ -6521,6 +6538,19 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Zgon wroga z dokończeniem animacji upadku
         function zabijWroga(wrog, poZgonie) {
             if (!wrog) return;
+            if (wrog.elita && !wrog.nagrodaWydana) {
+                wrog.nagrodaWydana = true;
+                let zabojca = isPlayerTurn ? getActiveSoldier() : null;
+                if (!zabojca) {
+                    let najD = Infinity;
+                    soldiers.forEach(s => {
+                        if (s.isDead || s.isNPC) return;
+                        const d = Math.hypot(s.mesh.position.x - wrog.mesh.position.x, s.mesh.position.z - wrog.mesh.position.z);
+                        if (d < najD) { najD = d; zabojca = s; }
+                    });
+                }
+                nagrodaZaElite(zabojca);
+            }
             // Śmierci nie da się zabić - odstępuje i wraca w kolejnym śnie
             if (wrog.nieDoZabicia) { odpedzSmierc(wrog, null); if (poZgonie) poZgonie(); return; }
             wrog.isDead = true;
@@ -8471,7 +8501,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 { typ: 'stalker',   hp: 10, ap: 14, opis: 'Skradający' },
                 { typ: 'wisp',      hp: 5,  ap: 16, opis: 'Duszek' },
                 { typ: 'zombie',    hp: 4,  ap: 8,  opis: 'Zombie' },
-                { typ: 'vampire',   hp: 15, ap: 12, opis: 'Wampir' },
+                { typ: 'vampire',   hp: 15, ap: 12, opis: 'Drakula' },
                 { typ: 'strzyga',   hp: 9,  ap: 18, opis: 'Strzyga' },
                 { typ: 'robot',     hp: 14, ap: 11, opis: 'Robot' },
                 { typ: 'droid',     hp: 8,  ap: 12, opis: 'Droid' },
@@ -8521,6 +8551,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
                 let mesh;
                 if (w.gatunek !== undefined) mesh = zbudujPajaka(w.gatunek);
+                // Model 3D przed bryłą - inaczej arena pokazywała wersje rysowane w kodzie
+                else if (buildEnemyModelInstance(w.typ)) mesh = buildEnemyModelInstance(w.typ);
                 else if (BUDOWA[w.typ]) mesh = BUDOWA[w.typ]();
                 else {
                     mesh = buildEnemyModelInstance(w.typ) ||
@@ -8909,7 +8941,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     ap: e.ap, maxAp: e.maxAp, accuracyBonus: e.accuracyBonus, isDead: e.isDead, facingAngle: e.facingAngle, level: e.level || 0,
                     isBoss: !!e.isBoss, bossTurn: e.bossTurn || 0, hasOpened: !!e.hasOpened,
                     blindedTurns: e.blindedTurns || 0, blindedFrom: e.blindedFrom || null,
-                    gatunek: (e.gatunek === undefined ? null : e.gatunek)
+                    gatunek: (e.gatunek === undefined ? null : e.gatunek), elita: !!e.elita
                 })),
                 npcs: npcs.filter(n => !n.isDead).map(n => ({
                     x: n.mesh.position.x, z: n.mesh.position.z, hp: n.hp, maxHp: n.maxHp, ap: n.ap, maxAp: n.maxAp,
@@ -9038,7 +9070,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 scene.add(mesh);
                 const fa = ed.facingAngle || 0;
                 mesh.lookAt(mesh.position.x + Math.sin(fa), mesh.position.y, mesh.position.z + Math.cos(fa));
-                return { mesh: mesh, type: ed.type, hp: ed.hp, maxHp: ed.maxHp, ap: ed.ap, maxAp: ed.maxAp, accuracyBonus: ed.accuracyBonus, isDead: ed.isDead, facingAngle: fa, level: ed.level || 0, isBoss: !!ed.isBoss, bossTurn: ed.bossTurn || 0, hasOpened: !!ed.hasOpened, blindedTurns: ed.blindedTurns || 0, blindedFrom: ed.blindedFrom || null, gatunek: (ed.gatunek === undefined ? null : ed.gatunek) };
+                return { mesh: mesh, type: ed.type, hp: ed.hp, maxHp: ed.maxHp, ap: ed.ap, maxAp: ed.maxAp, accuracyBonus: ed.accuracyBonus, isDead: ed.isDead, facingAngle: fa, level: ed.level || 0, isBoss: !!ed.isBoss, bossTurn: ed.bossTurn || 0, hasOpened: !!ed.hasOpened, blindedTurns: ed.blindedTurns || 0, blindedFrom: ed.blindedFrom || null, gatunek: (ed.gatunek === undefined ? null : ed.gatunek), elita: !!ed.elita, dmgBonus: ed.elita ? 1 : 0 };
+            });
+
+            // Elita odzyskuje poświatę i rozmiar - statystyki wróciły z zapisu
+            enemies.forEach(e => {
+                if (!e.elita || !e.mesh) return;
+                e.mesh.scale.multiplyScalar(1.2);
+                nadajPoswiate(e.mesh, (ENEMY_MODELS[e.type] && ENEMY_MODELS[e.type].wysokosc) || 2);
             });
 
             npcs.forEach(n => scene.remove(n.mesh));
@@ -12185,6 +12224,26 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // widoku - przeciwnika za nią widać. Nadal jednak utrudnia strzał,
         // bo cel się za nią chowa. Wysoka zasłania zupełnie.
         // ========================================================
+        // Nazwy wyświetlane graczowi. Wcześniej wszystko poza Dużym i Szybkim
+        // pokazywało się jako "ROZPRUWACZ", więc wampir też nim był.
+        const NAZWY_WROGOW = {
+            standard: 'ROZPRUWACZ', fast: 'SZYBKI (Zwiadowca)', brute: 'DUŻY (Walka wręcz)',
+            summoner: 'PRZYWOŁYWACZ', stalker: 'SKRADAJĄCY', wisp: 'DUSZEK',
+            zombie: 'ZOMBIE', vampire: 'DRAKULA', strzyga: 'STRZYGA',
+            robot: 'ROBOT', droid: 'DROID', ogar: 'OGAR PIEKIELNY',
+            koszmar: 'KOSZMAR', smierc: 'ŚMIERĆ',
+            spider_small: 'PAJĄK', spider_big: 'WIELKI PAJĄK'
+        };
+
+        function nazwaWroga(e) {
+            if (!e) return '';
+            const przedrostek = e.elita ? 'ELITARNY ' : '';
+            if (e.gatunek !== null && e.gatunek !== undefined && PAJAKI_GATUNKI[e.gatunek]) {
+                return przedrostek + PAJAKI_GATUNKI[e.gatunek].nazwa.toUpperCase();
+            }
+            return przedrostek + (NAZWY_WROGOW[e.type] || (e.type || '').toUpperCase());
+        }
+
         const NISKIE_PRZESZKODY = ['rock', 'kloda', 'lawka', 'kosz', 'zywoplot', 'beczka',
                                    'nagrobek', 'crate', 'barrel', 'bush', 'grave', 'tombstone'];
 
@@ -13042,6 +13101,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function setupMissionObjectives() {
             sprobujWezwacSmierc();
+            wybierzElite();
             clearMissionObjectives();
             if (currentMissionType === 'standard') {
                 // Serce śpiącego ukryte gdzieś na planszy, zamknięte w grzechu
@@ -13507,7 +13567,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         // Zbliżenie wojownika otwiera sarkofag - czasem pusty, czasem z zombie
         // ========================================================
-        // --- WAMPIR ---
+        // --- DRAKULA ---
         // Znika i pojawia się gdzie indziej, próbuje zahipnotyzować wojownika.
         // Charyzma bohatera zmniejsza szansę powodzenia hipnozy.
         // ========================================================
@@ -14460,7 +14520,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (distanceXY === 0) { msg = `Twoja pozycja`; remainingAP = active.ap; } 
                 else if (hoveredEnemy) {
                     ustawKursorCelownika(hoveredEnemy, active);
-                    let eName = hoveredEnemy.type === 'brute' ? 'DUŻY (Walka wręcz)' : (hoveredEnemy.type === 'fast' ? 'SZYBKI (Zwiadowca)' : 'ROZPRUWACZ');
+                    let eName = nazwaWroga(hoveredEnemy);
                     remainingAP = active.ap - shootCost;
 
                     const startY = getTerrainY(startX, startZ);
@@ -15645,6 +15705,122 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return mozliwe[Math.floor(Math.random() * mozliwe.length)];
         }
 
+        // ========================================================
+        // --- JEDNOSTKI ELITARNE ---
+        // Pojedynczy przedstawiciele rasy: o 20% wyżsi, silniejsi, otoczeni
+        // jasnoniebieską poświatą. Za ich pokonanie wojownik zyskuje punkt cechy.
+        // Poświata to podświetlony krąg i światło - bez rozmycia całej sceny,
+        // które zabiłoby płynność na telefonie.
+        // ========================================================
+        const ELITA_SZANSA = 0.07;
+        const ELITA_MAKS_NA_MISJE = 2;
+        const ELITA_KOLOR = 0x7fd4ff;
+
+        let teksturaPoswiaty = null;
+        function zrobTeksturePoswiaty() {
+            if (teksturaPoswiaty) return teksturaPoswiaty;
+            const cv = document.createElement('canvas');
+            cv.width = cv.height = 128;
+            const ctx = cv.getContext('2d');
+            if (ctx && ctx.createRadialGradient) {
+                const g = ctx.createRadialGradient(64, 64, 4, 64, 64, 64);
+                g.addColorStop(0, 'rgba(190,240,255,0.95)');
+                g.addColorStop(0.35, 'rgba(127,212,255,0.55)');
+                g.addColorStop(1, 'rgba(127,212,255,0)');
+                ctx.fillStyle = g;
+                ctx.fillRect(0, 0, 128, 128);
+            }
+            teksturaPoswiaty = new THREE.CanvasTexture(cv);
+            return teksturaPoswiaty;
+        }
+
+        function nadajPoswiate(mesh, wys) {
+            const h = wys || 2;
+            // Aureola za postacią - addytywna, więc świeci, a nie zasłania
+            const mat = new THREE.SpriteMaterial({
+                map: zrobTeksturePoswiaty(), color: ELITA_KOLOR, transparent: true,
+                depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.85
+            });
+            const halo = new THREE.Sprite(mat);
+            halo.scale.set(h * 1.35, h * 1.6, 1);
+            halo.position.y = h * 0.55;
+            halo.userData.poswiata = true;
+            mesh.add(halo);
+            // Krąg światła na ziemi
+            const pierscien = new THREE.Mesh(
+                new THREE.RingGeometry(0.55, 0.9, 28),
+                new THREE.MeshBasicMaterial({ color: ELITA_KOLOR, transparent: true, opacity: 0.55,
+                                              side: THREE.DoubleSide, depthWrite: false,
+                                              blending: THREE.AdditiveBlending })
+            );
+            pierscien.rotation.x = -Math.PI / 2;
+            pierscien.position.y = 0.06;
+            pierscien.userData.poswiata = true;
+            mesh.add(pierscien);
+            const sw = new THREE.PointLight(ELITA_KOLOR, 1.1, 7, 1.6);
+            sw.position.y = h * 0.6;
+            mesh.add(sw);
+            mesh.userData.poswiataHalo = halo;
+            mesh.userData.poswiataPierscien = pierscien;
+        }
+
+        // Pulsowanie poświaty - wołane w pętli gry
+        function pulsujPoswiate(czas) {
+            enemies.forEach(e => {
+                if (!e.elita || e.isDead || !e.mesh) return;
+                const p = 0.8 + 0.2 * Math.sin(czas * 0.004 + (e.mesh.id || 0));
+                const u = e.mesh.userData;
+                if (u.poswiataHalo) u.poswiataHalo.material.opacity = 0.65 * p + 0.2;
+                if (u.poswiataPierscien) u.poswiataPierscien.material.opacity = 0.4 * p + 0.15;
+            });
+        }
+
+        function uczynElitarnym(e) {
+            if (!e || e.elita || e.nieDoZabicia || e.isBoss) return false;
+            e.elita = true;
+            e.mesh.scale.multiplyScalar(1.2);
+            e.maxHp = Math.round(e.maxHp * 1.5); e.hp = e.maxHp;
+            e.maxAp += 2; e.ap = e.maxAp;
+            e.accuracyBonus = (e.accuracyBonus || 0) + 10;
+            e.dmgBonus = 1;
+            const wys = (ENEMY_MODELS[e.type] && ENEMY_MODELS[e.type].wysokosc) || 2;
+            nadajPoswiate(e.mesh, wys);
+            return true;
+        }
+
+        function wybierzElite() {
+            const kandydaci = enemies.filter(e => !e.isDead && !e.nieDoZabicia && !e.isBoss);
+            let ile = 0;
+            kandydaci.forEach(e => {
+                if (ile >= ELITA_MAKS_NA_MISJE) return;
+                if (Math.random() < ELITA_SZANSA && uczynElitarnym(e)) ile++;
+            });
+            if (ile > 0) updateUI(`W tym śnie czai się ${ile === 1 ? 'elitarny wróg' : 'dwóch elitarnych wrogów'} - rozpoznasz ich po poświacie.`);
+        }
+
+        // Statystyki danego wojownika - gracz ma własne, towarzysze swoje
+        function statyWojownika(s) {
+            const idx = soldiers.indexOf(s);
+            if (idx === 0) return playerCharacterStats;
+            const w = recruitedWarriors.find(r => r.name === s.name);
+            if (!w) return null;
+            if (!w.stats) w.stats = { zrecznosc: 10, witalnosc: 10, madrosc: 10, silaPsychiczna: 10, charyzma: 10 };
+            return w.stats;
+        }
+
+        function nagrodaZaElite(zabojca) {
+            if (!zabojca || zabojca.isDead || zabojca.isNPC || zabojca.isEscortee || zabojca.isAngel) return;
+            if (misjaTestowa) { updateUI('Elitarny wróg pokonany (misja testowa - bez nagrody).'); return; }
+            const st = statyWojownika(zabojca);
+            if (!st) return;
+            const cechy = ['zrecznosc', 'witalnosc', 'madrosc', 'silaPsychiczna', 'charyzma'];
+            const cecha = cechy[Math.floor(Math.random() * cechy.length)];
+            st[cecha] = (st[cecha] || 10) + 1;
+            const nazwa = STAT_INFO[cecha] ? STAT_INFO[cecha].name : cecha;
+            showFloatingWarning(`${zabojca.name}: +1 ${nazwa}!`);
+            updateUI(`Pokonanie elitarnego wroga wzmacnia ${zabojca.name} (+1 ${nazwa}).`);
+        }
+
         function processNextEnemy() {
             if (gameOver || isPlayerTurn) return; 
             while(currentEnemyIndex < enemies.length && enemies[currentEnemyIndex].isDead) currentEnemyIndex++;
@@ -15902,7 +16078,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (e.ap >= 3) {
                         e.ap -= 3;
                         if (vampireBlink(e)) {
-                            updateUI('WAMPIR cofa się z sykiem przed świętym znakiem!');
+                            updateUI('DRAKULA cofa się z sykiem przed świętym znakiem!');
                             updateFoW();
                             currentEnemyIndex++; setTimeout(processNextEnemy, 300);
                             return;
@@ -15927,7 +16103,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         bestTarget.hypnotizedBy = e;
                         bestTarget.turnEnded = true;
                         bestTarget.ap = 0;
-                        updateUI(`WAMPIR hipnotyzuje ${bestTarget.name}! (szansa ${chance}%) Tylko jego śmierć przywróci kontrolę.`);
+                        updateUI(`DRAKULA hipnotyzuje ${bestTarget.name}! (szansa ${chance}%) Tylko jego śmierć przywróci kontrolę.`);
                         showFloatingWarning(`${bestTarget.name} wpada w trans wampira!`);
                     } else {
                         updateUI(`${bestTarget.name} opiera się hipnozie wampira! (szansa ${chance}%)`);
@@ -15946,7 +16122,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     e.ap -= 4;
                     faceTowards(e, vx, vz);
                     const hit = Math.random() < 0.75;
-                    updateUI('WAMPIR uderza szponami!');
+                    updateUI('DRAKULA uderza szponami!');
                     if (hit) {
                         SoundEngine.playHit();
                         applyDamageToUnit(bestTarget, 5);
@@ -15961,7 +16137,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
 
                 if (targetProtected) {
-                    updateUI('WAMPIR krąży opodal - nie śmie zbliżyć się do świętego znaku.');
+                    updateUI('DRAKULA krąży opodal - nie śmie zbliżyć się do świętego znaku.');
                     currentEnemyIndex++; setTimeout(processNextEnemy, 200);
                     return;
                 }
@@ -15969,7 +16145,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (e.ap >= 3) {
                     e.ap -= 3;
                     if (vampireBlink(e)) {
-                        updateUI('WAMPIR rozpływa się w mgle i pojawia gdzie indziej!');
+                        updateUI('DRAKULA rozpływa się w mgle i pojawia gdzie indziej!');
                         updateFoW();
                         currentEnemyIndex++; setTimeout(processNextEnemy, 300);
                         return;
@@ -16308,7 +16484,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     let isHit = Math.random() < 0.85; 
                     SoundEngine.playShoot();
                     slideObject(e.mesh, px, py + e.mesh.userData.yOffset, pz, 150, () => {
-                        const meleeDmg = (e.type === 'brute') ? 6 : (e.type === 'stalker' ? 4 : (e.type === 'zombie' ? 3 : (e.type === 'robot' ? 5 : (e.gatunek !== null && e.gatunek !== undefined && PAJAKI_GATUNKI[e.gatunek] ? PAJAKI_GATUNKI[e.gatunek].dmg : (e.type === 'spider_big' ? 5 : (e.type === 'spider_small' ? 3 : (e.type === 'smierc' ? 7 : (e.type === 'ogar' ? 4 : 3))))))));
+                        let meleeDmgBaza = 3;
+                        if (e.type === 'brute') meleeDmgBaza = 6;
+                        else if (e.type === 'stalker') meleeDmgBaza = 4;
+                        else if (e.type === 'zombie') meleeDmgBaza = 3;
+                        else if (e.type === 'robot') meleeDmgBaza = 5;
+                        else if (e.gatunek !== null && e.gatunek !== undefined && PAJAKI_GATUNKI[e.gatunek]) meleeDmgBaza = PAJAKI_GATUNKI[e.gatunek].dmg;
+                        else if (e.type === 'spider_big') meleeDmgBaza = 5;
+                        else if (e.type === 'spider_small') meleeDmgBaza = 3;
+                        else if (e.type === 'smierc') meleeDmgBaza = 7;
+                        else if (e.type === 'ogar') meleeDmgBaza = 4;
+                        const meleeDmg = meleeDmgBaza + (e.dmgBonus || 0);   // elita uderza mocniej
                         // Duży pająk przy spętanym celu sięga po jad zamiast zwykłego ciosu
                         if (e.type === 'spider_big' && isSoldierWebbed(bestTarget)) tryVenom(e, bestTarget);
                         if (e.type === 'zombie' && !bestTarget.isNPC) tryInfectSoldier(bestTarget);
@@ -16713,6 +16899,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             updateHouseWalls();
             if (isExploreMode()) {
                 tikZegara();
+            pulsujPoswiate(time);
             przesunWidokDrazkiem(dt);
             updateNocnaSmierc(dt);
             updateHeroMovement(dt);
@@ -16847,7 +17034,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 stats: [['Punkty życia', '9'], ['Punkty ruchu', '18'], ['Premia do celności', 'brak'], ['Styl walki', 'szpony (6 obr.) i wrzask siejący panikę']]
             },
             {
-                id: 'vampire', title: 'Wampir',
+                id: 'vampire', title: 'Drakula',
                 text: 'Rosła postać w krwistoczerwonym płaszczu, o oczach jak rozżarzone węgle. Nie stąpa po ziemi - unosi się tuż nad nią.\\n\\n' +
                       'Rozpływa się we mgle i pojawia kilkanaście pól dalej, więc trudno go osaczyć. Najgroźniejszy jest jego wzrok: ' +
                       'potrafi wprowadzić wojownika w trans i odebrać nad nim władzę. Tylko śmierć wampira przywraca kontrolę. ' +
