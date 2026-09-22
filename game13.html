@@ -1935,6 +1935,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (gameMode !== 'present' && gameMode !== 'presentNight') return;
             czasGry = new Date(czasGry.getTime() + dt * TEMPO_CZASU);
             odswiezZegar();
+            sprawdzApelSzpiku();
         }
 
         let currentTimeOfDay = 'poludnie';
@@ -8905,6 +8906,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 goodDeeds: playerStats.goodDeeds,
                 playerName: playerName,
                 czasGry: czasGry.getTime(),
+                ostatniaKrew: ostatniaKrew, ostatniSzpik: ostatniSzpik, szpikOgloszony: szpikOgloszony,
                 playerPatronKey: playerPatronKey,
                 // Kopie, nie referencje - inaczej późniejsze zmiany stanu gry
                 // po cichu modyfikowałyby już zbudowany zapis
@@ -8927,6 +8929,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             playerStats.goodDeeds = data.goodDeeds || 0;
             playerName = data.playerName || '';
             if (typeof data.czasGry === 'number') { czasGry = new Date(data.czasGry); odswiezZegar(); }
+            ostatniaKrew = (typeof data.ostatniaKrew === 'number') ? data.ostatniaKrew : null;
+            ostatniSzpik = (typeof data.ostatniSzpik === 'number') ? data.ostatniSzpik : null;
+            szpikOgloszony = !!data.szpikOgloszony;
             if (typeof arguments[0].czasGry === 'number') { czasGry = new Date(arguments[0].czasGry); odswiezZegar(); }
             playerPatronKey = data.playerPatronKey || null;
             if (data.playerCharacterStats) playerCharacterStats = { ...data.playerCharacterStats };
@@ -10495,23 +10500,95 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             startAmbulanceRun();
         }
 
-        function interactWithAmbulance() {
-            if (!ambulance || ambulance.state !== 'stopped') return;
-            if (ambulance.donated) {
-                showDialogue('Ratownik: "Dziękujemy, już oddałeś dziś krew. Wróć innym razem!"', 'OK', null, null, null);
+        // ========================================================
+        // --- ODDAWANIE KRWI I SZPIKU ---
+        // Krew najwyżej raz na 3 doby w grze - zmusza do sięgania po inne uczynki.
+        // Co 10 dni pojawia się apel o dawcę szpiku (+20 Łaski).
+        // Daty trzymamy jako czas gry w milisekundach, więc przechodzą przez zapis.
+        // ========================================================
+        const DOBA_MS = 24 * 60 * 60 * 1000;
+        const KREW_CO_ILE_DNI = 3;
+        const SZPIK_CO_ILE_DNI = 10;
+        let ostatniaKrew = null;       // czas gry ostatniego oddania krwi
+        let ostatniSzpik = null;       // czas gry ostatniego oddania szpiku (lub startu cyklu)
+        let szpikOgloszony = false;    // czy w tym cyklu gracz już usłyszał apel
+
+        function dniOd(ms) {
+            if (ms === null || ms === undefined) return Infinity;
+            return (czasGry.getTime() - ms) / DOBA_MS;
+        }
+
+        function czyMoznaOddacKrew() { return dniOd(ostatniaKrew) >= KREW_CO_ILE_DNI; }
+
+        function czySzpikPotrzebny() {
+            // Pierwszy apel po 10 dniach od początku gry, potem co 10 dni od oddania
+            if (ostatniSzpik === null) ostatniSzpik = czasGry.getTime();
+            return dniOd(ostatniSzpik) >= SZPIK_CO_ILE_DNI;
+        }
+
+        // Wołane przy tykaniu zegara - ogłasza apel raz na cykl
+        function sprawdzApelSzpiku() {
+            if (szpikOgloszony || !czySzpikPotrzebny()) return;
+            szpikOgloszony = true;
+            showFloatingWarning('Pilny apel: szukamy dawcy szpiku!');
+            updateUI('W mieście rozwieszono apel - chory potrzebuje dawcy szpiku kostnego. ' +
+                     'Karetka przyjmie zgłoszenie, gdy tylko przyjedzie (+20 Łaski).');
+        }
+
+        function opiszKiedyKrew() {
+            const zostalo = Math.max(0, KREW_CO_ILE_DNI - dniOd(ostatniaKrew));
+            const dni = Math.ceil(zostalo);
+            return dni <= 1 ? 'jutro' : `za ${dni} dni`;
+        }
+
+        function oddajKrew() {
+            ostatniaKrew = czasGry.getTime();
+            if (ambulance) ambulance.donated = true;
+            playerStats.grace += 10;
+            playerStats.goodDeeds += 1;
+            playerStats.level = 1 + Math.floor(playerStats.goodDeeds / 3);
+            updatePlayerStatsUI();
+            showDialogue('[Uczynek względem ciała: Chorych nawiedzać]\nOddajesz krew dla potrzebujących. ' +
+                         'Dziękujemy za Twoją hojność! (+10 Grace)\n\nKolejny raz możesz oddać krew za 3 dni.',
+                         'OK', null, null, null);
+        }
+
+        function zaproponujKrew() {
+            if (!czyMoznaOddacKrew()) {
+                showDialogue(`Ratownik: "Oddałeś niedawno krew - organizm musi się zregenerować. ` +
+                             `Wróć ${opiszKiedyKrew()}. Są też inne sposoby, by pomóc ludziom."`,
+                             'OK', null, null, null);
                 return;
             }
-            showDialogue('Ratownik: "Zbieramy krew dla potrzebujących. Chcesz oddać krew?"', 'Tak, oddam krew', 'Nie teraz',
-                () => {
-                    ambulance.donated = true;
-                    playerStats.grace += 10;
-                    playerStats.goodDeeds += 1;
-                    playerStats.level = 1 + Math.floor(playerStats.goodDeeds / 3);
-                    updatePlayerStatsUI();
-                    showDialogue('[Uczynek względem ciała: Chorych nawiedzać]\nOddajesz krew dla potrzebujących. Dziękujemy za Twoją hojność! (+10 Grace)', 'OK', null, null, null);
-                },
-                null);
+            showDialogue('Ratownik: "Zbieramy krew dla potrzebujących. Chcesz oddać krew?"',
+                         'Tak, oddam krew', 'Nie teraz', () => oddajKrew(), null);
         }
+
+        function interactWithAmbulance() {
+            if (!ambulance || ambulance.state !== 'stopped') return;
+            // Apel o szpik ma pierwszeństwo - zdarza się rzadko i znaczy więcej
+            if (czySzpikPotrzebny()) {
+                showDialogue('Ratownik: "Mamy pilny apel - chory potrzebuje przeszczepu szpiku kostnego, ' +
+                             'a zgodnego dawcy wciąż brak. Zgodzisz się zostać dawcą?"',
+                             'Tak, zostanę dawcą', 'Nie teraz',
+                             () => {
+                                 ostatniSzpik = czasGry.getTime();
+                                 szpikOgloszony = false;
+                                 playerStats.grace += 20;
+                                 playerStats.goodDeeds += 1;
+                                 playerStats.level = 1 + Math.floor(playerStats.goodDeeds / 3);
+                                 updatePlayerStatsUI();
+                                 showDialogue('[Uczynek względem ciała: Chorych nawiedzać]\n' +
+                                              'Oddajesz szpik kostny. Ktoś, kto czekał na cud, dostaje szansę na życie. (+20 Grace)',
+                                              'OK', null, null, null);
+                             },
+                             () => zaproponujKrew());
+                return;
+            }
+            zaproponujKrew();
+        }
+
+
 
 
         function updateHeroMovement(dt) {
@@ -18412,6 +18489,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             playerName = name;
             playerPatronKey = applyPatronBoost(name);
             czasGry = new Date();   // nowa gra startuje od bieżącej daty i godziny
+            ostatniaKrew = null; ostatniSzpik = czasGry.getTime(); szpikOgloszony = false;
             document.getElementById('name-prompt-screen').style.display = 'none';
             pokazIntro(() => startPresentMode());
         }
