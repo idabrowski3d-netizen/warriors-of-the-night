@@ -12936,7 +12936,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 currentMissionType = 'standard';
             }
             if (currentMissionType === 'escort') escortEdge = (Math.random() < 0.5) ? 'north' : 'south';
-            else if (currentMissionType === 'flood') currentMissionType = 'standard';
+            // Powódź ma sens wyłącznie na planszy Powódź - gdzie indziej zamieniamy ją
+            // na zwykłą misję. Wcześniej ten warunek działał także na samej Powodzi,
+            // przez co woda nigdy nie wzbierała.
+            if (currentMissionType === 'flood' && !(currentCombatTheme && currentCombatTheme.id === 'powodz')) {
+                currentMissionType = 'standard';
+            }
             decideFoldForMission();
             clearShieldBubble(null);
 
@@ -15291,9 +15296,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     checkPrisonerRescue();
                     checkSarcophagi();
                     checkCivilianScream();
-            tickInfections();
-            tickSpiderEffects();
-            tickRelicEffects();
                     updatePrisonerVisibility();
                     // Relikwia podnosi się samoczynnie, gdy wojownik na nią wejdzie
                     if (missionArtifact && !missionArtifact.taken) {
@@ -15324,6 +15326,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Rany obniżają też pulę punktów ruchu
             soldiers.forEach(s => { if(!s.isDead) { s.ap = getEffectiveMaxAp(s); s.turnEnded = false; } });
             combatTurnCounter++;
+            // Efekty liczone w turach odliczamy RAZ, na początku tury gracza.
+            // Wcześniej wywoływano je po każdym ruchu wojownika - pajęczyna, jad,
+            // zakażenie i relikwie kończyły się po kilku krokach zamiast po kilku turach.
+            tickInfections();
+            tickSpiderEffects();
+            tickRelicEffects();
             // Posiłki przybywają na początku tury gracza, żeby zdążył zareagować
             if (combatTurnCounter > 1 && (combatTurnCounter - 1) % POSILKI_CO_ILE_RUND === 0) przyslijPosilki();
             checkCivilianScream();
