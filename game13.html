@@ -576,9 +576,15 @@
             flex-direction: row !important; flex-wrap: wrap !important;
             justify-content: flex-start !important; align-items: flex-end !important; gap: 4px !important;
         }
-        body.mobilny #controls button {
+        body.mobilny #controls button:not(.ma-ikone) {
             min-height: 30px !important; padding: 3px 6px !important;
             font-size: 10px !important; white-space: nowrap !important; width: auto !important;
+        }
+        /* Ikony muszą mieć dokładnie szerokość jednej ikony z arkusza - szerszy przycisk
+           pokazywał kilka sąsiednich ikon naraz i wyglądało to jak podwojenie */
+        body.mobilny #controls button.ma-ikone {
+            width: 36px !important; height: 40px !important; min-height: 0 !important;
+            padding: 0 !important; font-size: 0 !important; flex: 0 0 auto !important;
         }
         body.mobilny #camera-rotate-controls { display: none !important; }
         body.mobilny .start-btn { min-height: 36px !important; font-size: 12px !important; }
@@ -14249,9 +14255,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         let edgeScrollMouseX = window.innerWidth / 2, edgeScrollMouseY = window.innerHeight / 2;
-        window.addEventListener('pointermove', (event) => { edgeScrollMouseX = event.clientX; edgeScrollMouseY = event.clientY; });
+        // Przewijanie przy krawędzi ekranu to wygoda myszy. Dotyk NIE może go wywołać:
+        // drążek leży w lewym dolnym rogu, więc palec na nim był dla gry "kursorem
+        // przy lewej i dolnej krawędzi" - plansza uciekała w lewo i w dół, zagłuszając drążek.
+        window.addEventListener('pointermove', (event) => {
+            if (event.pointerType !== 'mouse') return;
+            edgeScrollMouseX = event.clientX; edgeScrollMouseY = event.clientY;
+        });
 
         function handleEdgeScroll() {
+            if (naTelefonie || drazekAktywny) return;   // na dotyku widok przesuwa drążek
             if (kinoAktywne) return;
             if (gameOver || !getActiveSoldier()) return;
             const margin = 45, panSpeed = 0.225;
