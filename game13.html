@@ -1652,10 +1652,25 @@
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
 
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+        // Safari na iPhonie wysyła "resize" ZANIM zaktualizuje wymiary okna po obrocie -
+        // gra rysowała się wtedy w starych, pionowych wymiarach i zajmowała połowę ekranu.
+        // Dlatego dopasowujemy rozmiar kilka razy, z opóźnieniem, i bierzemy wymiary
+        // z widocznego obszaru, który po obrocie aktualizuje się pewniej.
+        function dopasujRozmiar() {
+            const vv = window.visualViewport;
+            const w = Math.round((vv && vv.width) || window.innerWidth || document.documentElement.clientWidth);
+            const h = Math.round((vv && vv.height) || window.innerHeight || document.documentElement.clientHeight);
+            if (!w || !h) return;
+            camera.aspect = w / h; camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+        }
+        function dopasujPoObrocie() {
+            dopasujRozmiar();
+            [120, 350, 700, 1200].forEach(ms => setTimeout(dopasujRozmiar, ms));
+        }
+        window.addEventListener('resize', dopasujPoObrocie);
+        window.addEventListener('orientationchange', dopasujPoObrocie);
+        if (window.visualViewport) window.visualViewport.addEventListener('resize', dopasujRozmiar);
 
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
         scene.add(ambientLight);
@@ -12928,6 +12943,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             resetWarriorMixers();   // stare modele odchodzą razem z poprzednią misją
             ofiaraStada = null;
             mapaZagrozenia = null;
+            if (znacznikDotyku) { scene.remove(znacznikDotyku); znacznikDotyku = null; }
             if (znacznikWroga) { scene.remove(znacznikWroga); znacznikWroga = null; }
             resetDostrzezonych();
             clearTimeout(enemyTurnTimeout); 
@@ -15185,7 +15201,38 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (krotkie && wMiejscu) obsluzRozkaz(e);
         }, true);
 
+        // Na dotyku nie ma najeżdżania kursorem, więc wskazany kafel podświetlamy
+        // w chwili dotknięcia - inaczej gracz nie widzi, gdzie trafił palcem.
+        function podswietlWskazanyKafel(event) {
+            if (gameMode !== 'dream' || event.pointerType !== 'touch') return;
+            const m = new THREE.Vector2(
+                (event.clientX / window.innerWidth) * 2 - 1,
+                -(event.clientY / window.innerHeight) * 2 + 1);
+            raycaster.setFromCamera(m, camera);
+            const p = new THREE.Vector3();
+            if (!raycaster.ray.intersectPlane(flatGround, p)) return;
+            const tx = Math.round(p.x), tz = Math.round(p.z);
+            if (!isWithinPlayBounds(tx, tz)) return;
+            // Osobny znacznik - zwykłe podświetlenie najazdu gra chowa w chwili, gdy
+            // wojownik rusza, więc na telefonie znikało, zanim dało się je zobaczyć
+            if (!znacznikDotyku) {
+                znacznikDotyku = new THREE.Mesh(
+                    new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+                    new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.5, depthWrite: false }));
+                znacznikDotyku.userData.unitType = 'fx';
+                scene.add(znacznikDotyku);
+            }
+            const ty = getLevelY(tx, tz, viewLevel);
+            znacznikDotyku.position.set(tx, (isFinite(ty) ? ty : 0) + 0.06, tz);
+            znacznikDotyku.visible = true;
+            clearTimeout(window.__zgasPodswietlenie);
+            // Gaśnie po chwili - na tyle długo, by wojownik zdążył dojść
+            window.__zgasPodswietlenie = setTimeout(() => { if (znacznikDotyku) znacznikDotyku.visible = false; }, 2500);
+        }
+        let znacznikDotyku = null;
+
         function obsluzRozkaz(event) {
+            podswietlWskazanyKafel(event);
             // Rozkazy wydaje się wyłącznie lewym przyciskiem; środkowy przesuwa widok,
             // prawy jest wolny - inaczej każde kliknięcie ruszało wojownikiem.
             if (event.button !== undefined && event.button !== 0) return;
