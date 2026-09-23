@@ -571,7 +571,9 @@
         body.mobilny #controls {
             position: absolute !important; left: 124px !important; right: 6px !important;
             bottom: 66px !important; top: auto !important; width: auto !important;
-            display: flex !important; flex-direction: row !important; flex-wrap: wrap !important;
+            /* BEZ "display" - gra sama pokazuje i ukrywa ten pasek. Wymuszenie tutaj
+               sprawiało, że przyciski walki wyświetlały się także w mieście. */
+            flex-direction: row !important; flex-wrap: wrap !important;
             justify-content: flex-start !important; align-items: flex-end !important; gap: 4px !important;
         }
         body.mobilny #controls button {
