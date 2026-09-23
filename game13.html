@@ -454,7 +454,7 @@
         .inventory-item .item-name { color: #66ccff; font-weight: bold; }
         .inventory-item .item-desc { color: #aaa; font-size: 12px; }
 
-        #ui-container { display: none; position: absolute; top: 20px; left: 20px; pointer-events: none; background: rgba(0,0,0,0.7); padding: 15px; border: 1px solid #44aaff; border-radius: 5px; z-index: 5; }
+        #ui-container { display: none; position: absolute; top: 20px; left: 56px; pointer-events: none; background: rgba(0,0,0,0.7); padding: 15px; border: 1px solid #44aaff; border-radius: 5px; z-index: 5; }
         h1 { margin: 0 0 10px 0; font-size: 20px; color: #44aaff; text-transform: uppercase; }
         .stat { font-size: 16px; margin-bottom: 5px; }
         #controls { display: none; position: absolute; bottom: 7%; left: 20px; gap: 10px; z-index: 5;}
@@ -514,10 +514,16 @@
             display: none; z-index: 20; border-radius: 4px; box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
         }
 
-        #settings-menu { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 60; }
-        #settings-toggle-btn { background: rgba(0,0,0,0.7); border: 1px solid #44aaff; border-radius: 5px; padding: 10px 18px; font-size: 14px; }
+        /* Lewy górny róg i sam trybik - napis zabierał zbyt dużo miejsca */
+        #settings-menu { position: absolute; top: 8px; left: 8px; transform: none; z-index: 60; }
+        #settings-toggle-btn {
+            background: rgba(0,0,0,0.65); border: 1px solid #44aaff; border-radius: 50%;
+            width: 38px; height: 38px; padding: 0; font-size: 19px; line-height: 1;
+            display: flex; align-items: center; justify-content: center;
+        }
+        #settings-toggle-btn:hover:not(:disabled) { background: rgba(68,170,255,0.35); color: #cfe9ff; }
         #settings-dropdown {
-            display: none; position: absolute; top: 110%; left: 50%; transform: translateX(-50%);
+            display: none; position: absolute; top: 110%; left: 0; transform: none;
             background: rgba(10,10,15,0.95); border: 1px solid #44aaff; border-radius: 5px;
             padding: 12px 18px; min-width: 200px; box-shadow: 0px 5px 15px rgba(0,0,0,0.6);
         }
@@ -539,7 +545,7 @@
            zapytaniu o szerokość ekranu - to pierwsze działa pewnie na każdym
            telefonie. Lewy dolny róg należy wyłącznie do drążka.            */
         body.mobilny #ui-container {
-            top: 4px !important; left: 4px !important; padding: 5px 7px !important;
+            top: 4px !important; left: 44px !important; padding: 5px 7px !important;
             max-width: 40vw !important; border-radius: 4px !important;
         }
         body.mobilny #ui-container,
@@ -574,7 +580,7 @@
         }
         body.mobilny #camera-rotate-controls { display: none !important; }
         body.mobilny .start-btn { min-height: 36px !important; font-size: 12px !important; }
-        body.mobilny #settings-menu { transform: scale(0.75) !important; transform-origin: top right !important; }
+        body.mobilny #settings-menu { top: 4px !important; left: 4px !important; transform: scale(0.85) !important; transform-origin: top left !important; }
         body.mobilny #ap-tooltip { font-size: 10px !important; padding: 3px 5px !important; }
         body.mobilny #inventory-panel-box { width: 99vw !important; }
         body.mobilny #intro-tresc { font-size: 15px !important; left: 20px !important; right: 20px !important; }
@@ -663,7 +669,7 @@
 </head>
 <body>
     <div id="settings-menu">
-        <button id="settings-toggle-btn">⚙ Ustawienia</button>
+        <button id="settings-toggle-btn" title="Ustawienia">⚙</button>
         <div id="settings-dropdown">
             <label><input type="checkbox" id="chk-oszczedny"> Tryb oszczędny (płynniej na telefonie)</label>
             <label><input type="checkbox" id="chk-drazek"> Podgląd drążka (diagnostyka)</label>
@@ -11007,13 +11013,19 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             let startIdx = activeSoldierIndex;
             do {
                 activeSoldierIndex = (activeSoldierIndex + 1) % soldiers.length;
-                if (!soldiers[activeSoldierIndex].isDead && !soldiers[activeSoldierIndex].turnEnded) {
+                // Pomijamy tych, którzy nie słuchają rozkazów - inaczej po jednej akcji
+                // gra i tak wracała do posłusznego wojownika
+                if (!soldiers[activeSoldierIndex].isDead && !soldiers[activeSoldierIndex].turnEnded &&
+                    isSoldierObedient(activeSoldierIndex)) {
                     updateCameraPosition(); updateUI(`Teraz rusza się ${soldiers[activeSoldierIndex].name}.`); renderMinimap(); 
                     chatterCallTeammate(soldiers[activeSoldierIndex]);
                     return;
                 }
             } while(activeSoldierIndex !== startIdx);
-            updateUI("Wszyscy dostępni wojownicy zakończyli już ruch w tej turze.");
+            const samodzielni = soldiers.filter((s, i) => !s.isDead && !s.isNPC && isSoldierRebel(i)).length;
+            updateUI(samodzielni > 0
+                ? `Nikt więcej nie czeka na rozkaz. ${samodzielni === 1 ? 'Jeden wojownik działa' : samodzielni + ' wojowników działa'} samodzielnie - za mało Charyzmy.`
+                : "Wszyscy dostępni wojownicy zakończyli już ruch w tej turze.");
         }
 
         // Wojownik słucha rozkazów tylko wtedy, gdy mieści się w limicie wyznaczonym przez Charyzmę
@@ -11040,6 +11052,24 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (s && s.summonedTurns > 0) return true;
             if (s && s.isAngel) return false;  // patron walczy samodzielnie - nie da się nim kierować
             return idx < getObedientSquadSize();
+        }
+
+        // Wojownik poza zasięgiem posłuszeństwa (zbyt niska Charyzma) działa sam -
+        // nie da się go przejąć kliknięciem. Wcześniej kliknięcie pozwalało nim
+        // sterować przez jedną akcję, po czym gra natychmiast wracała do posłusznego.
+        function czyMoznaPrzejac(idx) {
+            if (isSoldierObedient(idx)) return true;
+            const s = soldiers[idx];
+            if (!s || s.isDead) return false;
+            if (isSoldierRebel(idx)) {
+                showFloatingWarning(`${s.name} działa samodzielnie`);
+                updateUI(`${s.name} nie słucha rozkazów - posłuszeństwo oddziału zależy od Charyzmy ` +
+                         `(teraz słucha cię ${getObedientSquadSize()} z ${soldiers.filter(x => !x.isDead && !x.isNPC).length}). ` +
+                         `Walczy sam, w turze wroga.`);
+            } else {
+                updateUI(`${s.name} nie może teraz działać.`);
+            }
+            return false;
         }
 
         function autoSelectActiveSoldier() {
@@ -13846,6 +13876,98 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
         }
 
+        // ========================================================
+        // --- PODEJŚCIE DRAKULI ---
+        // Kilka kroków pieszo (widać animację marszu), zniknięcie w mgle,
+        // pojawienie się BLIŻEJ celu i znów kilka kroków. Wcześniej wampir
+        // skakał w losowe miejsce, więc nigdy nie było widać, jak chodzi.
+        // ========================================================
+        const DRAKULA_KROKOW = 3;
+
+        function wolnePoleObok(cx, cz, lvl, kto) {
+            let naj = null, najD = Infinity;
+            const ex = Math.round(kto.mesh.position.x), ez = Math.round(kto.mesh.position.z);
+            [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1]].forEach(d => {
+                const nx = cx + d[0], nz = cz + d[1];
+                if (!isWithinPlayBounds(nx, nz) || !canStandAt(nx, nz, lvl)) return;
+                if (isUnitAtLevel(nx, nz, lvl, kto) || isNearHoly(nx, nz)) return;
+                const dd = Math.hypot(nx - ex, nz - ez);
+                if (dd < najD) { najD = dd; naj = [nx, nz]; }
+            });
+            return naj;
+        }
+
+        function drakulaIdzie(e, cel, maks, gotowe) {
+            const lvl = e.level || 0;
+            const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
+            const tx = Math.round(cel.mesh.position.x), tz = Math.round(cel.mesh.position.z);
+            const obok = wolnePoleObok(tx, tz, lvl, e);
+            if (!obok || e.ap <= 0) { gotowe(); return; }
+            refreshEnemyPositions(); refreshPlayerPositions();
+            const p = findPath(ex, ez, obok[0], obok[1], lvl, e);
+            if (!p || p.path.length === 0) { gotowe(); return; }
+            const walk = p.path.slice(0, Math.min(maks, e.ap, p.path.length));
+            if (walk.length === 0) { gotowe(); return; }
+            e.ap -= walk.length;
+            faceTowards(e, tx, tz);
+            animWroga(e, 'walk');
+            moveAlongPath({ mesh: e.mesh, userData: e.mesh.userData }, walk, 170, () => {
+                animWroga(e, 'idle');
+                refreshEnemyPositions(); updateFoW();
+                gotowe();
+            });
+        }
+
+        // Skok w mgle w stronę celu - ląduje 2-4 pola od niego
+        function drakulaMgla(e, cel, gotowe) {
+            const lvl = e.level || 0;
+            const tx = Math.round(cel.mesh.position.x), tz = Math.round(cel.mesh.position.z);
+            const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
+            let cel2 = null;
+            for (let t = 0; t < 80 && !cel2; t++) {
+                const a = Math.atan2(ez - tz, ex - tx) + (Math.random() - 0.5) * 1.6;   // od strony, z której idzie
+                const r = 2 + Math.random() * 2;
+                const nx = Math.round(tx + Math.cos(a) * r), nz = Math.round(tz + Math.sin(a) * r);
+                if (!isWithinPlayBounds(nx, nz) || !canStandAt(nx, nz, lvl)) continue;
+                if (isUnitAtLevel(nx, nz, lvl, e) || isNearHoly(nx, nz)) continue;
+                if (Math.hypot(nx - tx, nz - tz) >= Math.hypot(ex - tx, ez - tz)) continue;   // musi przybliżyć
+                cel2 = [nx, nz];
+            }
+            if (!cel2) { gotowe(false); return; }
+            // Rozpływa się...
+            const bylaSkala = e.mesh.scale.clone ? e.mesh.scale.clone() : null;
+            e.mesh.visible = false;
+            updateUI('DRAKULA rozpływa się w mgle...');
+            setTimeout(() => {
+                e.mesh.position.set(cel2[0], getLevelY(cel2[0], cel2[1], lvl) + e.mesh.userData.yOffset, cel2[1]);
+                refreshEnemyPositions();
+                faceTowards(e, tx, tz);
+                e.mesh.visible = true;
+                updateFoW();
+                updateUI('...i wyłania się tuż obok!');
+                gotowe(true);
+            }, 450);
+        }
+
+        function drakulaPodejscie(e, cel) {
+            const dalej = () => { currentEnemyIndex++; setTimeout(processNextEnemy, 250); };
+            // 1) kilka kroków pieszo
+            drakulaIdzie(e, cel, DRAKULA_KROKOW, () => {
+                if (e.isDead || gameOver) { dalej(); return; }
+                const d = Math.max(Math.abs(Math.round(e.mesh.position.x) - Math.round(cel.mesh.position.x)),
+                                   Math.abs(Math.round(e.mesh.position.z) - Math.round(cel.mesh.position.z)));
+                // już blisko - mgła niepotrzebna, reszta tury jak zwykle
+                if (d <= 2 || e.ap < 3) { dalej(); return; }
+                // 2) skok w mgle bliżej celu
+                e.ap -= 3;
+                drakulaMgla(e, cel, (udalo) => {
+                    if (!udalo || e.isDead || gameOver) { dalej(); return; }
+                    // 3) i znów kilka kroków
+                    setTimeout(() => drakulaIdzie(e, cel, DRAKULA_KROKOW, dalej), 250);
+                });
+            });
+        }
+
         function vampireBlink(e) {
             const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
             const lvl = e.level || 0;
@@ -14395,7 +14517,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const dd = document.getElementById('settings-dropdown');
             dd.style.display = dd.style.display === 'block' ? 'none' : 'block';
         });
-        document.getElementById('settings-dropdown').addEventListener('click', (e) => e.stopPropagation());
+        // Kliknięcie w przycisk wewnątrz menu (Zapisz, Wczytaj, Kronika...) zamyka je.
+        // Przełączniki zostawiamy otwarte - zwykle zmienia się kilka naraz.
+        document.getElementById('settings-dropdown').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const t = e.target;
+            const wPrzelaczniku = t.closest && (t.closest('label') || t.tagName === 'INPUT');
+            if (wPrzelaczniku) return;
+            if (t.closest && t.closest('button')) {
+                document.getElementById('settings-dropdown').style.display = 'none';
+            }
+        });
         document.addEventListener('click', () => { document.getElementById('settings-dropdown').style.display = 'none'; });
         document.getElementById('toggle-sfx').addEventListener('change', (e) => { SoundEngine.setSfxEnabled(e.target.checked); });
         document.getElementById('toggle-music').addEventListener('change', (e) => { SoundEngine.setMusicEnabled(e.target.checked); });
@@ -15083,6 +15215,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 while (root && !livingSoldierMeshes.includes(root)) root = root.parent;
                 const clickedIdx = soldiers.findIndex(s => s.mesh === root);
                 if (clickedIdx !== -1) {
+                    if (!czyMoznaPrzejac(clickedIdx)) return;
                     activeSoldierIndex = clickedIdx;
                     updateCameraPosition(); updateUI(`Teraz rusza się ${soldiers[clickedIdx].name}.`); renderMinimap();
                     chatterCallTeammate(soldiers[clickedIdx]);
@@ -15118,6 +15251,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
 
                 if (naTymPolu !== -1) {
+                    if (!czyMoznaPrzejac(naTymPolu)) return;
                     activeSoldierIndex = naTymPolu;
                     updateCameraPosition();
                     updateUI(`Teraz rusza się ${soldiers[naTymPolu].name}.`);
@@ -16354,15 +16488,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     currentEnemyIndex++; setTimeout(processNextEnemy, 200);
                     return;
                 }
-                // 3) Z dystansu znika i pojawia się bliżej celu
-                if (e.ap >= 3) {
-                    e.ap -= 3;
-                    if (vampireBlink(e)) {
-                        updateUI('DRAKULA rozpływa się w mgle i pojawia gdzie indziej!');
-                        updateFoW();
-                        currentEnemyIndex++; setTimeout(processNextEnemy, 300);
-                        return;
-                    }
+                // 3) Z dystansu: kilka kroków, mgła, pojawienie się bliżej, znów kroki
+                if (e.ap >= 2) {
+                    drakulaPodejscie(e, bestTarget);
+                    return;
                 }
                 currentEnemyIndex++; setTimeout(processNextEnemy, 150);
                 return;
