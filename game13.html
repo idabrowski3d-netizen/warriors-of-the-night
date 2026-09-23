@@ -15053,10 +15053,30 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const stickWektor = { x: 0, z: 0 };
         let drazekAktywny = false;
 
+        let diagOstatnio = 0;
+        function diagnostykaDrazka(powod) {
+            if (!window.__pokazDrazek) return;
+            const teraz = performance.now();
+            if (teraz - diagOstatnio < 150) return;   // nie częściej niż kilka razy na sekundę
+            diagOstatnio = teraz;
+            const el = document.getElementById('message-log');
+            if (!el) return;
+            el.innerText = `drążek: x=${stickWektor.x.toFixed(2)} z=${stickWektor.z.toFixed(2)} | ` +
+                           `aktywny=${drazekAktywny} | tryb=${gameMode} | kino=${!!kinoAktywne} | ` +
+                           `dt=${(dt_diag || 0).toFixed(3)} | przes=${cameraPanOffset.x.toFixed(1)},${cameraPanOffset.z.toFixed(1)} | ${powod}`;
+        }
+        let dt_diag = 0;
+
         function przesunWidokDrazkiem(dt) {
+            dt_diag = dt;
             // Gdy nikt nie trzyma drążka, wychylenie musi zgasnąć - inaczej
             // ostatni kierunek przewijałby planszę w nieskończoność.
             if (!drazekAktywny) { stickWektor.x = 0; stickWektor.z = 0; }
+            if (!drazekAktywny) { diagnostykaDrazka('nieaktywny'); }
+            else if (gameMode !== 'dream') { diagnostykaDrazka('nie walka'); }
+            else if (kinoAktywne) { diagnostykaDrazka('kamera filmowa'); }
+            else if (!(dt > 0)) { diagnostykaDrazka('dt=0!'); }
+            else diagnostykaDrazka('rusza');
             if (gameMode !== 'dream' || kinoAktywne) return;
             if (stickWektor.x === 0 && stickWektor.z === 0) return;
             const predkosc = 26 * (cameraHeight / 25) * kameraZoom;
@@ -17255,11 +17275,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
             updateRoofs(); 
             updateHouseWalls();
+            // Działają w KAŻDYM trybie - wcześniej siedziały w bloku miasta, więc w walce
+            // drążek zmieniał wektor, którego nikt nie odczytywał, a elita nie pulsowała
+            przesunWidokDrazkiem(dt);
+            pulsujPoswiate(time);
             if (isExploreMode()) {
                 tikZegara();
-            pulsujPoswiate(time);
-            przesunWidokDrazkiem(dt);
-            updateNocnaSmierc(dt);
+                updateNocnaSmierc(dt);
             updateHeroMovement(dt);
             updateRozmowaZoom(dt);
             if (rozmowaZoom > 0.001 && isExploreMode()) applyCameraPosition();
@@ -18908,11 +18930,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const ny = dl ? (dy / dl) * ogr : 0;
                 knob.style.transform = `translate(calc(-50% + ${nx}px), calc(-50% + ${ny}px))`;
                 ustawKierunek(nx / promien, ny / promien);
-                // Podgląd diagnostyczny - włączany w Ustawieniach
-                if (window.__pokazDrazek) {
-                    const el = document.getElementById('message-log');
-                    if (el) el.innerText = `drążek: x=${(nx / promien).toFixed(2)} y=${(ny / promien).toFixed(2)}`;
-                }
+
             }
 
             stick.addEventListener('pointerdown', (e) => {
