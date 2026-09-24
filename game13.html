@@ -1850,7 +1850,7 @@ const TIME_LABELS = { rano: 'RANO', poludnie: 'POŁUDNIE', wieczor: 'WIECZÓR', 
 const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima: 'ZIMA' };
         const TIME_OF_DAY_PRESETS = {
             rano: {
-                background: 0x2a2a38, ambientColor: 0xccddff, ambientIntensity: 0.35,
+                background: 0x2a2a38, ambientColor: 0xccddff, ambientIntensity: 0.4,
                 directionalColor: 0xffe0a0, directionalIntensity: 0.65,
                 lightOffset: { x: 130, y: 22, z: 40 }, shadowMapSize: 2048
             },
@@ -1860,13 +1860,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 lightOffset: { x: 50, y: 100, z: 50 }, shadowMapSize: 2048
             },
             wieczor: {
-                background: 0x2a1f18, ambientColor: 0xffd9b3, ambientIntensity: 0.3,
+                background: 0x2a1f18, ambientColor: 0xffd9b3, ambientIntensity: 0.35,
                 directionalColor: 0xff9944, directionalIntensity: 0.6,
                 lightOffset: { x: -130, y: 20, z: -35 }, shadowMapSize: 1024
             },
             noc: {
-                background: 0x050818, ambientColor: 0x2244aa, ambientIntensity: 0.2,
-                directionalColor: 0x3366cc, directionalIntensity: 0.4,
+                background: 0x050818, ambientColor: 0x2244aa, ambientIntensity: 0.3,
+                directionalColor: 0x3366cc, directionalIntensity: 0.5,
                 lightOffset: { x: 50, y: 90, z: 50 }, shadowMapSize: 2048
             }
         };
@@ -2023,14 +2023,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             } else if (idMotywu === 'wesole') {
                 // Opuszczone wesołe miasteczko: wieczny zmierzch, sina mgła, chłód
                 scene.background.set(0x1a1422);
-                ambientLight.color.set(0x8a7aa0); ambientLight.intensity = Math.min(ambientLight.intensity, 0.35);
-                directionalLight.color.set(0xb09ac8); directionalLight.intensity *= 0.45;
+                ambientLight.color.set(0x8a7aa0); ambientLight.intensity = Math.min(ambientLight.intensity, 0.4);
+                directionalLight.color.set(0xb09ac8); directionalLight.intensity *= 0.5;
                 scene.fog = new THREE.Fog(0x2a2036, 14, 58);
             } else if (idMotywu === 'cyber') {
                 // Cyberprzestrzeń: chłodny błękit, głęboka czerń i poświata
                 scene.background.set(0x040a14);
-                ambientLight.color.set(0x6fb6e8); ambientLight.intensity = Math.max(ambientLight.intensity, 0.5);
-                directionalLight.color.set(0x9fd8ff); directionalLight.intensity *= 0.5;
+                ambientLight.color.set(0x6fb6e8); ambientLight.intensity = Math.max(ambientLight.intensity, 0.6);
+                directionalLight.color.set(0x9fd8ff); directionalLight.intensity *= 0.6;
                 scene.fog = new THREE.Fog(0x061020, 22, 95);
             } else if (idMotywu === 'wyspy') {
                 // Latające wyspy: błękit nieba, dal ginie w chmurach
@@ -4486,7 +4486,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             group.userData.lit = true;
 
             // Latarnie nie świecą w dzień - intensywność włącza się dopiero w nocy (updateStreetLampsLighting)
-            const light = new THREE.PointLight(isVolcano ? 0xff2200 : 0x88bbff, 0, 5.5, 1.2);
+            const light = new THREE.PointLight(isVolcano ? 0xff2200 : 0x88bbff, 0, 6.5, 2.2);
             light.position.set(0, 2.12, 0);
             group.add(light);
             group.userData.lampLight = light;
@@ -4773,7 +4773,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     b.position.set(0.25 * (k - 1.5), 3.0 - Math.abs(k - 1.5) * 0.12, 0);
                     g.add(b);
                 }
-                const sw = new THREE.PointLight(kol, 0.9, 8, 1.6);
+                const sw = new THREE.PointLight(kol, 2, 10, 1.6);
                 sw.position.y = 3.0; g.add(sw);
                 g.position.set(x, getTerrainY(x, z), z);
                 g.userData.unitType = 'fx';
@@ -5082,7 +5082,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function updateStreetLampsLighting() {
             const isLit = gameMode === 'presentNight' || gameMode === 'dream';
             streetLamps.forEach(lamp => {
-                if (lamp.userData.lampLight) lamp.userData.lampLight.intensity = isLit ? 6 : 0;
+                if (lamp.userData.lampLight) lamp.userData.lampLight.intensity = isLit ? 7 : 0;
             });
         }
 
