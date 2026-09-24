@@ -4677,6 +4677,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     scene.add(podpis); hospitalUpperMeshes.push(podpis);
                 }
                 p.mesh = head; // punkt odniesienia dla dymka
+                // Sama głowa to kulka o średnicy 0,4 - trafienie w nią kursorem graniczyło
+                // z cudem. Dokładamy duży, niewidoczny obszar obejmujący całe łóżko.
+                const klikalne = new THREE.Mesh(
+                    new THREE.BoxGeometry(1.5, 2.0, 2.6),
+                    new THREE.MeshBasicMaterial({ visible: false })
+                );
+                klikalne.position.set(p.x, y + 1.0, p.z);
+                scene.add(klikalne); hospitalUpperMeshes.push(klikalne);
+                p.klikalne = klikalne;
                 if (!p.helped) {
                     const aura = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.45, 1.1, 12, 1, true),
                         new THREE.MeshBasicMaterial({ color: 0xff6666, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false }));
@@ -6373,6 +6382,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             robak:    { plik: 'models/robak.glb', idle: 'robak_idle', walk: 'robak_walk',
                        atak: 'robak_attack', smierc: 'robak_death', cios: 'robak_hit',
                        specjalna: 'robak_wake_up', wysokosc: 2.0 },
+            femina:   { plik: 'models/femina.glb', idle: 'femina_idle', walk: 'femina_walk',
+                       atak: 'femina_attack', specjalna: 'general_summon',
+                       smierc: 'femina_death', cios: 'femina_hit', wysokosc: 2.6,
+                       // gdybyś przy eksporcie ujednolicił nazwę przywołania
+                       specjalnaAlt: 'femina_summon' },
             general:  { plik: 'models/General.glb', idle: 'general_idle', walk: 'general_walk',
                        atak: 'general_attack', atakWrecz: 'general_attack_melee',
                        smierc: 'general_death', cios: 'general_hit', wysokosc: 3.4 },
@@ -8748,6 +8762,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 { typ: 'robak',     hp: 10, ap: 15, opis: 'Robak' },
                 { typ: 'koszmar',   hp: 20, ap: 10, opis: 'Koszmar (boss)', boss: true },
                 { typ: 'general',   hp: 55, ap: 12, opis: 'Generał (boss)', boss: true },
+                { typ: 'femina',    hp: 34, ap: 11, opis: 'Femina (boss)', boss: true },
                 { typ: 'smierc',    hp: SMIERC_HP, ap: 12, opis: 'Śmierć', nieDoZabicia: true }
             ];
             // Wszystkie osiem gatunków pająków
@@ -8763,7 +8778,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 summoner: createSummonerMesh, stalker: createStalkerMesh, wisp: createWispMesh,
                 zombie: createZombieMesh, vampire: createVampireMesh, strzyga: createStrzygaMesh,
                 robot: createRobotMesh, droid: createDroidMesh, ogar: createHellhoundMesh, klaun: createClownMesh, robak: createWormMesh,
-                koszmar: createBossMesh, general: createGeneralMesh,
+                koszmar: createBossMesh, general: createGeneralMesh, femina: createFeminaMesh,
                 smierc: createDeathMesh
             };
 
@@ -9404,7 +9419,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Nowe rasy mają własne bryły, nie budujemy ich z createCharacter
             const CUSTOM_ENEMY_MESH = { summoner: createSummonerMesh, stalker: createStalkerMesh, wisp: createWispMesh, koszmar: createBossMesh, zombie: createZombieMesh, vampire: createVampireMesh, strzyga: createStrzygaMesh,
                                         spider_small: () => createSpiderMesh(false), spider_big: () => createSpiderMesh(true),
-                                        robot: createRobotMesh, droid: createDroidMesh, klaun: createClownMesh, robak: createWormMesh, general: createGeneralMesh };
+                                        robot: createRobotMesh, droid: createDroidMesh, klaun: createClownMesh, robak: createWormMesh, general: createGeneralMesh, femina: createFeminaMesh };
             enemies = (data.enemies || []).filter(ed => !ed.isDead).map(ed => {
                 const look = ENEMY_LOOKS[ed.type] || ENEMY_LOOKS.standard;
                 // Jeśli dla tego typu wgrano model 3D, po wczytaniu zapisu też z niego korzystamy
@@ -11881,6 +11896,53 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         // Generał - rosły dowódca w ciemnej zbroi, z płaszczem i szablą
+        // Femina - szamanka w piórach i koralach, otoczona kłębiącą się mgłą
+        function createFeminaMesh() {
+            const g = new THREE.Group();
+            const s = 1.4;
+            const szata = new THREE.MeshLambertMaterial({ color: 0x4a2a52 });
+            const skora = new THREE.MeshLambertMaterial({ color: 0xc9a07a });
+            const spodnica = new THREE.Mesh(new THREE.ConeGeometry(0.5 * s, 1.15 * s, 10), szata);
+            spodnica.position.y = 0.58 * s; g.add(spodnica);
+            const tors = new THREE.Mesh(new THREE.CylinderGeometry(0.22 * s, 0.3 * s, 0.6 * s, 9), szata);
+            tors.position.y = 1.4 * s; g.add(tors);
+            const glowa = new THREE.Mesh(new THREE.SphereGeometry(0.2 * s, 10, 8), skora);
+            glowa.position.y = 1.85 * s; g.add(glowa);
+            // maska zamiast twarzy
+            const maska = new THREE.Mesh(new THREE.BoxGeometry(0.26 * s, 0.3 * s, 0.05 * s),
+                new THREE.MeshLambertMaterial({ color: 0xd8cbb0 }));
+            maska.position.set(0, 1.86 * s, 0.18 * s); g.add(maska);
+            [-1, 1].forEach(b => {
+                const oko = new THREE.Mesh(new THREE.SphereGeometry(0.035 * s, 6, 5),
+                    new THREE.MeshBasicMaterial({ color: 0xff3a6a }));
+                oko.position.set(b * 0.07 * s, 1.9 * s, 0.21 * s); g.add(oko);
+            });
+            // pióropusz
+            for (let i = 0; i < 7; i++) {
+                const a = (i / 6 - 0.5) * 2.1;
+                const pioro = new THREE.Mesh(new THREE.ConeGeometry(0.05 * s, 0.5 * s, 4),
+                    new THREE.MeshLambertMaterial({ color: [0xc8443a, 0xd8a83a, 0x3a8a6a][i % 3] }));
+                pioro.position.set(Math.sin(a) * 0.22 * s, 2.15 * s, Math.cos(a) * 0.1 * s - 0.05 * s);
+                pioro.rotation.z = -a * 0.5; g.add(pioro);
+            }
+            // korale
+            const korale = new THREE.Mesh(new THREE.TorusGeometry(0.2 * s, 0.035 * s, 5, 12),
+                new THREE.MeshLambertMaterial({ color: 0xd8a83a }));
+            korale.rotation.x = Math.PI / 2; korale.position.y = 1.62 * s; g.add(korale);
+            // kostur
+            const kostur = new THREE.Mesh(new THREE.CylinderGeometry(0.035 * s, 0.04 * s, 1.9 * s, 6),
+                new THREE.MeshLambertMaterial({ color: 0x5a3a24 }));
+            kostur.position.set(0.42 * s, 1.0 * s, 0); g.add(kostur);
+            const czacha = new THREE.Mesh(new THREE.SphereGeometry(0.11 * s, 8, 6),
+                new THREE.MeshLambertMaterial({ color: 0xe8e0cc }));
+            czacha.position.set(0.42 * s, 1.95 * s, 0); g.add(czacha);
+            const sw = new THREE.PointLight(0xc44aff, 0.9, 8, 1.6);
+            sw.position.y = 1.7 * s; g.add(sw);
+            g.userData.yOffset = 0;
+            g.userData.unitType = 'femina';
+            return g;
+        }
+
         function createGeneralMesh() {
             const g = new THREE.Group();
             const s = 1.7;
@@ -12795,7 +12857,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             zombie: 'ZOMBIE', vampire: 'DRAKULA', strzyga: 'STRZYGA',
             robot: 'ROBOT', droid: 'DROID', ogar: 'OGAR PIEKIELNY',
             koszmar: 'KOSZMAR', smierc: 'ŚMIERĆ',
-            spider_small: 'PAJĄK', spider_big: 'WIELKI PAJĄK', klaun: 'KLAUN', robak: 'ROBAK', general: 'GENERAŁ'
+            spider_small: 'PAJĄK', spider_big: 'WIELKI PAJĄK', klaun: 'KLAUN', robak: 'ROBAK', general: 'GENERAŁ', femina: 'FEMINA'
         };
 
         function nazwaWroga(e) {
@@ -13990,8 +14052,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const generalMozliwy = currentCombatTheme &&
                     ['kremlin', 'whitehouse', 'zhongnanhai'].includes(currentCombatTheme.id) && wojownikow >= 3;
                 const jestGeneral = generalMozliwy && Math.random() < 0.6;
+                // FEMINA: stolice często, Amazonia rzadziej. Nie konkuruje z Generałem.
+                const feminaSzansa = currentCombatTheme
+                    ? ({ kremlin: 0.5, whitehouse: 0.5, zhongnanhai: 0.5, amazonia: 0.2 }[currentCombatTheme.id] || 0)
+                    : 0;
+                const jestFemina = !jestGeneral && Math.random() < feminaSzansa;
                 const bm = jestGeneral
                     ? (buildEnemyModelInstance('general') || createGeneralMesh())
+                    : jestFemina
+                    ? (buildEnemyModelInstance('femina') || createFeminaMesh())
                     : (buildEnemyModelInstance('koszmar') || createBossMesh());
                 bm.position.set(bx, getTerrainY(bx, bz), bz);
                 scene.add(bm);
@@ -13999,11 +14068,19 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     mesh: bm, type: 'general', hp: 55, maxHp: 55, ap: 12, maxAp: 12,
                     accuracyBonus: 15, isDead: false, facingAngle: 0, level: 0,
                     isBoss: true, bossTurn: 0, hasOpened: true
+                } : jestFemina ? {
+                    mesh: bm, type: 'femina', hp: 34, maxHp: 34, ap: 11, maxAp: 11,
+                    accuracyBonus: 20, isDead: false, facingAngle: 0, level: 0,
+                    isBoss: true, bossTurn: 0, hasOpened: true
                 } : {
                     mesh: bm, type: 'koszmar', hp: 20, maxHp: 20, ap: 10, maxAp: 10,
                     accuracyBonus: 5, isDead: false, facingAngle: 0, level: 0,
                     isBoss: true, bossTurn: 0, hasOpened: false
                 };
+                if (jestFemina) {
+                    showFloatingWarning('Sen prowadzi FEMINA');
+                    updateUI('Tym snem włada FEMINA - szamanka. Nie zbliża się, lecz gdy poczuje zagrożenie, wezwie pomoc.');
+                }
                 if (jestGeneral) {
                     showFloatingWarning('Sen prowadzi GENERAŁ');
                     updateUI('Na tej ziemi dowodzi GENERAŁ - najgroźniejszy z władców koszmarów. Działajcie razem.');
@@ -15646,7 +15723,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     ...pets.map(p => ({ mesh: p.mesh, kind: 'pet', data: p })),
                     ...(ambulance ? [{ mesh: ambulance.mesh, kind: 'ambulance', data: ambulance }] : []),
                     ...(cemeteryCandleMesh ? [{ mesh: cemeteryCandleMesh, kind: 'candle', data: null }] : []),
-                    ...(heroUpstairs ? hospitalPatients.filter(p => p.mesh).map(p => ({ mesh: p.mesh, kind: 'patient', data: p })) : [])
+                    ...(heroUpstairs ? hospitalPatients.filter(p => p.mesh).map(p => ({ mesh: p.klikalne || p.mesh, kind: 'patient', data: p })) : [])
                 ] : [
                     ...sleepingNPCs.map(n => ({ mesh: n.mesh, kind: 'sleeping', data: n })),
                     ...(departedSoul ? [{ mesh: departedSoul.mesh, kind: 'soul', data: null }] : []),
@@ -17225,6 +17302,88 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             // KOSZMAR: otwiera spotkanie trzema potworami, potem na przemian
             // kula ognia i przyzywaniem - co druga tura kolejny pomiot.
+            // FEMINA: czaruje z dystansu, nie umie walczyć wręcz. Przywołuje pomoc
+            // dopiero gdy CZUJE ZAGROŻENIE - straciła sporo życia albo ktoś jest tuż obok.
+            if (e.type === 'femina') {
+                if (e.ap >= getEffectiveMaxAp(e)) e.feminaAkcji = 0;
+                const fx = Math.round(e.mesh.position.x), fz = Math.round(e.mesh.position.z);
+                const fy = getLevelY(fx, fz, eLvl);
+                let cel = null, cd = Infinity;
+                soldiers.forEach(s => {
+                    if (s.isDead || s.isNPC) return;
+                    const d = Math.max(Math.abs(Math.round(s.mesh.position.x) - fx), Math.abs(Math.round(s.mesh.position.z) - fz));
+                    if (d < cd) { cd = d; cel = s; }
+                });
+                const koniecF = () => { currentEnemyIndex++; setTimeout(processNextEnemy, 250); };
+                if (!cel || e.ap <= 0 || (e.feminaAkcji || 0) >= 2) { koniecF(); return; }
+
+                const zagrozona = (e.hp <= e.maxHp * 0.6) || cd <= 3;
+                const swiezoWezwala = (e.feminaOstatnieWezwanie || -99) >= combatTurnCounter - 1;
+                if (zagrozona && !swiezoWezwala && e.ap >= 4) {
+                    e.ap -= 4; e.feminaAkcji = (e.feminaAkcji || 0) + 1;
+                    e.feminaOstatnieWezwanie = combatTurnCounter;
+                    faceTowards(e, cel.mesh.position.x, cel.mesh.position.z);
+                    animWroga(e, 'specjalna', true);
+                    let n = 0;
+                    for (let i = 0; i < 2; i++) if (summonMonsterNear(fx, fz, eLvl)) n++;
+                    updateUI(n > 0 ? `FEMINA czuje zagrożenie i wzywa pomoc! Nadchodzi ${n}.`
+                                   : 'FEMINA wzywa pomoc, ale nikt nie odpowiada.');
+                    updateFoW();
+                    if (!gameOver) setTimeout(processNextEnemy, 500);
+                    return;
+                }
+
+                // Urok z dystansu - celny
+                const cx = Math.round(cel.mesh.position.x), cz = Math.round(cel.mesh.position.z);
+                const cy = getLevelY(cx, cz, cel.level || 0);
+                if (cd >= 2 && cd <= getVisionRange() && e.ap >= shootCost &&
+                    czyWidacPrzez(fx, fy + 1, fz, cx, cy + 0.5, cz) &&
+                    checkLineOfSight3D(fx, fy + 1.6, fz, cx, cy + 0.5, cz)) {
+                    e.ap -= shootCost; e.feminaAkcji = (e.feminaAkcji || 0) + 1;
+                    faceTowards(e, cx, cz);
+                    animWroga(e, 'atak', true);
+                    const szansa = Math.min(95, 70 + (e.accuracyBonus || 0) - (cel.isKneeling ? 15 : 0));
+                    const traf = Math.random() * 100 < szansa;
+                    createProjectile(fx, fy + 1.8, fz, cx, cy + 0.5, cz, traf, null, () => {
+                        if (traf) {
+                            applyDamageToUnit(cel, 6, e);
+                            updateUI('FEMINA ciska urokiem! (-6)');
+                            playFileSfx(AudioFiles.enemyOuch, 0.6);
+                            if (cel.hp <= 0) { playDyingSfx(); killUnitWithAnim(cel, () => refreshPlayerPositions()); }
+                            checkGameOver();
+                        } else updateUI('Urok FEMINY rozprasza się w powietrzu.');
+                        if (!gameOver) setTimeout(processNextEnemy, 300);
+                    }, 'summoner');
+                    return;
+                }
+
+                // Nie walczy wręcz - odsuwa się, żeby móc czarować
+                if (cd <= 2 && e.ap > 0) {
+                    let ucieczka = null, najD = cd;
+                    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) {
+                        const nx = fx + dx, nz = fz + dz;
+                        if (!isWithinPlayBounds(nx, nz) || !canStandAt(nx, nz, eLvl) || isUnitAtLevel(nx, nz, eLvl, e)) continue;
+                        const d = Math.max(Math.abs(nx - cx), Math.abs(nz - cz));
+                        if (d <= najD || d > 7) continue;
+                        const sc = findPath(fx, fz, nx, nz, eLvl, e);
+                        if (!sc || sc.path.length === 0 || sc.path.length > e.ap) continue;
+                        najD = d; ucieczka = sc;
+                    }
+                    if (ucieczka) {
+                        const walk = ucieczka.path.slice(0, Math.min(ucieczka.path.length, e.ap));
+                        e.ap -= walk.length;
+                        animWroga(e, 'walk');
+                        updateUI('FEMINA cofa się - nie znosi zwarcia.');
+                        moveAlongPath({ mesh: e.mesh, userData: e.mesh.userData }, walk, 160, () => {
+                            animWroga(e, 'idle'); refreshEnemyPositions(); updateFoW();
+                            setTimeout(processNextEnemy, 200);
+                        });
+                        return;
+                    }
+                }
+                koniecF(); return;
+            }
+
             // GENERAŁ: nie przywołuje - walczy sam. Z bliska tnie szablą (do dwóch razy),
             // z daleka strzela celnie, a gdy nie ma celu na widoku - naciera.
             if (e.type === 'general') {
@@ -17976,6 +18135,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         ['Styl walki', 'wręcz (4 obr.)']]
             },
             {
+                id: 'femina', title: 'Femina',
+                text: 'Szamanka w masce, piórach i koralach, z kosturem zwieńczonym czaszką. Otacza ją fioletowa poświata.\\n\\n' +
+                      'Trzyma dystans i ciska urokami - celnie, bo rzadko chybia. Wręcz nie walczy wcale: ' +
+                      'gdy ktoś stanie zbyt blisko, cofa się, zamiast przyjąć cios. Jest jednak agresywna i nie ucieka z pola bitwy. ' +
+                      'Gdy poczuje zagrożenie - straci sporo sił albo ktoś podejdzie jej pod sam kostur - wzywa na pomoc potwory. ' +
+                      'Włada snami stolic, rzadziej Amazonii.',
+                stats: [['Punkty życia', '34'], ['Punkty ruchu', '11'], ['Premia do celności', '+20%'],
+                        ['Styl walki', 'urok z dystansu (6 obr.), przywołuje pomoc']]
+            },
+            {
                 id: 'general', title: 'Generał',
                 text: 'Najpotężniejszy z władców koszmarów. Rosły dowódca w ciemnej zbroi, z płaszczem koloru zakrzepłej krwi.\\n\\n' +
                       'Nie przyzywa pomocników - nie potrzebuje ich. Z daleka strzela celnie, z bliska tnie szablą. ' +
@@ -18157,7 +18326,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 smierc:   createDeathMesh,
                 klaun:    createClownMesh,
                 robak:    createWormMesh,
-                general:  createGeneralMesh
+                general:  createGeneralMesh,
+                femina:   createFeminaMesh
             };
             const PREVIEW_SCALE = { koszmar: 0.42, vampire: 0.9, wisp: 1.5, strzyga: 1.0, zombie: 1.05 };
 
