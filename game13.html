@@ -5894,7 +5894,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             enemyPositionsSet.clear();
             for(let i=0; i<mapWidth; i++) enemyGrid[i].fill(0);
             for(let i=0; i<enemies.length; i++) {
-                if(!enemies[i].isDead) {
+                if(!enemies[i].isDead && !enemies[i].podZiemia) {   // robak pod ziemią nie blokuje pola
                     let mx = Math.round(enemies[i].mesh.position.x) + offsetX;
                     let mz = Math.round(enemies[i].mesh.position.z) + offsetZ;
                     if (mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth) enemyGrid[mx][mz] = 1;
@@ -6370,6 +6370,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             cywil_men:    { plik: 'models/men.glb',    idle: 'men_idle',    walk: 'men_run',
                        atak: null, smierc: 'men_death',    cios: null, wysokosc: 1.8,
                        idleAlt: 'man_idle', walkAlt: 'man_run', smiercAlt: 'man_death' },
+            robak:    { plik: 'models/robak.glb', idle: 'robak_idle', walk: 'robak_walk',
+                       atak: 'robak_attack', smierc: 'robak_death', cios: 'robak_hit',
+                       specjalna: 'robak_wake_up', wysokosc: 2.0 },
+            general:  { plik: 'models/General.glb', idle: 'general_idle', walk: 'general_walk',
+                       atak: 'general_attack', atakWrecz: 'general_attack_melee',
+                       smierc: 'general_death', cios: 'general_hit', wysokosc: 3.4 },
             klaun:    { plik: 'models/claun.glb', idle: 'claun_idle', walk: 'claun_walk',
                        atak: 'claun_attack', atakWrecz: 'claun_attack_short',
                        smierc: 'claun_death', cios: 'claun_hit', wysokosc: 2.0 },
@@ -8739,6 +8745,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 { typ: 'droid',     hp: 8,  ap: 12, opis: 'Droid' },
                 { typ: 'ogar',      hp: 9,  ap: 18, opis: 'Ogar piekielny' },
                 { typ: 'klaun',     hp: 11, ap: 12, opis: 'Klaun' },
+                { typ: 'robak',     hp: 10, ap: 15, opis: 'Robak' },
                 { typ: 'smierc',    hp: SMIERC_HP, ap: 12, opis: 'Śmierć', nieDoZabicia: true }
             ];
             // Wszystkie osiem gatunków pająków
@@ -8753,7 +8760,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const BUDOWA = {
                 summoner: createSummonerMesh, stalker: createStalkerMesh, wisp: createWispMesh,
                 zombie: createZombieMesh, vampire: createVampireMesh, strzyga: createStrzygaMesh,
-                robot: createRobotMesh, droid: createDroidMesh, ogar: createHellhoundMesh, klaun: createClownMesh,
+                robot: createRobotMesh, droid: createDroidMesh, ogar: createHellhoundMesh, klaun: createClownMesh, robak: createWormMesh,
                 smierc: createDeathMesh
             };
 
@@ -9263,7 +9270,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     ap: e.ap, maxAp: e.maxAp, accuracyBonus: e.accuracyBonus, isDead: e.isDead, facingAngle: e.facingAngle, level: e.level || 0,
                     isBoss: !!e.isBoss, bossTurn: e.bossTurn || 0, hasOpened: !!e.hasOpened,
                     blindedTurns: e.blindedTurns || 0, blindedFrom: e.blindedFrom || null,
-                    gatunek: (e.gatunek === undefined ? null : e.gatunek), elita: !!e.elita,
+                    gatunek: (e.gatunek === undefined ? null : e.gatunek), elita: !!e.elita, podZiemia: !!e.podZiemia,
                     wariantModelu: (e.mesh && e.mesh.userData && e.mesh.userData.enemyKind) || null
                 })),
                 npcs: npcs.filter(n => !n.isDead).map(n => ({
@@ -9393,7 +9400,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Nowe rasy mają własne bryły, nie budujemy ich z createCharacter
             const CUSTOM_ENEMY_MESH = { summoner: createSummonerMesh, stalker: createStalkerMesh, wisp: createWispMesh, koszmar: createBossMesh, zombie: createZombieMesh, vampire: createVampireMesh, strzyga: createStrzygaMesh,
                                         spider_small: () => createSpiderMesh(false), spider_big: () => createSpiderMesh(true),
-                                        robot: createRobotMesh, droid: createDroidMesh, klaun: createClownMesh };
+                                        robot: createRobotMesh, droid: createDroidMesh, klaun: createClownMesh, robak: createWormMesh, general: createGeneralMesh };
             enemies = (data.enemies || []).filter(ed => !ed.isDead).map(ed => {
                 const look = ENEMY_LOOKS[ed.type] || ENEMY_LOOKS.standard;
                 // Jeśli dla tego typu wgrano model 3D, po wczytaniu zapisu też z niego korzystamy
@@ -9414,12 +9421,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 scene.add(mesh);
                 const fa = ed.facingAngle || 0;
                 mesh.lookAt(mesh.position.x + Math.sin(fa), mesh.position.y, mesh.position.z + Math.cos(fa));
-                return { mesh: mesh, type: ed.type, hp: ed.hp, maxHp: ed.maxHp, ap: ed.ap, maxAp: ed.maxAp, accuracyBonus: ed.accuracyBonus, isDead: ed.isDead, facingAngle: fa, level: ed.level || 0, isBoss: !!ed.isBoss, bossTurn: ed.bossTurn || 0, hasOpened: !!ed.hasOpened, blindedTurns: ed.blindedTurns || 0, blindedFrom: ed.blindedFrom || null, gatunek: (ed.gatunek === undefined ? null : ed.gatunek), elita: !!ed.elita, dmgBonus: ed.elita ? 1 : 0 };
+                return { mesh: mesh, type: ed.type, hp: ed.hp, maxHp: ed.maxHp, ap: ed.ap, maxAp: ed.maxAp, accuracyBonus: ed.accuracyBonus, isDead: ed.isDead, facingAngle: fa, level: ed.level || 0, isBoss: !!ed.isBoss, bossTurn: ed.bossTurn || 0, hasOpened: !!ed.hasOpened, blindedTurns: ed.blindedTurns || 0, blindedFrom: ed.blindedFrom || null, gatunek: (ed.gatunek === undefined ? null : ed.gatunek), elita: !!ed.elita, podZiemia: !!ed.podZiemia, dmgBonus: ed.elita ? 1 : 0 };
             });
+
+            enemies.forEach(e => { if (e.podZiemia && e.mesh) e.mesh.visible = false; });
 
             // Lista spotkań nie jest zapisywana - odtwarzamy ją z wrogów na planszy,
             // inaczej po wczytaniu gry w trakcie misji nic by nie trafiło do Kroniki
-            enemies.forEach(e => noteEnemyEncountered(e.type));
+            enemies.forEach(e => { if (!e.podZiemia) noteEnemyEncountered(e.type); });
 
             // Elita odzyskuje poświatę i rozmiar - statystyki wróciły z zapisu
             enemies.forEach(e => {
@@ -11843,6 +11852,61 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         // Klaun z opuszczonego wesołego miasteczka - blada twarz, czerwony nos,
         // kolorowy kostium wyblakły od lat i zbyt szeroki uśmiech
+        // Robak - człekokształtny, pokryty ziemią i śluzem, z okrągłą paszczą zamiast twarzy
+        function createWormMesh() {
+            const g = new THREE.Group();
+            const skora = new THREE.MeshLambertMaterial({ color: 0x6b5a48 });
+            const sluz = new THREE.MeshLambertMaterial({ color: 0x8a7a5a });
+            for (let i = 0; i < 5; i++) {
+                const seg = new THREE.Mesh(new THREE.SphereGeometry(0.34 - i * 0.02, 10, 8), i % 2 ? sluz : skora);
+                seg.scale.set(1, 0.75, 1);
+                seg.position.y = 0.3 + i * 0.34;
+                g.add(seg);
+            }
+            const paszcza = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.06, 6, 12), new THREE.MeshLambertMaterial({ color: 0x3a1a1a }));
+            paszcza.position.set(0, 1.85, 0.22); g.add(paszcza);
+            const gardlo = new THREE.Mesh(new THREE.CircleGeometry(0.15, 10), new THREE.MeshBasicMaterial({ color: 0x1a0505 }));
+            gardlo.position.set(0, 1.85, 0.23); g.add(gardlo);
+            [-1, 1].forEach(b => {
+                const reka = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.05, 0.9, 6), skora);
+                reka.position.set(b * 0.42, 1.2, 0.05); reka.rotation.z = b * 0.6; g.add(reka);
+            });
+            g.userData.yOffset = 0;
+            g.userData.unitType = 'robak';
+            return g;
+        }
+
+        // Generał - rosły dowódca w ciemnej zbroi, z płaszczem i szablą
+        function createGeneralMesh() {
+            const g = new THREE.Group();
+            const s = 1.7;
+            const zbroja = new THREE.MeshLambertMaterial({ color: 0x2a2a30 });
+            const zloto = new THREE.MeshLambertMaterial({ color: 0xb08a3a });
+            const tulow = new THREE.Mesh(new THREE.BoxGeometry(0.62 * s, 0.9 * s, 0.4 * s), zbroja);
+            tulow.position.y = 1.1 * s; g.add(tulow);
+            const plaszcz = new THREE.Mesh(new THREE.ConeGeometry(0.55 * s, 1.3 * s, 8, 1, true),
+                new THREE.MeshLambertMaterial({ color: 0x5a1a1a, side: THREE.DoubleSide }));
+            plaszcz.position.set(0, 0.85 * s, -0.12 * s); g.add(plaszcz);
+            const glowa = new THREE.Mesh(new THREE.SphereGeometry(0.22 * s, 10, 8), new THREE.MeshLambertMaterial({ color: 0xd8c0a8 }));
+            glowa.position.y = 1.8 * s; g.add(glowa);
+            const czapka = new THREE.Mesh(new THREE.CylinderGeometry(0.2 * s, 0.24 * s, 0.18 * s, 10), zbroja);
+            czapka.position.y = 2.0 * s; g.add(czapka);
+            const daszek = new THREE.Mesh(new THREE.BoxGeometry(0.3 * s, 0.03 * s, 0.14 * s), zloto);
+            daszek.position.set(0, 1.94 * s, 0.2 * s); g.add(daszek);
+            [-1, 1].forEach(b => {
+                const epolet = new THREE.Mesh(new THREE.CylinderGeometry(0.12 * s, 0.12 * s, 0.05 * s, 8), zloto);
+                epolet.position.set(b * 0.36 * s, 1.52 * s, 0); g.add(epolet);
+                const noga = new THREE.Mesh(new THREE.CylinderGeometry(0.1 * s, 0.11 * s, 0.7 * s, 7), zbroja);
+                noga.position.set(b * 0.16 * s, 0.35 * s, 0); g.add(noga);
+            });
+            const szabla = new THREE.Mesh(new THREE.BoxGeometry(0.04 * s, 0.9 * s, 0.08 * s), new THREE.MeshLambertMaterial({ color: 0xc8ccd0 }));
+            szabla.position.set(0.45 * s, 0.9 * s, 0.15 * s); szabla.rotation.z = 0.3; g.add(szabla);
+            const sw = new THREE.PointLight(0xff5a2a, 0.8, 8, 1.6); sw.position.y = 1.8 * s; g.add(sw);
+            g.userData.yOffset = 0;
+            g.userData.unitType = 'general';
+            return g;
+        }
+
         function createClownMesh() {
             const g = new THREE.Group();
             const kostium = new THREE.MeshLambertMaterial({ color: 0x7a2f4a });
@@ -12099,11 +12163,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const szansaPajaka = currentCombatTheme && currentCombatTheme.id === 'amazonia' ? 0.8 : 0.25;
                 const bossowa = (currentMissionType === 'boss');
                 const klaunWypadl = currentCombatTheme && currentCombatTheme.id === 'wesole' && Math.random() < 0.65;
+                const robakWypadl = !klaunWypadl && currentCombatTheme &&
+                    ['bagno', 'sahara', 'zamiec', 'wesole'].includes(currentCombatTheme.id) && Math.random() < 0.28;
                 const ogarWypadl = Math.random() < szansaNaOgary(bossowa);
                 const pajakWypadl = !ogarWypadl && mapaPajakow && Math.random() < szansaPajaka;
                 const mapaMaszyn = currentCombatTheme &&
                     ['cyber', 'whitehouse', 'zhongnanhai'].includes(currentCombatTheme.id);
-                if (klaunWypadl) {
+                if (robakWypadl) {
+                    type = 'robak'; maxHp = 10; maxAp = 15; mesh = createWormMesh();
+                } else if (klaunWypadl) {
                     type = 'klaun'; maxHp = 11; maxAp = 12; mesh = createClownMesh();
                 } else if (ogarWypadl) {
                     type = 'ogar'; maxHp = 9; maxAp = 18; mesh = createHellhoundMesh();
@@ -12171,7 +12239,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const initialFacing = Math.random() * Math.PI * 2;
                 mesh.lookAt(mesh.position.x + Math.sin(initialFacing), mesh.position.y, mesh.position.z + Math.cos(initialFacing));
                 noteEnemyEncountered(type);
-                enemies.push({ mesh: mesh, type: type, hp: maxHp, maxHp: maxHp, ap: maxAp, maxAp: maxAp, accuracyBonus: accuracyBonus, isDead: false, facingAngle: initialFacing, level: spawnLevel, gatunek: gatunekTegoWroga });
+                enemies.push({ mesh: mesh, type: type, hp: maxHp, maxHp: maxHp, ap: maxAp, maxAp: maxAp, accuracyBonus: accuracyBonus, isDead: false, facingAngle: initialFacing, level: spawnLevel, gatunek: gatunekTegoWroga,
+                               podZiemia: type === 'robak' });
+                if (type === 'robak') mesh.visible = false;   // czeka pod ziemią
                 // Siatka zajętości musi znać TEGO wroga, zanim losujemy miejsce dla następnego -
                 // bez tego kolejni sprawdzali stan sprzed rozstawiania i lądowali na sobie.
                 refreshEnemyPositions();
@@ -12721,7 +12791,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             zombie: 'ZOMBIE', vampire: 'DRAKULA', strzyga: 'STRZYGA',
             robot: 'ROBOT', droid: 'DROID', ogar: 'OGAR PIEKIELNY',
             koszmar: 'KOSZMAR', smierc: 'ŚMIERĆ',
-            spider_small: 'PAJĄK', spider_big: 'WIELKI PAJĄK', klaun: 'KLAUN'
+            spider_small: 'PAJĄK', spider_big: 'WIELKI PAJĄK', klaun: 'KLAUN', robak: 'ROBAK', general: 'GENERAŁ'
         };
 
         function nazwaWroga(e) {
@@ -13123,6 +13193,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }); 
             
             const seenAt = (u) => {
+                if (u.podZiemia) return false;   // robak pod ziemią jest niewidoczny
                 const L = Math.min(u.level || 0, fowVisible.length - 1);
                 const mx = Math.round(u.mesh.position.x) + offsetX, mz = Math.round(u.mesh.position.z) + offsetZ;
                 if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return false;
@@ -13909,14 +13980,30 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     bx = cx; bz = cz; break;
                 }
                 if (bx === null) { currentMissionType = 'standard'; return; }
-                const bm = buildEnemyModelInstance('koszmar') || createBossMesh();
+                // GENERAŁ: najpotężniejszy boss. Tylko na Kremlu, w Białym Domu i Zhongnanhai,
+                // i tylko gdy oddział liczy co najmniej trzech wojowników - mniejszy nie ma szans.
+                const wojownikow = soldiers.filter(s => !s.isDead && !s.isNPC && !s.isEscortee).length;
+                const generalMozliwy = currentCombatTheme &&
+                    ['kremlin', 'whitehouse', 'zhongnanhai'].includes(currentCombatTheme.id) && wojownikow >= 3;
+                const jestGeneral = generalMozliwy && Math.random() < 0.6;
+                const bm = jestGeneral
+                    ? (buildEnemyModelInstance('general') || createGeneralMesh())
+                    : (buildEnemyModelInstance('koszmar') || createBossMesh());
                 bm.position.set(bx, getTerrainY(bx, bz), bz);
                 scene.add(bm);
-                const boss = {
+                const boss = jestGeneral ? {
+                    mesh: bm, type: 'general', hp: 55, maxHp: 55, ap: 12, maxAp: 12,
+                    accuracyBonus: 15, isDead: false, facingAngle: 0, level: 0,
+                    isBoss: true, bossTurn: 0, hasOpened: true
+                } : {
                     mesh: bm, type: 'koszmar', hp: 20, maxHp: 20, ap: 10, maxAp: 10,
                     accuracyBonus: 5, isDead: false, facingAngle: 0, level: 0,
                     isBoss: true, bossTurn: 0, hasOpened: false
                 };
+                if (jestGeneral) {
+                    showFloatingWarning('Sen prowadzi GENERAŁ');
+                    updateUI('Na tej ziemi dowodzi GENERAŁ - najgroźniejszy z władców koszmarów. Działajcie razem.');
+                }
                 enemies.push(boss);
                 noteEnemyEncountered('koszmar');
                 refreshEnemyPositions();
@@ -15077,7 +15164,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z), ey = getLevelY(ex, ez, e.level || 0);
                 const dist = Math.abs(px - ex) + Math.abs(pz - ez);
                 // Wręcz tylko na tej samej kondygnacji
-                if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'summoner' || e.type === 'zombie' || e.type === 'strzyga' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big' || e.type === 'smierc' || e.type === 'ogar') return ((e.level || 0) === (active.level || 0) && Math.max(Math.abs(px - ex), Math.abs(pz - ez)) === 1 && Math.abs(ey - py) <= 1 && e.type !== 'summoner');
+                if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'summoner' || e.type === 'zombie' || e.type === 'strzyga' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big' || e.type === 'smierc' || e.type === 'ogar' || e.type === 'robak') return ((e.level || 0) === (active.level || 0) && Math.max(Math.abs(px - ex), Math.abs(pz - ez)) === 1 && Math.abs(ey - py) <= 1 && e.type !== 'summoner');
                 return (dist <= getVisionRange() && czyWidacPrzez(ex, ey+1, ez, px, py+0.5, pz) && !floorsBlockShot(ex, ez, e.level || 0, px, pz, active.level || 0));
             });
 
@@ -16561,6 +16648,29 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             
             const e = enemies[currentEnemyIndex]; 
             const eLvl = e.level || 0;
+
+            // ROBAK pod ziemią: słucha. Gdy wojownik podejdzie na 10 pól (albo gdy
+            // zostanie ostatni), wychodzi na powierzchnię - to zajmuje mu całą turę.
+            if (e.podZiemia) {
+                const rx = Math.round(e.mesh.position.x), rz = Math.round(e.mesh.position.z);
+                const slyszy = soldiers.some(s => !s.isDead && !s.isNPC &&
+                    Math.hypot(Math.round(s.mesh.position.x) - rx, Math.round(s.mesh.position.z) - rz) <= 10);
+                const ostatni = !enemies.some(o => o !== e && !o.isDead && !o.podZiemia);
+                if (slyszy || ostatni) {
+                    e.podZiemia = false;
+                    e.mesh.visible = true;
+                    refreshEnemyPositions();
+                    const cel = soldiers.find(s => !s.isDead && !s.isNPC);
+                    if (cel) faceTowards(e, cel.mesh.position.x, cel.mesh.position.z);
+                    animWroga(e, 'specjalna', true);   // wypełza spod ziemi
+                    noteEnemyEncountered('robak');
+                    showFloatingWarning('Ziemia pęka - wypełza ROBAK!');
+                    updateUI('Coś słyszało twoje kroki. Spod ziemi wypełza ROBAK.');
+                    updateFoW();
+                }
+                currentEnemyIndex++; setTimeout(processNextEnemy, e.podZiemia ? 20 : 700);
+                return;
+            }
             const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z), ey = getLevelY(ex, ez, eLvl);
 
             // Słuch: ktoś blisko lub niedawny strzał odwraca wroga w tamtą stronę, zanim rozejrzy się po polu widzenia
@@ -17111,6 +17221,70 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             // KOSZMAR: otwiera spotkanie trzema potworami, potem na przemian
             // kula ognia i przyzywaniem - co druga tura kolejny pomiot.
+            // GENERAŁ: nie przywołuje - walczy sam. Z bliska tnie szablą (do dwóch razy),
+            // z daleka strzela celnie, a gdy nie ma celu na widoku - naciera.
+            if (e.type === 'general') {
+                if (e.ap >= getEffectiveMaxAp(e)) e.generalAkcji = 0;
+                const gx = Math.round(e.mesh.position.x), gz = Math.round(e.mesh.position.z);
+                const gy = getLevelY(gx, gz, eLvl);
+                let cel = null, cd = Infinity;
+                soldiers.forEach(s => {
+                    if (s.isDead || s.isNPC) return;
+                    const d = Math.max(Math.abs(Math.round(s.mesh.position.x) - gx), Math.abs(Math.round(s.mesh.position.z) - gz));
+                    if (d < cd) { cd = d; cel = s; }
+                });
+                const koniecGen = () => { currentEnemyIndex++; setTimeout(processNextEnemy, 250); };
+                if (!cel || e.ap <= 0 || (e.generalAkcji || 0) >= 3) { koniecGen(); return; }
+                const cx = Math.round(cel.mesh.position.x), cz = Math.round(cel.mesh.position.z);
+                const cy = getLevelY(cx, cz, cel.level || 0);
+                faceTowards(e, cx, cz);
+                const zadaj = (dmg, opis) => {
+                    applyDamageToUnit(cel, dmg, e);
+                    updateUI(`GENERAŁ ${opis} (-${dmg})`);
+                    playFileSfx(AudioFiles.enemyOuch, 0.6);
+                    if (cel.hp <= 0) { playDyingSfx(); killUnitWithAnim(cel, () => refreshPlayerPositions()); }
+                    checkGameOver();
+                };
+                // Z bliska - szabla
+                if (cd === 1 && e.ap >= 3) {
+                    e.ap -= 3; e.generalAkcji = (e.generalAkcji || 0) + 1;
+                    animWroga(e, 'atakWrecz', true);
+                    if (!tryMeleeInterrupt(e, cel)) zadaj(7, 'tnie szablą!');
+                    if (!gameOver) setTimeout(processNextEnemy, 450);
+                    return;
+                }
+                // Z daleka - celny strzał
+                if (cd <= getVisionRange() && e.ap >= shootCost && czyWidacPrzez(gx, gy + 1, gz, cx, cy + 0.5, cz) &&
+                    checkLineOfSight3D(gx, gy + 2, gz, cx, cy + 0.5, cz)) {
+                    e.ap -= shootCost; e.generalAkcji = (e.generalAkcji || 0) + 1;
+                    animWroga(e, 'atak', true);
+                    const szansa = Math.min(92, 70 + (e.accuracyBonus || 0) - (cel.isKneeling ? 15 : 0));
+                    const traf = Math.random() * 100 < szansa;
+                    createProjectile(gx, gy + 2.2, gz, cx, cy + 0.5, cz, traf, null, () => {
+                        if (traf) zadaj(5, 'strzela celnie!'); else updateUI('GENERAŁ chybia - o włos.');
+                        if (!gameOver) setTimeout(processNextEnemy, 300);
+                    }, 'standard');
+                    return;
+                }
+                // Naciera - kilka kroków w stronę celu
+                let obok = null;
+                [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1]].forEach(d => {
+                    const nx = cx + d[0], nz = cz + d[1];
+                    if (obok || !isWithinPlayBounds(nx, nz) || !canStandAt(nx, nz, eLvl) || isUnitAtLevel(nx, nz, eLvl, e)) return;
+                    obok = [nx, nz];
+                });
+                const p = obok ? findPath(gx, gz, obok[0], obok[1], eLvl, e) : null;
+                if (!p || p.path.length === 0) { koniecGen(); return; }
+                const walk = p.path.slice(0, Math.min(p.path.length, Math.max(1, e.ap - 3)));
+                e.ap -= walk.length;
+                animWroga(e, 'walk');
+                moveAlongPath({ mesh: e.mesh, userData: e.mesh.userData }, walk, 160, () => {
+                    animWroga(e, 'idle'); refreshEnemyPositions(); updateFoW();
+                    setTimeout(processNextEnemy, 200);
+                });
+                return;
+            }
+
             if (e.isBoss) {
                 // KOSZMAR budzi się dopiero na widok WOJOWNIKA. Wcześniej dostrzeżenie
                 // zwykłego cywila wystarczało, by zaczął przyzywać potwory - a to działo
@@ -17228,7 +17402,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // bez celu w zasięgu zachowuje się jak zwykły wróg (podchodzi) - obsłuży to dalszy kod
             }
 
-            if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'zombie' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big' || e.type === 'smierc' || e.type === 'ogar') {
+            if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'zombie' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big' || e.type === 'smierc' || e.type === 'ogar' || e.type === 'robak') {
                 const meleeCostE = (e.type === 'brute') ? shootCost : 3; // szybsze rasy uderzają taniej
                 const chebDystans = Math.max(Math.abs(px - ex), Math.abs(pz - ez));
                 if (e.ap >= meleeCostE && tLvl === eLvl && chebDystans === 1 && Math.abs(ey - py) <= 1) {
@@ -17259,6 +17433,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         else if (e.type === 'spider_small') meleeDmgBaza = 3;
                         else if (e.type === 'smierc') meleeDmgBaza = 7;
                         else if (e.type === 'ogar') meleeDmgBaza = 4;
+                        else if (e.type === 'robak') meleeDmgBaza = 4;
                         const meleeDmg = meleeDmgBaza + (e.dmgBonus || 0);   // elita uderza mocniej
                         // Duży pająk przy spętanym celu sięga po jad zamiast zwykłego ciosu
                         if (e.type === 'spider_big' && isSoldierWebbed(bestTarget)) tryVenom(e, bestTarget);
@@ -17280,7 +17455,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     return;
                 }
             } else {
-                if (e.type !== 'summoner' && e.type !== 'zombie' && e.type !== 'strzyga' && e.type !== 'robot' && e.type !== 'spider_small' && e.type !== 'spider_big' && e.type !== 'smierc' && e.type !== 'ogar' && e.ap >= shootCost && dist <= getVisionRange() && checkLineOfSight3D(ex, ey+1, ez, px, py+0.5, pz) && !floorsBlockShot(ex, ez, eLvl, px, pz, tLvl)) {
+                if (e.type !== 'summoner' && e.type !== 'zombie' && e.type !== 'strzyga' && e.type !== 'robot' && e.type !== 'spider_small' && e.type !== 'spider_big' && e.type !== 'smierc' && e.type !== 'ogar' && e.type !== 'robak' && e.ap >= shootCost && dist <= getVisionRange() && checkLineOfSight3D(ex, ey+1, ez, px, py+0.5, pz) && !floorsBlockShot(ex, ez, eLvl, px, pz, tLvl)) {
                     e.ap -= shootCost;
                     animWroga(e, 'atak', true);
                     faceTowards(e, px, pz);
@@ -17317,7 +17492,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // czy zdąży dojść I uderzyć; jeśli nie - szuka osłony,
                 // a strzelec dodatkowo pozycji z boku, nie na wprost.
                 // ========================================================
-                const walczyWrecz = ['brute', 'stalker', 'wisp', 'zombie', 'robot', 'spider_small', 'spider_big'].includes(e.type);
+                const walczyWrecz = ['brute', 'stalker', 'wisp', 'zombie', 'robot', 'spider_small', 'spider_big', 'robak'].includes(e.type);
                 const kosztAkcji = walczyWrecz ? 3 : shootCost;
 
                 // Czy z tego pola widać cel (do strzału)
@@ -17788,6 +17963,24 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 stats: [['Punkty życia', '8'], ['Punkty ruchu', '12'], ['Premia do celności', 'brak'], ['Styl walki', 'ostrzał wiązką z dystansu']]
             },
             {
+                id: 'robak', title: 'Robak',
+                text: 'Człekokształtny potwór, który żyje pod ziemią. Pokryty śluzem i grudami ziemi, zamiast twarzy ma okrągłą paszczę.\\n\\n' +
+                      'Leży nieruchomo i słucha. Gdy usłyszy kroki w promieniu dziesięciu pól, wypełza na powierzchnię - ' +
+                      'często za plecami tych, którzy myśleli, że teren jest czysty. Szybki, przebiegły, walczy tylko wręcz. ' +
+                      'Spotykany na mokradłach, pustyni, w zamieci i w opuszczonym wesołym miasteczku.',
+                stats: [['Punkty życia', '10'], ['Punkty ruchu', '15'], ['Wychodzi, gdy słyszy', 'do 10 pól'],
+                        ['Styl walki', 'wręcz (4 obr.)']]
+            },
+            {
+                id: 'general', title: 'Generał',
+                text: 'Najpotężniejszy z władców koszmarów. Rosły dowódca w ciemnej zbroi, z płaszczem koloru zakrzepłej krwi.\\n\\n' +
+                      'Nie przyzywa pomocników - nie potrzebuje ich. Z daleka strzela celnie, z bliska tnie szablą. ' +
+                      'Nie cofa się i nie odpuszcza. Samotny wojownik nie ma z nim szans: Generał staje do walki ' +
+                      'tylko z oddziałem liczącym co najmniej trzech. Dowodzi na Kremlu, w Białym Domu i w Zhongnanhai.',
+                stats: [['Punkty życia', '55'], ['Punkty ruchu', '12'], ['Premia do celności', '+15%'],
+                        ['Styl walki', 'strzał (5 obr.), szabla wręcz (7 obr.)']]
+            },
+            {
                 id: 'klaun', title: 'Klaun',
                 text: 'Mieszkaniec opuszczonego wesołego miasteczka. Wyblakły kostium, pobielona twarz, ' +
                       'czerwony nos i uśmiech, który sięga dalej, niż powinien.\\n\\n' +
@@ -17958,7 +18151,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 koszmar:  createBossMesh,
                 ogar:     createHellhoundMesh,
                 smierc:   createDeathMesh,
-                klaun:    createClownMesh
+                klaun:    createClownMesh,
+                robak:    createWormMesh,
+                general:  createGeneralMesh
             };
             const PREVIEW_SCALE = { koszmar: 0.42, vampire: 0.9, wisp: 1.5, strzyga: 1.0, zombie: 1.05 };
 
