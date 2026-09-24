@@ -1580,6 +1580,8 @@
               palette: { grass:'#4a6a4a', grassDetail1:'#587a56', grassDetail2:'#3a563c', dirt:'#6a5a44', dirtDetail1:'#57492f', dirtDetail2:'#7c6c50', road:'#5a5648', roadDetail1:'#4a473c', roadDetail2:'#6b6656' } },
             { id: 'bagno', name: 'Mokradła',
               palette: { grass:'#3f4a2e', grassDetail1:'#4c5838', grassDetail2:'#333d24', dirt:'#4a4030', dirtDetail1:'#3b3326', dirtDetail2:'#5a4e3c', road:'#4a4638', roadDetail1:'#3d3a2e', roadDetail2:'#575244' } },
+            { id: 'wesole', name: 'Opuszczone Wesołe Miasteczko',
+              palette: { grass:'#3b3a2e', grassDetail1:'#4a4636', grassDetail2:'#2c2a22', dirt:'#4d3d33', dirtDetail1:'#5c4a3e', dirtDetail2:'#3a2d26', road:'#3a3838', roadDetail1:'#4a4747', roadDetail2:'#2c2a2a' } },
             { id: 'amazonia', name: 'Amazonia',
               palette: { grass:'#1f6b2e', grassDetail1:'#2b8a3b', grassDetail2:'#164f22', dirt:'#5c4426', dirtDetail1:'#6f5530', dirtDetail2:'#43301b', road:'#4a3a22', roadDetail1:'#5f4a2c', roadDetail2:'#382a18' } },
             { id: 'cyber', name: 'Cyber',
@@ -2018,6 +2020,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 ambientLight.color.set(0xdde6f0); ambientLight.intensity = Math.max(ambientLight.intensity, 0.55);
                 directionalLight.intensity *= 0.55;
                 scene.fog = new THREE.Fog(0x9aa4b0, 18, 64);
+            } else if (idMotywu === 'wesole') {
+                // Opuszczone wesołe miasteczko: wieczny zmierzch, sina mgła, chłód
+                scene.background.set(0x1a1422);
+                ambientLight.color.set(0x8a7aa0); ambientLight.intensity = Math.min(ambientLight.intensity, 0.35);
+                directionalLight.color.set(0xb09ac8); directionalLight.intensity *= 0.45;
+                scene.fog = new THREE.Fog(0x2a2036, 14, 58);
             } else if (idMotywu === 'cyber') {
                 // Cyberprzestrzeń: chłodny błękit, głęboka czerń i poświata
                 scene.background.set(0x040a14);
@@ -3412,6 +3420,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         case 'whitehouse':
                         case 'zhongnanhai':  return ['lawka','lawka','kosz','kosz','zywoplot','zywoplot','beczka','rock'];
                         case 'pentagon':     return ['beczka','beczka','kosz','rock','rock'];
+                        case 'wesole':       return ['beczka','kosz','kosz','lawka','lawka','beczka','zywoplot'];
                         case 'nekropolia':
                         case 'cmentarzysko': return ['nagrobek','nagrobek','nagrobek','rock','kloda'];
                         case 'wulkan':       return ['rock','rock','rock','rock'];
@@ -3445,6 +3454,32 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         }
                     }
                 }
+                // Wesołe miasteczko dostaje swoje duże konstrukcje. Środek niesie wygląd,
+                // pozostałe pola zajmuje niewidoczna część - żeby nie dało się przez nie przejść.
+                if (currentCombatTheme && currentCombatTheme.id === 'wesole') {
+                    const postaw = (rodzaj, ile, promien) => {
+                        for (let n = 0; n < ile; n++) {
+                            for (let t = 0; t < 120; t++) {
+                                const sx = Math.floor(Math.random() * (mapWidth - 30)) + 15 - offsetX;
+                                const sz = Math.floor(Math.random() * (mapDepth - 30)) + 15 - offsetZ;
+                                let wolne = true;
+                                for (let dx = -promien - 1; dx <= promien + 1 && wolne; dx++)
+                                    for (let dz = -promien - 1; dz <= promien + 1 && wolne; dz++)
+                                        if (!isWithinPlayBounds(sx + dx, sz + dz) || isObstacle(sx + dx, sz + dz) ||
+                                            terrainTypeMap[sx + dx + offsetX][sz + dz + offsetZ] >= 2) wolne = false;
+                                if (!wolne) continue;
+                                for (let dx = -promien; dx <= promien; dx++)
+                                    for (let dz = -promien; dz <= promien; dz++)
+                                        addObstacle(sx + dx, sz + dz, (dx === 0 && dz === 0) ? rodzaj : 'wesole-czesc');
+                                break;
+                            }
+                        }
+                    };
+                    postaw('diabelski', 1, 2);
+                    postaw('karuzela', 3, 1);
+                    postaw('namiot', 6, 1);
+                }
+
                 // Dłuższe osłony: kamienne murki, zwalone pnie, grzbiety skalne.
                 // Pojedyncze głazy dają osłonę punktową, te - całe odcinki do przebiegnięcia.
                 if (currentCombatTheme && !['cyber', 'katedra'].includes(currentCombatTheme.id)) {
@@ -4712,7 +4747,55 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
         }
 
+        // Wesołe miasteczko: sznury kolorowych żarówek na słupach. Część ledwie
+        // się tli, część mruga nieregularnie - jak w miejscu, gdzie prąd dawno odcięto.
+        let zarowkiWesole = [];
+        function renderZarowkiWesole() {
+            zarowkiWesole.forEach(o => scene.remove(o)); zarowkiWesole = [];
+            const kolory = [0xff4a4a, 0xffd84a, 0x4affb0, 0x9a6aff, 0xff7ad0];
+            for (let i = 0; i < 16; i++) {
+                let x = null, z = null;
+                for (let t = 0; t < 120; t++) {
+                    const cx = Math.floor(Math.random() * (mapWidth - 20)) + 10 - offsetX;
+                    const cz = Math.floor(Math.random() * (mapDepth - 20)) + 10 - offsetZ;
+                    if (!isWithinPlayBounds(cx, cz) || isObstacle(cx, cz)) continue;
+                    x = cx; z = cz; break;
+                }
+                if (x === null) continue;
+                const g = new THREE.Group();
+                const slup = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 3.2, 6),
+                    new THREE.MeshLambertMaterial({ color: 0x3a3438 }));
+                slup.position.y = 1.6; g.add(slup);
+                const kol = kolory[i % kolory.length];
+                for (let k = 0; k < 4; k++) {
+                    const b = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5),
+                        new THREE.MeshBasicMaterial({ color: kol }));
+                    b.position.set(0.25 * (k - 1.5), 3.0 - Math.abs(k - 1.5) * 0.12, 0);
+                    g.add(b);
+                }
+                const sw = new THREE.PointLight(kol, 0.9, 8, 1.6);
+                sw.position.y = 3.0; g.add(sw);
+                g.position.set(x, getTerrainY(x, z), z);
+                g.userData.unitType = 'fx';
+                g.userData.lampLight = sw;
+                g.userData.martwa = Math.random() < 0.35;   // część prawie zgasła
+                scene.add(g);
+                zarowkiWesole.push(g);
+                streetLamps.push(g);
+            }
+        }
+
+        function migotanieZarowek(czas) {
+            zarowkiWesole.forEach((o, i) => {
+                const sw = o.userData.lampLight; if (!sw) return;
+                if (o.userData.martwa) { sw.intensity = Math.random() < 0.04 ? 0.8 : 0.08; return; }
+                // nieregularne mruganie
+                sw.intensity = (Math.sin(czas * 0.009 + i * 2.3) > 0.85 && Math.random() < 0.5) ? 0.1 : 0.9;
+            });
+        }
+
         function renderStreetLamps() {
+            if (currentCombatTheme && currentCombatTheme.id === 'wesole') { renderZarowkiWesole(); return; }
             // Dżungla nie zna latarni
             if (currentCombatTheme && currentCombatTheme.id === 'amazonia') { renderCampfires(); return; }
             streetLamps.forEach(l => scene.remove(l));
@@ -5048,6 +5131,67 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const fence = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: 0x5a5a5a }));
                     fence.position.set(pos.x, ty + 0.325, pos.z);
                     scene.add(fence); obstacleMeshes.push(fence);
+                }
+                else if (pos.type === 'wesole-czesc') { /* niewidoczna część dużej konstrukcji */ }
+                else if (pos.type === 'karuzela') {
+                    const g = new THREE.Group();
+                    const drewno = new THREE.MeshLambertMaterial({ color: 0x5a4636 });
+                    const plotno = [0x7a2f4a, 0x3f6b5a, 0x8a7a3a, 0x4a3a6a];
+                    const podloga = new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.5, 0.22, 16), drewno);
+                    podloga.position.y = 0.11; g.add(podloga);
+                    const slup = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.6, 8), new THREE.MeshLambertMaterial({ color: 0x8a7a5a }));
+                    slup.position.y = 1.4; g.add(slup);
+                    const daszek = new THREE.Mesh(new THREE.ConeGeometry(1.7, 0.9, 12), new THREE.MeshLambertMaterial({ color: plotno[Math.floor(Math.random() * 4)] }));
+                    daszek.position.y = 2.9; daszek.rotation.z = 0.08; g.add(daszek);   // przekrzywiony ze starości
+                    for (let k = 0; k < 6; k++) {
+                        const a = (k / 6) * Math.PI * 2;
+                        const drazek = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.3, 5), new THREE.MeshLambertMaterial({ color: 0xa89a7a }));
+                        drazek.position.set(Math.cos(a) * 1.1, 1.35, Math.sin(a) * 1.1); g.add(drazek);
+                        const konik = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.4, 0.6), new THREE.MeshLambertMaterial({ color: 0xc8bca0 }));
+                        konik.position.set(Math.cos(a) * 1.1, 0.8 + (k % 2) * 0.35, Math.sin(a) * 1.1);
+                        konik.rotation.y = -a; g.add(konik);
+                    }
+                    g.position.set(pos.x, ty, pos.z);
+                    scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'namiot') {
+                    const g = new THREE.Group();
+                    const kolory = [0x7a2f4a, 0x3f6b5a, 0x6a5a2a];
+                    const k1 = kolory[Math.floor(Math.random() * 3)];
+                    const sciany = new THREE.Mesh(new THREE.CylinderGeometry(1.35, 1.35, 1.3, 10, 1, true),
+                        new THREE.MeshLambertMaterial({ color: k1, side: THREE.DoubleSide }));
+                    sciany.position.y = 0.65; g.add(sciany);
+                    const dach = new THREE.Mesh(new THREE.ConeGeometry(1.5, 1.3, 10), new THREE.MeshLambertMaterial({ color: 0xd8d0c0 }));
+                    dach.position.y = 1.95; g.add(dach);
+                    const flaga = new THREE.Mesh(new THREE.PlaneGeometry(0.35, 0.22), new THREE.MeshLambertMaterial({ color: 0xa8231f, side: THREE.DoubleSide }));
+                    flaga.position.set(0.18, 2.75, 0); g.add(flaga);
+                    g.position.set(pos.x, ty, pos.z);
+                    g.rotation.y = Math.random() * Math.PI;
+                    scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'diabelski') {
+                    const g = new THREE.Group();
+                    const stal = new THREE.MeshLambertMaterial({ color: 0x6a6070 });
+                    const kolo = new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.08, 6, 32), stal);
+                    kolo.position.y = 3.2; g.add(kolo);
+                    for (let k = 0; k < 10; k++) {
+                        const a = (k / 10) * Math.PI * 2;
+                        const szprycha = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 2.6, 4), stal);
+                        szprycha.position.set(Math.cos(a) * 1.3, 3.2 + Math.sin(a) * 1.3, 0);
+                        szprycha.rotation.z = a + Math.PI / 2; g.add(szprycha);
+                        const wagonik = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.4, 0.45),
+                            new THREE.MeshLambertMaterial({ color: [0x7a2f4a, 0x3f6b5a, 0x8a7a3a][k % 3] }));
+                        wagonik.position.set(Math.cos(a) * 2.6, 3.2 + Math.sin(a) * 2.6 - 0.3, 0);
+                        g.add(wagonik);
+                    }
+                    [-1, 1].forEach(b => {
+                        const noga = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 3.6, 6), stal);
+                        noga.position.set(b * 1.1, 1.6, 0); noga.rotation.z = b * 0.32; g.add(noga);
+                    });
+                    g.position.set(pos.x, ty, pos.z);
+                    g.rotation.y = Math.random() * Math.PI;
+                    g.userData.diabelski = true;
+                    scene.add(g); obstacleMeshes.push(g);
                 }
                 else if (pos.type === 'kloda') {
                     // Zwalony pień - niska, długa osłona
@@ -6208,6 +6352,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             cywil_men:    { plik: 'models/men.glb',    idle: 'men_idle',    walk: 'men_run',
                        atak: null, smierc: 'men_death',    cios: null, wysokosc: 1.8,
                        idleAlt: 'man_idle', walkAlt: 'man_run', smiercAlt: 'man_death' },
+            klaun:    { plik: 'models/claun.glb', idle: 'claun_idle', walk: 'claun_walk',
+                       atak: 'claun_attack', atakWrecz: 'claun_attack_short',
+                       smierc: 'claun_death', cios: 'claun_hit', wysokosc: 2.0 },
+            koszmar:  { plik: 'models/boss1.glb', idle: 'boss_idle', walk: 'boss1_walk',
+                       atak: 'boss1_attack', specjalna: 'boss1_summon',
+                       smierc: 'boss_death', cios: 'boss1_hit', wysokosc: 3.2,
+                       // na wypadek ujednolicenia nazw przy kolejnym eksporcie
+                       idleAlt: 'boss1_idle', smiercAlt: 'boss1_death' },
             summoner: { plik: 'models/przywolywacz.glb', idle: 'przywolywacz_idle', walk: 'przywolywacz_walk',
                        atak: 'przywolywacz_attack', smierc: 'przywolywacz_death', cios: 'przywolywacz_hit', wysokosc: 2.0 },
             standard: { plik: 'models/standard.glb', idle: 'standard_idle', walk: 'standard_run',
@@ -8531,6 +8683,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             { label: '🧟 Cmentarzysko',     theme: 'cmentarzysko', mission: 'standard' },
             { label: '🤖 Cyber',            theme: 'cyber',        mission: 'standard' },
             { label: '🕷️ Amazonia',         theme: 'amazonia',     mission: 'standard' },
+            { label: '🎪 Wesołe miasteczko', theme: 'wesole',       mission: 'standard' },
             { label: '🧪 ARENA - wszyscy wrogowie', arena: true }
         ];
 
@@ -8567,6 +8720,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 { typ: 'robot',     hp: 14, ap: 11, opis: 'Robot' },
                 { typ: 'droid',     hp: 8,  ap: 12, opis: 'Droid' },
                 { typ: 'ogar',      hp: 9,  ap: 18, opis: 'Ogar piekielny' },
+                { typ: 'klaun',     hp: 11, ap: 12, opis: 'Klaun' },
                 { typ: 'smierc',    hp: SMIERC_HP, ap: 12, opis: 'Śmierć', nieDoZabicia: true }
             ];
             // Wszystkie osiem gatunków pająków
@@ -8581,7 +8735,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const BUDOWA = {
                 summoner: createSummonerMesh, stalker: createStalkerMesh, wisp: createWispMesh,
                 zombie: createZombieMesh, vampire: createVampireMesh, strzyga: createStrzygaMesh,
-                robot: createRobotMesh, droid: createDroidMesh, ogar: createHellhoundMesh,
+                robot: createRobotMesh, droid: createDroidMesh, ogar: createHellhoundMesh, klaun: createClownMesh,
                 smierc: createDeathMesh
             };
 
@@ -9120,6 +9274,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             renderThemedLandmarkDecor();
             renderCornfields();
             palmyPozycje = [];   // odstępy liczymy od nowa dla każdej planszy
+            zarowkiWesole.forEach(o => scene.remove(o)); zarowkiWesole = [];
             clearCampfires();
             renderRiver();
             buildCloudSea();
@@ -9148,7 +9303,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Nowe rasy mają własne bryły, nie budujemy ich z createCharacter
             const CUSTOM_ENEMY_MESH = { summoner: createSummonerMesh, stalker: createStalkerMesh, wisp: createWispMesh, koszmar: createBossMesh, zombie: createZombieMesh, vampire: createVampireMesh, strzyga: createStrzygaMesh,
                                         spider_small: () => createSpiderMesh(false), spider_big: () => createSpiderMesh(true),
-                                        robot: createRobotMesh, droid: createDroidMesh };
+                                        robot: createRobotMesh, droid: createDroidMesh, klaun: createClownMesh };
             enemies = (data.enemies || []).filter(ed => !ed.isDead).map(ed => {
                 const look = ENEMY_LOOKS[ed.type] || ENEMY_LOOKS.standard;
                 // Jeśli dla tego typu wgrano model 3D, po wczytaniu zapisu też z niego korzystamy
@@ -11594,6 +11749,43 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return ofiaraStada;
         }
 
+        // Klaun z opuszczonego wesołego miasteczka - blada twarz, czerwony nos,
+        // kolorowy kostium wyblakły od lat i zbyt szeroki uśmiech
+        function createClownMesh() {
+            const g = new THREE.Group();
+            const kostium = new THREE.MeshLambertMaterial({ color: 0x7a2f4a });
+            const kostium2 = new THREE.MeshLambertMaterial({ color: 0x3f6b5a });
+            const skora = new THREE.MeshLambertMaterial({ color: 0xe8e2d6 });
+            const tulow = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.46, 1.0, 10), kostium);
+            tulow.position.y = 0.95; g.add(tulow);
+            [-1, 1].forEach(b => {
+                const noga = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, 0.55, 7), b < 0 ? kostium : kostium2);
+                noga.position.set(b * 0.18, 0.3, 0); g.add(noga);
+                const but = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.12, 0.46), new THREE.MeshLambertMaterial({ color: 0xa8231f }));
+                but.position.set(b * 0.18, 0.06, 0.1); g.add(but);
+                const reka = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.1, 0.72, 6), b < 0 ? kostium2 : kostium);
+                reka.position.set(b * 0.45, 1.0, 0); reka.rotation.z = b * 0.35; g.add(reka);
+            });
+            const glowa = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), skora);
+            glowa.position.y = 1.72; g.add(glowa);
+            const nos = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff2020 }));
+            nos.position.set(0, 1.7, 0.29); g.add(nos);
+            [-1, 1].forEach(b => {
+                const oko = new THREE.Mesh(new THREE.SphereGeometry(0.045, 6, 5), new THREE.MeshBasicMaterial({ color: 0x111111 }));
+                oko.position.set(b * 0.11, 1.8, 0.26); g.add(oko);
+                const kepka = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshLambertMaterial({ color: 0xc24a1a }));
+                kepka.position.set(b * 0.27, 1.82, 0); g.add(kepka);   // kępki rudych włosów
+            });
+            const usmiech = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.025, 5, 12, Math.PI),
+                new THREE.MeshBasicMaterial({ color: 0x8a0f14 }));
+            usmiech.position.set(0, 1.63, 0.27); usmiech.rotation.z = Math.PI; g.add(usmiech);
+            const kolnierz = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.08, 6, 14), new THREE.MeshLambertMaterial({ color: 0xd8d0c0 }));
+            kolnierz.rotation.x = Math.PI / 2; kolnierz.position.y = 1.47; g.add(kolnierz);
+            g.userData.yOffset = 0;
+            g.userData.unitType = 'klaun';
+            return g;
+        }
+
         function createStrzygaMesh() {
             const g = new THREE.Group();
             const ghostMat = new THREE.MeshBasicMaterial({ color: 0xeef2f5, transparent: true, opacity: 0.55, depthWrite: false });
@@ -11814,11 +12006,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     ['amazonia', 'bagno', 'nekropolia', 'cmentarzysko'].includes(currentCombatTheme.id);
                 const szansaPajaka = currentCombatTheme && currentCombatTheme.id === 'amazonia' ? 0.8 : 0.25;
                 const bossowa = (currentMissionType === 'boss');
+                const klaunWypadl = currentCombatTheme && currentCombatTheme.id === 'wesole' && Math.random() < 0.65;
                 const ogarWypadl = Math.random() < szansaNaOgary(bossowa);
                 const pajakWypadl = !ogarWypadl && mapaPajakow && Math.random() < szansaPajaka;
                 const mapaMaszyn = currentCombatTheme &&
                     ['cyber', 'whitehouse', 'zhongnanhai'].includes(currentCombatTheme.id);
-                if (ogarWypadl) {
+                if (klaunWypadl) {
+                    type = 'klaun'; maxHp = 11; maxAp = 12; mesh = createClownMesh();
+                } else if (ogarWypadl) {
                     type = 'ogar'; maxHp = 9; maxAp = 18; mesh = createHellhoundMesh();
                 } else if (pajakWypadl) {
                     const nrGat = losowyGatunekPajaka(Math.random() >= 0.78);
@@ -12434,7 +12629,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             zombie: 'ZOMBIE', vampire: 'DRAKULA', strzyga: 'STRZYGA',
             robot: 'ROBOT', droid: 'DROID', ogar: 'OGAR PIEKIELNY',
             koszmar: 'KOSZMAR', smierc: 'ŚMIERĆ',
-            spider_small: 'PAJĄK', spider_big: 'WIELKI PAJĄK'
+            spider_small: 'PAJĄK', spider_big: 'WIELKI PAJĄK', klaun: 'KLAUN'
         };
 
         function nazwaWroga(e) {
@@ -13621,7 +13816,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     bx = cx; bz = cz; break;
                 }
                 if (bx === null) { currentMissionType = 'standard'; return; }
-                const bm = createBossMesh();
+                const bm = buildEnemyModelInstance('koszmar') || createBossMesh();
                 bm.position.set(bx, getTerrainY(bx, bz), bz);
                 scene.add(bm);
                 const boss = {
@@ -16309,6 +16504,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         const wall = findBlockingWall(ex, ez, hidden.x, hidden.z);
                         if (wall) {
                             e.ap -= shootCost;
+                    animWroga(e, 'atak', true);
                             animWroga(e, 'atak', true);
                             faceTowards(e, wall.x, wall.z);
                             playFileSfx(AudioFiles.laserShot, 0.5);
@@ -16495,6 +16691,38 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     return;
                 }
                 // z dystansu pędzi do celu - obsłuży to zwykły kod ruchu poniżej
+            }
+
+            // KLAUN: z bliska uderza wręcz, z daleka strzela (zwykłym kodem poniżej)
+            if (e.type === 'klaun' && bestTarget) {
+                const kx = Math.round(bestTarget.mesh.position.x), kz = Math.round(bestTarget.mesh.position.z);
+                const kd = Math.max(Math.abs(kx - ex), Math.abs(kz - ez));
+                // Licznik ciosów zerujemy na początku tury klauna (pełna pula punktów)
+                if (e.ap >= getEffectiveMaxAp(e)) e.klaunCiosow = 0;
+                if (kd === 1 && (bestTarget.level || 0) === eLvl && e.ap >= 3 && (e.klaunCiosow || 0) < 2) {
+                    // Najwyżej dwa ciosy na turę - z pełną pulą punktów klaun zabijałby
+                    // wojownika jednym podejściem
+                    e.klaunCiosow = (e.klaunCiosow || 0) + 1;
+                    e.ap -= 3;
+                    faceTowards(e, kx, kz);
+                    animWroga(e, 'atakWrecz', true);
+                    if (!tryMeleeInterrupt(e, bestTarget)) {
+                        applyDamageToUnit(bestTarget, 4 + (e.dmgBonus || 0), e);
+                        updateUI('KLAUN uderza z chichotem! (-' + (4 + (e.dmgBonus || 0)) + ')');
+                        playFileSfx(AudioFiles.enemyOuch, 0.6);
+                        if (bestTarget.hp <= 0) {
+                            playDyingSfx(); killUnitWithAnim(bestTarget);
+                            if (bestTarget.isNPC) applyMoralePenalty(); else refreshPlayerPositions();
+                        }
+                    }
+                    checkGameOver();
+                    if (!gameOver) {
+                        if (e.klaunCiosow >= 2) { currentEnemyIndex++; }   // limit ciosów - koniec tury
+                        setTimeout(processNextEnemy, 350);
+                    }
+                    return;
+                }
+                if (kd === 1 && (e.klaunCiosow || 0) >= 2) { currentEnemyIndex++; setTimeout(processNextEnemy, 150); return; }
             }
 
             // WAMPIR: hipnoza, znikanie albo cios wręcz
@@ -16807,6 +17035,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (!e.hasOpened) {
                     e.hasOpened = true;
                     let n = 0;
+                    animWroga(e, 'specjalna', true);   // gest przywołania
                     for (let i = 0; i < 3; i++) if (summonMonsterNear(bx, bz, bLvl)) n++;
                     updateUI(`KOSZMAR budzi się i przyzywa ${n} potwory!`);
                     updateFoW();
@@ -16816,6 +17045,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 e.bossTurn = (e.bossTurn || 0) + 1;
                 const summonNow = (e.bossTurn % 2 === 0); // co druga tura przyzywa
                 if (summonNow) {
+                    animWroga(e, 'specjalna', true);
                     if (summonMonsterNear(bx, bz, bLvl)) {
                         faceTowards(e, bpx, bpz);
                         updateUI('KOSZMAR przyzywa kolejnego potwora!');
@@ -16831,6 +17061,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     playFileSfx(AudioFiles.laserShot, 0.6);
                     const hit = Math.random() < 0.7;
                     updateUI('KOSZMAR ciska kulą ognia!');
+                    animWroga(e, 'atak', true);   // boss strzela
                     createProjectile(ex, ey + 1.6, ez, bpx, bpy + 0.5, bpz, hit, null, () => {
                         if (hit) {
                             applyDamageToUnit(warriorTarget, 7);
@@ -16942,6 +17173,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             } else {
                 if (e.type !== 'summoner' && e.type !== 'zombie' && e.type !== 'strzyga' && e.type !== 'robot' && e.type !== 'spider_small' && e.type !== 'spider_big' && e.type !== 'smierc' && e.type !== 'ogar' && e.ap >= shootCost && dist <= getVisionRange() && checkLineOfSight3D(ex, ey+1, ez, px, py+0.5, pz) && !floorsBlockShot(ex, ez, eLvl, px, pz, tLvl)) {
                     e.ap -= shootCost;
+                    animWroga(e, 'atak', true);
                     faceTowards(e, px, pz);
                     animWroga(e, 'atak', true);
                     let targetCover = getCoverObstacle(px, pz, ex, ez), shooterCover = getCoverObstacle(ex, ez, px, pz);
@@ -17326,6 +17558,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // drążek zmieniał wektor, którego nikt nie odczytywał, a elita nie pulsowała
             przesunWidokDrazkiem(dt);
             pulsujPoswiate(time);
+            migotanieZarowek(time);
             if (isExploreMode()) {
                 tikZegara();
                 updateNocnaSmierc(dt);
@@ -17444,6 +17677,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                       'Nie dotyka gruntu, więc nie zatrzyma go błoto ani przeszkody terenu. Razi celną wiązką z dystansu. ' +
                       'Wątły - kilka trafień wystarczy, by spadł.',
                 stats: [['Punkty życia', '8'], ['Punkty ruchu', '12'], ['Premia do celności', 'brak'], ['Styl walki', 'ostrzał wiązką z dystansu']]
+            },
+            {
+                id: 'klaun', title: 'Klaun',
+                text: 'Mieszkaniec opuszczonego wesołego miasteczka. Wyblakły kostium, pobielona twarz, ' +
+                      'czerwony nos i uśmiech, który sięga dalej, niż powinien.\\n\\n' +
+                      'Z daleka rzuca czymś, co kiedyś było zabawką. Gdy podejdziesz zbyt blisko, ' +
+                      'przestaje się bawić i uderza wręcz - z chichotem, który słychać jeszcze długo po walce.',
+                stats: [['Punkty życia', '11'], ['Punkty ruchu', '12'], ['Premia do celności', 'brak'],
+                        ['Styl walki', 'strzał z dystansu, wręcz z bliska (4 obr.)']]
             },
             {
                 id: 'ogar', title: 'Ogar Piekielny',
@@ -17606,7 +17848,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 droid:    createDroidMesh,
                 koszmar:  createBossMesh,
                 ogar:     createHellhoundMesh,
-                smierc:   createDeathMesh
+                smierc:   createDeathMesh,
+                klaun:    createClownMesh
             };
             const PREVIEW_SCALE = { koszmar: 0.42, vampire: 0.9, wisp: 1.5, strzyga: 1.0, zombie: 1.05 };
 
