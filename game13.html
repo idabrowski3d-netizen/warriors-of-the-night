@@ -8746,6 +8746,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 { typ: 'ogar',      hp: 9,  ap: 18, opis: 'Ogar piekielny' },
                 { typ: 'klaun',     hp: 11, ap: 12, opis: 'Klaun' },
                 { typ: 'robak',     hp: 10, ap: 15, opis: 'Robak' },
+                { typ: 'koszmar',   hp: 20, ap: 10, opis: 'Koszmar (boss)', boss: true },
+                { typ: 'general',   hp: 55, ap: 12, opis: 'Generał (boss)', boss: true },
                 { typ: 'smierc',    hp: SMIERC_HP, ap: 12, opis: 'Śmierć', nieDoZabicia: true }
             ];
             // Wszystkie osiem gatunków pająków
@@ -8761,6 +8763,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 summoner: createSummonerMesh, stalker: createStalkerMesh, wisp: createWispMesh,
                 zombie: createZombieMesh, vampire: createVampireMesh, strzyga: createStrzygaMesh,
                 robot: createRobotMesh, droid: createDroidMesh, ogar: createHellhoundMesh, klaun: createClownMesh, robak: createWormMesh,
+                koszmar: createBossMesh, general: createGeneralMesh,
                 smierc: createDeathMesh
             };
 
@@ -8807,7 +8810,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     mesh: mesh, type: w.typ, hp: w.hp, maxHp: w.hp, ap: w.ap, maxAp: w.ap,
                     accuracyBonus: 0, isDead: false, facingAngle: Math.PI, level: 0,
                     gatunek: (w.gatunek === undefined ? null : w.gatunek),
-                    nieDoZabicia: !!w.nieDoZabicia
+                    nieDoZabicia: !!w.nieDoZabicia,
+                    isBoss: !!w.boss, bossTurn: 0, hasOpened: !!w.boss
                 });
             });
 
