@@ -904,6 +904,7 @@
         <div class="stat-line">Level: <span id="stat-level">1</span></div>
         <div class="stat-line">Misja: <span id="stat-mission">0</span></div>
         <div class="stat-line">GOOD DEEDS: <span id="stat-gooddeeds">0</span></div>
+        <div class="stat-line" id="stat-zdrowie-linia" style="display:none;color:#ff8a7a;">ZDROWIE: <span id="stat-zdrowie">-</span></div>
     </div>
 
     <div id="sleeping-vital-container">
@@ -3093,7 +3094,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     { x: maxX - 1, z: maxZ - 1, need: 'prayer'  },
                     { x: minX + Math.floor((maxX - minX) / 2), z: minZ + 1, need: 'hunger' }
                 ];
-                bedSpots.forEach(b => hospitalPatients.push({ x: b.x, z: b.z, need: b.need, helped: false, taskTaken: false, requestedAt: 0 }));
+                // Ranni towarzysze zajmują łóżka jako pierwsi - reszta to zwykli pacjenci
+                const ranni = recruitedWarriors.filter(w => w.zdrowie);
+                const POTRZEBY = ['comfort', 'thirst', 'prayer', 'hunger'];
+                bedSpots.forEach((b, i) => {
+                    const w = ranni[i];
+                    hospitalPatients.push({ x: b.x, z: b.z,
+                        need: w ? POTRZEBY[Math.floor(Math.random() * POTRZEBY.length)] : b.need,
+                        helped: false, taskTaken: false, requestedAt: 0,
+                        wojownik: w ? w.name : null });
+                });
             }
 
             function placeCemetery() {
@@ -4658,6 +4668,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     new THREE.MeshLambertMaterial({ color: 0xffccaa }));
                 head.position.set(p.x, y + 0.42, p.z - 0.6);
                 scene.add(head); hospitalUpperMeshes.push(head);
+                // Ranny towarzysz ma podpis - od razu widać, kto leży w łóżku
+                if (p.wojownik && !p.helped) {
+                    const w = recruitedWarriors.find(r => r.name === p.wojownik);
+                    const opis = w && w.zdrowie ? `${p.wojownik} ${w.zdrowie.hp}/${w.zdrowie.max}` : p.wojownik;
+                    const podpis = createNameSprite(opis);
+                    podpis.position.set(p.x, y + 1.1, p.z - 0.6);
+                    scene.add(podpis); hospitalUpperMeshes.push(podpis);
+                }
                 p.mesh = head; // punkt odniesienia dla dymka
                 if (!p.helped) {
                     const aura = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.45, 1.1, 12, 1, true),
@@ -9038,11 +9056,80 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         let lastMissionWon = false;
 
+        // ========================================================
+        // --- ZDROWIE MIĘDZY MISJAMI ---
+        // Rany nie znikają po przebudzeniu. Ranny towarzysz trafia do szpitala
+        // i prosi o pomoc jak inni pacjenci - każdy uczynek to +2 zdrowia.
+        // Bohater leczy się dobrymi uczynkami (+2 za każdy). Kto nie wyzdrowiał
+        // do końca, zaczyna następną misję z tym, co ma.
+        // ========================================================
+        const LECZENIE_ZA_UCZYNEK = 2;
+        let zdrowieBohatera = null;        // { hp, max } albo null = zdrów
+        let ostatnieUczynki = null;        // do wykrywania każdego nowego uczynku
+
+        function zapiszRanyPoMisji() {
+            if (misjaTestowa) return;      // test nie zostawia ran
+            soldiers.forEach((s, i) => {
+                if (s.isNPC || s.isEscortee || s.isAngel || s.summonedTurns > 0) return;
+                const max = s.maxHp || 10;
+                // Poległy wraca do szpitala ledwo żywy - nie jak nowy
+                const hp = s.isDead ? 1 : Math.max(1, Math.min(max, s.hp));
+                const stan = hp < max ? { hp: hp, max: max } : null;
+                if (i === 0) zdrowieBohatera = stan;
+                else {
+                    const w = recruitedWarriors.find(r => r.name === s.name);
+                    if (w) w.zdrowie = stan;
+                }
+            });
+        }
+
+        // Na starcie misji rany wracają na wojowników
+        function nalozRanyNaStarcie() {
+            soldiers.forEach((s, i) => {
+                const stan = (i === 0) ? zdrowieBohatera
+                           : ((recruitedWarriors.find(r => r.name === s.name) || {}).zdrowie || null);
+                if (!stan) return;
+                // Witalność mogła wzrosnąć od tamtej pory - zachowujemy proporcję ran
+                const ulamek = stan.hp / Math.max(1, stan.max);
+                s.hp = Math.max(1, Math.round(s.maxHp * ulamek));
+            });
+            const ranni = soldiers.filter(s => s.hp < s.maxHp && !s.isDead);
+            if (ranni.length) updateUI('Nie wszyscy wyzdrowieli: ' + ranni.map(s => `${s.name} ${s.hp}/${s.maxHp}`).join(', ') + '.');
+        }
+
+        function wyleczTowarzysza(w, ile) {
+            if (!w || !w.zdrowie) return false;
+            w.zdrowie.hp = Math.min(w.zdrowie.max, w.zdrowie.hp + ile);
+            if (w.zdrowie.hp >= w.zdrowie.max) { w.zdrowie = null; return true; }
+            return false;
+        }
+
+        // Każdy nowy dobry uczynek leczy bohatera - bez względu na to, gdzie go zrobił
+        function leczBohateraZaUczynki() {
+            if (ostatnieUczynki === null) { ostatnieUczynki = playerStats.goodDeeds; return; }
+            const nowe = playerStats.goodDeeds - ostatnieUczynki;
+            ostatnieUczynki = playerStats.goodDeeds;
+            if (nowe <= 0 || !zdrowieBohatera) return;
+            zdrowieBohatera.hp = Math.min(zdrowieBohatera.max, zdrowieBohatera.hp + nowe * LECZENIE_ZA_UCZYNEK);
+            if (zdrowieBohatera.hp >= zdrowieBohatera.max) {
+                zdrowieBohatera = null;
+                showFloatingWarning('Rany się zagoiły - jesteś w pełni sił!');
+            } else {
+                showFloatingWarning(`Dobry uczynek koi rany: ${zdrowieBohatera.hp}/${zdrowieBohatera.max}`);
+            }
+        }
+
         function updatePlayerStatsUI() {
+            leczBohateraZaUczynki();
             document.getElementById('stat-grace').innerText = playerStats.grace;
             document.getElementById('stat-level').innerText = playerStats.level;
             document.getElementById('stat-mission').innerText = playerStats.mission;
             document.getElementById('stat-gooddeeds').innerText = playerStats.goodDeeds;
+            const zl = document.getElementById('stat-zdrowie-linia');
+            if (zl) {
+                zl.style.display = zdrowieBohatera ? '' : 'none';
+                if (zdrowieBohatera) document.getElementById('stat-zdrowie').innerText = `${zdrowieBohatera.hp}/${zdrowieBohatera.max}`;
+            }
         }
 
         const SAVE_KEY = 'warriorsOfTheNight_save_v1';
@@ -9089,6 +9176,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 goodDeeds: playerStats.goodDeeds,
                 playerName: playerName,
                 czasGry: czasGry.getTime(),
+                zdrowieBohatera: zdrowieBohatera,
                 ostatniaKrew: ostatniaKrew, ostatniSzpik: ostatniSzpik, szpikOgloszony: szpikOgloszony,
                 playerPatronKey: playerPatronKey,
                 // Kopie, nie referencje - inaczej późniejsze zmiany stanu gry
@@ -9112,6 +9200,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             playerStats.goodDeeds = data.goodDeeds || 0;
             playerName = data.playerName || '';
             if (typeof data.czasGry === 'number') { czasGry = new Date(data.czasGry); odswiezZegar(); }
+            zdrowieBohatera = data.zdrowieBohatera || null;
+            ostatnieUczynki = null;
             ostatniaKrew = (typeof data.ostatniaKrew === 'number') ? data.ostatniaKrew : null;
             ostatniSzpik = (typeof data.ostatniSzpik === 'number') ? data.ostatniSzpik : null;
             szpikOgloszony = !!data.szpikOgloszony;
@@ -11055,6 +11145,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         function returnToPresentFromDream() {
+            // Rany zapisujemy, ZANIM oddział zostanie usunięty ze sceny
+            zapiszRanyPoMisji();
             soldiers.forEach(s => scene.remove(s.mesh));
             enemies.forEach(e => scene.remove(e.mesh));
             npcs.forEach(n => scene.remove(n.mesh));
@@ -13240,6 +13332,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             rebuildWaterSources(); // losowe, rzadkie latarnie mogą pojawić się też na planszy walki
             
             spawnPlayers(count); 
+            if (!misjaTestowa) nalozRanyNaStarcie();
             spawnEnemies(); 
             
             spawnNPCs();
@@ -15190,13 +15283,29 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 return;
             }
 
-            p.helped = true;
             if (p.need === 'prayer') heroQuestItems.prayer = false;
             playerStats.grace += 2;
             playerStats.goodDeeds += 1;
             playerStats.level = 1 + Math.floor(playerStats.goodDeeds / 3);
+            // Ranny towarzysz: uczynek leczy go o 2, a dopóki nie wyzdrowieje,
+            // prosi o kolejną pomoc zamiast zasypiać spokojnie
+            const w = p.wojownik ? recruitedWarriors.find(r => r.name === p.wojownik) : null;
+            if (w && w.zdrowie) {
+                const zdrowy = wyleczTowarzysza(w, LECZENIE_ZA_UCZYNEK);
+                if (zdrowy) {
+                    p.helped = true;
+                    speakAt(bubbleAt, `Dziękuję! Czuję się silny jak nigdy. Mogę znów walczyć.`, '(+2 Grace, w pełni zdrowy)');
+                } else {
+                    const POTRZEBY = ['comfort', 'thirst', 'prayer', 'hunger'];
+                    p.need = POTRZEBY[Math.floor(Math.random() * POTRZEBY.length)];
+                    p.taskTaken = false; p.requestedAt = 0;
+                    speakAt(bubbleAt, `Dziękuję... już lepiej. (${w.zdrowie.hp}/${w.zdrowie.max})`, '(+2 Grace, +2 zdrowia)');
+                }
+            } else {
+                p.helped = true;
+                speakAt(bubbleAt, THANK_YOU_LINES[Math.floor(Math.random() * THANK_YOU_LINES.length)], '(+2 Grace)');
+            }
             updatePlayerStatsUI();
-            speakAt(bubbleAt, THANK_YOU_LINES[Math.floor(Math.random() * THANK_YOU_LINES.length)], '(+2 Grace)');
             renderHospitalUpper(); // pościel zmienia kolor na "już pomożony"
         }
 
@@ -18954,6 +19063,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             playerPatronKey = applyPatronBoost(name);
             czasGry = new Date();   // nowa gra startuje od bieżącej daty i godziny
             ostatniaKrew = null; ostatniSzpik = czasGry.getTime(); szpikOgloszony = false;
+            zdrowieBohatera = null; ostatnieUczynki = null;
             document.getElementById('name-prompt-screen').style.display = 'none';
             pokazIntro(() => startPresentMode());
         }
