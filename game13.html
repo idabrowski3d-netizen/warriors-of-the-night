@@ -13622,8 +13622,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const NISKIE_PRZESZKODY = ['rock', 'kloda', 'lawka', 'kosz', 'zywoplot', 'beczka',
                                    'nagrobek', 'crate', 'barrel', 'bush', 'grave', 'tombstone'];
 
+        // Drzewa i słupy nie zasłaniają widoku: pień jest wąski, a korona wisi nad
+        // głowami. Wcześniej rzucały za sobą szeroki czarny stożek mgły, choć
+        // wojownik stojący za drzewem widzi niemal wszystko, co jest dalej.
+        const PRZEZROCZYSTE_DLA_WZROKU = ['tree', 'palma', 'palm', 'kaktus', 'cactus',
+                                          'lamp', 'latarnia', 'slup', 'znak'];
+
         function czyNiskaPrzeszkoda(obs) {
             if (!obs) return false;
+            if (PRZEZROCZYSTE_DLA_WZROKU.indexOf(obs.type) !== -1) return true;
             if (obs.wysoka) return false;
             return NISKIE_PRZESZKODY.indexOf(obs.type) !== -1;
         }
