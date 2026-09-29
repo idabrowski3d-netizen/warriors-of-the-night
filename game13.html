@@ -13547,6 +13547,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
         const npcVisionRange = 5;
         const colorHidden = new THREE.Color(0x000000), colorExplored = new THREE.Color(0x333333), colorVisible = new THREE.Color(0xffffff); 
+        // Mgła malowała każde pole jednym z trzech kolorów, więc jej krawędź była
+        // schodkowa. Teraz liczymy jasność każdego pola i wygładzamy ją po sąsiadach,
+        // dzięki czemu granica światła i cienia przechodzi płynnie.
+        const JASNOSC_WIDOCZNE = 1.0, JASNOSC_ZBADANE = 0.32, JASNOSC_UKRYTE = 0.0;
+        let mglaJasnosc = null, mglaJasnosc2 = null;
+        const kolorMgly = new THREE.Color();
 
         // ========================================================
         // --- POLE WIDZENIA WROGÓW, SŁUCH I ZACHODZENIE OD TYŁU ---
@@ -13999,15 +14005,46 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
             }
             
-            let i = 0;
-            for(let mx = 0; mx < mapWidth; mx++) {
-                for(let mz = 0; mz < mapDepth; mz++) {
-                    let type = terrainTypeMap[mx][mz];
-                    let idx = terrainIndices[mx][mz];
-                    if (visibleGrid[mx][mz] === 1) terrainMeshes[type].setColorAt(idx, colorVisible);
-                    else if (exploredGrid[mx][mz] === 1) terrainMeshes[type].setColorAt(idx, colorExplored);
-                    else terrainMeshes[type].setColorAt(idx, colorHidden);
-                    i++;
+            // --- WYGŁADZANIE KRAWĘDZI MGŁY ---
+            if (!mglaJasnosc || mglaJasnosc.length !== mapWidth) {
+                mglaJasnosc = new Float32Array(mapWidth * mapDepth);
+                mglaJasnosc2 = new Float32Array(mapWidth * mapDepth);
+                mglaJasnosc.length = mapWidth;   // znacznik rozmiaru
+            }
+            const W = mapWidth, D = mapDepth;
+            const surowa = mglaJasnosc, gladka = mglaJasnosc2;
+            for (let mx = 0; mx < W; mx++) {
+                for (let mz = 0; mz < D; mz++) {
+                    surowa[mx * D + mz] = visibleGrid[mx][mz] === 1 ? JASNOSC_WIDOCZNE
+                                        : (exploredGrid[mx][mz] === 1 ? JASNOSC_ZBADANE : JASNOSC_UKRYTE);
+                }
+            }
+            // Uśrednienie po sąsiadach - jeden przebieg wystarcza, by zniknęły schodki
+            for (let mx = 0; mx < W; mx++) {
+                for (let mz = 0; mz < D; mz++) {
+                    let suma = 0, ile = 0;
+                    for (let dx = -1; dx <= 1; dx++) {
+                        const nx = mx + dx;
+                        if (nx < 0 || nx >= W) continue;
+                        for (let dz = -1; dz <= 1; dz++) {
+                            const nz = mz + dz;
+                            if (nz < 0 || nz >= D) continue;
+                            const waga = (dx === 0 && dz === 0) ? 3 : 1;   // środek liczy się mocniej
+                            suma += surowa[nx * D + nz] * waga; ile += waga;
+                        }
+                    }
+                    gladka[mx * D + mz] = suma / ile;
+                }
+            }
+            for(let mx = 0; mx < W; mx++) {
+                for(let mz = 0; mz < D; mz++) {
+                    const type = terrainTypeMap[mx][mz];
+                    const idx = terrainIndices[mx][mz];
+                    let j = gladka[mx * D + mz];
+                    // Pole w pełni widoczne zostaje w pełni jasne - wygładzamy tylko brzegi
+                    if (visibleGrid[mx][mz] === 1) j = Math.max(j, 0.85);
+                    kolorMgly.setRGB(j, j, j);
+                    terrainMeshes[type].setColorAt(idx, kolorMgly);
                 }
             }
             
