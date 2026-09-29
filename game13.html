@@ -3924,8 +3924,28 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
             } else {
                 // W wielkim mieście drzewa rosną znacznie rzadziej niż na przedmieściach
-                const treeTries = (currentCombatTheme && currentCombatTheme.id === 'newyork') ? 28 : 150;
-                for(let i = 0; i < treeTries; i++) {
+                const wNowymJorku = currentCombatTheme && currentCombatTheme.id === 'newyork';
+                const treeTries = wNowymJorku ? 28 : 150;
+
+                // ZAGAJNIKI: około połowy drzew rośnie w skupiskach, reszta pojedynczo.
+                // Sam rozrzut po całej planszy dawał równomierny "sad", a nie las.
+                const zagajnikow = wNowymJorku ? 2 : (4 + Math.floor(Math.random() * 4));
+                let wZagajnikach = 0;
+                for (let g = 0; g < zagajnikow; g++) {
+                    const cx = Math.floor(Math.random() * (mapWidth - 20)) + 10 - offsetX;
+                    const cz = Math.floor(Math.random() * (mapDepth - 20)) + 10 - offsetZ;
+                    const promien = 2.5 + Math.random() * 3.5;         // zagajniki różnej wielkości
+                    const ile = 6 + Math.floor(Math.random() * 10);
+                    for (let t = 0; t < ile; t++) {
+                        // Gęściej w środku, rzadziej po brzegach - naturalniejszy kształt
+                        const kat = Math.random() * Math.PI * 2;
+                        const r = promien * Math.sqrt(Math.random()) * (0.6 + Math.random() * 0.4);
+                        const ox = Math.round(cx + Math.cos(kat) * r), oz = Math.round(cz + Math.sin(kat) * r);
+                        if (canPlaceTree(ox, oz)) { addObstacle(ox, oz, 'tree'); wZagajnikach++; }
+                    }
+                }
+                // Reszta pojedynczo, po całej planszy
+                for(let i = 0; i < Math.max(0, treeTries - wZagajnikach); i++) {
                     let ox = Math.floor(Math.random() * mapWidth) - offsetX, oz = Math.floor(Math.random() * mapDepth) - offsetZ;
                     if (canPlaceTree(ox, oz)) addObstacle(ox, oz, 'tree');
                 }
@@ -5257,6 +5277,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // jednym wywołaniem zamiast osobno dla każdego drzewa. To właśnie liczba wywołań,
         // a nie pamięć, dławiła przeglądarkę przy 90 drzewach.
         let drzewaZbiorcze = [];
+        const kolorDrzewa = new THREE.Color();
         const drzewaDoPostawienia = [];   // zbieramy pozycje, stawiamy raz na końcu
 
         function zglosDrzewoDoModelu(x, y, z) {
@@ -5299,15 +5320,34 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 wpis.proto.updateMatrixWorld(true);
                 wpis.proto.traverse(ch => {
                     if (!ch.isMesh || !ch.geometry) return;
-                    czesci.push({ geo: ch.geometry, mat: ch.material, lokalna: ch.matrixWorld.clone() });
+                    czesci.push({ geo: ch.geometry, mat: ch.material, nazwa: ch.name, lokalna: ch.matrixWorld.clone() });
                 });
                 if (czesci.length === 0) return;
 
                 czesci.forEach(cz => {
-                    const im = new THREE.InstancedMesh(cz.geo, cz.mat, lista.length);
+                    // Każda kopia dostaje własny odcień przez instanceColor. NIE wolno tu
+                    // włączać vertexColors: siatki drzew nie mają koloru w wierzchołkach,
+                    // więc silnik odczytywał zera i wszystkie drzewa robiły się czarne.
+                    const matBazowy = Array.isArray(cz.mat) ? cz.mat[0] : cz.mat;
+                    const mat = matBazowy ? matBazowy.clone() : matBazowy;
+                    if (mat) {
+                        mat.vertexColors = false;
+                        // Liście mają tryb BLEND - przy gęstej koronie daje to błędne
+                        // sortowanie. Próg przezroczystości wygląda lepiej i jest tańszy.
+                        if (mat.transparent && mat.map) {
+                            mat.transparent = false;
+                            mat.alphaTest = 0.4;
+                            mat.depthWrite = true;
+                        }
+                        mat.side = THREE.DoubleSide;   // liście widoczne z obu stron
+                        mat.needsUpdate = true;
+                    }
+                    const im = new THREE.InstancedMesh(cz.geo, mat, lista.length);
                     im.castShadow = true;
                     im.receiveShadow = false;
                     im.userData.unitType = 'tree';
+                    // Liście barwimy mocniej niż pnie - to one dają wrażenie różnorodności
+                    const toLiscie = /lisc|leaf|leaves|korona|crown|foliage|branch|galez|krzew/i.test(cz.nazwa || '');
                     lista.forEach((d, idx) => {
                         const wysDocelowa = 4.5 + ((idx * 37) % 25) / 10;   // lekkie zróżnicowanie
                         const sk = wysDocelowa / bazowaWys;
@@ -5317,8 +5357,35 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         dummy.updateMatrix();
                         dummy.matrix.multiply(cz.lokalna);   // zachowujemy układ części wzoru
                         im.setMatrixAt(idx, dummy.matrix);
+
+                        // Odcień: liście dostają wahania jasności i lekki przechył
+                        // ku zieleni lub żółci, pnie tylko delikatną zmianę jasności.
+                        if (im.setColorAt) {
+                            const ziarno = (idx * 2654435761) % 1000 / 1000;   // powtarzalne, bez losowania
+                            const ziarno2 = (idx * 40503) % 997 / 997;
+                            if (toLiscie) {
+                                const jasnosc = 0.82 + ziarno * 0.30;          // 0.82 - 1.12
+                                const rr = jasnosc * (0.94 + ziarno2 * 0.12);  // ku żółci albo chłodniej
+                                const gg = jasnosc * (1.00 + ziarno2 * 0.04);
+                                const bb = jasnosc * (0.88 + (1 - ziarno2) * 0.14);
+                                kolorDrzewa.setRGB(rr, gg, bb);
+                            } else {
+                                const j = 0.88 + ziarno * 0.20;
+                                kolorDrzewa.setRGB(j, j * 0.98, j * 0.94);
+                            }
+                            im.setColorAt(idx, kolorDrzewa);
+                        }
                     });
                     im.instanceMatrix.needsUpdate = true;
+                    if (im.instanceColor) im.instanceColor.needsUpdate = true;
+                    // Zapamiętujemy pola kopii - mgła wojny chowa te w nieodkrytym terenie
+                    im.userData.polaKopii = lista.map(d => ({ x: Math.round(d.x), z: Math.round(d.z) }));
+                    im.userData.macierze = [];
+                    for (let q = 0; q < lista.length; q++) {
+                        const mm = new THREE.Matrix4();
+                        im.getMatrixAt(q, mm);
+                        im.userData.macierze.push(mm);
+                    }
                     scene.add(im);
                     drzewaZbiorcze.push(im);
                 });
@@ -13951,6 +14018,39 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             renderMinimap();
         }
 
+        // Drzewa, skały i budynki w nieodkrytym terenie mają być niewidoczne -
+        // wcześniej sterczały w czarnej mgle, zdradzając układ planszy.
+        const pustaMacierz = new THREE.Matrix4();
+        function ukryjPrzeszkodyWeMgle() {
+            const odkryte = (x, z) => {
+                const mx = Math.round(x) + offsetX, mz = Math.round(z) + offsetZ;
+                if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return true;
+                return exploredGrid[mx][mz] === 1;
+            };
+
+            // Zwykłe bryły - wystarczy je wygasić
+            obstacleMeshes.forEach(m => {
+                if (!m || m.isInstancedMesh) return;
+                m.visible = odkryte(m.position.x, m.position.z);
+            });
+
+            // Drzewa zbiorcze - chowamy pojedyncze kopie, zerując ich macierz
+            drzewaZbiorcze.forEach(im => {
+                const pola = im.userData.polaKopii, mac = im.userData.macierze;
+                if (!pola || !mac) return;
+                let zmiana = false;
+                for (let q = 0; q < pola.length; q++) {
+                    const widoczne = odkryte(pola[q].x, pola[q].z);
+                    if (im.userData.stanKopii === undefined) im.userData.stanKopii = [];
+                    if (im.userData.stanKopii[q] === widoczne) continue;
+                    im.userData.stanKopii[q] = widoczne;
+                    im.setMatrixAt(q, widoczne ? mac[q] : pustaMacierz);
+                    zmiana = true;
+                }
+                if (zmiana) im.instanceMatrix.needsUpdate = true;
+            });
+        }
+
         function updateFoW() {
             if (gameOver || soldiers.length === 0) return;
             for (let L = 0; L < fowVisible.length; L++) {
@@ -14051,6 +14151,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             terrainMeshes.forEach(m => {
                 if (m.instanceColor) m.instanceColor.needsUpdate = true;
             }); 
+
+            ukryjPrzeszkodyWeMgle();
             
             const seenAt = (u) => {
                 if (u.podZiemia) return false;   // robak pod ziemią jest niewidoczny
