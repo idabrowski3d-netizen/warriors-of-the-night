@@ -457,7 +457,9 @@
         #ui-container { display: none; position: absolute; top: 20px; left: 56px; pointer-events: none; background: rgba(0,0,0,0.7); padding: 15px; border: 1px solid #44aaff; border-radius: 5px; z-index: 5; }
         h1 { margin: 0 0 10px 0; font-size: 20px; color: #44aaff; text-transform: uppercase; }
         .stat { font-size: 16px; margin-bottom: 5px; }
-        #controls { display: none; position: absolute; bottom: 7%; left: 20px; gap: 10px; z-index: 5;}
+        /* Pasek odsunięty od lewej krawędzi o 10% szerokości ekranu: kursor nad
+           pierwszą ikoną wpadał w strefę przewijania widoku i plansza uciekała w lewo. */
+        #controls { display: none; position: absolute; bottom: 7%; left: 10%; gap: 10px; z-index: 5;}
         #camera-rotate-controls { position: absolute; bottom: 7%; right: 20px; display: flex; gap: 10px; z-index: 5;}
         button { background: #222; color: #fff; border: 1px solid #44aaff; padding: 10px 15px; font-family: monospace; font-size: 14px; cursor: pointer; transition: 0.2s; pointer-events: auto; }
         button:hover:not(:disabled) { background: #44aaff; color: #000; }
@@ -569,7 +571,7 @@
 
         /* Pas przycisków akcji: poziomo, zaczyna się za drążkiem */
         body.mobilny #controls {
-            position: absolute !important; left: 124px !important; right: 6px !important;
+            position: absolute !important; left: 10% !important; right: 6px !important;
             bottom: 66px !important; top: auto !important; width: auto !important;
             /* BEZ "display" - gra sama pokazuje i ukrywa ten pasek. Wymuszenie tutaj
                sprawiało, że przyciski walki wyświetlały się także w mieście. */
@@ -1593,6 +1595,8 @@
               palette: { grass:'#4a6a4a', grassDetail1:'#587a56', grassDetail2:'#3a563c', dirt:'#6a5a44', dirtDetail1:'#57492f', dirtDetail2:'#7c6c50', road:'#5a5648', roadDetail1:'#4a473c', roadDetail2:'#6b6656' } },
             { id: 'bagno', name: 'Mokradła',
               palette: { grass:'#3f4a2e', grassDetail1:'#4c5838', grassDetail2:'#333d24', dirt:'#4a4030', dirtDetail1:'#3b3326', dirtDetail2:'#5a4e3c', road:'#4a4638', roadDetail1:'#3d3a2e', roadDetail2:'#575244' } },
+            { id: 'sicario', name: 'Sicario - Granica w Teksasie',
+              palette: { grass:'#b8a271', grassDetail1:'#c9b485', grassDetail2:'#9d8a5e', dirt:'#d4b988', dirtDetail1:'#e0c89b', dirtDetail2:'#bfa172', road:'#4a4744', roadDetail1:'#5a5754', roadDetail2:'#3c3936' } },
             { id: 'wesole', name: 'Opuszczone Wesołe Miasteczko',
               palette: { grass:'#3b3a2e', grassDetail1:'#4a4636', grassDetail2:'#2c2a22', dirt:'#4d3d33', dirtDetail1:'#5c4a3e', dirtDetail2:'#3a2d26', road:'#3a3838', roadDetail1:'#4a4747', roadDetail2:'#2c2a2a' } },
             { id: 'amazonia', name: 'Amazonia',
@@ -2224,6 +2228,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (currentCombatTheme && currentCombatTheme.id === 'zamiec') { currentSeason = 'zima'; return; }
             // W dżungli panuje wieczne lato - bez śniegu, jesieni i zimy
             if (currentCombatTheme && currentCombatTheme.id === 'amazonia') { currentSeason = 'lato'; return; }
+            // Teksas: zimy tam nie ma - zostają pozostałe pory roku
+            if (currentCombatTheme && currentCombatTheme.id === 'sicario' && currentSeason === 'zima') {
+                currentSeason = ['wiosna', 'lato', 'jesien'][Math.floor(Math.random() * 3)];
+            }
             if (forcedSeason) { currentSeason = forcedSeason; return; }
             currentSeason = SEASON_KEYS[Math.floor(Math.random() * SEASON_KEYS.length)];
         }
@@ -2408,6 +2416,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const themeId = currentCombatTheme ? currentCombatTheme.id : null;
             // Sahara: nigdy nie pada - zamiast tego trąby powietrzne (patrz dustDevils)
             if (themeId === 'sahara') { clearWeatherParticles(); return; }
+            // Teksas przy granicy: sucho, ani deszczu, ani śniegu
+            if (themeId === 'sicario') { clearWeatherParticles(); return; }
             // Zamieć: śnieg pada zawsze i gęsto - to sedno tej planszy
             if (themeId === 'zamiec') { createWeatherParticles('snow'); return; }
             // Latające wyspy: czyste niebo, żeby było widać przepaście
@@ -3480,6 +3490,57 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
                 // Wesołe miasteczko dostaje swoje duże konstrukcje. Środek niesie wygląd,
                 // pozostałe pola zajmuje niewidoczna część - żeby nie dało się przez nie przejść.
+                // SICARIO: autostrada biegnąca przez całą planszę i strzeżona granica
+                if (currentCombatTheme && currentCombatTheme.id === 'sicario') {
+                    // Autostrada - cztery pasy plus pobocza, z południa na północ
+                    const osX = Math.floor(mapWidth * (0.42 + Math.random() * 0.16)) - offsetX;
+                    for (let z = -offsetZ; z < mapDepth - offsetZ; z++) {
+                        for (let dx = -7; dx <= 7; dx++) {
+                            const x = osX + dx;
+                            const mx = x + offsetX, mz = z + offsetZ;
+                            if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
+                            terrainTypeMap[mx][mz] = 2;                 // asfalt
+                            if (obstacleGrid[mx][mz]) { obstacleGrid[mx][mz] = null; }
+                        }
+                    }
+                    autostradaX = osX;
+
+                    // Granica: pas zapory blisko północnej krawędzi, z jednym przejściem
+                    const zGran = (mapDepth - offsetZ) - 14;
+                    const przejscie = osX;                              // brama tam, gdzie autostrada
+                    for (let x = -offsetX; x < mapWidth - offsetX; x++) {
+                        if (Math.abs(x - przejscie) <= 7) continue;     // brama graniczna - szeroka jak droga
+                        const mx = x + offsetX, mz = zGran + offsetZ;
+                        if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
+                        if (obstacleGrid[mx][mz]) continue;
+                        addObstacle(x, zGran, 'granica-plot');
+                    }
+                    granicaZ = zGran;
+
+                    // Auta: gęsto na autostradzie i poboczach, rzadziej dalej.
+                    // Część z nich kryje wroga - drzwi otworzą się, gdy oddział podejdzie.
+                    const autaIle = 170 + Math.floor(Math.random() * 50);   // gęsty ruch na granicy
+                    for (let a = 0; a < autaIle; a++) {
+                        for (let t = 0; t < 60; t++) {
+                            const naDrodze = Math.random() < 0.65;
+                            const x = naDrodze ? osX + (Math.floor(Math.random() * 15) - 7)
+                                               : Math.floor(Math.random() * (mapWidth - 10)) + 5 - offsetX;
+                            const z = Math.floor(Math.random() * (mapDepth - 16)) + 8 - offsetZ;
+                            if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) continue;
+                            if (granicaZ !== null && Math.abs(z - granicaZ) < 5) continue;   // wolne przy bramie
+                            // Auto zajmuje na oko 2x3 pola, a blokuje jedno - bez odstępu
+                            // samochody wchodziły jeden w drugi. Sprawdzamy sąsiedztwo.
+                            let ciasno = false;
+                            for (let ddx = -1; ddx <= 1 && !ciasno; ddx++)
+                                for (let ddz = -2; ddz <= 2 && !ciasno; ddz++)
+                                    if (obstacleMap.has((x + ddx) + ',' + (z + ddz))) ciasno = true;
+                            if (ciasno) continue;
+                            addObstacle(x, z, 'auto', { kryjowka: Math.random() < 0.3, wzdluz: naDrodze });
+                            break;
+                        }
+                    }
+                }
+
                 if (currentCombatTheme && currentCombatTheme.id === 'wesole') {
                     const postaw = (rodzaj, ile, promien) => {
                         for (let n = 0; n < ile; n++) {
@@ -4675,6 +4736,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         // Piętro szpitala rysujemy dopiero, gdy bohater tam wejdzie - z dołu byłoby tylko zasłoną
         let hospitalUpperMeshes = [];
+        let autostradaX = null, granicaZ = null;
+        let autaKryjowki = [];   // Sicario: auta, z których wyjdą wrogowie
         function renderHospitalUpper() {
             hospitalUpperMeshes.forEach(m => { scene.remove(m); if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); });
             hospitalUpperMeshes = [];
@@ -5747,7 +5810,34 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
         }
 
+        // Wysokie drzewo tuż przed kamerą zasłania planszę. Gdy kamera podjedzie
+        // blisko, korona staje się półprzezroczysta - tak jak dachy domów.
+        function przezroczysteDrzewaPrzyKamerze() {
+            if (drzewaZbiorcze.length === 0 || !camera) return;
+            const kx = camera.position.x, kz = camera.position.z;
+            drzewaZbiorcze.forEach(im => {
+                const mat = im.material;
+                if (!mat || mat.opacity === undefined) return;
+                const pola = im.userData.polaKopii;
+                if (!pola) return;
+                // Wystarczy sprawdzić, czy którakolwiek kopia jest blisko kamery
+                let blisko = false;
+                for (let q = 0; q < pola.length && !blisko; q++) {
+                    if (Math.hypot(pola[q].x - kx, pola[q].z - kz) < 7) blisko = true;
+                }
+                const cel = blisko ? 0.35 : 1;
+                if (Math.abs(mat.opacity - cel) < 0.02) return;
+                if (blisko && !mat.transparent) { mat.transparent = true; mat.depthWrite = false; }
+                mat.opacity += (cel - mat.opacity) * 0.15;
+                if (!blisko && mat.opacity > 0.97) {
+                    mat.opacity = 1; mat.transparent = false; mat.depthWrite = true;
+                }
+                mat.needsUpdate = true;
+            });
+        }
+
         function updateDachyModeli() {
+            przezroczysteDrzewaPrzyKamerze();
             autoDrzwiWMiescie();
             updateDrzwiModeli();
             if (domyInstancje.length === 0) return;
@@ -5869,6 +5959,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             obstacleMeshes.forEach(m => scene.remove(m));
             obstacleMeshes = [];
             wyczyscDrzewaZbiorcze();   // stare drzewa zbiorcze znikają razem z planszą
+            autaKryjowki = [];
             domyInstancje = [];
             let drzewZKodu = 0;
 
@@ -5917,6 +6008,48 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                          (domyZModelu.has(pos.houseId) || (czyJestModelDomu() && domWModelu(pos.x, pos.z)))) {
                     /* rysuje model - stare ściany i dach pomijamy, inaczej nakładałyby się
                        na siebie i migotały (dwie powierzchnie w tym samym miejscu) */ }
+                else if (pos.type === 'granica-plot') {
+                    // Zapora graniczna: słupy i siatka, wysoka - zasłania widok
+                    const g = new THREE.Group();
+                    const stal = new THREE.MeshLambertMaterial({ color: 0x6b6f72 });
+                    const slup = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 3.4, 6), stal);
+                    slup.position.y = 1.7; g.add(slup);
+                    const siatka = new THREE.Mesh(new THREE.BoxGeometry(1.0, 3.0, 0.06),
+                        new THREE.MeshLambertMaterial({ color: 0x8a8f92, transparent: true, opacity: 0.55 }));
+                    siatka.position.y = 1.6; g.add(siatka);
+                    const drut = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.03, 4, 8), stal);
+                    drut.position.y = 3.3; drut.rotation.y = Math.PI / 2; g.add(drut);
+                    g.position.set(pos.x, ty, pos.z);
+                    scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'auto') {
+                    const g = new THREE.Group();
+                    const kolory = [0x8a3a32, 0x2f4a6b, 0x6b6b6b, 0xa8a090, 0x3f5a3a, 0x7a6a3a];
+                    const kolor = kolory[Math.floor(Math.random() * kolory.length)];
+                    const lakier = new THREE.MeshLambertMaterial({ color: kolor });
+                    const szyba = new THREE.MeshLambertMaterial({ color: 0x2a3540, transparent: true, opacity: 0.6 });
+                    const nadwozie = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.55, 3.4), lakier);
+                    nadwozie.position.y = 0.55; g.add(nadwozie);
+                    const kabina = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.5, 1.6), szyba);
+                    kabina.position.set(0, 1.0, -0.15); g.add(kabina);
+                    [[-0.75, 1.3], [0.75, 1.3], [-0.75, -1.3], [0.75, -1.3]].forEach(([kx, kz]) => {
+                        const kolo = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.22, 10),
+                            new THREE.MeshLambertMaterial({ color: 0x1a1a1a }));
+                        kolo.rotation.z = Math.PI / 2; kolo.position.set(kx, 0.3, kz); g.add(kolo);
+                    });
+                    // Drzwi jako osobna część - obracają się przy zawiasie
+                    const zawias = new THREE.Group();
+                    zawias.position.set(0.85, 0.6, 0.35);
+                    const drzwi = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.7, 1.3), lakier);
+                    drzwi.position.set(0, 0, -0.65);
+                    zawias.add(drzwi); g.add(zawias);
+                    g.userData.drzwiAuta = zawias;
+                    g.userData.polozenie = { x: pos.x, z: pos.z };
+                    g.position.set(pos.x, ty, pos.z);
+                    g.rotation.y = pos.wzdluz ? 0 : Math.random() * Math.PI * 2;
+                    scene.add(g); obstacleMeshes.push(g);
+                    if (pos.kryjowka) autaKryjowki.push({ grupa: g, x: pos.x, z: pos.z, otwarte: false });
+                }
                 else if (pos.type === 'wesole-czesc') { /* niewidoczna część dużej konstrukcji */ }
                 else if (pos.type === 'karuzela') {
                     const g = new THREE.Group();
@@ -6691,7 +6824,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             enemyPositionsSet.clear();
             for(let i=0; i<mapWidth; i++) enemyGrid[i].fill(0);
             for(let i=0; i<enemies.length; i++) {
-                if(!enemies[i].isDead && !enemies[i].podZiemia) {   // robak pod ziemią nie blokuje pola
+                if(!enemies[i].isDead && !enemies[i].podZiemia && !enemies[i].wAucie) {   // ukryci nie blokują pola
                     let mx = Math.round(enemies[i].mesh.position.x) + offsetX;
                     let mz = Math.round(enemies[i].mesh.position.z) + offsetZ;
                     if (mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth) enemyGrid[mx][mz] = 1;
@@ -10079,7 +10212,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     ap: e.ap, maxAp: e.maxAp, accuracyBonus: e.accuracyBonus, isDead: e.isDead, facingAngle: e.facingAngle, level: e.level || 0,
                     isBoss: !!e.isBoss, bossTurn: e.bossTurn || 0, hasOpened: !!e.hasOpened,
                     blindedTurns: e.blindedTurns || 0, blindedFrom: e.blindedFrom || null,
-                    gatunek: (e.gatunek === undefined ? null : e.gatunek), elita: !!e.elita, podZiemia: !!e.podZiemia,
+                    gatunek: (e.gatunek === undefined ? null : e.gatunek), elita: !!e.elita, podZiemia: !!e.podZiemia, wAucie: !!e.wAucie,
                     wariantModelu: (e.mesh && e.mesh.userData && e.mesh.userData.enemyKind) || null
                 })),
                 npcs: npcs.filter(n => !n.isDead).map(n => ({
@@ -10230,10 +10363,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 scene.add(mesh);
                 const fa = ed.facingAngle || 0;
                 mesh.lookAt(mesh.position.x + Math.sin(fa), mesh.position.y, mesh.position.z + Math.cos(fa));
-                return { mesh: mesh, type: ed.type, hp: ed.hp, maxHp: ed.maxHp, ap: ed.ap, maxAp: ed.maxAp, accuracyBonus: ed.accuracyBonus, isDead: ed.isDead, facingAngle: fa, level: ed.level || 0, isBoss: !!ed.isBoss, bossTurn: ed.bossTurn || 0, hasOpened: !!ed.hasOpened, blindedTurns: ed.blindedTurns || 0, blindedFrom: ed.blindedFrom || null, gatunek: (ed.gatunek === undefined ? null : ed.gatunek), elita: !!ed.elita, podZiemia: !!ed.podZiemia, dmgBonus: ed.elita ? 1 : 0 };
+                return { mesh: mesh, type: ed.type, hp: ed.hp, maxHp: ed.maxHp, ap: ed.ap, maxAp: ed.maxAp, accuracyBonus: ed.accuracyBonus, isDead: ed.isDead, facingAngle: fa, level: ed.level || 0, isBoss: !!ed.isBoss, bossTurn: ed.bossTurn || 0, hasOpened: !!ed.hasOpened, blindedTurns: ed.blindedTurns || 0, blindedFrom: ed.blindedFrom || null, gatunek: (ed.gatunek === undefined ? null : ed.gatunek), elita: !!ed.elita, podZiemia: !!ed.podZiemia, wAucie: !!ed.wAucie, dmgBonus: ed.elita ? 1 : 0 };
             });
 
-            enemies.forEach(e => { if (e.podZiemia && e.mesh) e.mesh.visible = false; });
+            enemies.forEach(e => { if ((e.podZiemia || e.wAucie) && e.mesh) e.mesh.visible = false; });
 
             // Lista spotkań nie jest zapisywana - odtwarzamy ją z wrogów na planszy,
             // inaczej po wczytaniu gry w trakcie misji nic by nie trafiło do Kroniki
@@ -12036,7 +12169,21 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // na środku - cała misja to wyprawa przez zalewany ląd.
             let floodStart = null;
             // Eskorta startuje przy swojej krawędzi - portal czeka na drugim końcu
-            if (currentMissionType === 'flood') {
+            // SICARIO: oddział z Powierzonym startuje przy samej południowej krawędzi
+            // i idzie przez całą planszę do bramy granicznej. Bez tego rozstawienie
+            // trafiało w środek mapy i eskorta traciła sens.
+            if (currentCombatTheme && currentCombatTheme.id === 'sicario') {
+                const brzegZ = -offsetZ + 6;
+                for (let t = 0; t < 1500; t++) {
+                    const jx = (autostradaX !== null ? autostradaX : 0) + Math.floor(Math.random() * 36) - 18;
+                    const jz = brzegZ + Math.floor(Math.random() * 8);
+                    if (!isWithinPlayBounds(jx, jz) || isObstacle(jx, jz) || !isOpenSpot(jx, jz)) continue;
+                    floodStart = { x: jx, z: jz }; clusterX = jx; clusterZ = jz;
+                    break;
+                }
+            }
+
+            if (!floodStart && currentMissionType === 'flood') {
                 // Mapa jest wąska i wysoka (100x200), więc krawędzie boczne leżą dwa razy
                 // bliżej środka. Startujemy zawsze od góry albo od dołu - to najdłuższa droga.
                 // Oddział wysiada po stronie napierającej wody - zamek jest na przeciwnym końcu
@@ -12084,12 +12231,29 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if(!isObstacle(px, pz) && isOpenSpot(px, pz) && (soldiers.findIndex(s => Math.round(s.mesh.position.x) === px && Math.round(s.mesh.position.z) === pz) === -1)) valid = true;
                 }
                 if (!valid) {
+                    // Ratunkowe szukanie losowało pole na CAŁEJ planszy - przy eskorcie
+                    // wyrzucało oddział na jej środek i misja traciła sens. Najpierw
+                    // rozszerzamy krąg wokół miejsca zbiórki, a dopiero potem szukamy szerzej.
                     let attempts2 = 0;
-                    do {
-                        px = Math.floor(Math.random() * (mapWidth - 20)) - (offsetX - 10); 
-                        pz = Math.floor(Math.random() * (mapDepth - 20)) - (offsetZ - 10);
-                        attempts2++;
-                    } while (attempts2 < 400 && (isObstacle(px, pz) || !isOpenSpot(px, pz) || soldiers.findIndex(s => Math.round(s.mesh.position.x) === px && Math.round(s.mesh.position.z) === pz) !== -1));
+                    if (floodStart || count > 1) {
+                        for (let promien = 10; promien <= 30 && !valid; promien += 5) {
+                            for (let t = 0; t < 250 && !valid; t++) {
+                                const cx2 = clusterX + Math.floor(Math.random() * (promien * 2 + 1)) - promien;
+                                const cz2 = clusterZ + Math.floor(Math.random() * (promien * 2 + 1)) - promien;
+                                if (cx2 <= -offsetX + 2 || cx2 >= offsetX - 2 || cz2 <= -offsetZ + 2 || cz2 >= offsetZ - 2) continue;
+                                if (!isWithinPlayBounds(cx2, cz2) || isObstacle(cx2, cz2) || !isOpenSpot(cx2, cz2)) continue;
+                                if (soldiers.findIndex(s => Math.round(s.mesh.position.x) === cx2 && Math.round(s.mesh.position.z) === cz2) !== -1) continue;
+                                px = cx2; pz = cz2; valid = true;
+                            }
+                        }
+                    }
+                    if (!valid) {
+                        do {
+                            px = Math.floor(Math.random() * (mapWidth - 20)) - (offsetX - 10); 
+                            pz = Math.floor(Math.random() * (mapDepth - 20)) - (offsetZ - 10);
+                            attempts2++;
+                        } while (attempts2 < 400 && (isObstacle(px, pz) || !isOpenSpot(px, pz) || soldiers.findIndex(s => Math.round(s.mesh.position.x) === px && Math.round(s.mesh.position.z) === pz) !== -1));
+                    }
                 }
                 let soldierMesh = createCharacter(0x44aaff, 0xffccaa, 0x331100, 1, 'player');
                 soldierMesh.position.set(px, getTerrainY(px, pz) + soldierMesh.userData.yOffset, pz);
@@ -13046,6 +13210,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const szansaPajaka = currentCombatTheme && currentCombatTheme.id === 'amazonia' ? 0.8 : 0.25;
                 const bossowa = (currentMissionType === 'boss');
                 const klaunWypadl = currentCombatTheme && currentCombatTheme.id === 'wesole' && Math.random() < 0.65;
+                // Sicario: część wrogów czeka w zaparkowanych autach
+                let autoKryjowka = null;
+                if (currentCombatTheme && currentCombatTheme.id === 'sicario' && autaKryjowki.length > 0) {
+                    const wolne = autaKryjowki.filter(a => !a.zajete);
+                    if (wolne.length > 0 && Math.random() < 0.55) {
+                        autoKryjowka = wolne[Math.floor(Math.random() * wolne.length)];
+                        autoKryjowka.zajete = true;
+                    }
+                }
                 const robakWypadl = !klaunWypadl && currentCombatTheme &&
                     ['bagno', 'sahara', 'zamiec', 'wesole'].includes(currentCombatTheme.id) && Math.random() < 0.28;
                 const ogarWypadl = Math.random() < szansaNaOgary(bossowa);
@@ -13123,8 +13296,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 mesh.lookAt(mesh.position.x + Math.sin(initialFacing), mesh.position.y, mesh.position.z + Math.cos(initialFacing));
                 noteEnemyEncountered(type);
                 enemies.push({ mesh: mesh, type: type, hp: maxHp, maxHp: maxHp, ap: maxAp, maxAp: maxAp, accuracyBonus: accuracyBonus, isDead: false, facingAngle: initialFacing, level: spawnLevel, gatunek: gatunekTegoWroga,
-                               podZiemia: type === 'robak' });
+                               podZiemia: type === 'robak', wAucie: !!autoKryjowka });
                 if (type === 'robak') mesh.visible = false;   // czeka pod ziemią
+                if (autoKryjowka) {
+                    // Stawiamy wroga dokładnie przy aucie i chowamy go do czasu wyjścia
+                    const ost = enemies[enemies.length - 1];
+                    ost.mesh.position.set(autoKryjowka.x, getTerrainY(autoKryjowka.x, autoKryjowka.z), autoKryjowka.z);
+                    ost.mesh.visible = false;
+                }
                 // Siatka zajętości musi znać TEGO wroga, zanim losujemy miejsce dla następnego -
                 // bez tego kolejni sprawdzali stan sprzed rozstawiania i lądowali na sobie.
                 refreshEnemyPositions();
@@ -14155,7 +14334,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             ukryjPrzeszkodyWeMgle();
             
             const seenAt = (u) => {
-                if (u.podZiemia) return false;   // robak pod ziemią jest niewidoczny
+                if (u.podZiemia || u.wAucie) return false;   // ukryty wróg jest niewidoczny
                 const L = Math.min(u.level || 0, fowVisible.length - 1);
                 const mx = Math.round(u.mesh.position.x) + offsetX, mz = Math.round(u.mesh.position.z) + offsetZ;
                 if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return false;
@@ -14303,13 +14482,25 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Powódź to plansza nierozłączna ze swoim celem - bez zamku i wody
             // pozostałe typy misji nie miałyby tu sensu
             if (currentCombatTheme && currentCombatTheme.id === 'powodz') currentMissionType = 'flood';
+            // Sicario: zadaniem jest zawsze przeprowadzenie cywila przez granicę
+            if (currentCombatTheme && currentCombatTheme.id === 'sicario') currentMissionType = 'escort';
             // Eskorta: oddział startuje przy jednej krawędzi, portal stoi przy przeciwnej
             // Na zalanej planszy prawie wszystko jest wodą i portal nie ma gdzie stanąć -
             // eskorta zamieniłaby się po cichu w zwykłą misję, więc jej tam nie dajemy.
             if (currentMissionType === 'escort' && currentCombatTheme && currentCombatTheme.id === 'powodz') {
                 currentMissionType = 'standard';
             }
-            if (currentMissionType === 'escort') escortEdge = (Math.random() < 0.5) ? 'north' : 'south';
+            // Teksas: zimy tam nie ma - sprawdzamy jeszcze raz, już po wyborze planszy
+            if (currentCombatTheme && currentCombatTheme.id === 'sicario' && currentSeason === 'zima') {
+                currentSeason = ['wiosna', 'lato', 'jesien'][Math.floor(Math.random() * 3)];
+                if (typeof applySeasonColors === 'function') applySeasonColors();
+            }
+            // Sicario: cywil idzie z południa na północ, przez bramę graniczną
+            // Sicario: portal leży za granicą, przy PÓŁNOCNEJ krawędzi - oddział startuje
+            // wtedy na południu i przechodzi przez całą planszę. escortEdge wskazuje
+            // krawędź PORTALU, nie miejsce startu.
+            if (currentCombatTheme && currentCombatTheme.id === 'sicario') escortEdge = 'north';
+            else if (currentMissionType === 'escort') escortEdge = (Math.random() < 0.5) ? 'north' : 'south';
             // Powódź ma sens wyłącznie na planszy Powódź - gdzie indziej zamieniamy ją
             // na zwykłą misję. Wcześniej ten warunek działał także na samej Powodzi,
             // przez co woda nigdy nie wzbierała.
@@ -14715,14 +14906,33 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // wisiał na drugim "else if" o tym samym warunku, więc nigdy się nie
             // wykonywał - misja eskorty startowała bez cywila.
             if (currentMissionType === 'escort') {
+                // SICARIO: portal stoi tuż za bramą graniczną, po północnej stronie.
+                // Zwykłe szukanie odpadało na sprawdzaniu trasy przez pół planszy,
+                // więc wyznaczamy go wprost - brama jest z założenia przejezdna.
+                let wymuszonyPortal = null;
+                if (currentCombatTheme && currentCombatTheme.id === 'sicario' && granicaZ !== null) {
+                    const bramaX = (autostradaX !== null) ? autostradaX : 0;
+                    let ustawiony = false;
+                    for (let odsun = 4; odsun <= 12 && !ustawiony; odsun++) {
+                        for (let dx = 0; dx <= 8 && !ustawiony; dx++) {
+                            for (const znak of [1, -1]) {
+                                const cx = bramaX + dx * znak, cz = granicaZ + odsun;
+                                if (!isWithinPlayBounds(cx, cz) || isObstacle(cx, cz) || !isOpenSpot(cx, cz)) continue;
+                                wymuszonyPortal = { x: cx, z: cz };
+                                ustawiony = true; break;
+                            }
+                        }
+                    }
+                }
+
                 // Kapliczka u góry mapy, cywil startuje przy oddziale na dole
                 // Portal stoi przy krawędzi PRZECIWNEJ do miejsca startu oddziału
-                let tx = null, tz = null;
+                let tx = wymuszonyPortal ? wymuszonyPortal.x : null, tz = wymuszonyPortal ? wymuszonyPortal.z : null;
                 const portalZ = (escortEdge === 'north') ? (offsetZ - 12) : (-offsetZ + 12);
                 const anchor0 = soldiers[0];
                 const ax0 = anchor0 ? Math.round(anchor0.mesh.position.x) : 0;
                 const az0 = anchor0 ? Math.round(anchor0.mesh.position.z) : 0;
-                for (let t = 0; t < 600; t++) {
+                for (let t = 0; t < 600 && tx === null; t++) {
                     const cx = Math.floor(Math.random() * (mapWidth - 30)) + 15 - offsetX;
                     // po 400 próbach rozluźniamy pas, byle portal dało się osiągnąć
                     const spread = (t < 400) ? 10 : 40;
@@ -14740,6 +14950,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         const cx = Math.floor(Math.random() * mapWidth) - offsetX;
                         const cz = Math.floor(Math.random() * mapDepth) - offsetZ;
                         if (!isWithinPlayBounds(cx, cz) || isObstacle(cx, cz) || !isOpenSpot(cx, cz)) continue;
+                        // Sicario: portal leży PO DRUGIEJ STRONIE granicy - w tym sedno misji
+                        if (currentCombatTheme && currentCombatTheme.id === 'sicario' &&
+                            granicaZ !== null && cz <= granicaZ + 2) continue;
                         const d = Math.hypot(cx - ax0, cz - az0);
                         // Portal ma być naprawdę daleko - co najmniej 60% rozmiaru planszy
                         if (d <= bestD || d < Math.min(mapWidth, mapDepth) * 0.6) continue;
@@ -14755,8 +14968,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         const cx = Math.floor(Math.random() * mapWidth) - offsetX;
                         const cz = Math.floor(Math.random() * mapDepth) - offsetZ;
                         if (!isWithinPlayBounds(cx, cz) || isObstacle(cx, cz) || !isOpenSpot(cx, cz)) continue;
+                        if (currentCombatTheme && currentCombatTheme.id === 'sicario' &&
+                            granicaZ !== null && cz <= granicaZ + 2) continue;
                         const d = Math.hypot(cx - ax0, cz - az0);
-                        if (d <= bestD || d < Math.min(mapWidth, mapDepth) * 0.6) continue;   // ten sam próg, szukamy szerzej
+                        if (d <= bestD || d < Math.min(mapWidth, mapDepth) * 0.4) continue;   // szukamy szerzej
                         if (!findPath(ax0, az0, cx, cz, 0, anchor0)) continue;
                         bestD = d; tx = cx; tz = cz;
                         if (bestD > Math.min(mapWidth, mapDepth) * 0.6) break;
@@ -17691,6 +17906,41 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     setTimeout(processNextEnemy, 350);
                     return;
                 }
+            }
+
+            // WRÓG W AUCIE: siedzi w środku, aż oddział podejdzie na 7 pól.
+            // Wtedy otwierają się drzwi i dopiero po chwili wychodzi.
+            if (e.wAucie) {
+                const ax = Math.round(e.mesh.position.x), az = Math.round(e.mesh.position.z);
+                const blisko = soldiers.some(s => !s.isDead && !s.isNPC &&
+                    Math.hypot(Math.round(s.mesh.position.x) - ax, Math.round(s.mesh.position.z) - az) <= 7);
+                const ostatni = !enemies.some(o => o !== e && !o.isDead && !o.wAucie && !o.podZiemia);
+                if (blisko || ostatni) {
+                    e.wAucie = false;
+                    e.mesh.visible = true;
+                    refreshEnemyPositions();
+                    const auto = autaKryjowki.find(a => a.x === ax && a.z === az);
+                    if (auto && !auto.otwarte) {
+                        auto.otwarte = true;
+                        const zawias = auto.grupa.userData.drzwiAuta;
+                        if (zawias) {
+                            const start = performance.now();
+                            activeAnimations.push(function (t) {
+                                const p = Math.min(1, (t - start) / 450);
+                                zawias.rotation.y = -p * (Math.PI / 2 + 0.2);   // drzwi się otwierają
+                                return p >= 1;
+                            });
+                        }
+                    }
+                    const cel = soldiers.find(s => !s.isDead && !s.isNPC);
+                    if (cel) faceTowards(e, cel.mesh.position.x, cel.mesh.position.z);
+                    noteEnemyEncountered(e.type);
+                    showFloatingWarning('Drzwi auta stają otworem!');
+                    updateUI('Z zaparkowanego auta wychodzi wróg.');
+                    updateFoW();
+                }
+                currentEnemyIndex++; setTimeout(processNextEnemy, e.wAucie ? 20 : 650);
+                return;
             }
 
             // ROBAK pod ziemią: słucha. Gdy wojownik podejdzie na 10 pól (albo gdy
