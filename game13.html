@@ -13939,6 +13939,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // --- MINIMAPA TAKTYCZNA ---
         // ========================================================
         const minimapCanvas = document.getElementById('minimap-canvas');
+        // Widoczny wycinek mapy - potrzebny też przy klikaniu w nią
+        let minimapOkno = { x: 0, z: 0, w: 1, d: 1 };
         const minimapCtx = minimapCanvas.getContext('2d');
         const minimapDataCanvas = document.createElement('canvas');
         minimapDataCanvas.width = mapWidth; minimapDataCanvas.height = mapDepth;
@@ -14026,8 +14028,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (ux < 0 || ux > 1 || uz < 0 || uz > 1) return;
 
                 // Przeliczenie na współrzędne planszy
-                const wx = Math.round(ux * mapWidth) - offsetX;
-                const wz = Math.round(uz * mapDepth) - offsetZ;
+                // Mapa jest przybliżona i przesunięta, więc kliknięcie przeliczamy
+                // względem widocznego wycinka, a nie całej planszy.
+                const wx = Math.round(minimapOkno.x + ux * minimapOkno.w) - offsetX;
+                const wz = Math.round(minimapOkno.z + uz * minimapOkno.d) - offsetZ;
                 const a = getActiveSoldier();
                 const bazaX = a ? a.mesh.position.x : 0;
                 const bazaZ = a ? a.mesh.position.z : 0;
@@ -14042,17 +14046,39 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             podepnijMinimape();
             minimapCtx.imageSmoothingEnabled = false;
             minimapCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
-            minimapCtx.drawImage(minimapDataCanvas, 0, 0, minimapCanvas.width, minimapCanvas.height);
 
-            const scaleX = minimapCanvas.width / mapWidth;
-            const scaleZ = minimapCanvas.height / mapDepth;
+            // Mapa pokazywała całą planszę naraz, więc od pierwszej chwili było widać,
+            // gdzie iść. Teraz jest przybliżona dwukrotnie i podąża za oddziałem -
+            // okolicę trzeba zwiedzić, żeby ją poznać.
+            const ZOOM_MAPY = 2;
+            const oknoW = mapWidth / ZOOM_MAPY, oknoD = mapDepth / ZOOM_MAPY;
+            const srodek = (() => {
+                const akt = (typeof getActiveSoldier === 'function') ? getActiveSoldier() : null;
+                const kto = (akt && !akt.isDead) ? akt
+                          : (soldiers.find(s => !s.isDead) || (isExploreMode() && hero ? hero : null));
+                if (!kto) return { x: mapWidth / 2, z: mapDepth / 2 };
+                return { x: Math.round(kto.mesh.position.x) + offsetX, z: Math.round(kto.mesh.position.z) + offsetZ };
+            })();
+            let okX = srodek.x - oknoW / 2, okZ = srodek.z - oknoD / 2;
+            okX = Math.max(0, Math.min(mapWidth - oknoW, okX));     // nie wyjeżdżamy poza planszę
+            okZ = Math.max(0, Math.min(mapDepth - oknoD, okZ));
+
+            minimapOkno = { x: okX, z: okZ, w: oknoW, d: oknoD };
+            minimapCtx.drawImage(minimapDataCanvas, okX, okZ, oknoW, oknoD,
+                                 0, 0, minimapCanvas.width, minimapCanvas.height);
+
+            const scaleX = minimapCanvas.width / oknoW;
+            const scaleZ = minimapCanvas.height / oknoD;
+            // Znaczniki przeliczamy względem wycinka - inaczej rozjechałyby się z mapą
+            const mapaX = (mx) => (mx - okX) * scaleX;
+            const mapaZ = (mz) => (mz - okZ) * scaleZ;
 
             enemies.forEach(e => {
                 if (e.isDead || !e.mesh.visible) return;
                 const mx = Math.round(e.mesh.position.x) + offsetX, mz = Math.round(e.mesh.position.z) + offsetZ;
                 minimapCtx.fillStyle = '#ff4444';
                 minimapCtx.beginPath();
-                minimapCtx.arc(mx * scaleX, mz * scaleZ, 3, 0, Math.PI * 2);
+                minimapCtx.arc(mapaX(mx), mapaZ(mz), 3, 0, Math.PI * 2);
                 minimapCtx.fill();
             });
 
@@ -14061,7 +14087,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const mx = Math.round(n.mesh.position.x) + offsetX, mz = Math.round(n.mesh.position.z) + offsetZ;
                 minimapCtx.fillStyle = '#ffee66';
                 minimapCtx.beginPath();
-                minimapCtx.arc(mx * scaleX, mz * scaleZ, 2.5, 0, Math.PI * 2);
+                minimapCtx.arc(mapaX(mx), mapaZ(mz), 2.5, 0, Math.PI * 2);
                 minimapCtx.fill();
             });
 
@@ -14071,7 +14097,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const isActive = (i === activeSoldierIndex);
                 minimapCtx.fillStyle = isActive ? '#ffffff' : '#44aaff';
                 minimapCtx.beginPath();
-                minimapCtx.arc(mx * scaleX, mz * scaleZ, isActive ? 4 : 3, 0, Math.PI * 2);
+                minimapCtx.arc(mapaX(mx), mapaZ(mz), isActive ? 4 : 3, 0, Math.PI * 2);
                 minimapCtx.fill();
                 minimapCtx.strokeStyle = '#000000'; minimapCtx.lineWidth = 1;
                 minimapCtx.stroke();
@@ -14083,7 +14109,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         const mx = Math.round(p.mesh.position.x) + offsetX, mz = Math.round(p.mesh.position.z) + offsetZ;
                         minimapCtx.fillStyle = '#aa66ff';
                         minimapCtx.beginPath();
-                        minimapCtx.arc(mx * scaleX, mz * scaleZ, 3, 0, Math.PI * 2);
+                        minimapCtx.arc(mapaX(mx), mapaZ(mz), 3, 0, Math.PI * 2);
                         minimapCtx.fill();
                     });
                     townNPCs.forEach(n => {
@@ -14092,7 +14118,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         const isTaskTaken = isPendingTask && n.taskTaken;
                         minimapCtx.fillStyle = isPendingTask ? '#cc3333' : '#66ccff';
                         minimapCtx.beginPath();
-                        minimapCtx.arc(mx * scaleX, mz * scaleZ, isTaskTaken ? 3.5 : 2, 0, Math.PI * 2);
+                        minimapCtx.arc(mapaX(mx), mapaZ(mz), isTaskTaken ? 3.5 : 2, 0, Math.PI * 2);
                         minimapCtx.fill();
                         if (isTaskTaken) {
                             minimapCtx.strokeStyle = '#ffdd33'; minimapCtx.lineWidth = 1.5;
@@ -14103,7 +14129,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         const mx = Math.round(p.mesh.position.x) + offsetX, mz = Math.round(p.mesh.position.z) + offsetZ;
                         minimapCtx.fillStyle = p.minimapColor;
                         minimapCtx.beginPath();
-                        minimapCtx.arc(mx * scaleX, mz * scaleZ, 3, 0, Math.PI * 2);
+                        minimapCtx.arc(mapaX(mx), mapaZ(mz), 3, 0, Math.PI * 2);
                         minimapCtx.fill();
                         minimapCtx.strokeStyle = '#ffffff'; minimapCtx.lineWidth = 1;
                         minimapCtx.stroke();
@@ -14113,7 +14139,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         const mx = Math.round(n.mesh.position.x) + offsetX, mz = Math.round(n.mesh.position.z) + offsetZ;
                         minimapCtx.fillStyle = '#8899ff';
                         minimapCtx.beginPath();
-                        minimapCtx.arc(mx * scaleX, mz * scaleZ, 2.5, 0, Math.PI * 2);
+                        minimapCtx.arc(mapaX(mx), mapaZ(mz), 2.5, 0, Math.PI * 2);
                         minimapCtx.fill();
                     });
                 }
@@ -14142,7 +14168,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const mx = Math.round(hero.mesh.position.x) + offsetX, mz = Math.round(hero.mesh.position.z) + offsetZ;
                     minimapCtx.fillStyle = '#ffffff';
                     minimapCtx.beginPath();
-                    minimapCtx.arc(mx * scaleX, mz * scaleZ, 4, 0, Math.PI * 2);
+                    minimapCtx.arc(mapaX(mx), mapaZ(mz), 4, 0, Math.PI * 2);
                     minimapCtx.fill();
                     minimapCtx.strokeStyle = '#000000'; minimapCtx.lineWidth = 1;
                     minimapCtx.stroke();
