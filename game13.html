@@ -929,7 +929,7 @@
     <div id="zegar-gry"></div>
     <div id="minimap-container">
         <div id="minimap-label">MAPA TAKTYCZNA</div>
-        <canvas id="minimap-canvas" width="140" height="280"></canvas>
+        <canvas id="minimap-canvas" width="168" height="168"></canvas>
     </div>
     <div id="floating-warning"></div>
     
@@ -14051,7 +14051,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // gdzie iść. Teraz jest przybliżona dwukrotnie i podąża za oddziałem -
             // okolicę trzeba zwiedzić, żeby ją poznać.
             const ZOOM_MAPY = 2;
-            const oknoW = mapWidth / ZOOM_MAPY, oknoD = mapDepth / ZOOM_MAPY;
+            // Wycinek KWADRATOWY - kanwa też jest kwadratowa, więc prostokątny
+            // wycinek byłby rozciągnięty i mapa nie zgadzałaby się z planszą.
+            const bokOkna = Math.min(mapWidth, mapDepth) / ZOOM_MAPY;
+            const oknoW = bokOkna, oknoD = bokOkna;
             const srodek = (() => {
                 const akt = (typeof getActiveSoldier === 'function') ? getActiveSoldier() : null;
                 const kto = (akt && !akt.isDead) ? akt
