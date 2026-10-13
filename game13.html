@@ -18609,7 +18609,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }); 
 
             ukryjPrzeszkodyWeMgle();
-            
+            // Bryły pięter i stropy mają własną mgłę - dotąd nie reagowały na nią
+            // w ogóle, więc w Studni cała kondygnacja była widoczna od razu.
+            // Przeliczamy widoczność od zera przez updateFloorVisibility():
+            // "m.visible && odkryta" nie potrafiłoby nic ODSŁONIĆ, bo raz
+            // zgaszona bryła zostawałaby zgaszona na zawsze.
+            if (typeof updateFloorVisibility === 'function') updateFloorVisibility();
+
             const seenAt = (u) => {
                 if (u.podZiemia || u.wAucie) return false;   // ukryty wróg jest niewidoczny
                 // Arena to wystawa - mgła wojny nie ma tam nic do ukrywania.
@@ -23623,6 +23629,54 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         // Z listy przerw (kątowych bram) robi listę łuków ściany: [początek, długość].
         // Bez tego ściana szybu była pełnym walcem i zamurowywała wejścia do tuneli.
+        // Pola, których odkrycie odsłania bryłę. Mała bryła ma jedno - swoje.
+        // Długa ściana ma próbkę co dwa pola, żeby odsłaniała się wtedy, gdy
+        // gracz zobaczy JAKIKOLWIEK jej fragment, a nie dopiero jej środek.
+        function probkiBryly(bryla) {
+            const x = bryla.position.x, z = bryla.position.z;
+            const par = bryla.geometry && bryla.geometry.parameters;
+            if (!par || !par.width || !par.depth) return [{ x: x, z: z }];
+            const w = par.width, d = par.depth;
+            const dluga = Math.max(w, d);
+            if (dluga < 2.5) return [{ x: x, z: z }];
+            const wzdluzX = w >= d;
+            const ile = Math.max(2, Math.ceil(dluga / 2));
+            const probki = [];
+            for (let i = 0; i < ile; i++) {
+                const t = -dluga / 2 + (dluga * i) / (ile - 1);
+                probki.push({ x: x + (wzdluzX ? t : 0), z: z + (wzdluzX ? 0 : t) });
+            }
+            return probki;
+        }
+
+        // Próbki wzdłuż łuku płaszcza szybu - łuk leży na okręgu o promieniu r,
+        // a jego pozycja to środek studni, więc po samej pozycji nigdy by się
+        // nie odsłonił.
+        function probkiLuku(r, od, dl) {
+            const ile = Math.max(2, Math.ceil((r * dl) / 2));
+            const probki = [];
+            for (let i = 0; i < ile; i++) {
+                const a = od + (dl * i) / (ile - 1);
+                probki.push({ x: Math.cos(a) * r, z: Math.sin(a) * r });
+            }
+            return probki;
+        }
+
+        // Czy bryła została już odkryta. Bryły bez próbek (Wieża, ślady kultu,
+        // wyposażenie wagonów) działają jak dotąd - nic im nie zmieniamy.
+        function odkrytaBryla(m) {
+            const pr = m.userData && m.userData.mglaProbki;
+            if (!pr || !pr.length) return true;
+            if (!fowExplored || !fowExplored.length) return true;
+            const L = Math.min(m.userData.pietro || 0, fowExplored.length - 1);
+            for (let i = 0; i < pr.length; i++) {
+                const mx = Math.round(pr[i].x) + offsetX, mz = Math.round(pr[i].z) + offsetZ;
+                if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
+                if (fowExplored[L][mx][mz] === 1) return true;
+            }
+            return false;
+        }
+
         function lukiBezPrzerw(przerwy) {
             const DWAPI = Math.PI * 2;
             if (!przerwy.length) return [[0, DWAPI]];
@@ -23648,6 +23702,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const dodaj = (bryla, L) => {
                 bryla.userData.pietro = L;
                 bryla.userData.bezCienia = true;
+                // Mgła wojny nie ruszała wiezaOzdoby - cała kondygnacja razem
+                // z komnatami była widoczna od pierwszej klatki. Każda bryła
+                // dostaje listę pól, których odkrycie ją odsłania; długa ściana
+                // ma ich kilka, bo nie da się jej pokazać po kawałku.
+                if (!bryla.userData.mglaProbki) bryla.userData.mglaProbki = probkiBryly(bryla);
                 scene.add(bryla);
                 wiezaOzdoby.push(bryla);
                 postawionych++;
@@ -23686,6 +23745,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         materialMuru(barwa, Math.max(1, Math.round(r * dl / 3)), 1,
                                      { side: THREE.DoubleSide }));
                     plaszcz.position.set(0, y + FLOOR_HEIGHT / 2, 0);
+                    plaszcz.userData.mglaProbki = probkiLuku(r, od, dl);
                     dodaj(plaszcz, L);
                     const obrecz = new THREE.Mesh(
                         new THREE.CylinderGeometry(r + 0.75, r + 0.75, 0.28,
@@ -23693,6 +23753,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         materialMuru(przyciemnij(barwa, 0.72), Math.max(1, Math.round(r * dl / 2)), 1,
                                      { side: THREE.DoubleSide }));
                     obrecz.position.set(0, y + 0.14, 0);
+                    obrecz.userData.mglaProbki = probkiLuku(r, od, dl);
                     dodaj(obrecz, L);
                 });
                 // Ościeżnice przy każdym wejściu - wiadomo, że to brama, a nie wyrwa
@@ -26913,10 +26974,41 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     inst.setMatrixAt(i, dummy.matrix);
                 });
                 inst.userData.floorLevel = L;
+                // Strop był jedną bryłą na kondygnację, więc całe piętro
+                // pojawiało się naraz. Pola zapamiętujemy, żeby dało się
+                // przyciemnić te, których gracz jeszcze nie widział.
+                inst.userData.pola = tiles;
                 scene.add(inst);
                 floorMeshes.push(inst);
             }
             updateFloorVisibility();
+        }
+
+        // Strop pole po polu: niewidziane pola gasimy do czerni, zbadane
+        // przygaszamy. Bez tego podłoga wyprzedzała mgłę wojny o całą kondygnację.
+        const STROP_JASNOSC_WIDOCZNY = 1.0;
+        const STROP_JASNOSC_ZBADANY = 0.42;
+        const STROP_JASNOSC_UKRYTY = 0.0;
+        let kolorStropu = null;
+        function odswiezMgleStropow() {
+            if (!floorMeshes.length || !fowExplored || !fowExplored.length) return;
+            if (!kolorStropu) kolorStropu = new THREE.Color(1, 1, 1);
+            floorMeshes.forEach(inst => {
+                const pola = inst.userData.pola;
+                if (!pola || !inst.setColorAt) return;
+                const L = Math.min(inst.userData.floorLevel || 0, fowExplored.length - 1);
+                for (let i = 0; i < pola.length; i++) {
+                    const mx = pola[i][0] + offsetX, mz = pola[i][1] + offsetZ;
+                    let j = STROP_JASNOSC_UKRYTY;
+                    if (mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth) {
+                        if (fowVisible[L] && fowVisible[L][mx][mz] === 1) j = STROP_JASNOSC_WIDOCZNY;
+                        else if (fowExplored[L][mx][mz] === 1) j = STROP_JASNOSC_ZBADANY;
+                    }
+                    kolorStropu.setRGB(j, j, j);
+                    inst.setColorAt(i, kolorStropu);
+                }
+                if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+            });
         }
 
         // Kondygnacje powyżej aktywnego wojownika stają się przezroczyste, żeby było widać, gdzie się stoi
@@ -27008,10 +27100,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const widacPoziom = (L) => tylkoTenPoziom ? (L === lvl) : (L <= lvl);
             // Ślady kultu chowają się razem ze swoją kondygnacją - inaczej
             // pentagramy z siódmego piętra świeciłyby przez wszystkie stropy
-            wiezaOzdoby.forEach(m => { m.visible = widacPoziom(m.userData.pietro || 0); });
+            wiezaOzdoby.forEach(m => {
+                m.visible = widacPoziom(m.userData.pietro || 0) && odkrytaBryla(m);
+            });
             floorMeshes.forEach(m => {
                 m.visible = widacPoziom(m.userData.floorLevel);
             });
+            odswiezMgleStropow();
             // Ściany i dachy powyżej oglądanego poziomu chowamy, żeby było widać wnętrze
             obstacleMeshes.forEach(m => {
                 if (!m.userData) return;
