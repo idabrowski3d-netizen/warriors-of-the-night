@@ -1025,6 +1025,7 @@
         <button id="btn-melee" style="border-color: #cc6644;">Atak wręcz</button>
         <button id="btn-heal" style="border-color: #66ccaa; display: none;">Lecz</button>
         <button id="btn-ocuc" style="border-color: #ccbb66; display: none;">Ocuć</button>
+        <button id="btn-telekineza" style="border-color: #aa77dd; display: none;" title="Unieś wroga lub sprzęt i ciśnij nim we wroga [T]">Telekineza</button>
         <button id="btn-ziolo-balsam" style="border-color: #8acc66; display: none;">Balsam (0)</button>
         <button id="btn-ziolo-wyciag" style="border-color: #ccaa66; display: none;">Wyciąg (0)</button>
         <button id="btn-ziolo-sokoleOko" style="border-color: #66aacc; display: none;">Sokole Oko (0)</button>
@@ -19073,6 +19074,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 b.style.display = widac ? '' : 'none';
             })();
             document.getElementById('btn-shield').style.display = isHealerClass ? '' : 'none';
+            odswiezPrzyciskTelekinezy();
             
             const turnInd = document.getElementById('turn-indicator'); 
             turnInd.innerText = isPlayerTurn ? "TURA GRACZA" : "TURA WROGA"; 
@@ -20739,6 +20741,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         document.getElementById('btn-heal').addEventListener('click', healAction);
         (function () { const b = document.getElementById('btn-close-rejestr'); if (b) b.addEventListener('click', zamknijRejestr); })();
         document.getElementById('btn-ocuc').addEventListener('click', ocucAction);
+        (function () {
+            const b = document.getElementById('btn-telekineza');
+            if (b) b.addEventListener('click', (e) => { e.stopPropagation(); telekinezaAction(); });
+        })();
         document.getElementById('btn-shield').addEventListener('click', shieldAction);
         document.getElementById('btn-end-soldier-turn').addEventListener('click', () => {
             if (gameOver || !isPlayerTurn) return;
@@ -20890,6 +20896,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
             if (k === 'b' && !dialogueOpen && !nameScreenOpen) { e.preventDefault(); ringChurchBell(); }
             if (k === 'r' && !dialogueOpen && !nameScreenOpen) { e.preventDefault(); tryRelightLamp(); }
+            // [T] telekineza, [Esc] wyjscie z celowania
+            if (k === 't' && gameMode === 'dream' && !dialogueOpen && !nameScreenOpen) {
+                e.preventDefault(); telekinezaAction();
+            }
+            if (e.key === 'Escape' && trybTelekinezy) {
+                e.preventDefault(); przerwijTelekineze('Telekineza odwołana.');
+            }
         });
         window.addEventListener('keyup', (e) => {
             const k2 = e.key.toLowerCase();
@@ -21605,6 +21618,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (intersectPoint) {
                 const targetX = Math.round(intersectPoint.x), targetZ = Math.round(intersectPoint.z);
                 if(targetX < -offsetX || targetX >= offsetX || targetZ < -offsetZ || targetZ >= offsetZ) return;
+
+                // Telekineza przechwytuje klik, zanim stanie się z niego ruch
+                if (telekinezaKlik(targetX, targetZ)) { highlightMesh.visible = false; return; }
 
                 // Mgła na krawędzi snu - wejście w nią kończy misję dla wojownika
                 if (sprobujWejscWeMgle(targetX, targetZ)) { highlightMesh.visible = false; return; }
@@ -23018,6 +23034,295 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         // Ocucenie leżącego: potrafi to każdy, nie tylko uzdrowiciel - inaczej
         // oddział bez medyka nie miałby żadnego ratunku
+
+        // ===================== TELEKINEZA =====================
+        // Wojownik o dość mocnym umyśle unosi wroga albo sprzęt i ciska nim
+        // w drugiego wroga. Rzucony obrywa od uderzenia, trafiony od ciężaru,
+        // a przedmiot rozpada się na kawałki. Wszystko chodzi od Siły psychicznej:
+        // ona decyduje, czy w ogóle wolno sięgnąć, jak daleko i jak mocno.
+        const TK_STAT_MIN = 13;          // niżej umysł nie uniesie nawet beczki
+        const TK_AP = 5;
+        const TK_LASKA = 2;
+        const TK_ZASIEG_RZUTU = 5;       // tyle pól między pociskiem a celem
+        const TK_OBR_POCISK = 5;         // dostaje ten, kim rzucono
+        const TK_OBR_CEL = 7;            // dostaje ten, w kogo rzucono wrogiem
+        const TK_OBR_PRZEDMIOT = 6;      // dostaje ten, w kogo rzucono sprzętem
+        const TK_MASA_PROG = 20;         // powyżej tyle HP wróg jest po prostu ciężki
+        const TK_MASA_STAT = 16;         // ...i trzeba tyle Siły, żeby go unieść
+        // Co da się porwać z planszy. Każdy typ z tych list MUSI naprawdę występować
+        // w grze - pierwsza wersja wymyśliła trzy, których generator nigdy nie stawia,
+        // więc test pilnuje teraz zgodności listy z tym, co plansze faktycznie kładą.
+        // Mury, dachy, drzwi, drzewa, tory, płoty i sprzęt misyjny (generator,
+        // kapliczka, pentagram) zostają na miejscu: telekineza nie rozbiera budynków
+        // i nie usuwa celów misji.
+        const TK_LEKKIE = ['beczka', 'skrzynia', 'kloda', 'lawka', 'kosz', 'regal',
+                           'koniowiaz', 'kosciotrup', 'wozek', 'kibel', 'prycza',
+                           'lozko', 'kroplowka', 'wlocznie', 'sztandar', 'rock'];
+        // Kamień i żeliwo - uniesie je tylko mocniejszy umysł, ale biją ciężej
+        const TK_CIEZKIE = ['nagrobek', 'gravestone', 'obelisk', 'sarcophagus', 'statue',
+                            'column', 'kra'];
+        const TK_RZUCALNE = TK_LEKKIE.concat(TK_CIEZKIE);
+        const TK_OBR_CIEZKI_BONUS = 3;   // głaz boli bardziej niż beczka
+
+        let trybTelekinezy = null;       // { faza: 'pocisk' | 'cel', pocisk }
+
+        function silaTelekinezy(s) {
+            const idx = soldiers.indexOf(s);
+            return getWarriorStat(idx < 0 ? 0 : idx, 'silaPsychiczna');
+        }
+        // Im mocniejszy umysł, tym dalej sięga - ale rzut i tak ma stałe 5 pól
+        function zasiegChwytuTK(s) {
+            return 4 + Math.max(0, silaTelekinezy(s) - STAT_BASE);
+        }
+        function bonusTelekinezy(s) {
+            return Math.floor(Math.max(0, silaTelekinezy(s) - STAT_BASE) / 3);
+        }
+        function umieTelekineze(s) {
+            return !!s && !s.isDead && !s.nieprzytomny && silaTelekinezy(s) >= TK_STAT_MIN;
+        }
+        // Bossa ani nieśmiertelnego nikt nie poderwie - inaczej telekineza
+        // obchodziłaby warunek zwycięstwa misji.
+        function moznaUniescWroga(s, w) {
+            if (!w || w.isDead || w.isBoss || w.nieDoZabicia || w.podZiemia) return false;
+            if ((w.maxHp || w.hp) > TK_MASA_PROG && silaTelekinezy(s) < TK_MASA_STAT) return false;
+            return true;
+        }
+
+        function odlegloscPol(ax, az, bx, bz) {
+            return Math.max(Math.abs(ax - bx), Math.abs(az - bz));
+        }
+
+        // Co ten wojownik może teraz porwać
+        function kandydaciTelekinezy(s) {
+            const wynik = { wrogowie: [], przedmioty: [] };
+            if (!umieTelekineze(s) || !s.mesh) return wynik;
+            const sx = Math.round(s.mesh.position.x), sz = Math.round(s.mesh.position.z);
+            const lvl = s.level || 0;
+            const zasieg = zasiegChwytuTK(s);
+            enemies.forEach(w => {
+                if (!w.mesh || (w.level || 0) !== lvl) return;
+                if (!moznaUniescWroga(s, w)) return;
+                const wx = Math.round(w.mesh.position.x), wz = Math.round(w.mesh.position.z);
+                if (odlegloscPol(sx, sz, wx, wz) > zasieg) return;
+                if (!w.mesh.visible) return;      // czego nie widzisz, tego nie uniesiesz
+                wynik.wrogowie.push(w);
+            });
+            // Sprzęt leży tylko na parterze - tam są przeszkody
+            if (lvl === 0) {
+                obstaclePositions.forEach(o => {
+                    if (TK_RZUCALNE.indexOf(o.type) === -1) return;
+                    // Kamienne rzeczy wymagają tyle samo umysłu co ciężki wróg
+                    if (TK_CIEZKIE.indexOf(o.type) !== -1 && silaTelekinezy(s) < TK_MASA_STAT) return;
+                    const ox = Math.round(o.x), oz = Math.round(o.z);
+                    if (odlegloscPol(sx, sz, ox, oz) > zasieg) return;
+                    const mx = ox + offsetX, mz = oz + offsetZ;
+                    if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return;
+                    if (exploredGrid[mx][mz] !== 1) return;
+                    wynik.przedmioty.push(o);
+                });
+            }
+            return wynik;
+        }
+
+        // Wrogowie, w których da się czymś rzucić - licząc od pocisku, nie od wojownika
+        function celeTelekinezy(s, pocisk) {
+            const px = Math.round(pocisk.x !== undefined ? pocisk.x : pocisk.mesh.position.x);
+            const pz = Math.round(pocisk.z !== undefined ? pocisk.z : pocisk.mesh.position.z);
+            return enemies.filter(w => {
+                if (w.isDead || !w.mesh || w === pocisk) return false;
+                if ((w.level || 0) !== (s.level || 0)) return false;
+                if (w.podZiemia || !w.mesh.visible) return false;
+                const wx = Math.round(w.mesh.position.x), wz = Math.round(w.mesh.position.z);
+                return odlegloscPol(px, pz, wx, wz) <= TK_ZASIEG_RZUTU;
+            });
+        }
+
+        function telekinezaAction() {
+            if (gameOver || !isPlayerTurn) return;
+            const s = getActiveSoldier();
+            if (!s || s.isDead || s.nieprzytomny) return;
+            if (trybTelekinezy) { przerwijTelekineze('Telekineza odwołana.'); return; }
+            if (s.turnEnded) { updateUI('Ten wojownik zakończył już ruch w tej turze.'); return; }
+            if (!umieTelekineze(s)) {
+                updateUI(`Telekineza wymaga ${TK_STAT_MIN} Siły psychicznej (${s.name} ma ${silaTelekinezy(s)}).`);
+                return;
+            }
+            if (s.ap < TK_AP) { updateUI(`Za mało punktów ruchu (potrzeba ${TK_AP}).`); return; }
+            if ((playerStats.grace || 0) < TK_LASKA) { updateUI(`Za mało Łaski (potrzeba ${TK_LASKA}).`); return; }
+            const k = kandydaciTelekinezy(s);
+            if (!k.wrogowie.length && !k.przedmioty.length) {
+                updateUI(`Nic w zasięgu umysłu (${zasiegChwytuTK(s)} pól).`);
+                return;
+            }
+            trybTelekinezy = { faza: 'pocisk' };
+            updateUI(`TELEKINEZA: kliknij, co unieść - w zasięgu ${k.wrogowie.length} ` +
+                     `${k.wrogowie.length === 1 ? 'wróg' : 'wrogów'} i ${k.przedmioty.length} ` +
+                     `${k.przedmioty.length === 1 ? 'przedmiot' : 'przedmiotów'}. ` +
+                     `Rzut sięga ${TK_ZASIEG_RZUTU} pól od uniesionego. [Esc] anuluje.`);
+            odswiezPrzyciskTelekinezy();
+        }
+
+        function przerwijTelekineze(powod) {
+            trybTelekinezy = null;
+            if (powod) updateUI(powod);
+            odswiezPrzyciskTelekinezy();
+        }
+
+        function odswiezPrzyciskTelekinezy() {
+            const b = document.getElementById('btn-telekineza');
+            if (!b) return;
+            const s = getActiveSoldier();
+            const widac = !!(s && umieTelekineze(s) && isPlayerTurn && !gameOver);
+            b.style.display = widac ? '' : 'none';
+            if (!widac) return;
+            b.innerText = trybTelekinezy ? 'Anuluj telekinezę' : `Telekineza (${TK_AP} PA, ${TK_LASKA} Ł)`;
+            b.style.borderColor = trybTelekinezy ? '#ffffff' : '#aa77dd';
+        }
+
+        // Kliknięcie w trybie telekinezy. Zwraca true, jeśli klik został zużyty.
+        function telekinezaKlik(targetX, targetZ) {
+            if (!trybTelekinezy) return false;
+            const s = getActiveSoldier();
+            if (!s || s.isDead) { przerwijTelekineze(null); return false; }
+
+            if (trybTelekinezy.faza === 'pocisk') {
+                const k = kandydaciTelekinezy(s);
+                const wrog = k.wrogowie.find(w =>
+                    Math.round(w.mesh.position.x) === targetX && Math.round(w.mesh.position.z) === targetZ);
+                const przedmiot = k.przedmioty.find(o =>
+                    Math.round(o.x) === targetX && Math.round(o.z) === targetZ);
+                const pocisk = wrog || przedmiot;
+                if (!pocisk) {
+                    updateUI('Tego nie uniesiesz. Kliknij wroga albo sprzęt w zasięgu.');
+                    return true;
+                }
+                const cele = celeTelekinezy(s, wrog ? wrog : przedmiot);
+                if (!cele.length) {
+                    updateUI(`Nie ma w kogo tym rzucić - żaden wróg nie stoi w ${TK_ZASIEG_RZUTU} polach od niego.`);
+                    return true;
+                }
+                trybTelekinezy = { faza: 'cel', pocisk: pocisk, jestWrogiem: !!wrog };
+                updateUI(`Uniesione. Teraz kliknij wroga, w którego rzucić - ${cele.length} w zasięgu.`);
+                odswiezPrzyciskTelekinezy();
+                return true;
+            }
+
+            // faza 'cel'
+            const cele = celeTelekinezy(s, trybTelekinezy.pocisk);
+            const cel = cele.find(w =>
+                Math.round(w.mesh.position.x) === targetX && Math.round(w.mesh.position.z) === targetZ);
+            if (!cel) {
+                updateUI(`Za daleko albo nie ma tam wroga. Rzut sięga ${TK_ZASIEG_RZUTU} pól.`);
+                return true;
+            }
+            wykonajTelekineze(s, trybTelekinezy.pocisk, cel, trybTelekinezy.jestWrogiem);
+            return true;
+        }
+
+        function wykonajTelekineze(s, pocisk, cel, jestWrogiem) {
+            if (s.ap < TK_AP || (playerStats.grace || 0) < TK_LASKA) {
+                przerwijTelekineze('Zabrakło sił na rzut.');
+                return false;
+            }
+            s.ap -= TK_AP;
+            playerStats.grace -= TK_LASKA;
+            const bonus = bonusTelekinezy(s);
+            const tx = Math.round(cel.mesh.position.x), tz = Math.round(cel.mesh.position.z);
+            const lvl = s.level || 0;
+            let tekst;
+
+            const dobijWroga = (w, kto) => {
+                if (w.hp > 0) { wrogOberwal(w); return false; }
+                w.isDead = true;
+                scene.remove(w.mesh);
+                if (kto) { kto.kills = (kto.kills || 0) + 1; zliczRodzaj(kto, w); }
+                if (typeof releaseHypnotized === 'function') releaseHypnotized(w);
+                playEnemyDeathSfx(w);
+                return true;
+            };
+
+            if (jestWrogiem) {
+                const px = Math.round(pocisk.mesh.position.x), pz = Math.round(pocisk.mesh.position.z);
+                const obrP = TK_OBR_POCISK + bonus, obrC = TK_OBR_CEL + bonus;
+                pocisk.hp -= obrP;
+                cel.hp -= obrC;
+                // Rzucony ląduje przy swoim celu - jeśli jest gdzie
+                const miejsce = wolnePoleObok(tx, tz, lvl, pocisk);
+                if (miejsce && pocisk.hp > 0) {
+                    pocisk.mesh.position.set(miejsce[0], getLevelY(miejsce[0], miejsce[1], lvl) +
+                        (pocisk.mesh.userData.yOffset || 0), miejsce[1]);
+                    pocisk.level = lvl;
+                }
+                // Rzucony traci turę - leci, a nie idzie
+                pocisk.ap = 0;
+                tekst = `${s.name} porywa wroga z ziemi i ciska nim w drugiego! ` +
+                        `Rzucony traci ${obrP}, trafiony ${obrC}.`;
+                const padlP = dobijWroga(pocisk, s), padlC = dobijWroga(cel, s);
+                if (padlP && padlC) tekst += ' Obaj zostają na ziemi.';
+                else if (padlP) tekst += ' Rzucony już nie wstaje.';
+                else if (padlC) tekst += ' Trafiony pada.';
+                createProjectile(px, getLevelY(px, pz, lvl) + 1.2, pz,
+                                 tx, getLevelY(tx, tz, lvl) + 1.2, tz, true, null, null, s.class);
+            } else {
+                const ciezki = TK_CIEZKIE.indexOf(pocisk.type) !== -1;
+                const obr = TK_OBR_PRZEDMIOT + bonus + (ciezki ? TK_OBR_CIEZKI_BONUS : 0);
+                const px = Math.round(pocisk.x), pz = Math.round(pocisk.z);
+                const nazwa = pocisk.type;
+                cel.hp -= obr;
+                // Przedmiot rozpada się - znika z planszy razem z osłoną, jaką dawał
+                rozbijPrzedmiot(pocisk);
+                refreshEnemyPositions();
+                tekst = `${s.name} unosi ${nazwaRzucanego(nazwa)} i rozbija ${nazwaRzucanego(nazwa)} ` +
+                        `o wroga za ${obr}! Zostały drzazgi.`;
+                if (dobijWroga(cel, s)) tekst += ' Wróg pada.';
+                createProjectile(px, getLevelY(px, pz, lvl) + 1.0, pz,
+                                 tx, getLevelY(tx, tz, lvl) + 1.2, tz, true, null, null, s.class);
+            }
+
+            playFileSfx(AudioFiles.swordHit, 0.6);
+            refreshEnemyPositions();
+            updateFoW();
+            trybTelekinezy = null;
+            odswiezPrzyciskTelekinezy();
+            updateUI(tekst);
+            if (typeof odswiezPanel === 'function') odswiezPanel();
+            checkGameOver();
+            return true;
+        }
+
+        // Rozbicie przedmiotu. NIE wystarczy usunPrzeszkode(): ta funkcja wychodzi
+        // od razu, gdy kratka siatki jest pusta, a część sprzętu stoi wyłącznie na
+        // liście obstaclePositions (dekoracje dokładane poza siatką). Bez tego
+        // rozbita beczka zostawała na liście i dawała osłonę, której już nie było.
+        function rozbijPrzedmiot(o) {
+            if (!o) return false;
+            const x = Math.round(o.x), z = Math.round(o.z);
+            usunBryleOslony(o);
+            const mx = x + offsetX, mz = z + offsetZ;
+            if (mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth && obstacleGrid[mx][mz]) {
+                usunPrzeszkode(x, z);
+            }
+            // Zawsze sprzątamy listę - także wtedy, gdy siatka nic nie wiedziała
+            for (let i = obstaclePositions.length - 1; i >= 0; i--) {
+                const p2 = obstaclePositions[i];
+                if (p2 === o || (Math.round(p2.x) === x && Math.round(p2.z) === z)) {
+                    obstaclePositions.splice(i, 1);
+                }
+            }
+            return true;
+        }
+
+        function nazwaRzucanego(typ) {
+            const N = { beczka: 'beczkę', skrzynia: 'skrzynię', kloda: 'kłodę', lawka: 'ławkę',
+                        kosz: 'kosz', regal: 'regał', koniowiaz: 'koniowiąz', kosciotrup: 'kości',
+                        rock: 'kamień', wozek: 'wózek', kibel: 'kibel', prycza: 'pryczę',
+                        lozko: 'łóżko', kroplowka: 'kroplówkę', wlocznie: 'włócznie',
+                        sztandar: 'sztandar', nagrobek: 'nagrobek', gravestone: 'nagrobek',
+                        obelisk: 'obelisk', sarcophagus: 'sarkofag', statue: 'posąg',
+                        column: 'kolumnę', kra: 'krę lodu' };
+            return N[typ] || 'sprzęt';
+        }
+
         function ocucAction() {
             if (gameOver || !isPlayerTurn) return;
             const active = getActiveSoldier();
@@ -28030,6 +28335,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 <p>Ściany budynków można <b>rozwalić strzałem</b> - znika jeden kwadrat i powstaje wyrwa.
                 Na planszy z kamienicami wchodzi się na piętra przez otwory w stropach (przyciski ▲ ▼),
                 a rolka myszy pokazuje kolejne kondygnacje.</p>
+                <h4>Telekineza</h4>
+                <p>Wojownik o <b>13 Siły psychicznej</b> i więcej unosi myślą wroga albo sprzęt
+                i ciska nim w drugiego wroga. Przycisk <b>Telekineza</b> albo klawisz <b>[T]</b>:
+                najpierw kliknij, co unieść, potem w kogo rzucić. Koszt 5 PA i 2 Łaski.</p>
+                <ul>
+                    <li>Rzucony wróg i trafiony wróg <b>obaj</b> tracą życie</li>
+                    <li>Przedmiot (beczka, kłoda, regał, ławka...) <b>rozpada się</b> - i przestaje dawać osłonę</li>
+                    <li>Siła psychiczna decyduje o zasięgu umysłu i o obrażeniach; rzut sięga 5 pól od uniesionego</li>
+                    <li>Ciężki wróg (ponad 20 życia) i kamienne rzeczy - nagrobek, obelisk, sarkofag - wymagają 16 Siły</li>
+                    <li>Bossa ani nieśmiertelnego nie poderwiesz</li>
+                </ul>
                 <h4>Cywile</h4>
                 <p>Chroń ich - każdy zabity cywil obniża morale oddziału i budzi śpiącego.
                 Podejdź i kliknij cywila, żeby dał nogę z planszy w bezpieczne miejsce.</p>
