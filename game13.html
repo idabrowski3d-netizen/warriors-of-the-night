@@ -900,6 +900,7 @@
             <div class="char-stat-row">Witalność: <span id="cstat-witalnosc">0</span></div>
             <div class="char-stat-row">Mądrość: <span id="cstat-madrosc">0</span></div>
             <div class="char-stat-row">Siła psychiczna: <span id="cstat-silaPsychiczna">0</span></div>
+            <div class="char-stat-row" id="cstat-ogien-row">Odporność na ogień: <span id="cstat-ogien">-</span></div>
             <div class="char-stat-row">Charyzma: <span id="cstat-charyzma">0</span></div>
             <div id="stats-squad-info"></div>
             <button id="btn-close-stats" class="start-btn">Zamknij [C]</button>
@@ -1664,42 +1665,293 @@
         // --- 1. PROCEDURALNE TEKSTURY (CANVAS) ---
         // ========================================================
         function createTerrainTextures(palette) {
-            palette = palette || { grass: '#2d4c1e', grassDetail1: '#3a5f27', grassDetail2: '#243d18', dirt: '#5c4033', dirtDetail1: '#4a332a', dirtDetail2: '#6b4d3f', road: '#333333', roadDetail1: '#222222', roadDetail2: '#444444', sidewalk: '#8a8a82', sidewalkDetail1: '#7c7c74', sidewalkDetail2: '#96968c' };
+            // Zadna z tych "szarosci" nie jest czysta szaroscia - kazda ma odcien.
+            // Asfalt leci lekko w zimny bLekit, chodnik w cieple piaskowe zlamanie.
+            // To wlasnie robi roznice miedzy martwym szarym a szarym, ktory zyje.
+            palette = palette || { grass: '#2d4c1e', grassDetail1: '#3a5f27', grassDetail2: '#243d18',
+                                   grassAkcent1: '#c8a33a', grassAkcent2: '#b4543c',   // kwiaty w trawie
+                                   dirt: '#5c4033', dirtDetail1: '#4a332a', dirtDetail2: '#6b4d3f',
+                                   road: '#34363a', roadDetail1: '#25272b', roadDetail2: '#454850',
+                                   sidewalk: '#8c8a80', sidewalkDetail1: '#7d7b70', sidewalkDetail2: '#9a978a' };
+            // ===== TEKSTURY TERENU =====
+            // Dotad kazda byla plaskim kolorem obsypanym 400 losowymi kropkami w dwoch
+            // odcieniach - czyli szumem na jednolitym tle. Z gory i z bliska wygladalo
+            // to martwo, bo nie bylo ani zroznicowania tonu, ani zadnego detalu, ktory
+            // da sie rozpoznac. Teraz kazda tekstura ma trzy warstwy:
+            //   1. PLAMY - wolnozmienny szum przyciemniajacy i rozjasniajacy duze obszary,
+            //      zeby kafel nie byl jednolity;
+            //   2. DETALE - kamyki, kepki, rysy, szczeliny; kazdy ma wlasne swiatlo
+            //      i cien, bo to one sprawiaja, ze piksel czyta sie jako bryla;
+            //   3. ZIARNO - rzadkie, niskokontrastowe, na samym koncu.
+            const TEX = 128;
+
+            // Wolnozmienny szum na kratce - ta sama metoda, ktora uporzadkowala laty
+            // ziemi na planszy. Zwraca funkcje probkujaca w zakresie 0..1.
+            // Szum ZAWIJAJACY SIE: kratka musi dzielic 128 bez reszty, a indeksy
+            // liczymy modulo, wiec prawa krawedz laczy sie z lewa. Pierwsza wersja
+            // tego nie robila i przy powtarzaniu bylo widac siatke kafli - blad
+            // gorszy od tekstury, ktora chcialem naprawic.
+            function szumPlam(kratka) {
+                const N = Math.max(2, Math.round(TEX / kratka));
+                const krok = TEX / N;
+                const g = [];
+                for (let i = 0; i < N; i++) {
+                    const kol = new Float32Array(N);
+                    for (let j = 0; j < N; j++) kol[j] = Math.random();
+                    g.push(kol);
+                }
+                return (x, y) => {
+                    const fx = x / krok, fy = y / krok;
+                    const i = Math.floor(fx) % N, j = Math.floor(fy) % N;
+                    const i2 = (i + 1) % N, j2 = (j + 1) % N;
+                    const tx = fx - Math.floor(fx), ty = fy - Math.floor(fy);
+                    const wx = tx * tx * (3 - 2 * tx), wy = ty * ty * (3 - 2 * ty);
+                    const a = g[i][j] * (1 - wx) + g[i2][j] * wx;
+                    const b = g[i][j2] * (1 - wx) + g[i2][j2] * wx;
+                    return a * (1 - wy) + b * wy;
+                };
+            }
+
+            // Nakladamy plamy swiatla i cienia na to, co juz narysowane
+            function nalozPlamy(ctx, kratka, sila) {
+                const sz = szumPlam(kratka);
+                const obraz = ctx.getImageData(0, 0, TEX, TEX);
+                const d = obraz.data;
+                for (let y = 0; y < TEX; y++) {
+                    for (let x = 0; x < TEX; x++) {
+                        const m = 1 + (sz(x, y) - 0.5) * 2 * sila;
+                        const i = (y * TEX + x) * 4;
+                        d[i]     = Math.max(0, Math.min(255, d[i] * m));
+                        d[i + 1] = Math.max(0, Math.min(255, d[i + 1] * m));
+                        d[i + 2] = Math.max(0, Math.min(255, d[i + 2] * m));
+                    }
+                }
+                ctx.putImageData(obraz, 0, 0);
+            }
+
+            // Kamyk: trzy piksele cienia pod spodem, jasny grzbiet u gory.
+            // To ta para - swiatlo i cien - robi z plamki bryle.
+            function kamyk(ctx, x, y, r, barwa, jasna, ciemna) {
+                ctx.fillStyle = ciemna;
+                ctx.fillRect(x - r, y - r + 1, r * 2, r * 2);
+                ctx.fillStyle = barwa;
+                ctx.fillRect(x - r, y - r, r * 2, r * 2 - 1);
+                ctx.fillStyle = jasna;
+                ctx.fillRect(x - r, y - r, r * 2 - 1, 1);
+            }
+
+            // Kepka trawy: kilka pionowych zdzbel roznej dlugosci z jednego punktu
+            function kepka(ctx, x, y, barwy) {
+                const ile = 3 + Math.floor(Math.random() * 4);
+                for (let i = 0; i < ile; i++) {
+                    const dx = x + i - Math.floor(ile / 2);
+                    const h = 3 + Math.floor(Math.random() * 5);
+                    ctx.fillStyle = barwy[Math.floor(Math.random() * barwy.length)];
+                    ctx.fillRect(dx, y - h, 1, h);
+                }
+            }
+
+            // Rysa: lamana linia, jasniejsza z jednej strony - jak szczelina w asfalcie
+            function rysa(ctx, x, y, dlugosc, barwa, obrys) {
+                let cx = x, cy = y;
+                const kierunek = Math.random() * Math.PI * 2;
+                let kat = kierunek;
+                for (let i = 0; i < dlugosc; i++) {
+                    kat += (Math.random() - 0.5) * 0.9;
+                    cx += Math.cos(kat); cy += Math.sin(kat);
+                    if (cx < 0 || cx > TEX || cy < 0 || cy > TEX) break;
+                    if (obrys) { ctx.fillStyle = obrys; ctx.fillRect(Math.round(cx), Math.round(cy) + 1, 1, 1); }
+                    ctx.fillStyle = barwa;
+                    ctx.fillRect(Math.round(cx), Math.round(cy), 1, 1);
+                }
+            }
+
             function makeTex(type) {
-                const c = document.createElement('canvas'); c.width = 128; c.height = 128; const ctx = c.getContext('2d');
+                const c = document.createElement('canvas'); c.width = TEX; c.height = TEX;
+                const ctx = c.getContext('2d');
                 if (type === 'grass') {
-                    ctx.fillStyle = palette.grass; ctx.fillRect(0,0,128,128); 
-                    for(let i=0;i<400;i++) { ctx.fillStyle = Math.random()>0.5 ? palette.grassDetail1 : palette.grassDetail2; ctx.fillRect(Math.random()*128,Math.random()*128,2,6); }
+                    // Trawa: podklad, laty suchszej i ciemniejszej zieleni, kepki,
+                    // pojedyncze kamyki i ziarno. Dotad: jeden zielony i 400 kresek.
+                    ctx.fillStyle = palette.grass; ctx.fillRect(0, 0, TEX, TEX);
+                    const sz = szumPlam(16);
+                    ctx.globalAlpha = 0.3;
+                    for (let y = 0; y < TEX; y += 2)
+                        for (let x = 0; x < TEX; x += 2) {
+                            const v = sz(x, y);
+                            if (v > 0.66) { ctx.fillStyle = palette.grassDetail1; ctx.fillRect(x, y, 2, 2); }
+                            else if (v < 0.34) { ctx.fillStyle = palette.grassDetail2; ctx.fillRect(x, y, 2, 2); }
+                        }
+                    ctx.globalAlpha = 1;
+                    const zdzbla = [palette.grassDetail1, palette.grassDetail2, palette.grass];
+                    for (let i = 0; i < 120; i++)
+                        kepka(ctx, Math.random() * TEX, 4 + Math.random() * (TEX - 4), zdzbla);
+                    for (let i = 0; i < 14; i++)
+                        kamyk(ctx, 3 + Math.random() * (TEX - 6), 3 + Math.random() * (TEX - 6),
+                              1 + Math.floor(Math.random() * 2), '#6e6a5e', '#8c8778', '#403d35');
+                    // KWIATY: kilkanascie mocno nasyconych punktow na zlamanym tle.
+                    // W UFO akcenty zajmuja kilka procent obrazu, a to one sprawiaja,
+                    // ze scena nie jest jednolita plama. Podnoszenie nasycenia calej
+                    // tekstury dalo by efekt odwrotny - krzykliwa papke.
+                    for (let i = 0; i < 18; i++) {
+                        const fx = 2 + Math.random() * (TEX - 4), fy = 2 + Math.random() * (TEX - 4);
+                        const barwa = Math.random() < 0.6 ? palette.grassAkcent1 : palette.grassAkcent2;
+                        ctx.fillStyle = barwa;
+                        ctx.fillRect(fx, fy, 2, 2);
+                        // jasniejszy srodek - kwiat ma wtedy swoje swiatlo
+                        ctx.fillStyle = 'rgba(255,245,210,0.75)';
+                        ctx.fillRect(fx, fy, 1, 1);
+                    }
+                    nalozPlamy(ctx, 32, 0.07);
                 } else if (type === 'dirt') {
-                    ctx.fillStyle = palette.dirt; ctx.fillRect(0,0,128,128);
-                    for(let i=0;i<400;i++) { ctx.fillStyle = Math.random()>0.5 ? palette.dirtDetail1 : palette.dirtDetail2; ctx.fillRect(Math.random()*128,Math.random()*128,4,4); }
+                    // Ziemia: ubite placki, kamyki ze swiatlem i cieniem, slady kol
+                    ctx.fillStyle = palette.dirt; ctx.fillRect(0, 0, TEX, TEX);
+                    const sz = szumPlam(16);
+                    ctx.globalAlpha = 0.32;
+                    for (let y = 0; y < TEX; y += 2)
+                        for (let x = 0; x < TEX; x += 2) {
+                            const v = sz(x, y);
+                            if (v > 0.64) { ctx.fillStyle = palette.dirtDetail2; ctx.fillRect(x, y, 2, 2); }
+                            else if (v < 0.36) { ctx.fillStyle = palette.dirtDetail1; ctx.fillRect(x, y, 2, 2); }
+                        }
+                    ctx.globalAlpha = 1;
+                    for (let i = 0; i < 40; i++)
+                        kamyk(ctx, 3 + Math.random() * (TEX - 6), 3 + Math.random() * (TEX - 6),
+                              1 + Math.floor(Math.random() * 3), '#6b5b48', '#8a7659', '#3e3428');
+                    for (let i = 0; i < 10; i++)
+                        rysa(ctx, Math.random() * TEX, Math.random() * TEX, 14 + Math.random() * 20,
+                             '#4a3c2e', '#70604a');
+                    nalozPlamy(ctx, 32, 0.08);
                 } else if (type === 'road') {
-                    ctx.fillStyle = palette.road; ctx.fillRect(0,0,128,128);
-                    for(let i=0;i<500;i++) { ctx.fillStyle = Math.random()>0.5 ? palette.roadDetail1 : palette.roadDetail2; ctx.fillRect(Math.random()*128,Math.random()*128,2,2); }
+                    // Asfalt: kruszywo, laty po lataniu, pekniecia i wytarty srodek
+                    ctx.fillStyle = palette.road; ctx.fillRect(0, 0, TEX, TEX);
+                    const sz = szumPlam(16);
+                    ctx.globalAlpha = 0.35;
+                    for (let y = 0; y < TEX; y += 2)
+                        for (let x = 0; x < TEX; x += 2) {
+                            const v = sz(x, y);
+                            if (v > 0.66) { ctx.fillStyle = palette.roadDetail2; ctx.fillRect(x, y, 2, 2); }
+                            else if (v < 0.34) { ctx.fillStyle = palette.roadDetail1; ctx.fillRect(x, y, 2, 2); }
+                        }
+                    ctx.globalAlpha = 1;
+                    for (let i = 0; i < 260; i++) {
+                        ctx.fillStyle = Math.random() > 0.5 ? '#53565e' : '#282a2f';
+                        ctx.fillRect(Math.random() * TEX, Math.random() * TEX, 1 + Math.random() * 2, 1);
+                    }
+                    for (let i = 0; i < 9; i++)
+                        rysa(ctx, Math.random() * TEX, Math.random() * TEX, 20 + Math.random() * 30,
+                             '#191b20', null);
+                    // Latane dziury i wytarte sladami kol pasy - bez nich asfalt mial
+                    // rozpietosc jasnosci 0.22, czyli byl plaski jak papier
+                    // Latki po remoncie: nieregularne, o postrzepionym brzegu.
+                    // Prostokaty czytaly sie jak naklejki, a pasy na cala wysokosc
+                    // kafla znow pokazywaly powtarzanie.
+                    const latka = szumPlam(16);
+                    for (let i = 0; i < 3; i++) {
+                        const lx = Math.random() * TEX, ly = Math.random() * TEX;
+                        const lw = 16 + Math.random() * 24, lh = 12 + Math.random() * 20;
+                        for (let x = 0; x < lw; x++)
+                            for (let y = 0; y < lh; y++) {
+                                // brzeg rozmywany szumem - im dalej od srodka, tym rzadziej
+                                const dx = Math.abs(x / lw - 0.5) * 2, dy = Math.abs(y / lh - 0.5) * 2;
+                                const odSrodka = Math.max(dx, dy);
+                                const px2 = (lx + x) % TEX, py2 = (ly + y) % TEX;
+                                if (odSrodka > 0.55 && latka(px2, py2) < odSrodka) continue;
+                                ctx.fillStyle = 'rgba(22,24,28,0.5)';
+                                ctx.fillRect(px2, py2, 1, 1);
+                            }
+                    }
+                    nalozPlamy(ctx, 32, 0.06);
                 } else if (type === 'mud') {
-                    // Błoto: ciemna, mokra maź z połyskującymi kałużami
-                    ctx.fillStyle = '#3a3226'; ctx.fillRect(0,0,128,128);
-                    for(let i=0;i<300;i++) { ctx.fillStyle = Math.random()>0.5 ? '#2c261c' : '#463c2c'; ctx.fillRect(Math.random()*128,Math.random()*128,5,4); }
-                    for(let i=0;i<8;i++) {
-                        ctx.fillStyle = 'rgba(120,140,130,0.35)';
-                        ctx.beginPath(); ctx.arc(Math.random()*128, Math.random()*128, 6+Math.random()*10, 0, Math.PI*2); ctx.fill();
+                    // Bloto: mokra maz, kaluze z odbiciem nieba i wygniecione koleiny
+                    ctx.fillStyle = '#3a3226'; ctx.fillRect(0, 0, TEX, TEX);
+                    const sz = szumPlam(16);
+                    ctx.globalAlpha = 0.45;
+                    for (let y = 0; y < TEX; y += 2)
+                        for (let x = 0; x < TEX; x += 2) {
+                            const v = sz(x, y);
+                            if (v > 0.6) { ctx.fillStyle = '#463c2c'; ctx.fillRect(x, y, 2, 2); }
+                            else if (v < 0.4) { ctx.fillStyle = '#2c261c'; ctx.fillRect(x, y, 2, 2); }
+                        }
+                    ctx.globalAlpha = 1;
+                    for (let i = 0; i < 5; i++) {
+                        const px = Math.random() * TEX, py = Math.random() * TEX, pr = 5 + Math.random() * 9;
+                        ctx.fillStyle = 'rgba(96,112,104,0.4)';
+                        ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2); ctx.fill();
+                        // Odblask na gornej krawedzi kaluzy - bez niego to plaska plama
+                        ctx.fillStyle = 'rgba(170,190,180,0.3)';
+                        ctx.beginPath(); ctx.arc(px, py - pr * 0.3, pr * 0.5, 0, Math.PI * 2); ctx.fill();
                     }
+                    for (let i = 0; i < 16; i++)
+                        kamyk(ctx, 3 + Math.random() * (TEX - 6), 3 + Math.random() * (TEX - 6),
+                              1 + Math.floor(Math.random() * 2), '#4e4336', '#6a5c49', '#26201a');
+                    nalozPlamy(ctx, 32, 0.09);
                 } else if (type === 'crosswalk') {
-                    // Pasy: białe prostopadłe belki na asfalcie
-                    ctx.fillStyle = palette.road; ctx.fillRect(0,0,128,128);
-                    for(let i=0;i<200;i++) { ctx.fillStyle = Math.random()>0.5 ? palette.roadDetail1 : palette.roadDetail2; ctx.fillRect(Math.random()*128,Math.random()*128,2,2); }
-                    ctx.fillStyle = '#e8e8e0';
-                    for (let i = 0; i < 4; i++) ctx.fillRect(6 + i * 32, 0, 18, 128);
-                } else if (type === 'sidewalk') {
-                    const sw = palette.sidewalk || '#8a8a82', sd1 = palette.sidewalkDetail1 || '#7c7c74', sd2 = palette.sidewalkDetail2 || '#96968c';
-                    ctx.fillStyle = sw; ctx.fillRect(0,0,128,128);
-                    // Płyty chodnikowe - siatka linii
-                    ctx.strokeStyle = sd1; ctx.lineWidth = 2;
-                    for (let i = 0; i <= 128; i += 32) {
-                        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 128); ctx.stroke();
-                        ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(128, i); ctx.stroke();
+                    ctx.fillStyle = palette.road; ctx.fillRect(0, 0, TEX, TEX);
+                    for (let i = 0; i < 200; i++) {
+                        ctx.fillStyle = Math.random() > 0.5 ? palette.roadDetail1 : palette.roadDetail2;
+                        ctx.fillRect(Math.random() * TEX, Math.random() * TEX, 2, 2);
                     }
-                    for(let i=0;i<150;i++) { ctx.fillStyle = Math.random()>0.5 ? sd1 : sd2; ctx.fillRect(Math.random()*128,Math.random()*128,2,2); }
+                    // Pasy WYTARTE - pelna biel wygladala jak swiezo malowane, a to
+                    // opuszczone miejsca. Farba schodzi placami i ma brudne brzegi.
+                    // Farba schodzi od KRAWEDZI pasa i cienkimi zadrapaniami wzdluz
+                    // ruchu. Pierwsza wersja wygryzala dziury w srodku i pasy
+                    // wygladaly jak splesniale, a nie wytarte.
+                    const starcie = szumPlam(8);
+                    for (let i = 0; i < 4; i++) {
+                        const bx = 6 + i * 32, szerPasa = 18;
+                        for (let x = bx; x < bx + szerPasa; x++)
+                            for (let y = 0; y < TEX; y++) {
+                                // 0 w srodku pasa, 1 przy jego krawedzi
+                                const doKrawedzi = 1 - Math.abs((x - bx) / (szerPasa - 1) - 0.5) * 2;
+                                const trzyma = doKrawedzi * 0.75 + starcie(x, y) * 0.35;
+                                if (trzyma < 0.3) continue;
+                                ctx.fillStyle = trzyma > 0.6 ? '#e8e8e0' : '#cfcfc2';
+                                ctx.fillRect(x, y, 1, 1);
+                            }
+                    }
+                    for (let i = 0; i < 16; i++) {
+                        ctx.fillStyle = 'rgba(38,40,46,0.5)';
+                        ctx.fillRect(Math.random() * TEX, Math.random() * TEX, 1, 3 + Math.random() * 7);
+                    }
+                    nalozPlamy(ctx, 32, 0.05);
+                } else if (type === 'sidewalk') {
+                    const sw = palette.sidewalk || '#8a8a82';
+                    const sd1 = palette.sidewalkDetail1 || '#7c7c74';
+                    const sd2 = palette.sidewalkDetail2 || '#96968c';
+                    ctx.fillStyle = sd1; ctx.fillRect(0, 0, TEX, TEX);       // fuga
+                    // Plyty z FAZA: jasna krawedz od gory i lewej, ciemna od dolu i prawej.
+                    // Sama siatka linii dawala plaska krate - dopiero faza robi plyte.
+                    for (let gx = 0; gx < 4; gx++)
+                        for (let gy = 0; gy < 4; gy++) {
+                            const x = gx * 32 + 1, y = gy * 32 + 1, w = 30;
+                            ctx.fillStyle = sw; ctx.fillRect(x, y, w, w);
+                            ctx.fillStyle = sd2; ctx.fillRect(x, y, w, 1); ctx.fillRect(x, y, 1, w);
+                            ctx.fillStyle = sd1; ctx.fillRect(x, y + w - 1, w, 1); ctx.fillRect(x + w - 1, y, 1, w);
+                            // Wyszczerbienia na rogach - nowe plyty wygladaja sztucznie
+                            if (Math.random() < 0.5) {
+                                ctx.fillStyle = sd1;
+                                const rx = Math.random() < 0.5 ? x : x + w - 3, ry = Math.random() < 0.5 ? y : y + w - 3;
+                                ctx.fillRect(rx, ry, 2 + Math.random() * 2, 2);
+                            }
+                        }
+                    for (let i = 0; i < 90; i++) {
+                        ctx.fillStyle = Math.random() > 0.5 ? sd1 : sd2;
+                        ctx.fillRect(Math.random() * TEX, Math.random() * TEX, 1, 1);
+                    }
+                    for (let i = 0; i < 5; i++)
+                        rysa(ctx, Math.random() * TEX, Math.random() * TEX, 10 + Math.random() * 16, sd1, null);
+                    // Zacieki i przetarcia - chodnik mial rozpietosc jasnosci 0.16,
+                    // czyli byl praktycznie jednolita plama w jednym tonie
+                    for (let i = 0; i < 5; i++) {
+                        ctx.fillStyle = 'rgba(58,56,50,0.3)';
+                        const zx = Math.random() * TEX, zy = Math.random() * TEX;
+                        ctx.fillRect(zx, zy, 6 + Math.random() * 18, 5 + Math.random() * 14);
+                    }
+                    for (let i = 0; i < 3; i++) {
+                        ctx.fillStyle = 'rgba(206,202,190,0.28)';
+                        ctx.fillRect(Math.random() * TEX, Math.random() * TEX, 8 + Math.random() * 16, 4);
+                    }
+                    nalozPlamy(ctx, 32, 0.05);
                 }
                 return new THREE.CanvasTexture(c);
             }
@@ -2042,25 +2294,33 @@
         // Pory dnia - używane losowo zarówno w Teraźniejszości (bez nocy) jak i w misjach walki (wszystkie 4)
 const TIME_LABELS = { rano: 'RANO', poludnie: 'POŁUDNIE', wieczor: 'WIECZÓR', noc: 'NOC' };
 const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima: 'ZIMA' };
+        // ŚWIATŁO KLUCZOWE CIEPŁE, WYPEŁNIAJĄCE ZIMNE.
+        // Dotąd 'poludnie' miało czystą biel w obu kanałach, a 'wieczor' był ciepły
+        // i w słońcu, i w cieniu - przez co scena nie miała żadnego kontrastu barwnego
+        // i wyglądała płasko bez względu na tekstury. W rzeczywistości cień jest
+        // oświetlony niebem, czyli ZIMNY, a słońce jest ciepłe; ta jedna różnica
+        // robi dla obrazu więcej niż cała przebudowa tekstur.
         const TIME_OF_DAY_PRESETS = {
             rano: {
-                background: 0x2a2a38, ambientColor: 0xccddff, ambientIntensity: 0.4,
-                directionalColor: 0xffe0a0, directionalIntensity: 0.65,
+                background: 0x2a2a38, ambientColor: 0xb8cdf0, ambientIntensity: 0.42,
+                directionalColor: 0xffe0a0, directionalIntensity: 0.68,
                 lightOffset: { x: 130, y: 22, z: 40 }, shadowMapSize: 2048
             },
             poludnie: {
-                background: 0x111111, ambientColor: 0xffffff, ambientIntensity: 0.4,
-                directionalColor: 0xffffff, directionalIntensity: 0.8,
+                // Słońce ciepłe, cień od nieba chłodny - tak jak w rzeczywistości
+                background: 0x111111, ambientColor: 0xa9c0e4, ambientIntensity: 0.44,
+                directionalColor: 0xfff0d2, directionalIntensity: 0.82,
                 lightOffset: { x: 50, y: 100, z: 50 }, shadowMapSize: 2048
             },
             wieczor: {
-                background: 0x2a1f18, ambientColor: 0xffd9b3, ambientIntensity: 0.35,
-                directionalColor: 0xff9944, directionalIntensity: 0.6,
+                // Zachód: mocno pomarańczowe słońce, cienie wpadające w granat
+                background: 0x2a1f18, ambientColor: 0x6479a8, ambientIntensity: 0.4,
+                directionalColor: 0xff8c3c, directionalIntensity: 0.66,
                 lightOffset: { x: -130, y: 20, z: -35 }, shadowMapSize: 1024
             },
             noc: {
-                background: 0x050818, ambientColor: 0x2244aa, ambientIntensity: 0.3,
-                directionalColor: 0x3366cc, directionalIntensity: 0.5,
+                background: 0x050818, ambientColor: 0x2a4a9e, ambientIntensity: 0.3,
+                directionalColor: 0x3366cc, directionalIntensity: 0.48,
                 lightOffset: { x: 50, y: 90, z: 50 }, shadowMapSize: 2048
             }
         };
@@ -3524,10 +3784,44 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 riverIsLava = false; rzekaKrwi = false;
             }
 
-            for(let x=0; x<mapWidth; x++) {
-                for(let z=0; z<mapDepth; z++) {
-                    if (terrainTypeMap[x][z] >= 2) continue; 
-                    if (heightMap[x][z] !== 0 || Math.random() < 0.15) terrainTypeMap[x][z] = 1; 
+            // ŁATY ZIEMI, NIE SZUM. Dotąd każde pole z osobna miało 15% szansy na
+            // ubitą ziemię, co dawało czysty szum sól-i-pieprz na wszystkich planszach -
+            // i to ono, bardziej niż rozstawienie rekwizytów, robiło wrażenie bałaganu.
+            // Teraz ta sama ilość ziemi układa się w płaty: losujemy rzadką siatkę
+            // wartości i wygładzamy ją dwuliniowo, więc wychodzą wydeptane placki
+            // zamiast pojedynczych cętek.
+            {
+                const KRATKA = 7;                    // co ile pól próbka szumu
+                const SW = Math.ceil(mapWidth / KRATKA) + 2, SD = Math.ceil(mapDepth / KRATKA) + 2;
+                const szum = [];
+                for (let i = 0; i < SW; i++) {
+                    const kol = new Float32Array(SD);
+                    for (let j = 0; j < SD; j++) kol[j] = Math.random();
+                    szum.push(kol);
+                }
+                const probka = (x, z) => {
+                    const fx = x / KRATKA, fz = z / KRATKA;
+                    const i = Math.floor(fx), j = Math.floor(fz);
+                    const tx = fx - i, tz = fz - j;
+                    // wygładzenie cosinusowe - bez niego widać kratę próbek
+                    const wx = tx * tx * (3 - 2 * tx), wz = tz * tz * (3 - 2 * tz);
+                    const a0 = szum[i][j] * (1 - wx) + szum[i + 1][j] * wx;
+                    const a1 = szum[i][j + 1] * (1 - wx) + szum[i + 1][j + 1] * wx;
+                    return a0 * (1 - wz) + a1 * wz;
+                };
+                // Próg dobrany tak, by ziemi było tyle samo co przy dawnych 15%.
+                // Wygładzony szum skupia wartości wokół średniej, więc próg jest
+                // wyższy niż 0.15 - ustalamy go z rozkładu, a nie na oko.
+                const proby = [];
+                for (let n = 0; n < 2000; n++)
+                    proby.push(probka(Math.random() * (mapWidth - 1), Math.random() * (mapDepth - 1)));
+                proby.sort((u, v) => u - v);
+                const prog = proby[Math.floor(proby.length * 0.85)];
+                for (let x = 0; x < mapWidth; x++) {
+                    for (let z = 0; z < mapDepth; z++) {
+                        if (terrainTypeMap[x][z] >= 2) continue;
+                        if (heightMap[x][z] !== 0 || probka(x, z) > prog) terrainTypeMap[x][z] = 1;
+                    }
                 }
             }
 
@@ -4044,7 +4338,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
                 // Naturalne osłony - głazy i skalne występy. Dają wrogom za czym
                 // się chować w drodze do oddziału.
-                if (currentCombatTheme && !['cyber', 'katedra'].includes(currentCombatTheme.id)) {
+                // Cmentarzysko ma wlasny uklad kwater i alejek - ogolne posypanie
+                // glazami po losowych polach rozbijaloby go na konfetti.
+                if (currentCombatTheme && !['cyber', 'katedra', 'cmentarzysko', 'stacja', 'pobojowisko'].includes(currentCombatTheme.id)) {
                     // Więcej osłon = wrogowie mają czym się zasłaniać w drodze do oddziału
                     const ile = 170 + Math.floor(Math.random() * 110);
                     for (let t = 0; t < ile; t++) {
@@ -4115,21 +4411,45 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         }
                     }
 
-                    // Perony między torami
+                    // PERONY. Dotąd miały tę samą nawierzchnię co tłuczeń pod torami,
+                    // więc z góry nie było widać, gdzie kończy się tor, a zaczyna peron -
+                    // całość czytała się jak jedno brązowe pole z szynami. Teraz peron
+                    // jest wybrukowany (typ 3), ciągnie się przez całą planszę i niesie
+                    // równe rzędy latarni i ławek, bo to właśnie te rzędy mówią "peron".
+                    stacjaPerony = [];
                     for (let t = 0; t < iloscTorow - 1; t++) {
                         const px = stacjaTory[t] + 3;
-                        for (let z = -28; z <= 28; z++) {
+                        stacjaPerony.push(px);
+                        // Perony nie są równej długości - skrajne są krótsze, jak na
+                        // prawdziwej stacji, gdzie peron główny obsługuje dalekobieżne
+                        const polDlug = (t === 0 || t === iloscTorow - 2)
+                            ? Math.round(offsetZ * 0.45) : Math.round(offsetZ * 0.72);
+                        for (let z = -polDlug; z <= polDlug; z++) {
                             for (let dx = -1; dx <= 1; dx++) {
                                 const mx = px + dx + offsetX, mz = z + offsetZ;
                                 if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
-                                terrainTypeMap[mx][mz] = 1;
+                                terrainTypeMap[mx][mz] = 3;          // bruk peronu
+                                heightMap[mx][mz] = 0;
                                 if (obstacleGrid[mx][mz]) obstacleGrid[mx][mz] = null;
                             }
-                            if (z % 9 === 0 && isWithinPlayBounds(px + 1, z) && !isObstacle(px + 1, z))
+                            // Latarnie w równym rzędzie po jednej stronie osi peronu,
+                            // ławki po drugiej - dwa niezależne rzędy czytają się
+                            // lepiej niż jeden mieszany.
+                            if (z % 6 === 0 && isWithinPlayBounds(px + 1, z) && !isObstacle(px + 1, z))
                                 addObstacle(px + 1, z, 'lampa-peronowa');
-                            if (z % 13 === 0 && isWithinPlayBounds(px - 1, z) && !isObstacle(px - 1, z))
+                            if ((z - 3) % 8 === 0 && isWithinPlayBounds(px - 1, z) && !isObstacle(px - 1, z))
                                 addObstacle(px - 1, z, 'lawka');
                         }
+                        // Bagaż na końcach peronu - skrzynie ustawione w sztaple,
+                        // nie rozsypane. Sztapel to 2-4 skrzynie w jednej linii.
+                        [-polDlug + 3, polDlug - 5].forEach(zBazy => {
+                            const ile = 2 + Math.floor(Math.random() * 3);
+                            for (let k = 0; k < ile; k++) {
+                                const zx = px - 1 + (k % 2), zz = zBazy + Math.floor(k / 2);
+                                if (!isWithinPlayBounds(zx, zz) || isObstacle(zx, zz)) continue;
+                                addObstacle(zx, zz, 'skrzynia');
+                            }
+                        });
                     }
 
                     // Budynek dworca przy skrajnym torze
@@ -4210,6 +4530,52 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             }
                         }
                     });
+
+                    // ===== CO POZA TORAMI =====
+                    // Dotąd cała przestrzeń obok stacji była posypana skrzyniami,
+                    // regałami i beczkami z ogólnego przebiegu - 428 bryl bez ładu.
+                    // Teren przy stacji ma dwa oblicza: plac ładunkowy po jednej
+                    // stronie i zarastające pustkowie po drugiej.
+                    const lewaKrawedz = stacjaTory[0] - 6;
+                    const prawaKrawedz = stacjaTory[iloscTorow - 1] + 20;
+
+                    // PLAC ŁADUNKOWY: rampy ze skrzyniami ustawionymi w równych rzędach.
+                    // Rampa to linia, nie plama - stąd wrażenie, że ktoś to układał.
+                    const ileRamp = 4 + Math.floor(Math.random() * 3);
+                    for (let r = 0; r < ileRamp; r++) {
+                        const rz = -offsetZ + 14 + Math.floor(Math.random() * Math.max(1, offsetZ * 2 - 30));
+                        const dlugosc = 6 + Math.floor(Math.random() * 9);
+                        const typRampy = Math.random() < 0.6 ? 'skrzynia' : 'beczka';
+                        const rx = lewaKrawedz - Math.floor(Math.random() * 10);
+                        for (let k = 0; k < dlugosc; k++) {
+                            const ox = rx, oz = rz + k;
+                            if (!isWithinPlayBounds(ox, oz) || isObstacle(ox, oz)) continue;
+                            if (terrainTypeMap[ox + offsetX][oz + offsetZ] >= 2) continue;
+                            addObstacle(ox, oz, typRampy);
+                            // Druga warstwa sztapla co drugie pole - rampa nie jest płaska
+                            if (k % 2 === 0 && isWithinPlayBounds(ox - 1, oz) && !isObstacle(ox - 1, oz))
+                                addObstacle(ox - 1, oz, typRampy);
+                        }
+                    }
+
+                    // ZARASTAJĄCE PUSTKOWIE po drugiej stronie - kępy drzew, nie pojedyncze
+                    // drzewka. Stacja jest opuszczona, więc teren wraca do natury.
+                    const ileKep = 7 + Math.floor(Math.random() * 6);
+                    for (let n = 0; n < ileKep; n++) {
+                        let cx = prawaKrawedz + Math.floor(Math.random() * Math.max(1, offsetX - prawaKrawedz - 4));
+                        let cz = -offsetZ + 8 + Math.floor(Math.random() * Math.max(1, offsetZ * 2 - 16));
+                        if (!isWithinPlayBounds(cx, cz)) continue;
+                        const ile = 5 + Math.floor(Math.random() * 8);
+                        let postawione = 0;
+                        for (let t2 = 0; t2 < 70 && postawione < ile; t2++) {
+                            const ox = cx + Math.round((Math.random() - 0.5) * 6);
+                            const oz = cz + Math.round((Math.random() - 0.5) * 6);
+                            if (!isWithinPlayBounds(ox, oz) || isObstacle(ox, oz)) continue;
+                            if (terrainTypeMap[ox + offsetX][oz + offsetZ] >= 2) continue;
+                            addObstacle(ox, oz, 'tree');
+                            postawione++;
+                        }
+                    }
                 }
 
                 // ALCATRAZ: gmach więzienny na całą planszę. Siatka cel wzdłuż korytarzy,
@@ -4489,27 +4855,156 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
                 // POLE PO BITWIE: rozorana ziemia, połamana broń, porzucone sztandary
                 if (currentCombatTheme && currentCombatTheme.id === 'pobojowisko') {
-                    // Błoto i koleiny na większości planszy
-                    for (let i = 0; i < 70; i++) {
-                        const cx = Math.floor(Math.random() * (mapWidth - 20)) + 10 - offsetX;
-                        const cz = Math.floor(Math.random() * (mapDepth - 20)) + 10 - offsetZ;
-                        const r = 3 + Math.floor(Math.random() * 6);
-                        for (let x = cx - r; x <= cx + r; x++)
-                            for (let z = cz - r; z <= cz + r; z++) {
-                                const mx = x + offsetX, mz = z + offsetZ;
-                                if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
-                                if ((x - cx) * (x - cx) + (z - cz) * (z - cz) > r * r) continue;
-                                terrainTypeMap[mx][mz] = 1;
+                    // ===== POLE PO BITWIE MA UKŁAD BITWY =====
+                    // Dotąd 150 rekwizytów lądowało na losowych polach, więc plansza
+                    // była łąką obsypaną kośćmi - 14% wyrównania, 40% sąsiedztw
+                    // mieszanych. Prawdziwe pobojowisko czyta się od razu: dwie
+                    // linie stały naprzeciw siebie, między nimi pas, przez który
+                    // szło natarcie, a ciała gęstnieją dokładnie tam, gdzie
+                    // linie się zderzyły.
+
+                    // Oś bitwy: linie biegną w poprzek dłuższego boku planszy
+                    const wzdluzX = mapWidth >= mapDepth;
+                    const dlugosc = wzdluzX ? offsetX : offsetZ;        // połowa długości linii
+                    // Ziemia niczyja musi być SZEROKA - przy 16-28 polach obie linie
+                    // zlewały się w jeden pas śmieci i nie było widać, że to dwie
+                    // strony stojące naprzeciw siebie.
+                    const rozstaw = 26 + Math.floor(Math.random() * 16);
+                    const liniaA = -Math.round(rozstaw / 2);
+                    const liniaB = Math.round(rozstaw / 2);
+
+                    // Pomocnik: pole na linii o danym przesunięciu wzdłuż niej
+                    const naLinii = (linia, wzdluz, odchyl) => wzdluzX
+                        ? { x: wzdluz, z: linia + (odchyl || 0) }
+                        : { x: linia + (odchyl || 0), z: wzdluz };
+
+                    // --- 1. BŁOTO: najgęstsze na pasie między liniami ---
+                    // Tam deptały obie strony, więc trawy już nie ma.
+                    for (let w = -dlugosc + 6; w < dlugosc - 6; w++) {
+                        for (let l = liniaA - 8; l <= liniaB + 8; l++) {
+                            const pos = naLinii(l, w);
+                            const mx = pos.x + offsetX, mz = pos.z + offsetZ;
+                            if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
+                            if (terrainTypeMap[mx][mz] >= 2) continue;
+                            // Im bliżej środka pasa, tym pewniej rozdeptane
+                            const doSrodka = 1 - Math.abs(l) / (rozstaw / 2 + 8);
+                            if (Math.random() < 0.35 + doSrodka * 0.5) terrainTypeMap[mx][mz] = 1;
+                        }
+                    }
+
+                    // --- 2. ZASIEKI: włócznie wbite w ziemię RZĘDEM wzdłuż linii ---
+                    // To one najmocniej niosą wrażenie, że ktoś tu stał w szyku.
+                    [liniaA, liniaB].forEach((linia, nr) => {
+                        const odchylenie = nr === 0 ? -2 : 2;    // zasiek przed własną linią
+                        let w = -dlugosc + 8;
+                        while (w < dlugosc - 8) {
+                            const dlOdcinka = 5 + Math.floor(Math.random() * 9);
+                            for (let k = 0; k < dlOdcinka; k++) {
+                                const pos = naLinii(linia + odchylenie, w + k,
+                                                    Math.random() < 0.3 ? (Math.random() < 0.5 ? 1 : -1) : 0);
+                                if (!isWithinPlayBounds(pos.x, pos.z) || isObstacle(pos.x, pos.z)) continue;
+                                addObstacle(pos.x, pos.z, 'wlocznie');
                             }
+                            // Wyrwa w zasieku - tędy poszło natarcie
+                            w += dlOdcinka + 3 + Math.floor(Math.random() * 7);
+                        }
+                    });
+
+                    // --- 3. CIAŁA: najgęściej NA liniach, rzadziej w głębi, ---
+                    //     a na ziemi niczyjej tylko ci, którzy dobiegli najdalej
+                    const polozTrupa = (pos) => {
+                        if (!isWithinPlayBounds(pos.x, pos.z) || isObstacle(pos.x, pos.z)) return false;
+                        addObstacle(pos.x, pos.z, 'kosciotrup');
+                        return true;
+                    };
+                    [liniaA, liniaB].forEach(linia => {
+                        for (let w = -dlugosc + 8; w < dlugosc - 8; w++) {
+                            // Na samej linii gęsto
+                            if (Math.random() < 0.42) polozTrupa(naLinii(linia, w, Math.round((Math.random() - 0.5) * 3)));
+                            // Kilka pól za linią - rzadziej, to odwód
+                            if (Math.random() < 0.12) polozTrupa(naLinii(linia + (linia < 0 ? -6 : 6), w,
+                                                                        Math.round((Math.random() - 0.5) * 5)));
+                        }
+                    });
+                    // Ziemia niczyja: pojedynczy, rozrzuceni - ci, co dobiegli
+                    for (let i = 0; i < 26; i++) {
+                        const w = Math.round((Math.random() - 0.5) * 2 * (dlugosc - 10));
+                        const l = Math.round((Math.random() - 0.5) * rozstaw);
+                        polozTrupa(naLinii(l, w));
                     }
-                    // Pobojowisko: kości, włócznie wbite w ziemię, strzępy sztandarów
-                    for (let i = 0; i < 150; i++) {
-                        const x = Math.floor(Math.random() * (mapWidth - 16)) + 8 - offsetX;
-                        const z = Math.floor(Math.random() * (mapDepth - 16)) + 8 - offsetZ;
-                        if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) continue;
-                        const los = Math.random();
-                        addObstacle(x, z, los < 0.4 ? 'kosciotrup' : (los < 0.7 ? 'wlocznie' : (los < 0.88 ? 'sztandar' : 'nagrobek')));
+
+                    // --- 4. SZTANDARY: po jednym tam, gdzie stał oddział ---
+                    // Równe odstępy wzdłuż linii - chorągiew wyznaczała środek roty.
+                    [liniaA, liniaB].forEach(linia => {
+                        const odstep = 14 + Math.floor(Math.random() * 8);
+                        for (let w = -dlugosc + 12; w < dlugosc - 12; w += odstep) {
+                            const pos = naLinii(linia + (linia < 0 ? -3 : 3), w);
+                            if (!isWithinPlayBounds(pos.x, pos.z) || isObstacle(pos.x, pos.z)) continue;
+                            addObstacle(pos.x, pos.z, 'sztandar');
+                            // Przy chorągwi padło najwięcej - jej broniono do końca
+                            for (let k = 0; k < 4; k++) {
+                                const t = naLinii(linia + (linia < 0 ? -3 : 3) + Math.round((Math.random() - 0.5) * 4),
+                                                  w + Math.round((Math.random() - 0.5) * 5));
+                                polozTrupa(t);
+                            }
+                        }
+                    });
+
+                    // --- 5. MOGIŁY: kopce z nagrobkami W RZĘDZIE, za liniami ---
+                    // Kto przeżył, grzebał swoich - i robił to porządnie.
+                    [liniaA - 14, liniaB + 14].forEach(linia => {
+                        const ile = 2 + Math.floor(Math.random() * 3);
+                        for (let m = 0; m < ile; m++) {
+                            const start = Math.round((Math.random() - 0.5) * 2 * (dlugosc - 20));
+                            const dlRzedu = 4 + Math.floor(Math.random() * 5);
+                            for (let k = 0; k < dlRzedu; k++) {
+                                const pos = naLinii(linia, start + k * 2);
+                                if (!isWithinPlayBounds(pos.x, pos.z) || isObstacle(pos.x, pos.z)) continue;
+                                addObstacle(pos.x, pos.z, 'nagrobek');
+                            }
+                        }
+                    });
+
+                    // --- 6. LEJE: koliste wyrwy w ziemi niczyjej, z gruzem na obrzeżu ---
+                    const ileLejow = 5 + Math.floor(Math.random() * 5);
+                    for (let n = 0; n < ileLejow; n++) {
+                        const w = Math.round((Math.random() - 0.5) * 2 * (dlugosc - 14));
+                        const l = Math.round((Math.random() - 0.5) * rozstaw * 1.4);
+                        const srodek = naLinii(l, w);
+                        const r = 2 + Math.floor(Math.random() * 3);
+                        for (let dx = -r; dx <= r; dx++)
+                            for (let dz = -r; dz <= r; dz++) {
+                                if (dx * dx + dz * dz > r * r) continue;
+                                const mx = srodek.x + dx + offsetX, mz = srodek.z + dz + offsetZ;
+                                if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
+                                if (terrainTypeMap[mx][mz] < 2) terrainTypeMap[mx][mz] = 1;
+                            }
+                        // Gruz na krawędzi leja - kamienie wyrzucone wybuchem
+                        for (let k = 0; k < 6; k++) {
+                            const kat = Math.random() * Math.PI * 2;
+                            const gx = Math.round(srodek.x + Math.cos(kat) * (r + 0.6));
+                            const gz = Math.round(srodek.z + Math.sin(kat) * (r + 0.6));
+                            if (!isWithinPlayBounds(gx, gz) || isObstacle(gx, gz)) continue;
+                            addObstacle(gx, gz, 'rock');
+                        }
                     }
+
+                    // --- 7. SKRAJ POLA: las, z którego wyszły wojska ---
+                    // Drzewa trzymają się brzegów. Dotąd rosły też w środku bitwy,
+                    // co psuło czytelność całego układu.
+                    [-1, 1].forEach(strona => {
+                        const linia = strona * (rozstaw / 2 + 26);
+                        for (let n = 0; n < 9; n++) {
+                            const w = Math.round((Math.random() - 0.5) * 2 * (dlugosc - 8));
+                            const ile = 5 + Math.floor(Math.random() * 7);
+                            for (let k = 0; k < ile; k++) {
+                                const pos = naLinii(Math.round(linia + (Math.random() - 0.5) * 12),
+                                                    w + Math.round((Math.random() - 0.5) * 8));
+                                if (!isWithinPlayBounds(pos.x, pos.z) || isObstacle(pos.x, pos.z)) continue;
+                                addObstacle(pos.x, pos.z, 'tree');
+                            }
+                        }
+                    });
                 }
 
                 // WIEŻA: jeden gmach na całą planszę, osiem kondygnacji, szyb windy
@@ -4943,7 +5438,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
                 // Dłuższe osłony: kamienne murki, zwalone pnie, grzbiety skalne.
                 // Pojedyncze głazy dają osłonę punktową, te - całe odcinki do przebiegnięcia.
-                if (currentCombatTheme && !['cyber', 'katedra'].includes(currentCombatTheme.id)) {
+                // Cmentarzysko: pasma murkow laduja w poprzek alejek i kwater,
+                // wiec tam rumowisko ustawia wlasny uklad.
+                if (currentCombatTheme && !['cyber', 'katedra', 'cmentarzysko', 'stacja', 'pobojowisko'].includes(currentCombatTheme.id)) {
                     const ilePasm = 16 + Math.floor(Math.random() * 14);
                     for (let t = 0; t < ilePasm; t++) {
                         const sx = Math.floor(Math.random() * (mapWidth - 24)) + 12 - offsetX;
@@ -4998,63 +5495,271 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         addObstacle(px, pz, 'datapillar');
                     }
                 } else if (currentCombatTheme.id === 'cmentarzysko') {
-                    // Cmentarzysko: pole sarkofagów. Część z nich kryje zombie.
+                    // ===== CMENTARZ MA UKŁAD, NIE POSYPANIE =====
+                    // Dotąd 280 sarkofagów lądowało na losowych polach z odrzuceniem
+                    // zbyt bliskich sąsiadów. Taki rozkład jest równomierny, więc czyta
+                    // się jak konfetti: co czwarty grób stał sam, obok niego głaz,
+                    // dalej kłoda. Prawdziwy cmentarz to siatka: alejki, kwatery,
+                    // a w kwaterach RZĘDY. Tu budujemy dokładnie to.
                     sarcophagi = [];
-                    // Trzykrotnie gęstsze pole grobów, w czterech rozmiarach
-                    const target = 250 + Math.floor(Math.random() * 60);
-                    for (let t = 0; t < 12000 && sarcophagi.length < target; t++) {
-                        const sx = Math.floor(Math.random() * (mapWidth - 12)) + 6 - offsetX;
-                        const sz = Math.floor(Math.random() * (mapDepth - 12)) + 6 - offsetZ;
-                        if (!isWithinPlayBounds(sx, sz) || isObstacle(sx, sz)) continue;
-                        if (terrainTypeMap[sx + offsetX][sz + offsetZ] >= 2) continue;
-                        if (sarcophagi.some(s => Math.hypot(s.x - sx, s.z - sz) < 2.2)) continue;
-                        // rozmiary: mała płyta, zwykły sarkofag, wysoka tumba, wielki grobowiec
-                        const r = Math.random();
-                        const size = r < 0.30 ? 'small' : (r < 0.65 ? 'normal' : (r < 0.88 ? 'tall' : 'large'));
-                        addObstacle(sx, sz, 'sarcophagus', { sarcoSize: size });
-                        // Nie w każdym ktoś leży - to buduje niepewność.
-                        // W większych grobowcach szansa jest wyższa.
-                        const chance = size === 'small' ? 0.45 : (size === 'large' ? 0.8 : 0.62);
-                        sarcophagi.push({ x: sx, z: sz, size: size, hasZombie: Math.random() < chance, opened: false });
-                    }
-                    // Część grobów dostaje własne, ogrodzone kwatery z jedną furtką
-                    let fenced = 0;
-                    for (let t = 0; t < 900 && fenced < 9; t++) {
-                        const g = sarcophagi[Math.floor(Math.random() * sarcophagi.length)];
-                        if (!g || g.fenced) continue;
-                        const R = 3;
-                        let ok = true;
-                        for (let dx = -R; dx <= R && ok; dx++)
-                            for (let dz = -R; dz <= R; dz++) {
-                                if (Math.abs(dx) !== R && Math.abs(dz) !== R) continue;
-                                if (!isWithinPlayBounds(g.x + dx, g.z + dz) || isObstacle(g.x + dx, g.z + dz)) { ok = false; break; }
+
+                    // Pierwsza wersja miała jeden rozmiar kwatery i jednakowe alejki,
+                    // przez co cmentarz czytał się jak arkusz kalkulacyjny: ład był,
+                    // ale mechaniczny. Teraz kwatery mają trzy szerokości i trzy
+                    // głębokości, jedna aleja jest główna, a brzeg jest krzywy.
+                    const SZEROKOSCI = [15, 11, 17, 13];
+                    const GLEBOKOSCI = [11, 9, 13, 15];
+                    const ALEJKA = 3;
+                    const ALEJA_GLOWNA = 5;      // jedna oś jest wyraźnie szersza
+
+                    // --- 1. SIATKA ALEJ O ZMIENNYM KROKU ---
+                    // Równe odstępy to główne źródło wrażenia kraty. Szerokości
+                    // kwater losujemy z puli, więc alejki wypadają nierówno.
+                    const alejkiX = [], alejkiZ = [];
+                    const glowneX = [], glowneZ = [];       // brukowane w całości
+                    const przedeptyX = [], przedeptyZ = []; // wydeptany pas w trawie
+                    const kolumny = [], wiersze = [];
+                    {
+                        let x = -offsetX + 5;
+                        let glownaX = true;
+                        while (x < offsetX - 12) {
+                            const w = SZEROKOSCI[Math.floor(Math.random() * SZEROKOSCI.length)];
+                            if (x + w > offsetX - 7) break;
+                            kolumny.push({ x: x, w: w });
+                            // Pierwsza aleja za środkiem planszy zostaje główna
+                            const glowna = glownaX && x > 0;
+                            const szer = glowna ? (glownaX = false, ALEJA_GLOWNA) : ALEJKA;
+                            for (let a = 0; a < szer; a++) {
+                                alejkiX.push(x + w + a);
+                                if (glowna) glowneX.push(x + w + a);
+                                else if (a === (szer >> 1)) przedeptyX.push(x + w + a);
                             }
-                        if (!ok) continue;
-                        // furtka na losowym boku
-                        const side = Math.floor(Math.random() * 4);
-                        for (let dx = -R; dx <= R; dx++) {
-                            for (let dz = -R; dz <= R; dz++) {
-                                if (Math.abs(dx) !== R && Math.abs(dz) !== R) continue;
-                                const isGate =
-                                    (side === 0 && dz === -R && dx === 0) ||
-                                    (side === 1 && dz === R && dx === 0) ||
-                                    (side === 2 && dx === -R && dz === 0) ||
-                                    (side === 3 && dx === R && dz === 0);
-                                if (isGate) continue;   // wejście zostaje wolne
-                                // Bok czy przód/tył - przęsło musi być obrócone zgodnie ze ścianą
-                                const onSide = (Math.abs(dx) === R);
-                                addObstacle(g.x + dx, g.z + dz, 'grave-fence', { fenceSide: onSide });
+                            x += w + szer;
+                        }
+                        let z = -offsetZ + 5;
+                        let glownaZ = true;
+                        while (z < offsetZ - 12) {
+                            const g = GLEBOKOSCI[Math.floor(Math.random() * GLEBOKOSCI.length)];
+                            if (z + g > offsetZ - 7) break;
+                            wiersze.push({ z: z, g: g });
+                            const glowna = glownaZ && z > 0;
+                            const szer = glowna ? (glownaZ = false, ALEJA_GLOWNA) : ALEJKA;
+                            for (let a = 0; a < szer; a++) {
+                                alejkiZ.push(z + g + a);
+                                if (glowna) glowneZ.push(z + g + a);
+                                else if (a === (szer >> 1)) przedeptyZ.push(z + g + a);
+                            }
+                            z += g + szer;
+                        }
+                    }
+                    const naAlejce = (x, z) => alejkiX.indexOf(x) !== -1 || alejkiZ.indexOf(z) !== -1;
+                    // Zapamiętane na potem: mauzolea i drzewa dokładane PO tym bloku
+                    // lądują w poprzek alejek, więc osie trzeba przetrzeć na końcu.
+                    cmentarzAlejki = { x: alejkiX.slice(), z: alejkiZ.slice(), kapliczka: [] };
+
+                    const ubij = (x, z) => {
+                        const mx = x + offsetX, mz = z + offsetZ;
+                        if (mx < 1 || mx >= mapWidth - 1 || mz < 1 || mz >= mapDepth - 1) return;
+                        if (terrainTypeMap[mx][mz] >= 2) return;
+                        terrainTypeMap[mx][mz] = 1;
+                    };
+                    // Ubita ziemia TYLKO na głównych alejach. Boczne zostają trawiaste -
+                    // brukowanie wszystkich zamieniało cmentarz w brązowe pole w zielone łaty.
+                    glowneX.forEach(x => { for (let z = -offsetZ + 4; z < offsetZ - 4; z++) ubij(x, z); });
+                    glowneZ.forEach(z => { for (let x = -offsetX + 4; x < offsetX - 4; x++) ubij(x, z); });
+                    // Boczne alejki dostają jedynie przedept - wydeptany pas pośrodku
+                    // trawiastego przejścia. Dzięki niemu układ jest czytelny z góry,
+                    // a plansza nie zamienia się w brązowe pole.
+                    przedeptyX.forEach(x => { for (let z = -offsetZ + 4; z < offsetZ - 4; z++) ubij(x, z); });
+                    przedeptyZ.forEach(z => { for (let x = -offsetX + 4; x < offsetX - 4; x++) ubij(x, z); });
+
+                    // --- 2. KWATERY: różne rozmiary, różny charakter, różny kierunek rzędów ---
+                    const CHARAKTERY = [
+                        { nazwa: 'pelna',       wypelnienie: 0.94, typ: 'sarcophagus', odstep: 2 },
+                        { nazwa: 'pelna',       wypelnienie: 0.90, typ: 'sarcophagus', odstep: 2 },
+                        { nazwa: 'przerzedzona',wypelnienie: 0.50, typ: 'sarcophagus', odstep: 2 },
+                        { nazwa: 'stara',       wypelnienie: 0.78, typ: 'gravestone',  odstep: 2 },
+                        // Trzy kwatery na siedem stoją puste albo zarosłe. To rytm
+                        // gęstości: pełne kwatery niosą wrażenie rzędów, puste dają
+                        // oddech i miejsce, w którym walka ma gdzie się rozegrać.
+                        { nazwa: 'pusta',       wypelnienie: 0.00, typ: null,          odstep: 2 },
+                        { nazwa: 'pusta',       wypelnienie: 0.00, typ: null,          odstep: 2 },
+                        { nazwa: 'zarosla',     wypelnienie: 0.00, typ: null,          odstep: 2 }
+                    ];
+                    const kwatery = [];
+                    kolumny.forEach(k => wiersze.forEach(w => {
+                        kwatery.push({ x: k.x, z: w.z, szer: k.w, gleb: w.g,
+                                       ch: CHARAKTERY[Math.floor(Math.random() * CHARAKTERY.length)],
+                                       // Co trzecia kwatera ma rzędy w poprzek - to łamie
+                                       // wrażenie jednej wielkiej kraty biegnącej przez planszę
+                                       wPoprzek: Math.random() < 0.34 });
+                    }));
+
+                    kwatery.forEach(kw => {
+                        const ch = kw.ch;
+                        if (!ch.typ) { kw.pusta = true; return; }
+                        // Jeden rozmiar płyt na kwaterę - mieszanka czterech rozmiarów
+                        // w jednym rzędzie wyglądała jak skład, nie jak kwatera.
+                        const r = Math.random();
+                        const rozmiar = r < 0.25 ? 'small' : (r < 0.7 ? 'normal' : (r < 0.9 ? 'tall' : 'large'));
+                        // Rzędy gęste w jedną stronę, rzadsze w drugą - jak na cmentarzu,
+                        // gdzie groby stoją ciasno w rzędzie, a między rzędami się chodzi
+                        const krokWzdluz = ch.odstep, krokWpoprzek = ch.odstep + 1;
+                        const kx = kw.wPoprzek ? krokWpoprzek : krokWzdluz;
+                        const kz = kw.wPoprzek ? krokWzdluz : krokWpoprzek;
+                        for (let dx = 1; dx < kw.szer - 1; dx += kx) {
+                            for (let dz = 1; dz < kw.gleb - 1; dz += kz) {
+                                if (Math.random() > ch.wypelnienie) continue;
+                                const gx = kw.x + dx, gz = kw.z + dz;
+                                if (!isWithinPlayBounds(gx, gz) || isObstacle(gx, gz)) continue;
+                                if (naAlejce(gx, gz)) continue;
+                                if (terrainTypeMap[gx + offsetX][gz + offsetZ] >= 2) continue;
+                                if (ch.typ === 'sarcophagus') {
+                                    addObstacle(gx, gz, 'sarcophagus', { sarcoSize: rozmiar });
+                                    const szansa = rozmiar === 'small' ? 0.45 : (rozmiar === 'large' ? 0.8 : 0.62);
+                                    sarcophagi.push({ x: gx, z: gz, size: rozmiar,
+                                                      hasZombie: Math.random() < szansa, opened: false });
+                                } else {
+                                    addObstacle(gx, gz, ch.typ);
+                                }
                             }
                         }
-                        g.fenced = true;
-                        fenced++;
+                    });
+
+                    // --- 3. OGRODZENIA PO OBWODZIE KWATERY, nie wokół jednego grobu ---
+                    // Dotąd płotek otaczał losowy grób w środku pola grobów, co nie
+                    // miało żadnego sensu przestrzennego. Teraz ogradza całą kwaterę,
+                    // a furtka wychodzi na alejkę.
+                    const doOgrodzenia = kwatery.filter(kw => !kw.pusta);
+                    for (let i = doOgrodzenia.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [doOgrodzenia[i], doOgrodzenia[j]] = [doOgrodzenia[j], doOgrodzenia[i]];
+                    }
+                    doOgrodzenia.slice(0, Math.min(4, doOgrodzenia.length)).forEach(kw => {
+                        const x0 = kw.x, z0 = kw.z, x1 = kw.x + kw.szer - 1, z1 = kw.z + kw.gleb - 1;
+                        const furtkaX = x0 + Math.floor(kw.szer / 2);
+                        for (let x = x0; x <= x1; x++) {
+                            [z0, z1].forEach(z => {
+                                if (x === furtkaX) return;            // wejście z alejki
+                                if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) return;
+                                addObstacle(x, z, 'grave-fence', { fenceSide: false });
+                            });
+                        }
+                        for (let z = z0 + 1; z < z1; z++) {
+                            [x0, x1].forEach(x => {
+                                if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) return;
+                                addObstacle(x, z, 'grave-fence', { fenceSide: true });
+                            });
+                        }
+                        kw.ogrodzona = true;
+                    });
+
+                    // --- 4. RUMOWISKO W KĘPKACH, nie w kropkach ---
+                    // Kępka to 4-9 bryl JEDNEGO rodzaju przy sobie. Pojedyncze głazy
+                    // rozsypane po planszy były główną przyczyną wrażenia bałaganu.
+                    const puste = kwatery.filter(kw => kw.pusta);
+                    const ileKepek = 5 + Math.floor(Math.random() * 4);
+                    for (let n = 0; n < ileKepek; n++) {
+                        let cx, cz, znalezione = false;
+                        // Kępki lądują w pustych kwaterach - tam, gdzie cmentarz zarósł
+                        if (puste.length && n < puste.length) {
+                            const kw = puste[n];
+                            cx = kw.x + 2 + Math.floor(Math.random() * Math.max(1, kw.szer - 4));
+                            cz = kw.z + 2 + Math.floor(Math.random() * Math.max(1, kw.gleb - 4));
+                            znalezione = isWithinPlayBounds(cx, cz);
+                        } else {
+                            for (let t = 0; t < 120 && !znalezione; t++) {
+                                cx = Math.floor(Math.random() * (mapWidth - 20)) + 10 - offsetX;
+                                cz = Math.floor(Math.random() * (mapDepth - 20)) + 10 - offsetZ;
+                                if (!isWithinPlayBounds(cx, cz) || isObstacle(cx, cz)) continue;
+                                if (naAlejce(cx, cz)) continue;
+                                znalezione = true;
+                            }
+                        }
+                        if (!znalezione) continue;
+                        const ile = 4 + Math.floor(Math.random() * 6);
+                        let postawione = 0;
+                        for (let t = 0; t < 60 && postawione < ile; t++) {
+                            const ox = cx + Math.round((Math.random() - 0.5) * 4);
+                            const oz = cz + Math.round((Math.random() - 0.5) * 4);
+                            if (!isWithinPlayBounds(ox, oz) || isObstacle(ox, oz)) continue;
+                            if (naAlejce(ox, oz)) continue;
+                            if (terrainTypeMap[ox + offsetX][oz + offsetZ] >= 2) continue;
+                            addObstacle(ox, oz, 'rock');
+                            postawione++;
+                        }
                     }
 
-                    // kilka mauzoleów jako osłony
-                    for (let i = 0; i < 4; i++) {
-                        const w = 6 + Math.floor(Math.random() * 3), d = 6 + Math.floor(Math.random() * 3);
-                        placeSpecialBuilding(w, d, 0x4a4a4a, null, 1, [[Math.floor(w/2), 0]], []);
+                    // --- 4b. ZAROŚLA: kępy drzew w zarosłych kwaterach i pod murem ---
+                    // Zarośnięta kwatera bez niczego to po prostu dziura w planszy.
+                    // Kępa drzew zamyka ją wizualnie i daje osłonę.
+                    const zarosle = kwatery.filter(kw => kw.ch.nazwa === 'zarosla');
+                    zarosle.forEach(kw => {
+                        const ile = 5 + Math.floor(Math.random() * 7);
+                        let p2 = 0;
+                        for (let t = 0; t < 90 && p2 < ile; t++) {
+                            const dx = 1 + Math.floor(Math.random() * Math.max(1, kw.szer - 2));
+                            const dz = 1 + Math.floor(Math.random() * Math.max(1, kw.gleb - 2));
+                            const tx = kw.x + dx, tz = kw.z + dz;
+                            if (!isWithinPlayBounds(tx, tz) || isObstacle(tx, tz)) continue;
+                            if (naAlejce(tx, tz)) continue;
+                            if (terrainTypeMap[tx + offsetX][tz + offsetZ] >= 2) continue;
+                            addObstacle(tx, tz, 'tree');
+                            p2++;
+                        }
+                    });
+
+                    // --- 5. MUR CMENTARNY PO OBRZEŻU ---
+                    // Krawędź planszy urywała się w niczym. Mur domyka cmentarz
+                    // i razem z mgłą granicy snu daje świadome zamknięcie.
+                    // Mur jest ZRUJNOWANY: odcinki po 5-11 przęseł z wyrwami między nimi.
+                    // Szczelny prostokąt czytał się jak rama obrazu, nie jak mur,
+                    // a przy okazji podwajał liczbę osłon na planszy.
+                    let murLicznik = 0, murStawia = true, murDoZmiany = 5 + Math.floor(Math.random() * 7);
+                    const mur = (x, z) => {
+                        if (murLicznik++ >= murDoZmiany) {
+                            murLicznik = 0; murStawia = !murStawia;
+                            murDoZmiany = murStawia ? (5 + Math.floor(Math.random() * 7))
+                                                    : (3 + Math.floor(Math.random() * 5));
+                        }
+                        if (!murStawia) return;
+                        if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) return;
+                        if (terrainTypeMap[x + offsetX][z + offsetZ] >= 2) return;
+                        addObstacle(x, z, 'grave-fence', { fenceSide: false });
+                    };
+                    const mX0 = -offsetX + 5, mX1 = offsetX - 6, mZ0 = -offsetZ + 5, mZ1 = offsetZ - 6;
+                    // Bramy tam, gdzie w mur wpada alejka - inaczej mur zamknąłby osie
+                    for (let x = mX0; x <= mX1; x++) {
+                        if (alejkiX.indexOf(x) === -1) { mur(x, mZ0); mur(x, mZ1); }
                     }
+                    for (let z = mZ0; z <= mZ1; z++) {
+                        if (alejkiZ.indexOf(z) === -1) { mur(mX0, z); mur(mX1, z); }
+                    }
+
+                    // --- 6. AKCENT: kapliczka na skrzyżowaniu głównych alejek ---
+                    // Jeden mocny punkt, do którego prowadzą osie. Bez niego siatka
+                    // alejek nie ma dokąd prowadzić.
+                    if (alejkiX.length && alejkiZ.length) {
+                        const sx = alejkiX[Math.floor(alejkiX.length / 2)];
+                        const sz = alejkiZ[Math.floor(alejkiZ.length / 2)];
+                        [[0, 0], [1, 0], [0, 1], [1, 1]].forEach(([dx, dz]) => {
+                            const kx = sx + dx, kz = sz + dz;
+                            if (!isWithinPlayBounds(kx, kz) || isObstacle(kx, kz)) return;
+                            addObstacle(kx, kz, 'kapliczka');
+                            // Kapliczka ma prawo stać na skrzyżowaniu - przetarcie
+                            // alejek musi ją ominąć, bo to akcent, nie przypadek.
+                            cmentarzAlejki.kapliczka.push(kx + '/' + kz);
+                        });
+                    }
+
+                    // --- 7. MAUZOLEA W MIEJSCE CAŁYCH KWATER ---
+                    // Dotąd stawiane losowo, więc wchodziły w rzędy grobów.
+                    // Zajmują kwaterę w całości - tak, jak stoją na prawdziwym cmentarzu.
+                    const naMauzolea = kwatery.filter(kw => !kw.ogrodzona && kw.pusta).slice(0, 3);
+                    naMauzolea.forEach(() => {
+                        const w = 6 + Math.floor(Math.random() * 3), d = 6 + Math.floor(Math.random() * 3);
+                        placeSpecialBuilding(w, d, 0x4a4a4a, null, 1, [[Math.floor(w / 2), 0]], []);
+                    });
                 } else if (currentCombatTheme.id === 'nekropolia') {
                     // Nekropolia: pola grobów i ruiny grobowców jako osłony
                     for (let i = 0; i < 5; i++) {
@@ -5125,6 +5830,78 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                 if (obstacleGrid[mx][mz] !== null) return;
                                 addObstacle(sxx, szz, 'statue');
                             });
+                        }
+
+                        // ===== KATEDRA BYŁA PUSTA =====
+                        // 63 rekwizyty na całą planszę: kolumny, trzy ołtarze i kilka
+                        // posągów. Układ był poprawny (kolumnada w siatce 6x5), ale we
+                        // wnętrzu nie było NICZEGO, co mówi, że to kościół. Dokładamy
+                        // to, co w kościele widać najpierw: rzędy ławek wzdłuż nawy,
+                        // kaplice przy ścianach, świece przy ołtarzach.
+
+                        const osX = b.x;                              // oś nawy głównej
+                        const prezbiterium = bMinZ + D - 6;           // tam stoi ołtarz główny
+                        const ZAJETE = (x, z) => {
+                            const mx = x + offsetX, mz = z + offsetZ;
+                            return mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth ||
+                                   obstacleGrid[mx][mz] !== null;
+                        };
+
+                        // --- ŁAWKI: dwa bloki po obu stronach przejścia środkowego ---
+                        // To one robią z pustej hali kościół. Rzędy co dwa pola,
+                        // przejście w osi zostaje wolne - tędy idzie się do ołtarza.
+                        const PRZEJSCIE = 2;                          // połowa szerokości przejścia
+                        const lawkaOd = bMinZ + 6, lawkaDo = prezbiterium - 4;
+                        for (let z = lawkaOd; z < lawkaDo; z += 2) {
+                            for (let x = bMinX + 3; x < bMinX + W - 3; x++) {
+                                if (Math.abs(x - osX) <= PRZEJSCIE) continue;      // przejście środkowe
+                                if (ZAJETE(x, z)) continue;
+                                // Co kilka rzędów przerwa - ławki nie ciągną się bez końca
+                                if (Math.floor((z - lawkaOd) / 2) % 7 === 6) continue;
+                                addObstacle(x, z, 'lawka');
+                            }
+                        }
+
+                        // --- KAPLICE BOCZNE: wnęki przy ścianach, każda z własnym ołtarzykiem ---
+                        [bMinX + 2, bMinX + W - 3].forEach((kx, strona) => {
+                            for (let z = bMinZ + 9; z < prezbiterium - 6; z += 11) {
+                                // Ścianka działowa oddzielająca kaplicę od nawy
+                                const wgl = strona === 0 ? 1 : -1;
+                                for (let d2 = 0; d2 < 3; d2++) {
+                                    const sx = kx + wgl * 2, sz = z + d2 - 1;
+                                    if (!ZAJETE(sx, sz) && isWithinPlayBounds(sx, sz))
+                                        addObstacle(sx, sz, 'wall-destructible');
+                                }
+                                // Ołtarzyk i świece w środku kaplicy
+                                if (!ZAJETE(kx, z)) addObstacle(kx, z, 'kapliczka');
+                                [[kx, z - 2], [kx, z + 2]].forEach(([cx2, cz2]) => {
+                                    if (!ZAJETE(cx2, cz2) && isWithinPlayBounds(cx2, cz2))
+                                        addObstacle(cx2, cz2, 'swieca');
+                                });
+                            }
+                        });
+
+                        // --- PREZBITERIUM: świece i stalle wokół ołtarza głównego ---
+                        for (let dx = -4; dx <= 4; dx += 2) {
+                            const sx = osX + dx, sz = prezbiterium - 2;
+                            if (!ZAJETE(sx, sz) && isWithinPlayBounds(sx, sz)) addObstacle(sx, sz, 'swieca');
+                        }
+                        [-3, 3].forEach(dx => {
+                            for (let dz = 0; dz < 4; dz++) {
+                                const sx = osX + dx, sz = prezbiterium + 1 + dz;
+                                if (!ZAJETE(sx, sz) && isWithinPlayBounds(sx, sz)) addObstacle(sx, sz, 'lawka');
+                            }
+                        });
+
+                        // --- POSADZKA: kamienne płyty w szachownicę, nie szum ---
+                        // Kościół poznaje się po posadzce tak samo jak po kolumnach.
+                        for (let x = bMinX + 1; x < bMinX + W - 1; x++) {
+                            for (let z = bMinZ + 1; z < bMinZ + D - 1; z++) {
+                                const mx = x + offsetX, mz = z + offsetZ;
+                                if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
+                                terrainTypeMap[mx][mz] = 3;          // bruk wnętrza
+                                heightMap[mx][mz] = 0;
+                            }
                         }
                         // Żyrandole zawieszone wysoko nad nawą główną
                         for (let z = bMinZ + 7; z < bMinZ + D - 5; z += 9) {
@@ -5647,7 +6424,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         flame.position.set(bx, hangY + 0.32, bz);
                         scene.add(flame); obstacleMeshes.push(flame);
                     }
-                    const glow = new THREE.PointLight(0xffcc77, 0.85, 14, 1.5);
+                    const glow = new THREE.PointLight(0xffb45a, 1.15, 17, 1.4);
                     glow.position.set(d.x, hangY, d.z);
                     scene.add(glow); obstacleMeshes.push(glow);
                 } else if (d.type === 'pagodaGate') {
@@ -6154,7 +6931,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Piętro szpitala rysujemy dopiero, gdy bohater tam wejdzie - z dołu byłoby tylko zasłoną
         let hospitalUpperMeshes = [];
         let autostradaX = null, granicaZ = null;
-        let stacjaTory = [], stacjaWagony = [];   // osie torów i stojące wagony
+        let stacjaTory = [], stacjaWagony = [], stacjaPerony = [];   // osie torów, wagony i perony
         const WAGON_WNETRZE = 2;      // kafle podłogi w poprzek wagonu
         const WAGON_WYSOKOSC = 2.7;   // wysokość burty - dach siada tuż nad nią
         let alcatrazWiezyczki = [];   // rogi spacerniaka - stanowiska strzelców
@@ -6220,6 +6997,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const STUDNIA_SZYB = 2;           // połowa boku szybu
         let studniaZamkniete = [];        // poziomy, z których nie ma już powrotu
         let studniaDrabiny = [];          // { x, z, gora, dol } - przejścia między kondygnacjami
+        let cmentarzAlejki = null;        // { x: [...], z: [...] } - osie cmentarza
         let studniaKorytarze = [];        // boczne pomieszczenia na każdej kondygnacji
         let studniaDnoPola = null;        // zbiór pól dna: komora, tunele, komnaty
         const STUDNIA_PROMIEN_BAZA = 7;   // promień najciaśniejszej komory (dno)
@@ -6244,6 +7022,31 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const POZAR_TRWANIE = 3;          // ile tur pali się jedno pole
         const POZAR_SZANSA = 0.62;        // jak chętnie ogień przeskakuje dalej
         const POZAR_MAX_PLOMIENI = 260;   // sufit na bryły ognia - reszta to samo pole
+
+        // ===== OGNISKA PUNKTOWE: ŁADUNKI ZAPALAJĄCE =====
+        // Cały mechanizm ognia był zamknięty na planszy 'pozar' jednym warunkiem
+        // na wejściu do tikPozaru(). Tu go otwieramy: ogień może teraz powstać
+        // na KAŻDEJ planszy, tyle że z innego powodu. Pożar planszowy to ściana
+        // ognia idąca frontem; ognisko po ładunku zapalającym jest małe, pełza
+        // wolno i gaśnie - ma zmusić do zmiany pola, a nie spalić całą mapę.
+        const ZAPAL_OBRAZENIA = 3;        // mniej niż w pożarze - to nie ściana ognia
+        const ZAPAL_TRWANIE = 4;          // dłużej się tli
+        const ZAPAL_SZANSA = 0.1;         // ledwie pełza na sąsiednie pola
+        const ZAPAL_PROMIEN = 1;          // rozprysk wokół trafionego pola
+        const ZAPAL_SZANSA_STRZALU = 0.3; // jak często strzelec sięga po zapalające
+        // Planszowy pożar steruje się inaczej niż punktowe ognisko
+        function czyPozarPlanszowy() {
+            return !!(currentCombatTheme && currentCombatTheme.id === 'pozar');
+        }
+        // Mapy, na których wrogowie w ogóle używają ładunków zapalających.
+        // Pod wodą, w zamieci i w miejscach, gdzie nie ma czemu się palić,
+        // to nie miałoby sensu.
+        const BEZ_ZAPALAJACYCH = ['zamiec', 'powodz', 'jezioro', 'wyspy', 'otchlan',
+                                  'wulkan', 'pozar', 'studnia', 'kosmos'];
+        function czyWrogowieMajaZapalajace() {
+            if (!currentCombatTheme) return false;
+            return BEZ_ZAPALAJACYCH.indexOf(currentCombatTheme.id) === -1;
+        }
         let ogienGrid = null;             // 0 - nietknięte, 1 - płonie, 2 - wypalone
         let ogienWiek = null;             // ile tur pali się dane pole
         let ogienKierunek = { x: 0, z: 1 };
@@ -7930,6 +8733,66 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const MURY_ZAMIAST_GLAZOW = ['alcatraz', 'stacja', 'cyber', 'katedra', 'newyork',
                                      'szpital', 'dom', 'wieza', 'studnia', 'most', 'pozar'];
 
+        // ===== AKCENTY I ZNAKOWANIE REKWIZYTOW =====
+        // Lekcja z UFO: scena jest wyciszona, ale siedzi w niej garstka mocno
+        // nasyconych przedmiotow - czerwona konewka, niebieska skrzynia, zielona
+        // beczka - i to one zatrzymuja wzrok. Nasze rekwizyty mialy wylacznie
+        // zgaszone brazy i szarosci, wiec zadnemu nie udawalo sie wybic.
+        // Kamienne rekwizyty dostają teksturę zamiast płaskiego koloru. Studnia
+        // miała ją od dawna (materialMuru/materialPosadzki), ale rekwizyty na
+        // planszach - kolumny, posągi, ołtarze, nagrobki - nadal były jednolitymi
+        // bryłami w jednym tonie. Płótna są wspólne i buforowane, więc nie
+        // przybywa ich z każdą misją.
+        function materialKamienia(barwa, powtX, powtY, dodatki) {
+            if (typeof materialMuru === 'function') return materialMuru(barwa, powtX || 2, powtY || 2, dodatki);
+            return new THREE.MeshLambertMaterial(Object.assign({ color: barwa }, dodatki || {}));
+        }
+        function materialPlyty(barwa, powt, dodatki) {
+            if (typeof materialPosadzki === 'function') return materialPosadzki(barwa, powt || 2, dodatki);
+            return new THREE.MeshLambertMaterial(Object.assign({ color: barwa }, dodatki || {}));
+        }
+
+        const AKCENTY_REKWIZYTOW = [
+            0xb03a2a,   // czerwien minii
+            0x2a5f96,   // blekit przemyslowy
+            0x5e7a2a,   // oliwkowa zielen
+            0xc89a22,   // zolc ostrzegawcza
+            0x7a4a8c    // fiolet - rzadki, ale wyrazisty
+        ];
+        const SZANSA_AKCENTU = 0.18;   // mniej wiecej co piaty przedmiot
+
+        // Zwraca barwe akcentu albo null. Trzymamy to w jednym miejscu, zeby
+        // udzial akcentow dalo sie zmierzyc i wyregulowac dla calej gry naraz.
+        function barwaAkcentu(szansa) {
+            if (Math.random() > (szansa === undefined ? SZANSA_AKCENTU : szansa)) return null;
+            return AKCENTY_REKWIZYTOW[Math.floor(Math.random() * AKCENTY_REKWIZYTOW.length)];
+        }
+
+        // Namalowany pas albo znak - sprawia, ze przedmiot czyta sie jako wytworzony,
+        // a nie jako bryla w kolorze. W UFO kazda skrzynia ma swoje oznaczenie.
+        function dodajZnakowanie(grupa, szer, wys, glab, barwa) {
+            const farba = new THREE.MeshLambertMaterial({ color: barwa });
+            const los = Math.random();
+            if (los < 0.45) {
+                // poziomy pas przez caly korpus
+                const pas = new THREE.Mesh(new THREE.BoxGeometry(szer * 1.02, wys * 0.18, glab * 1.02), farba);
+                pas.position.y = wys * 0.55;
+                grupa.add(pas);
+            } else if (los < 0.75) {
+                // dwa male znaki na froncie
+                [-0.18, 0.18].forEach(dx => {
+                    const z = new THREE.Mesh(new THREE.BoxGeometry(szer * 0.16, wys * 0.16, 0.03), farba);
+                    z.position.set(dx * szer, wys * 0.6, glab / 2 + 0.01);
+                    grupa.add(z);
+                });
+            } else {
+                // kropka nad calym przedmiotem - np. zakretka albo plomba
+                const k = new THREE.Mesh(new THREE.CylinderGeometry(szer * 0.14, szer * 0.14, 0.06, 8), farba);
+                k.position.y = wys + 0.03;
+                grupa.add(k);
+            }
+        }
+
         function postawBrylePrzeszkody(pos, ty, twarda) {
             const g = new THREE.Group();
             const idM = currentCombatTheme ? currentCombatTheme.id : '';
@@ -8824,16 +9687,31 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
                 else if (pos.type === 'skrzynia') {
                     const g = new THREE.Group();
-                    const deski = new THREE.MeshLambertMaterial({ color: 0x6b5a3e });
+                    const akcent = barwaAkcentu();
+                    const deski = new THREE.MeshLambertMaterial({
+                        color: akcent !== null ? akcent : [0x6b5a3e, 0x7a6744, 0x5c4d35][Math.floor(Math.random() * 3)] });
                     const okucie = new THREE.MeshLambertMaterial({ color: 0x4a4540 });
                     const korpus = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.62, 0.7), deski);
                     korpus.position.y = 0.31; g.add(korpus);
                     const wieko = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.1, 0.75), deski);
-                    wieko.position.y = 0.66; g.add(wieko);
+                    wieko.position.y = 0.66;
+                    // UCHYLONE WIEKO - skrzynia, ktorej ktos juz szukal
+                    if (Math.random() < 0.25) { wieko.rotation.z = -0.35; wieko.position.set(-0.16, 0.74, 0); }
+                    g.add(wieko);
                     [-0.3, 0.3].forEach(dx => {
                         const pas = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.66, 0.73), okucie);
                         pas.position.set(dx, 0.33, 0); g.add(pas);
                     });
+                    // Znakowanie: pas albo stemple na froncie
+                    if (akcent === null && Math.random() < 0.5)
+                        dodajZnakowanie(g, 0.85, 0.62, 0.7, Math.random() < 0.5 ? 0xb9b3a4 : 0xc89a22);
+                    // SZTAPEL - druga skrzynia na pierwszej, mniejsza i przekrecona
+                    if (Math.random() < 0.2) {
+                        const mala = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.44, 0.52), deski);
+                        mala.position.set((Math.random() - 0.5) * 0.12, 0.93, (Math.random() - 0.5) * 0.12);
+                        mala.rotation.y = (Math.random() - 0.5) * 0.6;
+                        g.add(mala);
+                    }
                     g.position.set(pos.x, ty, pos.z);
                     g.rotation.y = Math.random() * Math.PI;
                     scene.add(g); obstacleMeshes.push(g);
@@ -9053,14 +9931,66 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     g.rotation.y = Math.random() * Math.PI;
                     scene.add(g); obstacleMeshes.push(g);
                 }
+                else if (pos.type === 'swieca') {
+                    // Świecznik: trzon, misa i płomień z własnym ciepłym światłem.
+                    // W półmroku katedry to te punkty budują obraz - zimne wnętrze
+                    // i ciepłe plamy, czyli dokładnie zasada z UFO 2.
+                    const g = new THREE.Group();
+                    const mosiadz = new THREE.MeshLambertMaterial({ color: 0x8a7338 });
+                    const trzon = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.11, 1.25, 8), mosiadz);
+                    trzon.position.y = 0.62; g.add(trzon);
+                    const stopa = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.3, 0.1, 10), mosiadz);
+                    stopa.position.y = 0.05; g.add(stopa);
+                    const misa = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.1, 0.12, 10), mosiadz);
+                    misa.position.y = 1.26; g.add(misa);
+                    // Trzy świece różnej długości - równe wyglądałyby jak fabryczne
+                    [-0.1, 0, 0.1].forEach((dx, i) => {
+                        const h = 0.3 + (i === 1 ? 0.16 : Math.random() * 0.14);
+                        const sw = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, h, 6),
+                            new THREE.MeshLambertMaterial({ color: 0xe8dfc4 }));
+                        sw.position.set(dx, 1.32 + h / 2, 0); g.add(sw);
+                        const plomien = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5),
+                            new THREE.MeshBasicMaterial({ color: 0xffd27a }));
+                        plomien.position.set(dx, 1.34 + h, 0); plomien.scale.y = 1.8; g.add(plomien);
+                    });
+                    const swiatlo = new THREE.PointLight(0xffb45a, 0.9, 9, 1.6);
+                    swiatlo.position.y = 1.6;
+                    swiatlo.userData.rodzajSwiatla = 'pochodnia';
+                    g.add(swiatlo);
+                    g.position.set(pos.x, ty, pos.z);
+                    g.userData.type = 'swieca';
+                    scene.add(g); obstacleMeshes.push(g);
+                }
                 else if (pos.type === 'kosz') {
                     const g = new THREE.Group();
-                    const blacha = new THREE.MeshLambertMaterial({ color: [0x3f4a3f, 0x4a4136, 0x2f3a44][Math.floor(Math.random() * 3)] });
+                    const akcentK = barwaAkcentu(0.12);
+                    const blacha = new THREE.MeshLambertMaterial({ color: akcentK !== null ? akcentK
+                        : [0x3f4a3f, 0x4a4136, 0x2f3a44][Math.floor(Math.random() * 3)] });
                     const korpus = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.24, 0.8, 9), blacha);
                     korpus.position.y = 0.4; g.add(korpus);
                     const obrecz = new THREE.Mesh(new THREE.TorusGeometry(0.31, 0.035, 5, 10), blacha);
                     obrecz.rotation.x = Math.PI / 2; obrecz.position.y = 0.8; g.add(obrecz);
-                    g.position.set(pos.x, ty, pos.z);
+                    // Warianty: kazdy kosz byl identycznym walcem z obreczka
+                    const losK = Math.random();
+                    if (losK < 0.3) {
+                        // wystajacy worek - jasna plachta ponad krawedzia
+                        const worek = new THREE.Mesh(new THREE.SphereGeometry(0.26, 7, 5),
+                            new THREE.MeshLambertMaterial({ color: 0x8e8b80 }));
+                        worek.position.y = 0.88; worek.scale.y = 0.6; g.add(worek);
+                    } else if (losK < 0.5) {
+                        // smieci wystajace z kosza
+                        for (let k = 0; k < 3; k++) {
+                            const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.22, 0.08),
+                                new THREE.MeshLambertMaterial({ color: [0x9a8f72, 0x6a7a55, 0xa8a090][k % 3] }));
+                            s2.position.set((Math.random() - 0.5) * 0.3, 0.86, (Math.random() - 0.5) * 0.3);
+                            s2.rotation.z = (Math.random() - 0.5) * 0.8;
+                            g.add(s2);
+                        }
+                    } else if (losK < 0.62) {
+                        // przewrocony
+                        g.rotation.z = Math.PI / 2 + (Math.random() - 0.5) * 0.3;
+                    }
+                    g.position.set(pos.x, ty + (g.rotation.z ? 0.3 : 0), pos.z);
                     scene.add(g); obstacleMeshes.push(g);
                 }
                 else if (pos.type === 'zywoplot') {
@@ -9077,20 +10007,35 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
                 else if (pos.type === 'beczka') {
                     const g = new THREE.Group();
-                    const rdza = new THREE.MeshLambertMaterial({ color: [0x6b4626, 0x53402c, 0x3f4a52][Math.floor(Math.random() * 3)] });
+                    const akcent = barwaAkcentu();
+                    const barwaBeczki = akcent !== null ? akcent
+                        : [0x6b4626, 0x53402c, 0x3f4a52][Math.floor(Math.random() * 3)];
+                    const rdza = new THREE.MeshLambertMaterial({ color: barwaBeczki });
                     const b = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.95, 10), rdza);
                     b.position.y = 0.48; g.add(b);
                     [0.28, 0.68].forEach(h => {
                         const o = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.03, 5, 10), new THREE.MeshLambertMaterial({ color: 0x2b2b2b }));
                         o.rotation.x = Math.PI / 2; o.position.y = h; g.add(o);
                     });
+                    // Pas ostrzegawczy na beczce bez akcentu - nawet zgaszona beczka
+                    // ma byc przedmiotem wytworzonym, a nie walcem w kolorze
+                    if (akcent === null && Math.random() < 0.45)
+                        dodajZnakowanie(g, 0.68, 0.95, 0.68, 0xc89a22);
+                    // OTWARTA: brak gornej pokrywy, widac ciemne wnetrze
+                    if (Math.random() < 0.22) {
+                        const wnetrze = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.06, 10),
+                            new THREE.MeshLambertMaterial({ color: 0x14100c }));
+                        wnetrze.position.y = 0.93; g.add(wnetrze);
+                    }
+                    // WGNIECIONA: lekko splaszczona z jednej strony
+                    if (Math.random() < 0.3) { b.scale.x = 0.86; b.rotation.y = Math.random() * Math.PI; }
                     if (Math.random() < 0.35) { g.rotation.z = Math.PI / 2; g.position.y = 0.34; }
                     g.position.set(pos.x, ty + (g.rotation.z ? 0.34 : 0), pos.z);
                     scene.add(g); obstacleMeshes.push(g);
                 }
                 else if (pos.type === 'nagrobek') {
                     const g = new THREE.Group();
-                    const kam = new THREE.MeshLambertMaterial({ color: [0x6e6a63, 0x585550, 0x7b776d][Math.floor(Math.random() * 3)] });
+                    const kam = materialKamienia([0x6e6a63, 0x585550, 0x7b776d][Math.floor(Math.random() * 3)], 1, 2);
                     const plyta = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.95, 0.16), kam);
                     plyta.position.y = 0.48; g.add(plyta);
                     const luk = new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.31, 0.16, 10, 1, false, 0, Math.PI), kam);
@@ -9112,6 +10057,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     rock.rotation.y = Math.random() * Math.PI * 2;
                     rock.position.set(pos.x, ty + rockHeight * 0.32, pos.z);
                     scene.add(rock); obstacleMeshes.push(rock);
+                    // Porost na glazie - jedyny akcent barwny na planszach,
+                    // gdzie nie ma zadnych przedmiotow wytworzonych
+                    if (Math.random() < 0.3) {
+                        const PORosty = [0x8aa33a, 0xc2a63c, 0x6f9a86];
+                        const por = new THREE.Mesh(new THREE.SphereGeometry(0.16 + Math.random() * 0.12, 6, 4),
+                            new THREE.MeshLambertMaterial({ color: PORosty[Math.floor(Math.random() * 3)] }));
+                        por.scale.set(1.3, 0.35, 1.3);
+                        por.position.set(pos.x + (Math.random() - 0.5) * 0.5,
+                                         ty + rockHeight * 0.55,
+                                         pos.z + (Math.random() - 0.5) * 0.5);
+                        scene.add(por); obstacleMeshes.push(por);
+                    }
                     // Poświata lawy na krawędziach niektórych głazów
                     if (Math.random() < 0.25) {
                         const glow = new THREE.Mesh(new THREE.SphereGeometry(0.12, 5, 4), new THREE.MeshBasicMaterial({ color: 0xff5522 }));
@@ -9122,19 +10079,22 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 else if (pos.type === 'column') {
                     // Kolumna sięga sklepienia - cztery kondygnacje wysokości
                     const H = 4 * FLOOR_HEIGHT;
-                    const stoneMat = new THREE.MeshLambertMaterial({ color: 0xbdb3a4 });
+                    // Trzon dostaje gęstsze powtórzenie niż głowica - inaczej
+                    // na czterech kondygnacjach wzór byłby rozciągnięty na smugi
+                    const stoneMat = materialKamienia(0xbdb3a4, 2, 6);
+                    const stoneMatKrotki = materialKamienia(0xbdb3a4, 2, 1);
                     const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.48, H, 12), stoneMat);
                     shaft.position.set(pos.x, ty + H / 2, pos.z);
                     scene.add(shaft); obstacleMeshes.push(shaft);
-                    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.68, 0.35, 12), stoneMat);
+                    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.68, 0.35, 12), stoneMatKrotki);
                     base.position.set(pos.x, ty + 0.17, pos.z);
                     scene.add(base); obstacleMeshes.push(base);
-                    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.44, 0.4, 12), stoneMat);
+                    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.44, 0.4, 12), stoneMatKrotki);
                     cap.position.set(pos.x, ty + H - 0.2, pos.z);
                     scene.add(cap); obstacleMeshes.push(cap);
                 }
                 else if (pos.type === 'altar') {
-                    const stoneMat = new THREE.MeshLambertMaterial({ color: 0xd6cbb8 });
+                    const stoneMat = materialPlyty(0xd6cbb8, 2);
                     const table = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.28, 0.9), stoneMat);
                     table.position.set(pos.x, ty + 1.0, pos.z);
                     scene.add(table); obstacleMeshes.push(table);
@@ -9166,7 +10126,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     });
                 }
                 else if (pos.type === 'statue') {
-                    const stoneMat = new THREE.MeshLambertMaterial({ color: 0xa9a196 });
+                    const stoneMat = materialKamienia(0xa9a196, 2, 2);
                     const plinth = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.9, 1.0), stoneMat);
                     plinth.position.set(pos.x, ty + 0.45, pos.z);
                     scene.add(plinth); obstacleMeshes.push(plinth);
@@ -9756,9 +10716,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // ustawialiśmy to tylko przy tworzeniu wroga i wystarczyło, że inna
                 // część kodu pokazała wszystkie bryły, by glizda sterczała nad ziemią:
                 // niewidzialna dla celownika, a widoczna dla gracza.
-                if (!enemies[i].isDead && (enemies[i].podZiemia || enemies[i].wAucie) && enemies[i].mesh)
+                if (!enemies[i].isDead && (enemies[i].podZiemia || enemies[i].wAucie || enemies[i].wZasadzce) && enemies[i].mesh)
                     enemies[i].mesh.visible = false;
-                if(!enemies[i].isDead && !enemies[i].podZiemia && !enemies[i].wAucie) {   // ukryci nie blokują pola
+                if(!enemies[i].isDead && !enemies[i].podZiemia && !enemies[i].wAucie && !enemies[i].wZasadzce) {   // ukryci nie blokują pola
                     let mx = Math.round(enemies[i].mesh.position.x) + offsetX;
                     let mz = Math.round(enemies[i].mesh.position.z) + offsetZ;
                     if (mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth) enemyGrid[mx][mz] = 1;
@@ -10859,7 +11819,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function distributeUnitsAcrossFloors() {
             if (!currentCombatTheme || !floorGrid) return;
-            if (!['newyork', 'wieza', 'studnia'].includes(currentCombatTheme.id)) return;
+            // Dotąd lista trzech plansz wpisana na sztywno - przez co na każdej
+            // innej planszy z piętrami wrogowie siedzieli wyłącznie na parterze.
+            // Warunek wyprowadzamy z danych: są piętra, to się po nich rozdziela.
+            // (Ta sama poprawka co kiedyś w mapHasFloors.)
+            if (typeof mapHasFloors === 'function' && !mapHasFloors()) return;
             const spots = [];
             for (let L = 1; L < MAX_LEVELS; L++) {
                 for (let mx = 0; mx < mapWidth; mx++) {
@@ -13523,11 +14487,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 return { mesh: mesh, type: ed.type, hp: ed.hp, maxHp: ed.maxHp, ap: ed.ap, maxAp: ed.maxAp, accuracyBonus: ed.accuracyBonus, isDead: ed.isDead, facingAngle: fa, level: ed.level || 0, isBoss: !!ed.isBoss, bossTurn: ed.bossTurn || 0, hasOpened: !!ed.hasOpened, blindedTurns: ed.blindedTurns || 0, blindedFrom: ed.blindedFrom || null, gatunek: (ed.gatunek === undefined ? null : ed.gatunek), elita: !!ed.elita, podZiemia: !!ed.podZiemia, wAucie: !!ed.wAucie, glizdaPoprzedniDystans: (ed.glizdaPoprzedniDystans === undefined ? null : ed.glizdaPoprzedniDystans), glizdaZZaskoczenia: !!ed.glizdaZZaskoczenia, ujawniony: !!ed.ujawniony, podrobionyNaKim: ed.podrobionyNaKim || null, lup: ed.lup || [], ucieka: !!ed.ucieka, maZakladnika: !!ed.maZakladnika, zakladnikHp: ed.zakladnikHp || 0, przebrany: !!ed.przebrany, dmgBonus: ed.elita ? 1 : 0 };
             });
 
-            enemies.forEach(e => { if ((e.podZiemia || e.wAucie) && e.mesh) e.mesh.visible = false; });
+            enemies.forEach(e => { if ((e.podZiemia || e.wAucie || e.wZasadzce) && e.mesh) e.mesh.visible = false; });
 
             // Lista spotkań nie jest zapisywana - odtwarzamy ją z wrogów na planszy,
             // inaczej po wczytaniu gry w trakcie misji nic by nie trafiło do Kroniki
-            enemies.forEach(e => { if (!e.podZiemia) noteEnemyEncountered(e.type); });
+            enemies.forEach(e => { if (!e.podZiemia && !e.wZasadzce) noteEnemyEncountered(e.type); });
 
             // Elita odzyskuje poświatę i rozmiar - statystyki wróciły z zapisu
             enemies.forEach(e => {
@@ -17174,12 +18138,77 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Na planszach z dużym, zwiedzanym budynkiem (Kreml, Biały Dom itd.) wrogów jest więcej - garnizon broniący obiektu.
             const enemyCount = (combatLandmarkPos ? (6 + Math.floor(Math.random() * 7)) : 6) + squadBonus; // 6-12 z budynkiem, 6 bez, + bonus za oddział
             const mainForceCount = combatLandmarkPos ? Math.ceil(enemyCount * 0.65) : 0; // ok. 2/3 to garnizon przy budynku, reszta to patrole
+            // ===== GNIAZDA ZAMIAST POSYPU =====
+            // Pomiar: wrogowie stali średnio 45-79 pól od oddziału przy zasięgu
+            // wzroku 25, więc 83-100% z nich było na starcie poza polem widzenia,
+            // a widoczny był średnio JEDEN albo żaden. Rozsypani po 16 200 polach
+            // byli spotykani pojedynczo i liczbowa przewaga wroga (6 na jednego
+            // wojownika) w ogóle nie dawała się odczuć.
+            // Teraz wrogowie stoją w gniazdach po 2-4, gniazda leżą w zasięgu
+            // marszu, a jedno jest blisko - żeby pierwsza tura była spotkaniem,
+            // a nie marszem przez pustą planszę.
+            const GNIAZDO_MIN = 2, GNIAZDO_MAX = 4;
+            const GNIAZDO_PROMIEN = 4;          // jak ciasno stoi jedno gniazdo
+            // Musi być WIĘKSZE niż SPAWN_SAFE_DISTANCE (15), bo isFarFromSquad()
+            // i tak odrzuci wszystko bliżej - przy 14 zakres wychodził odwrócony
+            // i "bliskie" gniazdo lądowało z awaryjnego losowania gdziekolwiek.
+            // 22 mieści się w zasięgu wzroku (25), więc pierwsze gniazdo widać od razu.
+            const GNIAZDO_BLISKIE = 22;
+            const GNIAZDO_DALEKIE_MIN = 22, GNIAZDO_DALEKIE_MAX = 46;
+            const srodekOddzialu = (() => {
+                const zywi = soldiers.filter(s => !s.isDead && s.mesh);
+                if (!zywi.length) return { x: 0, z: 0 };
+                return { x: zywi.reduce((a, s) => a + s.mesh.position.x, 0) / zywi.length,
+                         z: zywi.reduce((a, s) => a + s.mesh.position.z, 0) / zywi.length };
+            })();
+            // Losujemy środki gniazd. Pierwsze jest blisko, reszta w zasięgu
+            // dwóch-trzech tur marszu, a nie na drugim końcu mapy.
+            const gniazda = [];
+            {
+                let zostalo = enemyCount - mainForceCount;
+                let pierwsze = true;
+                let strażnik = 0;
+                while (zostalo > 0 && strażnik++ < 400) {
+                    const ile = Math.min(zostalo, GNIAZDO_MIN + Math.floor(Math.random() * (GNIAZDO_MAX - GNIAZDO_MIN + 1)));
+                    let gx, gz;
+                    // Co drugie gniazdo ląduje WEWNĄTRZ budynku, jeśli jakiś jest
+                    // w zasięgu. Pomiar pokazał, że w ciasnych wnętrzach stało
+                    // 0-7% wrogów - budynki były w zasadzie niewykorzystanym
+                    // kawałkiem planszy, a to w nich zasadzka boli najbardziej.
+                    const domyWZasiegu = (typeof houses !== 'undefined' ? houses : []).filter(h => {
+                        const hx = (h.minX + h.maxX) / 2, hz = (h.minZ + h.maxZ) / 2;
+                        const d = Math.hypot(hx - srodekOddzialu.x, hz - srodekOddzialu.z);
+                        return d > SPAWN_SAFE_DISTANCE + 4 && d < GNIAZDO_DALEKIE_MAX &&
+                               (h.maxX - h.minX) >= 4 && (h.maxZ - h.minZ) >= 4;
+                    });
+                    if (!pierwsze && domyWZasiegu.length && Math.random() < 0.5) {
+                        const h = domyWZasiegu[Math.floor(Math.random() * domyWZasiegu.length)];
+                        gx = Math.round(h.minX + 1 + Math.random() * Math.max(1, h.maxX - h.minX - 2));
+                        gz = Math.round(h.minZ + 1 + Math.random() * Math.max(1, h.maxZ - h.minZ - 2));
+                    } else {
+                        const kat = Math.random() * Math.PI * 2;
+                        const odl = pierwsze ? (SPAWN_SAFE_DISTANCE + 2 + Math.random() * (GNIAZDO_BLISKIE - SPAWN_SAFE_DISTANCE))
+                                             : (GNIAZDO_DALEKIE_MIN + Math.random() * (GNIAZDO_DALEKIE_MAX - GNIAZDO_DALEKIE_MIN));
+                        gx = Math.round(srodekOddzialu.x + Math.cos(kat) * odl);
+                        gz = Math.round(srodekOddzialu.z + Math.sin(kat) * odl);
+                    }
+                    if (!isWithinPlayBounds(gx, gz)) continue;
+                    gniazda.push({ x: gx, z: gz, ile: ile });
+                    zostalo -= ile;
+                    pierwsze = false;
+                }
+            }
+            // Z listy gniazd robimy kolejkę: który wróg należy do którego gniazda
+            const przydzial = [];
+            gniazda.forEach(g => { for (let k = 0; k < g.ile; k++) przydzial.push(g); });
+
             for (let i = 0; i < enemyCount; i++) { 
                 let ex, ez, valid = false, attempts = 0;
                 let gatunekTegoWroga = null;
                 // Jeśli plansza ma główny budynek (Kreml, Biały Dom itd.) - główne siły wroga
                 // skupiają się w jego pobliżu, a mniejsze patrole są rozrzucone losowo po reszcie planszy.
                 const nearLandmark = combatLandmarkPos && i < mainForceCount;
+                const mojeGniazdo = nearLandmark ? null : przydzial[i - mainForceCount];
                 while(!valid && attempts < 200){
                     attempts++;
                     if (nearLandmark) {
@@ -17187,6 +18216,23 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         const dist = 3 + Math.random() * 10;
                         ex = Math.round(combatLandmarkPos.x + Math.cos(angle) * dist);
                         ez = Math.round(combatLandmarkPos.z + Math.sin(angle) * dist);
+                    } else if (mojeGniazdo) {
+                        const kat = Math.random() * Math.PI * 2;
+                        const r = Math.random() * GNIAZDO_PROMIEN;
+                        ex = Math.round(mojeGniazdo.x + Math.cos(kat) * r);
+                        ez = Math.round(mojeGniazdo.z + Math.sin(kat) * r);
+                        // Wróg SZUKA OSŁONY. Pomiar pokazał, że 43-80% stało
+                        // w zupełnie otwartym polu, czyli dawało się ich zdejmować
+                        // bez ryzyka. Przez pierwsze 140 prób bierzemy wyłącznie
+                        // pola stykające się z jakąś osłoną; potem odpuszczamy,
+                        // żeby na gołej planszy rozstawienie w ogóle się udało.
+                        if (attempts < 140) {
+                            let maOslone = false;
+                            for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+                                if (isObstacle(ex + dx, ez + dz)) { maOslone = true; break; }
+                            }
+                            if (!maOslone) continue;
+                        }
                     } else {
                         ex = Math.floor(Math.random() * mapWidth) - offsetX; ez = Math.floor(Math.random() * mapDepth) - offsetZ;
                     }
@@ -18618,7 +19664,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (typeof updateFloorVisibility === 'function') updateFloorVisibility();
 
             const seenAt = (u) => {
-                if (u.podZiemia || u.wAucie) return false;   // ukryty wróg jest niewidoczny
+                if (u.podZiemia || u.wAucie || u.wZasadzce) return false;   // ukryty wróg jest niewidoczny
                 // Arena to wystawa - mgła wojny nie ma tam nic do ukrywania.
                 // Bez tego część okazów stojących dalej od oddziału była niewidoczna.
                 if (arenaAktywna) return true;
@@ -18885,6 +19931,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Gdy typ zmieni się później, indeks wskazuje inną siatkę, kolor leci w pustkę,
             // a narysowany kafel nie dostaje go nigdy - stąd czarna podłoga.
             usunSladyWspolczesnosci();
+            // Alejki cmentarza przetarte PO wszystkich przebiegach generatora,
+            // ale PRZED renderowaniem - wtedy usuniętych bryl nikt nawet nie rysuje
+            przetrzyjAlejkiCmentarza();
             buildTerrainMeshes();
             renderObstacles(); 
             renderFloors(); 
@@ -18892,7 +19941,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             renderCornfields();
             renderRiver();
             buildCloudSea();
+            // Alejki cmentarza przetarte PO wszystkich przebiegach generatora,
+            // ale PRZED renderowaniem - inaczej usunięte bryły zostałyby na scenie
             renderStreetLamps();
+            // Siatka ognia zerowana na KAŻDEJ misji. Dotąd istniała wyłącznie
+            // na planszy pożaru, więc nikt jej nie czyścił; teraz ogień może
+            // powstać wszędzie i bez tego płomienie z poprzedniej misji
+            // wisiałyby nad kolejną - ten sam wyciek, co kiedyś z ogniami Otchłani.
+            ogienPlomienie.forEach(m => scene.remove(m));
+            ogienPlomienie = [];
+            przygotujSiatkeOgnia();
+            wyczyscPajeczyny();
             // Mgła graniczna PO ustawieniu mgły scenicznej - bierze z niej barwę
             postawGraniceSnu();
             rebuildWaterSources(); // losowe, rzadkie latarnie mogą pojawić się też na planszy walki
@@ -18906,6 +19965,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             
             spawnNPCs();
             distributeUnitsAcrossFloors();
+            przesunOdcietychWrogow();
+            // Ślady pająków i czający się w górze - po rozdzieleniu jednostek,
+            // żeby zasadzka mogła sprawdzić odległość od gotowego oddziału
+            rozsnujPajeczyny();
+            posadzWZasadzce();
             setupMissionObjectives();
             // Obstawa tropu PO celach misji - inaczej podmiana mogła zabrać bossa,
             // na którym stoi warunek zwycięstwa
@@ -21856,6 +22920,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (!(active.freeMoveTurns > 0)) active.ap = Math.max(0, active.ap - doZaplaty);
                     updateUI(partialMove ? `${active.name} zatrzymał się${apReserve > 0 ? " - zachowuje " + apReserve + " PA rezerwy." : " - brak dalszych PA."}` : "Ruch zakończony."); 
                     refreshPlayerPositions();
+                    // Stara sieć pod stopami pęta tak samo jak ta wystrzelona przez pająka
+                    sprawdzPajeczyne(active);
+                    // Kto podszedł pod kryjówkę, ten dostaje z góry - jeszcze
+                    // w swojej turze, zanim zdąży cokolwiek zrobić
+                    tikZasadzek();
                     checkPrisonerRescue();
                     checkSarcophagi();
                     checkCivilianScream();
@@ -21914,6 +22983,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             przestawDom();
             zawalMost();
             tikPozaru();
+            tikZasadzek();
             tikPobojowiska();
             tikLodu();
             tikGeneratorow();
@@ -23323,6 +24393,194 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return N[typ] || 'sprzęt';
         }
 
+
+        // ===================== CZAJENIE SIĘ W GÓRZE =====================
+        // Glizda czai się pod ziemią i wyskakuje spod stóp. Tutaj to samo,
+        // tylko z góry: pająk albo wampir siedzi w koronie drzewa, na stropie
+        // albo pod sufitem i jest NIEWIDOCZNY, dopóki ktoś nie podejdzie za
+        // blisko. Wtedy spada - i to on zaczyna walkę, nie gracz.
+        const ZASADZKA_ZASIEG = 3;          // z tylu pól spada
+        const ZASADZKA_OBRAZENIA = 5;       // samo zderzenie
+        const ZASADZKA_SZANSA_MAPY = 0.55;  // jak często plansza ma w ogóle zasadzkę
+        const ZASADZKA_MAX = 3;             // ilu najwyżej czai się na raz
+        // Kto potrafi czekać w górze i na czym
+        // Pająki i wampiry wspinają się z natury, ale czekać w górze potrafi też
+        // każdy, kto poluje z zaskoczenia. Bez stalkera i wispa zasadzka zdarzała
+        // się na większości plansz rzadziej niż raz na trzy misje, bo brakowało
+        // po prostu kandydata - a to nie jest dobry powód, żeby jej nie było.
+        const ZASADZKA_TYPY = ['spider_small', 'spider_big', 'vampire', 'strzyga',
+                               'stalker', 'wisp'];
+        const ZASADZKA_KRYJOWKI = ['tree', 'kloda', 'house-roof', 'column', 'regal'];
+
+        function czyMapaZDrzewami() {
+            if (!currentCombatTheme) return false;
+            // Zasadzka wymaga czegoś, na czym można siedzieć
+            return obstaclePositions.some(o => ZASADZKA_KRYJOWKI.indexOf(o.type) !== -1);
+        }
+
+        // Sadza część wrogów w kryjówkach nad ziemią. Wywoływane po rozstawieniu.
+        function posadzWZasadzce() {
+            if (!currentCombatTheme || gameOver) return 0;
+            if (!czyMapaZDrzewami()) return 0;
+            if (Math.random() > ZASADZKA_SZANSA_MAPY) return 0;
+            const kryjowki = obstaclePositions.filter(o => ZASADZKA_KRYJOWKI.indexOf(o.type) !== -1);
+            if (!kryjowki.length) return 0;
+            // Kandydaci: wrogowie odpowiedniego typu, nie bossowie
+            const kandydaci = enemies.filter(e => !e.isDead && e.mesh && !e.isBoss && !e.podZiemia &&
+                                                  ZASADZKA_TYPY.indexOf(e.type) !== -1);
+            if (!kandydaci.length) return 0;
+            let ilu = 0;
+            const limit = Math.min(ZASADZKA_MAX, kandydaci.length);
+            for (let i = 0; i < kandydaci.length && ilu < limit; i++) {
+                const e = kandydaci[i];
+                // Kryjówka ma być w rozsądnej odległości - nie na drugim końcu mapy
+                const blisko = kryjowki.filter(k => {
+                    const d = Math.max(Math.abs(k.x - Math.round(e.mesh.position.x)),
+                                       Math.abs(k.z - Math.round(e.mesh.position.z)));
+                    return d <= 25 && isFarFromSquad(k.x, k.z, 10);
+                });
+                if (!blisko.length) continue;
+                const k = blisko[Math.floor(Math.random() * blisko.length)];
+                e.wZasadzce = true;
+                e.zasadzkaX = k.x; e.zasadzkaZ = k.z;
+                e.mesh.position.set(k.x, getTerrainY(k.x, k.z) + 2.6, k.z);
+                e.mesh.visible = false;          // NIE WIDAĆ GO - to jest cała rzecz
+                ilu++;
+            }
+            if (ilu) refreshEnemyPositions();
+            return ilu;
+        }
+
+        // Spadnięcie: wróg ląduje obok ofiary, zadaje obrażenia i od razu jest w zwarciu
+        function spadnijZZasadzki(e, cel) {
+            if (!e || !e.wZasadzce || !cel || cel.isDead) return false;
+            e.wZasadzce = false;
+            const cx = Math.round(cel.mesh.position.x), cz = Math.round(cel.mesh.position.z);
+            const lvl = cel.level || 0;
+            const obok = (typeof wolnePoleObok === 'function') ? wolnePoleObok(cx, cz, lvl, e) : null;
+            const lx = obok ? obok[0] : cx, lz = obok ? obok[1] : cz;
+            e.level = lvl;
+            e.mesh.position.set(lx, getLevelY(lx, lz, lvl) + (e.mesh.userData.yOffset || 0), lz);
+            e.mesh.visible = true;
+            refreshEnemyPositions();
+            const nazwa = (typeof nazwaWroga === 'function') ? nazwaWroga(e.type) : 'COŚ';
+            showFloatingWarning('Z GÓRY!');
+            updateUI(`${nazwa} spada z góry na ${cel.name}! (-${ZASADZKA_OBRAZENIA} HP)`);
+            applyDamageToUnit(cel, ZASADZKA_OBRAZENIA, e);
+            if (typeof playFileSfx === 'function' && typeof AudioFiles !== 'undefined')
+                playFileSfx(AudioFiles.swordHit, 0.7);
+            // Pająk od razu próbuje oplątać - spadł wprost na kark
+            if ((e.type === 'spider_small' || e.type === 'spider_big') &&
+                typeof tryWebSoldier === 'function' && !cel.isDead) tryWebSoldier(e, cel);
+            if (cel.hp <= 0) { playDyingSfx(); killUnitWithAnim(cel); refreshPlayerPositions(); }
+            updateFoW();
+            checkGameOver();
+            return true;
+        }
+
+        // Co turę sprawdzamy, czy ktoś podszedł pod kryjówkę
+        function tikZasadzek() {
+            if (gameOver) return 0;
+            let spadlo = 0;
+            enemies.forEach(e => {
+                if (e.isDead || !e.wZasadzce || !e.mesh) return;
+                let naj = null, dyst = Infinity;
+                soldiers.forEach(s => {
+                    if (s.isDead || s.isNPC || !s.mesh) return;
+                    const d = Math.max(Math.abs(Math.round(s.mesh.position.x) - e.zasadzkaX),
+                                       Math.abs(Math.round(s.mesh.position.z) - e.zasadzkaZ));
+                    if (d < dyst) { dyst = d; naj = s; }
+                });
+                if (naj && dyst <= ZASADZKA_ZASIEG) { if (spadnijZZasadzki(e, naj)) spadlo++; }
+            });
+            return spadlo;
+        }
+
+        // ===================== PAJĘCZYNY NA PLANSZY =====================
+        // Ślad po pająkach: pola oplecione siecią. Nie blokują przejścia, ale
+        // kto w nie wejdzie, ten grzęźnie dokładnie tak samo, jak po trafieniu
+        // pajęczyną wystrzeloną przez pająka - korzystamy z tego samego
+        // mechanizmu (webbedTurns), żeby nie było dwóch różnych spętań.
+        const PAJECZYNA_SZANSA_MAPY = 0.6;
+        const PAJECZYNA_GNIAZD = 4;         // ile skupisk
+        const PAJECZYNA_NA_GNIAZDO = 6;     // ile pól w skupisku
+        const PAJECZYNA_MAPY = ['amazonia', 'bagno', 'nekropolia', 'cmentarzysko', 'las',
+                                'otchlan', 'studnia', 'parow', 'alcatraz', 'szpital', 'dom'];
+        let pajeczyny = [];                 // { x, z, mesh }
+
+        function wyczyscPajeczyny() {
+            pajeczyny.forEach(p => {
+                if (p.mesh) {
+                    scene.remove(p.mesh);
+                    if (p.mesh.geometry) p.mesh.geometry.dispose();
+                    if (p.mesh.material && p.mesh.material.dispose) p.mesh.material.dispose();
+                }
+            });
+            pajeczyny = [];
+        }
+
+        function czyPajeczynaNa(x, z) {
+            const rx = Math.round(x), rz = Math.round(z);
+            return pajeczyny.some(p => p.x === rx && p.z === rz);
+        }
+
+        function rozsnujPajeczyny() {
+            wyczyscPajeczyny();
+            if (!currentCombatTheme) return 0;
+            if (PAJECZYNA_MAPY.indexOf(currentCombatTheme.id) === -1) return 0;
+            if (Math.random() > PAJECZYNA_SZANSA_MAPY) return 0;
+            const mat = new THREE.MeshBasicMaterial({
+                color: 0xe6ecf2, transparent: true, opacity: 0.34, depthWrite: false });
+            for (let g = 0; g < PAJECZYNA_GNIAZD; g++) {
+                // Skupisko wyrasta przy osłonie - pająk snuje sieć między czymś a czymś,
+                // nie na środku pustego pola
+                let cx = 0, cz = 0, znalezione = false;
+                for (let t = 0; t < 120 && !znalezione; t++) {
+                    cx = Math.floor(Math.random() * mapWidth) - offsetX;
+                    cz = Math.floor(Math.random() * mapDepth) - offsetZ;
+                    if (!isWithinPlayBounds(cx, cz) || isObstacle(cx, cz)) continue;
+                    if (!isFarFromSquad(cx, cz, 10)) continue;
+                    let przyOslonie = false;
+                    for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]])
+                        if (isObstacle(cx + dx, cz + dz)) { przyOslonie = true; break; }
+                    if (przyOslonie) znalezione = true;
+                }
+                if (!znalezione) continue;
+                for (let k = 0; k < PAJECZYNA_NA_GNIAZDO; k++) {
+                    const px = cx + Math.round((Math.random() - 0.5) * 4);
+                    const pz = cz + Math.round((Math.random() - 0.5) * 4);
+                    if (!isWithinPlayBounds(px, pz) || isObstacle(px, pz)) continue;
+                    if (czyPajeczynaNa(px, pz)) continue;
+                    if (!isFarFromSquad(px, pz, 8)) continue;
+                    const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
+                    m.rotation.x = -Math.PI / 2;
+                    m.position.set(px, getTerrainY(px, pz) + 0.06, pz);
+                    m.userData.unitType = 'fx';
+                    scene.add(m);
+                    pajeczyny.push({ x: px, z: pz, mesh: m });
+                }
+            }
+            return pajeczyny.length;
+        }
+
+        // Wejście w pajęczynę. Wołane po każdym ruchu wojownika.
+        function sprawdzPajeczyne(s) {
+            if (!s || s.isDead || !s.mesh || isSoldierWebbed(s)) return false;
+            const x = Math.round(s.mesh.position.x), z = Math.round(s.mesh.position.z);
+            const i = pajeczyny.findIndex(p => p.x === x && p.z === z);
+            if (i === -1) return false;
+            // Sieć się zrywa - zostaje zużyta
+            const p = pajeczyny[i];
+            if (p.mesh) scene.remove(p.mesh);
+            pajeczyny.splice(i, 1);
+            s.webbedTurns = WEB_FREE_TURNS;
+            attachWebVisual(s);
+            showFloatingWarning(`${s.name} wszedł w pajęczynę!`);
+            updateUI(`${s.name} ugrzązł w starej sieci - ${WEB_FREE_TURNS} tury na wyrwanie się ` +
+                     'albo pomoc towarzysza.');
+            return true;
+        }
+
         function ocucAction() {
             if (gameOver || !isPlayerTurn) return;
             const active = getActiveSoldier();
@@ -23481,8 +24739,60 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         // Jedna tura pożaru: co płonęło - dogasa, a ogień przeskakuje dalej
+        // Zapala pole (i jego najbliższe otoczenie). Używane przez ładunki
+        // zapalające; działa na każdej planszy, bo siatka ognia istnieje wszędzie.
+        function zapalPole(x, z, promien) {
+            if (!ogienGrid) przygotujSiatkeOgnia();
+            if (!ogienGrid) return 0;
+            const r = promien === undefined ? ZAPAL_PROMIEN : promien;
+            let zapalonych = 0;
+            for (let dx = -r; dx <= r; dx++) {
+                for (let dz = -r; dz <= r; dz++) {
+                    if (Math.abs(dx) + Math.abs(dz) > r) continue;    // rozprysk w romb
+                    const mx = Math.round(x) + dx + offsetX, mz = Math.round(z) + dz + offsetZ;
+                    if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
+                    if (ogienGrid[mx][mz] !== 0) continue;
+                    // Na wodzie i lawie ogień nie ma czego chwycić
+                    if (terrainTypeMap[mx][mz] >= 2 && terrainTypeMap[mx][mz] !== 3) continue;
+                    ogienGrid[mx][mz] = 1;
+                    ogienWiek[mx][mz] = 0;
+                    zapalonych++;
+                }
+            }
+            if (zapalonych) odswiezPlomienie();
+            return zapalonych;
+        }
+
+        function przygotujSiatkeOgnia() {
+            if (!mapWidth || !mapDepth) return;
+            ogienGrid = new Array(mapWidth).fill(0).map(() => new Uint8Array(mapDepth));
+            ogienWiek = new Array(mapWidth).fill(0).map(() => new Uint8Array(mapDepth));
+        }
+
+        // Odporność na ogień: wyuczalna przez Witalność, tak samo jak Znak Krzyża
+        // chodzi od Mądrości, a Lewitacja od Zręczności.
+        const ODPORNOSC_PROGI = [14, 18, 22];      // kolejne stopnie
+        const ODPORNOSC_REDUKCJA = [0, 0.35, 0.6, 0.85];
+        function stopienOdpornosci(idx) {
+            const w = getWarriorStat(idx || 0, 'witalnosc');
+            let st = 0;
+            ODPORNOSC_PROGI.forEach(prog => { if (w >= prog) st++; });
+            return st;
+        }
+        function redukcjaOgnia(s) {
+            const idx = soldiers.indexOf(s);
+            return ODPORNOSC_REDUKCJA[stopienOdpornosci(idx < 0 ? 0 : idx)] || 0;
+        }
+        // Ile naprawdę zabierze ogień temu wojownikowi
+        function obrazeniaOgnia(s, bazowe) {
+            const po = Math.round(bazowe * (1 - redukcjaOgnia(s)));
+            // Najwyższy stopień nie daje nieśmiertelności - zawsze boli choć trochę
+            return Math.max(bazowe > 0 ? 1 : 0, po);
+        }
+
         function tikPozaru() {
-            if (!currentCombatTheme || currentCombatTheme.id !== 'pozar' || !ogienGrid || gameOver) return;
+            if (!ogienGrid || gameOver) return;
+            const planszowy = czyPozarPlanszowy();
             const noweOgniska = [];
             let spalonych = 0;
             for (let mx = 0; mx < mapWidth; mx++) {
@@ -23494,11 +24804,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         const nx = mx + dx, nz = mz + dz;
                         if (nx < 0 || nx >= mapWidth || nz < 0 || nz >= mapDepth) continue;
                         if (ogienGrid[nx][nz] !== 0) continue;
-                        const zgodny = (dx === ogienKierunek.x && dz === ogienKierunek.z);
-                        if (Math.random() > (zgodny ? POZAR_SZANSA : POZAR_SZANSA * 0.45)) continue;
+                        // Pożar planszowy idzie frontem; ognisko po ładunku ledwie pełza
+                        if (planszowy) {
+                            const zgodny = (dx === ogienKierunek.x && dz === ogienKierunek.z);
+                            if (Math.random() > (zgodny ? POZAR_SZANSA : POZAR_SZANSA * 0.45)) continue;
+                        } else {
+                            if (Math.random() > ZAPAL_SZANSA) continue;
+                        }
                         noweOgniska.push([nx, nz]);
                     }
-                    if (ogienWiek[mx][mz] >= POZAR_TRWANIE) {
+                    if (ogienWiek[mx][mz] >= (planszowy ? POZAR_TRWANIE : ZAPAL_TRWANIE)) {
                         ogienGrid[mx][mz] = 2;             // wypalone zgliszcza
                         terrainTypeMap[mx][mz] = 1;
                         spalonych++;
@@ -23515,6 +24830,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
                 if (ogienGrid[mx][mz] !== 1) continue;
                 if (p.type === 'wall-resistant') continue;      // kamień zostaje
+                // Punktowe ognisko nie rozbiera planszy - trawi tylko to,
+                // co naprawdę łatwopalne. Inaczej jeden strzał zapalający
+                // kasowałby osłony na pół mapy.
+                if (!planszowy && ['kloda','zywoplot','tree','beczka','skrzynia','lawka',
+                                   'regal','kosz','namiot','wysciolka'].indexOf(p.type) === -1) continue;
                 usunBryleOslony(p);
                 obstaclePositions.splice(i, 1);
                 obstacleMap.delete(`${p.x},${p.z}`);
@@ -23529,9 +24849,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const mx = Math.round(s.mesh.position.x) + offsetX, mz = Math.round(s.mesh.position.z) + offsetZ;
                 if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return;
                 if (ogienGrid[mx][mz] !== 1) return;
-                applyDamageToUnit(s, POZAR_OBRAZENIA);
+                const bazowe = planszowy ? POZAR_OBRAZENIA : ZAPAL_OBRAZENIA;
+                const obr = obrazeniaOgnia(s, bazowe);
+                applyDamageToUnit(s, obr);
                 poparzeni++;
-                updateUI(`${s.name} stoi w ogniu! (-${POZAR_OBRAZENIA} HP)`);
+                const ileOdporny = stopienOdpornosci(soldiers.indexOf(s));
+                updateUI(`${s.name} stoi w ogniu! (-${obr} HP` +
+                         (ileOdporny > 0 ? `, odporność ${ileOdporny}. stopnia tłumi żar` : '') + ')');
                 if (s.hp <= 0) { playDyingSfx(); killUnitWithAnim(s); refreshPlayerPositions(); }
             });
             [...enemies, ...npcs].forEach(u => {
@@ -24364,6 +25688,93 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Po bloku studni generator biegnie dalej i dosypuje swoje mury - trafiały
         // w środek tuneli i odcinały komnaty. Przecieramy dno z wszystkiego, co
         // wylądowało na polach komory, tuneli i komnat. Ta sama kuracja co na moście.
+        // Alejki cmentarza muszą zostać przejezdne. Mauzolea (stawiane losowo)
+        // i drzewa z późniejszych przebiegów lądują w poprzek osi i rozbijają
+        // cały układ - ten sam kłopot co w Studni, więc to samo lekarstwo.
+        // Ogrodzone kwatery i mauzolea potrafią zamknąć wroga w środku. Zdarza się
+        // to rzadko - raz na kilkanaście misji - ale wtedy misji NIE DA SIĘ wygrać,
+        // bo warunkiem jest pokonanie wszystkich. Po rozstawieniu sprawdzamy więc,
+        // kto jest odcięty, i przenosimy go na najbliższe osiągalne pole.
+        function przesunOdcietychWrogow() {
+            // Działa na KAŻDEJ planszy, odkąd wrogowie stoją w gniazdach przy
+            // osłonach i wchodzą do wnętrz - wtedy co kilkanaście misji ktoś
+            // ląduje w zamkniętym pomieszczeniu i misji nie da się wygrać.
+            if (!currentCombatTheme) return 0;
+            const dowodca = soldiers.find(s => !s.isDead && s.mesh);
+            if (!dowodca) return 0;
+            const sx = Math.round(dowodca.mesh.position.x), sz = Math.round(dowodca.mesh.position.z);
+            // Zalewanie od oddziału - po polach parteru, bo tam stoją przeszkody
+            const osiagalne = new Set([sx + '/' + sz]);
+            const kolejka = [[sx, sz]];
+            while (kolejka.length) {
+                const [x, z] = kolejka.pop();
+                for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+                    const nx = x + dx, nz = z + dz, k = nx + '/' + nz;
+                    if (osiagalne.has(k)) continue;
+                    if (!isWithinPlayBounds(nx, nz) || isObstacle(nx, nz)) continue;
+                    osiagalne.add(k); kolejka.push([nx, nz]);
+                }
+            }
+            let przeniesionych = 0;
+            enemies.forEach(e => {
+                if (e.isDead || !e.mesh || (e.level || 0) !== 0) return;
+                const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
+                if (osiagalne.has(ex + '/' + ez)) return;
+                // Bossa zostawiamy tam, gdzie go postawiono - bywa zamknięty
+                // celowo, a jego komnata ma się otwierać w trakcie misji.
+                if (e.isBoss) return;
+                // Tak samo kogoś za DRZWIAMI: drzwi da się otworzyć, więc to
+                // nie jest odcięcie, tylko zamknięty pokój.
+                let przyDrzwiach = false;
+                for (let dx = -2; dx <= 2 && !przyDrzwiach; dx++)
+                    for (let dz = -2; dz <= 2; dz++) {
+                        const mx = ex + dx + offsetX, mz = ez + dz + offsetZ;
+                        if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
+                        const o = obstacleGrid[mx][mz];
+                        if (o && (o.type === 'house-door' || o.type === 'drzwi')) { przyDrzwiach = true; break; }
+                    }
+                if (przyDrzwiach) return;
+                // Szukamy najbliższego osiągalnego pola, zataczając coraz szersze kręgi
+                let cel = null;
+                for (let r = 1; r <= 30 && !cel; r++) {
+                    for (let dx = -r; dx <= r && !cel; dx++) {
+                        for (let dz = -r; dz <= r && !cel; dz++) {
+                            if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+                            const nx = ex + dx, nz = ez + dz;
+                            if (!osiagalne.has(nx + '/' + nz)) continue;
+                            if (isEnemyAt(nx, nz) || isUnitAtLevel(nx, nz, 0, e)) continue;
+                            cel = [nx, nz];
+                        }
+                    }
+                }
+                if (!cel) return;
+                e.mesh.position.set(cel[0], getLevelY(cel[0], cel[1], 0) + (e.mesh.userData.yOffset || 0), cel[1]);
+                przeniesionych++;
+            });
+            if (przeniesionych) refreshEnemyPositions();
+            return przeniesionych;
+        }
+
+        function przetrzyjAlejkiCmentarza() {
+            if (!currentCombatTheme || currentCombatTheme.id !== 'cmentarzysko') return 0;
+            if (!cmentarzAlejki) return 0;
+            let usunietych = 0;
+            const naAlejce = (x, z) =>
+                cmentarzAlejki.x.indexOf(x) !== -1 || cmentarzAlejki.z.indexOf(z) !== -1;
+            for (let i = obstaclePositions.length - 1; i >= 0; i--) {
+                const o = obstaclePositions[i];
+                const x = Math.round(o.x), z = Math.round(o.z);
+                if (!naAlejce(x, z)) continue;
+                if (cmentarzAlejki.kapliczka.indexOf(x + '/' + z) !== -1) continue;
+                usunBryleOslony(o);
+                const mx = x + offsetX, mz = z + offsetZ;
+                if (mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth) obstacleGrid[mx][mz] = null;
+                obstaclePositions.splice(i, 1);
+                usunietych++;
+            }
+            return usunietych;
+        }
+
         function przetrzyjStudnie() {
             if (!currentCombatTheme || currentCombatTheme.id !== 'studnia') return 0;
             if (!studniaDnoPola || !studniaDnoPola.size) return 0;
@@ -25328,6 +26739,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             
             const e = enemies[currentEnemyIndex]; 
             const eLvl = e.level || 0;
+
+            // Czający się w górze NIE RUSZA SIĘ - czeka, aż ktoś podejdzie pod
+            // kryjówkę. Gdyby chodził, zdradziłby się ruchem i cała zasadzka
+            // straciłaby sens. Spada z tikZasadzek(), nie ze swojej tury.
+            if (e.wZasadzce) { currentEnemyIndex++; setTimeout(processNextEnemy, 15); return; }
 
             // DRZWI: potwór, który natrafi na zamknięte skrzydło obok siebie,
             // otwiera je za 1 punkt ruchu - tak samo jak wojownik.
@@ -26995,10 +28411,29 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     let targetCover = getCoverObstacle(px, pz, ex, ez), shooterCover = getCoverObstacle(ex, ez, px, pz);
                     let cornPenalty4 = isCornfield(px, pz) ? -20 : 0;
                     let hitChance = calculateHitChance(dist, ey > py, targetCover !== null, shooterCover !== null, e.accuracyBonus - getEnemyWoundPenalty(e) - (bestTarget.isKneeling ? 15 : 0) + cornPenalty4);
-                    updateUI(`${e.type === 'fast' ? "SZYBKI" : "ZWYKŁY"} OBCY strzela... `);
+                    // ŁADUNEK ZAPALAJĄCY. Strzelec co jakiś czas sięga po pocisk,
+                    // który podpala pole - trafiony czy nie. To zmienia rachunek
+                    // ruchu: nie wystarczy przeżyć strzał, trzeba jeszcze zejść
+                    // z płonącego kafla, a to kosztuje punkty.
+                    const zapalajacy = czyWrogowieMajaZapalajace() &&
+                                       !e.nieZapalajacy &&
+                                       Math.random() < ZAPAL_SZANSA_STRZALU;
+                    updateUI(`${e.type === 'fast' ? "SZYBKI" : "ZWYKŁY"} OBCY strzela` +
+                             (zapalajacy ? ' ŁADUNKIEM ZAPALAJĄCYM...' : '... '));
                     playFileSfx(AudioFiles.laserShot, 0.5);
                     let isHit = (Math.random() * 100) <= hitChance;
                     createProjectile(ex, ey, ez, px, py, pz, isHit, targetCover, () => {
+                        // Zapalający podpala pole, w które leciał - bez względu na trafienie.
+                        // Właśnie dlatego jest groźny: chybiony strzał też wypycha z pozycji.
+                        if (zapalajacy) {
+                            const ile = zapalPole(px, pz, ZAPAL_PROMIEN);
+                            if (ile > 0) {
+                                showFloatingWarning('Pole płonie! Schodź stamtąd.');
+                                updateUI(`Ładunek zapalający - ogień zajmuje ${ile} ` +
+                                         (ile === 1 ? 'pole' : 'pola') + '. Stanie w nim kosztuje zdrowie co turę.');
+                                playFileSfx(AudioFiles.wallHit, 0.5);
+                            }
+                        }
                         if(isHit) { applyDamageToUnit(bestTarget, 4); updateUI(bestTarget.isNPC ? `Cywil trafiony! (Szansa wroga: ${hitChance}%)` : `Otrzymałeś trafienie! (Szansa wroga: ${hitChance}%)`); if (!bestTarget.isNPC) playFileSfx(AudioFiles.warriorOuch, 0.6); if (!bestTarget.isNPC && bestTarget.hp > 0) chatter(bestTarget, bestTarget.hp <= 3 ? CHATTER_LOW_HP : CHATTER_HIT_TAKEN, 0.6); }
                         else { 
                             if (targetCover && targetCover.type !== 'wall-resistant') { destroyObstacle(targetCover); updateUI(`Wróg spudłował, niszcząc Twój mur!`); }
@@ -27579,6 +29014,24 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             document.getElementById('cstat-madrosc').innerText = getTotalStat('madrosc');
             document.getElementById('cstat-silaPsychiczna').innerText = getTotalStat('silaPsychiczna');
             document.getElementById('cstat-charyzma').innerText = getTotalStat('charyzma');
+            // Odporność na ogień nie jest osobną statystyką - wynika z Witalności,
+            // tak jak Znak Krzyża z Mądrości. Pokazujemy ją wprost, bo inaczej
+            // nikt by się nie domyślił, po co pakować punkty w Witalność.
+            (function () {
+                const pole = document.getElementById('cstat-ogien');
+                if (!pole) return;
+                const st = stopienOdpornosci(0);
+                const wit = getTotalStat('witalnosc');
+                if (st === 0) {
+                    const brak = ODPORNOSC_PROGI[0] - wit;
+                    pole.innerText = 'brak (do 1. stopnia brakuje ' + brak + ' Witalności)';
+                } else {
+                    const red = Math.round(ODPORNOSC_REDUKCJA[st] * 100);
+                    const next = ODPORNOSC_PROGI[st];
+                    pole.innerText = st + '. stopień - ogień zabiera o ' + red + '% mniej' +
+                        (next ? ' (następny stopień przy ' + next + ' Witalności)' : ' (najwyższy)');
+                }
+            })();
             const patronDiv = document.getElementById('stats-patron-info');
             if (playerPatronKey) {
                 patronDiv.innerHTML = `<b>${playerName}</b> - Twoim patronem jest <b>${playerPatronKey.title}</b><br>${playerPatronKey.bio}`;
@@ -28335,6 +29788,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 <p>Ściany budynków można <b>rozwalić strzałem</b> - znika jeden kwadrat i powstaje wyrwa.
                 Na planszy z kamienicami wchodzi się na piętra przez otwory w stropach (przyciski ▲ ▼),
                 a rolka myszy pokazuje kolejne kondygnacje.</p>
+                <h4>Ogień</h4>
+                <p>Niektórzy strzelcy wroga używają <b>ładunków zapalających</b>. Taki pocisk
+                podpala pole, w które leciał - <b>także wtedy, gdy chybi</b>. Stanie w ogniu
+                zabiera zdrowie co turę, więc trzeba zejść z płonącego kafla, a to kosztuje
+                punkty ruchu. Ogień trawi też łatwopalne osłony: kłody, żywopłoty, beczki i skrzynie.</p>
+                <p><b>Odporność na ogień</b> rośnie z Witalnością: 14 daje 1. stopień (-35% obrażeń
+                od ognia), 18 drugi (-60%), 22 trzeci (-85%). Pełnej niewrażliwości nie ma -
+                ogień zawsze zabiera co najmniej 1 punkt.</p>
                 <h4>Telekineza</h4>
                 <p>Wojownik o <b>13 Siły psychicznej</b> i więcej unosi myślą wroga albo sprzęt
                 i ciska nim w drugiego wroga. Przycisk <b>Telekineza</b> albo klawisz <b>[T]</b>:
