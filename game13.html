@@ -269,6 +269,20 @@
             background: rgba(0,0,0,0.9); z-index: 98;
             flex-direction: column; justify-content: center; align-items: center;
         }
+        #kryzys-overlay {
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.92); z-index: 99;
+            flex-direction: column; justify-content: center; align-items: center;
+        }
+        #kryzys-box {
+            background: #140d0a; border: 2px solid #8a4a3a; border-radius: 8px;
+            padding: 22px 26px; max-width: 560px; width: 90%;
+        }
+        #kryzys-tresc {
+            color: #e4cfc0; font-size: 14px; line-height: 1.55; margin: 12px 0 16px 0;
+            white-space: pre-wrap;
+        }
+        #kryzys-lista { margin-top: 6px; }
         #abilities-box {
             background: #14110a; border: 2px solid #8a7a3a; border-radius: 8px;
             padding: 22px 26px; max-width: 520px; width: 90%;
@@ -841,6 +855,14 @@
         </div>
     </div>
 
+    <div id="kryzys-overlay">
+        <div id="kryzys-box">
+            <div id="stats-panel-title">Kryzys wiary</div>
+            <div id="kryzys-tresc"></div>
+            <div id="kryzys-lista"></div>
+        </div>
+    </div>
+
     <div id="loadpick-overlay">
         <div id="loadpick-box">
             <div id="stats-panel-title">Wczytaj grę</div>
@@ -1027,6 +1049,7 @@
         <button id="btn-heal" style="border-color: #66ccaa; display: none;">Lecz</button>
         <button id="btn-ocuc" style="border-color: #ccbb66; display: none;">Ocuć</button>
         <button id="btn-telekineza" style="border-color: #aa77dd; display: none;" title="Unieś wroga lub sprzęt i ciśnij nim we wroga [T]">Telekineza</button>
+        <button id="btn-zadanie" style="border-color: #ffcc66; display: none;" title="Zapal kapliczkę albo zamknij przejście, przy którym stoisz [G]">Zadanie</button>
         <button id="btn-ziolo-balsam" style="border-color: #8acc66; display: none;">Balsam (0)</button>
         <button id="btn-ziolo-wyciag" style="border-color: #ccaa66; display: none;">Wyciąg (0)</button>
         <button id="btn-ziolo-sokoleOko" style="border-color: #66aacc; display: none;">Sokole Oko (0)</button>
@@ -1991,6 +2014,8 @@
               palette: { grass:'#4b4a33', grassDetail1:'#58563c', grassDetail2:'#3c3b29', dirt:'#5c4a38', dirtDetail1:'#6b5742', dirtDetail2:'#4a3c2d', road:'#4a4336', roadDetail1:'#564e3f', roadDetail2:'#3b352b' } },
             { id: 'pozar', name: 'Miasto w Ogniu',
               palette: { grass:'#4a4038', grassDetail1:'#564a3e', grassDetail2:'#3a322c', dirt:'#6b5a46', dirtDetail1:'#7a6850', dirtDetail2:'#5a4a3a', road:'#3e3a38', roadDetail1:'#4a4542', roadDetail2:'#332f2d' } },
+            { id: 'ostoja', name: 'Oblężenie Ostoi',
+              palette: { grass:'#4a4a3c', grassDetail1:'#565646', grassDetail2:'#3a3a30', dirt:'#6a5f4a', dirtDetail1:'#796d57', dirtDetail2:'#564d3e', road:'#5a5244', roadDetail1:'#675e4e', roadDetail2:'#4a4338' } },
             { id: 'wieza', name: 'Wieża Iluminatów',
               palette: { grass:'#3c3a42', grassDetail1:'#47454e', grassDetail2:'#312f37', dirt:'#4e4a52', dirtDetail1:'#5a5660', dirtDetail2:'#423e48', road:'#35333a', roadDetail1:'#403d45', roadDetail2:'#2b292f' } },
             { id: 'most', name: 'Most nad Przepaścią',
@@ -2778,6 +2803,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             sprawdzWydarzenie();
             sprobujWiadomoscTowarzysza();
             tikOstoi();
+            tikAudytorow();
+            tikPodwojnychAgentow();
             tikGolebnika();
             tikZielarni();
             tikZaniechania();
@@ -3410,6 +3437,35 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return true;
         }
 
+        // ===== GATUNKI DRZEW =====
+        // Dotąd każde drzewo powstawało z tego samego przepisu: pień plus korona
+        // stożkowa albo kulista. Przez to las, wieś i tajga wyglądały identycznie.
+        // Każda plansza ma teraz swoją pulę gatunków.
+        const DRZEWA_PLANSZ = {
+            las:          ['swierk', 'swierk', 'brzoza', 'dab', 'lisciaste'],
+            zamiec:       ['swierk', 'swierk', 'swierk', 'brzoza'],
+            bagno:        ['wierzba', 'wierzba', 'brzoza', 'lisciaste'],
+            jezioro:      ['wierzba', 'brzoza', 'swierk'],
+            powodz:       ['wierzba', 'lisciaste', 'brzoza'],
+            cmentarzysko: ['dab', 'wierzba', 'swierk'],
+            nekropolia:   ['dab', 'swierk', 'wierzba'],
+            alabama:      ['dab', 'dab', 'lisciaste'],
+            pobojowisko:  ['dab', 'brzoza', 'lisciaste'],
+            amazonia:     ['lisciaste', 'lisciaste'],
+            katedra:      ['dab', 'swierk'],
+            parow:        ['swierk', 'brzoza'],
+            wyspy:        ['lisciaste', 'wierzba'],
+            kremlin:      ['swierk', 'brzoza', 'brzoza'],
+            newyork:      ['lisciaste', 'dab'],
+            whitehouse:   ['dab', 'lisciaste'],
+            pentagon:     ['swierk', 'lisciaste'],
+            zhongnanhai:  ['wierzba', 'lisciaste']
+        };
+        function gatunekDrzewa() {
+            const pula = (currentCombatTheme && DRZEWA_PLANSZ[currentCombatTheme.id]) || ['lisciaste', 'dab', 'swierk'];
+            return pula[Math.floor(Math.random() * pula.length)];
+        }
+
         function createTree(x, y, z) {
             // Na ciepłych planszach część drzew to palmy - o ile jest dla nich miejsce
             if (Math.random() < szansaNaPalme() && maMiejsceNaPalme(x, z)) {
@@ -3418,31 +3474,91 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
 
             const treeGroup = new THREE.Group();
+            const gat = gatunekDrzewa();
             const sizeScale = 0.55 + Math.random() * 1.65; // od niskich (parter) po wysokie (3 piętra)
-            const trunkHeight = 0.8 + Math.random() * 0.6;
-            const trunkRadius = 0.15 + Math.random() * 0.08;
-
-            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(trunkRadius * 0.8, trunkRadius, trunkHeight, 8), new THREE.MeshLambertMaterial({ color: 0x5c4033 }));
-            trunk.position.set(0, trunkHeight / 2, 0); treeGroup.add(trunk);
-
             const leafColor = pickTreeColor();
             const leafMat = new THREE.MeshLambertMaterial({ color: leafColor });
 
-            let leaves;
-            if (Math.random() < 0.55) {
-                const leafRadius = 0.7 + Math.random() * 0.5;
-                const leafHeight = 1.2 + Math.random() * 0.9;
-                leaves = new THREE.Mesh(new THREE.ConeGeometry(leafRadius, leafHeight, 8), leafMat);
-                leaves.position.set(0, trunkHeight + leafHeight / 2 - 0.15, 0);
+            // Brzoza ma pień biały z czarnymi pręgami - to jej znak rozpoznawczy
+            const barwaPnia = gat === 'brzoza' ? 0xd8d4c8 : (gat === 'swierk' ? 0x46321f : 0x5c4033);
+            const trunkHeight = gat === 'brzoza' ? (1.5 + Math.random() * 0.7)
+                              : gat === 'dab'    ? (0.6 + Math.random() * 0.4)
+                              : (0.8 + Math.random() * 0.6);
+            const trunkRadius = gat === 'dab'    ? (0.24 + Math.random() * 0.1)
+                              : gat === 'brzoza' ? (0.1 + Math.random() * 0.04)
+                              : (0.15 + Math.random() * 0.08);
+
+            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(trunkRadius * 0.8, trunkRadius, trunkHeight, 8),
+                new THREE.MeshLambertMaterial({ color: barwaPnia }));
+            trunk.position.set(0, trunkHeight / 2, 0); treeGroup.add(trunk);
+
+            if (gat === 'brzoza') {
+                // Pręgi na korze
+                const pregaMat = new THREE.MeshLambertMaterial({ color: 0x2a2620 });
+                for (let k = 0; k < 3; k++) {
+                    const pr = new THREE.Mesh(new THREE.BoxGeometry(trunkRadius * 2.1, 0.06, 0.04), pregaMat);
+                    pr.position.set(0, trunkHeight * (0.25 + k * 0.25), trunkRadius * 0.75);
+                    pr.rotation.y = Math.random() * Math.PI;
+                    treeGroup.add(pr);
+                }
+                // Rzadka, wysoka korona
+                for (let k = 0; k < 2; k++) {
+                    const r = 0.42 + Math.random() * 0.28;
+                    const kula = new THREE.Mesh(new THREE.SphereGeometry(r, 7, 6), leafMat);
+                    kula.position.set((Math.random() - 0.5) * 0.4, trunkHeight + 0.2 + k * 0.4,
+                                      (Math.random() - 0.5) * 0.4);
+                    treeGroup.add(kula);
+                }
+            } else if (gat === 'swierk') {
+                // Trzy stożki jeden nad drugim, coraz węższe
+                for (let k = 0; k < 3; k++) {
+                    const r = (1.0 - k * 0.24) * (0.62 + Math.random() * 0.2);
+                    const h = 0.85 + Math.random() * 0.3;
+                    const st = new THREE.Mesh(new THREE.ConeGeometry(r, h, 8), leafMat);
+                    st.position.set(0, trunkHeight + 0.1 + k * h * 0.52, 0);
+                    treeGroup.add(st);
+                }
+            } else if (gat === 'dab') {
+                // Szeroka, przysadzista korona z kilku kul
+                for (let k = 0; k < 4; k++) {
+                    const r = 0.6 + Math.random() * 0.4;
+                    const kula = new THREE.Mesh(new THREE.SphereGeometry(r, 7, 6), leafMat);
+                    kula.position.set((Math.random() - 0.5) * 1.1, trunkHeight + 0.35 + Math.random() * 0.5,
+                                      (Math.random() - 0.5) * 1.1);
+                    treeGroup.add(kula);
+                }
+            } else if (gat === 'wierzba') {
+                // Kopuła listowia, a spod niej opadające witki
+                const kopula = new THREE.Mesh(new THREE.SphereGeometry(0.85 + Math.random() * 0.3, 8, 6), leafMat);
+                kopula.position.set(0, trunkHeight + 0.55, 0);
+                kopula.scale.y = 0.72;
+                treeGroup.add(kopula);
+                for (let k = 0; k < 7; k++) {
+                    const kat = (k / 7) * Math.PI * 2 + Math.random() * 0.5;
+                    const dl = 0.8 + Math.random() * 0.7;
+                    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.02, dl, 4), leafMat);
+                    w.position.set(Math.cos(kat) * 0.8, trunkHeight + 0.45 - dl / 2, Math.sin(kat) * 0.8);
+                    treeGroup.add(w);
+                }
             } else {
-                const leafRadius = 0.6 + Math.random() * 0.5;
-                leaves = new THREE.Mesh(new THREE.SphereGeometry(leafRadius, 8, 8), leafMat);
-                leaves.position.set(0, trunkHeight + leafRadius * 0.7, 0);
+                // Liściaste jak dotąd: stożek albo kula
+                if (Math.random() < 0.55) {
+                    const leafRadius = 0.7 + Math.random() * 0.5;
+                    const leafHeight = 1.2 + Math.random() * 0.9;
+                    const leaves = new THREE.Mesh(new THREE.ConeGeometry(leafRadius, leafHeight, 8), leafMat);
+                    leaves.position.set(0, trunkHeight + leafHeight / 2 - 0.15, 0);
+                    treeGroup.add(leaves);
+                } else {
+                    const leafRadius = 0.6 + Math.random() * 0.5;
+                    const leaves = new THREE.Mesh(new THREE.SphereGeometry(leafRadius, 8, 8), leafMat);
+                    leaves.position.set(0, trunkHeight + leafRadius * 0.7, 0);
+                    treeGroup.add(leaves);
+                }
             }
-            treeGroup.add(leaves);
 
             treeGroup.scale.set(sizeScale, sizeScale, sizeScale);
             treeGroup.rotation.y = Math.random() * Math.PI * 2;
+            treeGroup.userData.gatunekDrzewa = gat;
             treeGroup.position.set(x, y, z); scene.add(treeGroup); obstacleMeshes.push(treeGroup);
         }
 
@@ -3480,7 +3596,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Pole po bitwie nie ma ulicy z pasami dla pieszych. Przez środek
             // planszy biegł asfalt z zebrą - dokładnie to, czego na pobojowisku
             // być nie może. Są rowy, wydeptane ścieżki i błoto.
-            const BEZ_DROGI_PRZELOTOWEJ = ['cmentarzysko', 'pobojowisko'];
+            const BEZ_DROGI_PRZELOTOWEJ = ['cmentarzysko', 'pobojowisko', 'ostoja'];
             const bezDrogiPrzelotowej = currentCombatTheme &&
                 BEZ_DROGI_PRZELOTOWEJ.indexOf(currentCombatTheme.id) !== -1;
             for(let z=0; z<mapDepth && !bezDrogiPrzelotowej; z++) {
@@ -4365,7 +4481,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // się chować w drodze do oddziału.
                 // Cmentarzysko ma wlasny uklad kwater i alejek - ogolne posypanie
                 // glazami po losowych polach rozbijaloby go na konfetti.
-                if (currentCombatTheme && !['cyber', 'katedra', 'cmentarzysko', 'stacja', 'pobojowisko', 'alabama'].includes(currentCombatTheme.id)) {
+                if (currentCombatTheme && !['cyber', 'katedra', 'cmentarzysko', 'stacja', 'pobojowisko', 'alabama', 'ostoja'].includes(currentCombatTheme.id)) {
                     // Więcej osłon = wrogowie mają czym się zasłaniać w drodze do oddziału
                     const ile = 170 + Math.floor(Math.random() * 110);
                     for (let t = 0; t < ile; t++) {
@@ -5117,6 +5233,21 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                 addObstacle(pos.x, pos.z, 'tree');
                             }
                         }
+                        // Pniaki od strony pola: stąd brano drewno na pale do zasieków,
+                        // więc skraj lasu jest wycięty, a nie równy.
+                        for (let n = 0; n < 7; n++) {
+                            const pos = naLinii(Math.round(linia - strona * (4 + Math.random() * 9)),
+                                                Math.round((Math.random() - 0.5) * 2 * (dlugosc - 10)));
+                            if (!isWithinPlayBounds(pos.x, pos.z) || isObstacle(pos.x, pos.z)) continue;
+                            addObstacle(pos.x, pos.z, 'pniak');
+                        }
+                        // Kępy stratowanej trawy między pniakami
+                        for (let n = 0; n < 6; n++) {
+                            const pos = naLinii(Math.round(linia - strona * (3 + Math.random() * 11)),
+                                                Math.round((Math.random() - 0.5) * 2 * (dlugosc - 10)));
+                            if (!isWithinPlayBounds(pos.x, pos.z) || isObstacle(pos.x, pos.z)) continue;
+                            addObstacle(pos.x, pos.z, 'kepa');
+                        }
                     });
 
                     // --- 8. PRZETARCIE ROWÓW ---
@@ -5130,6 +5261,106 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             const o = obstacleGrid[mx2][mz2];
                             if (!o || o.type === 'wal') continue;
                             usunPrzeszkode(mx2 - offsetX, mz2 - offsetZ);
+                        }
+                    }
+                }
+
+
+                // ===== OSTOJA: TO, CO ZBUDOWAŁEŚ, TERAZ TRZEBA OBRONIĆ =====
+                // Jedyna plansza, której układ nie jest wymyślony: w środku stoi
+                // Ostoja dokładnie w takim kształcie, w jakim ją wzniosłeś. Izby,
+                // których nie zdążyłeś postawić, leżą jako puste fundamenty - widać
+                // po nich, czego zabrakło. Wróg naciera z czterech stron.
+                if (currentCombatTheme && currentCombatTheme.id === 'ostoja') {
+                    const MUR = 13;                 // połowa boku dziedzińca
+                    ostojaIzbyNaPlanszy = [];
+
+                    // --- Mur obwodowy z bramą w każdej ścianie ---
+                    for (let i = -MUR; i <= MUR; i++) {
+                        const bramaPoziom = Math.abs(i) <= 1;
+                        [[i, -MUR], [i, MUR], [-MUR, i], [MUR, i]].forEach(([bx, bz], nr) => {
+                            const toBrama = (nr < 2) ? bramaPoziom : bramaPoziom;
+                            if (toBrama) return;     // cztery bramy - tędy wchodzi wróg
+                            if (!isWithinPlayBounds(bx, bz) || isObstacle(bx, bz)) return;
+                            addObstacle(bx, bz, 'wall-resistant');
+                        });
+                    }
+                    // Dziedziniec wybrukowany
+                    for (let x = -MUR + 1; x < MUR; x++)
+                        for (let z = -MUR + 1; z < MUR; z++) {
+                            const mx = x + offsetX, mz = z + offsetZ;
+                            if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
+                            terrainTypeMap[mx][mz] = 3;
+                            heightMap[mx][mz] = 0;
+                        }
+
+                    // --- Izby: każda zbudowana dostaje swoją celę przy murze ---
+                    // Kolejność stała, żeby gracz odnajdywał się na własnym podwórku.
+                    const UKLAD_IZB = [
+                        { id: 'kaplica',     x: -8, z: -8, w: 6, d: 5 },
+                        { id: 'skryptorium', x:  3, z: -8, w: 6, d: 5 },
+                        { id: 'dzwonnica',   x: -2, z: -11, w: 4, d: 3 },
+                        { id: 'zbrojownia',  x: -8, z:  4, w: 6, d: 5 },
+                        { id: 'demonarium',  x:  3, z:  4, w: 6, d: 5 },
+                        { id: 'golebnik',    x: -2, z:  9, w: 4, d: 3 },
+                        { id: 'zielarnia',   x:  8, z: -2, w: 4, d: 5 }
+                    ];
+                    UKLAD_IZB.forEach(izba => {
+                        const poziom = (typeof ostoja !== 'undefined' && ostoja[izba.id]) || 0;
+                        const x0 = izba.x, z0 = izba.z, x1 = x0 + izba.w - 1, z1 = z0 + izba.d - 1;
+                        const drzwiX = x0 + Math.floor(izba.w / 2);
+                        const drzwiZ = (z0 > 0) ? z0 : z1;          // wejście od dziedzińca
+                        for (let x = x0; x <= x1; x++) {
+                            for (const z of [z0, z1]) {
+                                if (x === drzwiX && z === drzwiZ) continue;
+                                if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) continue;
+                                // Nieodbudowana izba to sam fundament - niski murek,
+                                // zza którego da się strzelać, ale który nie daje dachu
+                                addObstacle(x, z, poziom > 0 ? 'wall-resistant' : 'wall-destructible');
+                            }
+                        }
+                        for (let z = z0 + 1; z < z1; z++) {
+                            for (const x of [x0, x1]) {
+                                if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) continue;
+                                addObstacle(x, z, poziom > 0 ? 'wall-resistant' : 'wall-destructible');
+                            }
+                        }
+                        // Wyposażenie - tylko w izbach naprawdę zbudowanych
+                        if (poziom > 0) umebluJIzbe(izba, x0, z0, x1, z1, poziom, addObstacle);
+                        ostojaIzbyNaPlanszy.push({ id: izba.id, poziom: poziom,
+                                                   x: x0 + Math.floor(izba.w / 2),
+                                                   z: z0 + Math.floor(izba.d / 2) });
+                    });
+
+                    // --- Przedpole: osłony na podejściach, z których korzysta wróg ---
+                    for (let n = 0; n < 60; n++) {
+                        const kat = Math.random() * Math.PI * 2;
+                        const r = MUR + 4 + Math.random() * 26;
+                        const px = Math.round(Math.cos(kat) * r), pz = Math.round(Math.sin(kat) * r);
+                        if (!isWithinPlayBounds(px, pz) || isObstacle(px, pz)) continue;
+                        const typy = ['rock', 'kloda', 'krzak', 'skrzynia', 'beczka', 'kepa'];
+                        addObstacle(px, pz, typy[Math.floor(Math.random() * typy.length)]);
+                    }
+                    // Na dziedzińcu i wokół niego NIE MA asfaltu. Mimo wyłączenia drogi
+                    // przelotowej i generycznych domów zdarzała się jeszcze łata jezdni
+                    // w szczerym polu - nie ustaliłem, który pas ją maluje, więc zamiast
+                    // zgadywać, egzekwuję regułę wprost: ta plansza dróg nie zna.
+                    for (let mx2 = 0; mx2 < mapWidth; mx2++)
+                        for (let mz2 = 0; mz2 < mapDepth; mz2++) {
+                            const t2 = terrainTypeMap[mx2][mz2];
+                            if (t2 === 2 || t2 === 4) terrainTypeMap[mx2][mz2] = 1;
+                        }
+
+                    // Zadrzewienie dalej od murów - stąd nadchodzą
+                    for (let n = 0; n < 14; n++) {
+                        const kat = Math.random() * Math.PI * 2;
+                        const r = MUR + 22 + Math.random() * 20;
+                        const cx = Math.round(Math.cos(kat) * r), cz = Math.round(Math.sin(kat) * r);
+                        for (let k = 0; k < 6; k++) {
+                            const tx = cx + Math.round((Math.random() - 0.5) * 7);
+                            const tz = cz + Math.round((Math.random() - 0.5) * 7);
+                            if (!isWithinPlayBounds(tx, tz) || isObstacle(tx, tz)) continue;
+                            addObstacle(tx, tz, Math.random() < 0.7 ? 'tree' : 'krzak');
                         }
                     }
                 }
@@ -5567,7 +5798,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // Pojedyncze głazy dają osłonę punktową, te - całe odcinki do przebiegnięcia.
                 // Cmentarzysko: pasma murkow laduja w poprzek alejek i kwater,
                 // wiec tam rumowisko ustawia wlasny uklad.
-                if (currentCombatTheme && !['cyber', 'katedra', 'cmentarzysko', 'stacja', 'pobojowisko', 'alabama'].includes(currentCombatTheme.id)) {
+                if (currentCombatTheme && !['cyber', 'katedra', 'cmentarzysko', 'stacja', 'pobojowisko', 'alabama', 'ostoja'].includes(currentCombatTheme.id)) {
                     const ilePasm = 16 + Math.floor(Math.random() * 14);
                     for (let t = 0; t < ilePasm; t++) {
                         const sx = Math.floor(Math.random() * (mapWidth - 24)) + 12 - offsetX;
@@ -6352,7 +6583,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                 const tz = cz + Math.round((Math.random() - 0.5) * 8);
                                 if (!isWithinPlayBounds(tx, tz) || isObstacle(tx, tz)) continue;
                                 if (terrainTypeMap[tx + offsetX][tz + offsetZ] >= 2) continue;
-                                addObstacle(tx, tz, 'tree');
+                                // Podszyt przy zadrzewieniu - kępa drzew bez niczego pod
+                                // spodem wygląda jak wbite patyki. Alabama pomija ogólny
+                                // rozsiew, więc krzaki i trawy musi dostać tutaj.
+                                const r = Math.random();
+                                addObstacle(tx, tz, r < 0.62 ? 'tree' : (r < 0.84 ? 'krzak' : 'kepa'));
                             }
                         }
                     });
@@ -6368,7 +6603,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Plansze, które same układają swoją zabudowę - generyczny rozsiewacz
             // domów tylko by im ją rozsypał. Alabama dopisana, bo stawia zagrody
             // wzdłuż drogi i siedem przypadkowych chat na polach psuło cały układ.
-            const BEZ_GENERYCZNYCH_DOMOW = ['newyork', 'powodz', 'cyber', 'otchlan', 'las', 'alabama'];
+            const BEZ_GENERYCZNYCH_DOMOW = ['newyork', 'powodz', 'cyber', 'otchlan', 'las', 'alabama', 'ostoja'];
             const genericHouseCount = (currentCombatTheme && BEZ_GENERYCZNYCH_DOMOW.includes(currentCombatTheme.id))
                 ? 0
                 // Miasto w Ogniu MUSI być miastem - to, co płonie, ma być zabudową,
@@ -7833,16 +8068,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             powodz:       { oprawa: 'zarowka',   barwa: 0xffe0a0, wys: 2.4, rozstaw: 'domy',   gestosc: 15 },
             bagno:        { oprawa: 'kaganek',   barwa: 0x9ad8a0, wys: 1.4, rozstaw: 'rozsyp', gestosc: 20 },
             stacja:       { oprawa: 'neon',      barwa: 0xa0ffd0, wys: 3.4, rozstaw: 'droga',  gestosc: 12 },
-            szpital:      { oprawa: 'zarowka',   barwa: 0xdff0ff, wys: 2.6, rozstaw: 'rozsyp', gestosc: 14 },
+            // Szpital, most, Alcatraz i zamieć są na liście plansz BEZ współczesności -
+            // elektryczność jest tam anachronizmem. Dostają ogień.
+            szpital:      { oprawa: 'swieca',    barwa: 0xdff0ff, wys: 1.4, rozstaw: 'rozsyp', gestosc: 14 },
             las:          { oprawa: 'pochodnia', barwa: 0xff7a30, wys: 2.0, rozstaw: 'sciezka',gestosc: 17 },
             studnia:      { oprawa: 'pochodnia', barwa: 0xffa84a, wys: 1.8, rozstaw: 'rozsyp', gestosc: 11 },
             jezioro:      { oprawa: 'lampion',   barwa: 0xbfe0ff, wys: 2.2, rozstaw: 'rozsyp', gestosc: 19 },
             pobojowisko:  { oprawa: 'ognisko',   barwa: 0xff6a24, wys: 0.6, rozstaw: 'rozsyp', gestosc: 16 },
             pozar:        { oprawa: 'zarowka',   barwa: 0xffb060, wys: 2.8, rozstaw: 'droga',  gestosc: 15 },
             wieza:        { oprawa: 'pochodnia', barwa: 0xff9040, wys: 2.3, rozstaw: 'rozsyp', gestosc: 10 },
-            most:         { oprawa: 'latarnia',  barwa: 0xc8d8ff, wys: 3.8, rozstaw: 'droga',  gestosc: 12 },
-            dom:          { oprawa: 'swieca',    barwa: 0xffc87a, wys: 1.0, rozstaw: 'rozsyp', gestosc: 9 },
-            alcatraz:     { oprawa: 'zarowka',   barwa: 0xfff8e8, wys: 3.0, rozstaw: 'rozsyp', gestosc: 13 },
+            most:         { oprawa: 'kaganek',   barwa: 0xc8d8ff, wys: 1.7, rozstaw: 'droga',  gestosc: 12 },
+            dom:          { oprawa: 'swieca',    barwa: 0xffc87a, wys: 1.0, rozstaw: 'rozsyp', gestosc: 9 },   // ogień - dom jest na liście bez współczesności
+            alcatraz:     { oprawa: 'pochodnia', barwa: 0xfff8e8, wys: 2.2, rozstaw: 'rozsyp', gestosc: 13 },
             parow:        { oprawa: 'ognisko',   barwa: 0xff5a1a, wys: 0.6, rozstaw: 'rozsyp', gestosc: 15 },
             otchlan:      { oprawa: 'ognisko',   barwa: 0xff3a10, wys: 0.6, rozstaw: 'rozsyp', gestosc: 14 },
             ambush:       { oprawa: 'pochodnia', barwa: 0xffd060, wys: 2.1, rozstaw: 'droga',  gestosc: 16 },
@@ -7854,10 +8091,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             nekropolia:   { oprawa: 'znicz',     barwa: 0x7ad0ff, wys: 0.5, rozstaw: 'rozsyp', gestosc: 15 },
             katedra:      { oprawa: 'swieca',    barwa: 0xffb45a, wys: 1.2, rozstaw: 'rozsyp', gestosc: 11 },
             wyspy:        { oprawa: 'pochodnia', barwa: 0xffc060, wys: 1.9, rozstaw: 'rozsyp', gestosc: 18 },
-            zamiec:       { oprawa: 'latarnia',  barwa: 0xa8c8ff, wys: 3.3, rozstaw: 'rozsyp', gestosc: 17 },
+            zamiec:       { oprawa: 'kaganek',   barwa: 0xa8c8ff, wys: 1.5, rozstaw: 'rozsyp', gestosc: 17 },
             newyork:      { oprawa: 'latarnia',  barwa: 0xffe8b0, wys: 4.0, rozstaw: 'droga',  gestosc: 11 },
             alabama:      { oprawa: 'kaganek',   barwa: 0xffd090, wys: 1.6, rozstaw: 'domy',   gestosc: 14 },
-            wulkan:       { oprawa: 'kaganek',   barwa: 0xff4a20, wys: 1.3, rozstaw: 'rozsyp', gestosc: 12 }
+            wulkan:       { oprawa: 'kaganek',   barwa: 0xff4a20, wys: 1.3, rozstaw: 'rozsyp', gestosc: 12 },
+            // Własna Ostoja: pochodnie na murach i świece w izbach
+            ostoja:       { oprawa: 'pochodnia', barwa: 0xffd8a0, wys: 2.4, rozstaw: 'rozsyp', gestosc: 9 }
         };
 
         // Buduje oprawę opisaną w tabeli. Każdy rodzaj ma własną bryłę i własne
@@ -9272,37 +9511,43 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function paletaOslon() {
             const id = currentCombatTheme ? currentCombatTheme.id : '';
             switch (id) {
-                case 'amazonia':     return ['kloda','kloda','kloda','zywoplot','zywoplot','rock'];
-                case 'bagno':        return ['kloda','kloda','zywoplot','rock'];
-                case 'sahara':       return ['rock','rock','rock','beczka'];
-                case 'wioska':       return ['rock','rock','beczka','kloda','zywoplot'];
-                case 'alabama':      return ['zywoplot','zywoplot','lawka','kosz','kloda','rock'];
+                // Dżungla: paprocie i pnącza niosą ją mocniej niż kłody
+                case 'amazonia':     return ['paproc','paproc','liany','liany','kloda','kloda','grzyby','krzak'];
+                // Bagno to trzciny, próchno i grzyby. Beczka i skrzynia zostają:
+                // to rzeczy wyrzucone na brzeg, a przy okazji jedyne na tej planszy,
+                // które niosą barwny akcent - bez nich bagno robiło się jednolicie zielone.
+                case 'bagno':        return ['trzcina','trzcina','trzcina','paproc','kloda','grzyby','pniak','beczka','skrzynia'];
+                // Pustynia miała SAME kamienie i ani jednego kaktusa
+                case 'sahara':       return ['kaktus','kaktus','kepa','kepa','rock','rock','kosciotrup'];
+                case 'wioska':       return ['rock','krzak','beczka','kloda','zywoplot','kepa'];
+                case 'alabama':      return ['zywoplot','zywoplot','lawka','kosz','kloda','krzak','kepa'];
                 case 'kremlin':
                 case 'whitehouse':
                 case 'zhongnanhai':  return ['lawka','lawka','kosz','kosz','zywoplot','zywoplot','beczka','rock'];
                 case 'pentagon':     return ['beczka','beczka','kosz','rock','rock'];
                 case 'wesole':       return ['beczka','kosz','kosz','lawka','lawka','beczka','zywoplot'];
                 case 'nekropolia':
-                case 'cmentarzysko': return ['nagrobek','nagrobek','nagrobek','rock','kloda'];
+                case 'cmentarzysko': return ['nagrobek','nagrobek','rock','kloda','krzak','grzyby'];
                 case 'wulkan':       return ['rock','rock','rock','rock'];
-                case 'zamiec':       return ['rock','rock','kloda'];
-                case 'powodz':       return ['kloda','kloda','beczka','rock'];
-                case 'wyspy':        return ['rock','rock','kloda','zywoplot'];
+                case 'zamiec':       return ['rock','kloda','pniak','krzak'];
+                case 'powodz':       return ['kloda','trzcina','trzcina','beczka','rock'];
+                case 'wyspy':        return ['rock','trzcina','kloda','krzak','kepa'];
                 // Otchłań: tylko kamień, kości i czarny monolit - nic żywego
                 case 'otchlan':      return ['rock','rock','kosciotrup','obelisk','kosciotrup'];
                 // Wnętrza: żadnych kamieni ani kłód - sprzęty, które tu pasują
                 case 'alcatraz':     return ['regal','regal','skrzynia','beczka','lawka'];
                 case 'dom':          return ['regal','skrzynia','lawka','skrzynia'];
                 case 'most':         return ['skrzynia','beczka','skrzynia'];
-                case 'pozar':        return ['beczka','lawka','kosz','skrzynia','beczka'];
-                case 'pobojowisko':  return ['kosciotrup','wlocznie','sztandar','nagrobek','rock'];
-                case 'jezioro':      return ['kra','kra','rock'];
+                case 'pozar':        return ['beczka','lawka','kosz','skrzynia','pniak'];
+                case 'pobojowisko':  return ['kosciotrup','wlocznie','sztandar','nagrobek','pniak','kepa'];
+                case 'jezioro':      return ['kra','kra','rock','trzcina','trzcina'];
                 case 'studnia':      return ['kosciotrup','beczka','skrzynia','rock'];
                 case 'szpital':      return ['lozko','wozek','kroplowka','regal'];
-                case 'las':          return ['kloda','kloda','rock','zywoplot','kloda'];
+                // Las wreszcie wygląda jak las: podszyt, próchno i grzyby
+                case 'las':          return ['kloda','paproc','paproc','krzak','krzak','grzyby','pniak','rock'];
                 case 'wieza':        return ['regal','skrzynia','lawka'];
                 case 'stacja':       return ['regal','skrzynia','skrzynia','beczka','lawka'];
-                default:             return ['rock','rock','kloda','zywoplot'];
+                default:             return ['rock','kloda','zywoplot','krzak','kepa'];
             }
         }
 
@@ -9310,7 +9555,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Lista bywała uzupełniana ręcznie i zostawała w tyle za nowymi planszami -
         // szpital przez to dostał ściany z kamieni. Test pilnuje jej kompletności.
         const MURY_ZAMIAST_GLAZOW = ['alcatraz', 'stacja', 'cyber', 'katedra', 'newyork',
-                                     'szpital', 'dom', 'wieza', 'studnia', 'most', 'pozar'];
+                                     'szpital', 'dom', 'wieza', 'studnia', 'most', 'pozar',
+                                     // Ostoja: mur obwodowy i izby to budowla, nie rumowisko
+                                     'ostoja'];
 
         // ===== AKCENTY I ZNAKOWANIE REKWIZYTOW =====
         // Lekcja z UFO: scena jest wyciszona, ale siedzi w niej garstka mocno
@@ -10861,6 +11108,164 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         scene.add(pal); obstacleMeshes.push(pal);
                     }
                 }
+                else if (pos.type === 'kaktus') {
+                    // Pustynny kandelabr: trzon i dwa ramiona wygięte do góry
+                    const mat = new THREE.MeshLambertMaterial({ color: 0x4a7a46 });
+                    const wys = 1.1 + Math.random() * 1.0;
+                    const trzon = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, wys, 9), mat);
+                    trzon.position.set(pos.x, ty + wys / 2, pos.z);
+                    scene.add(trzon); obstacleMeshes.push(trzon);
+                    const ramion = Math.floor(Math.random() * 3);
+                    for (let r = 0; r < ramion; r++) {
+                        const str = r === 0 ? 1 : -1;
+                        const h = wys * (0.35 + Math.random() * 0.25);
+                        const poziom = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.12, 0.42, 7), mat);
+                        poziom.rotation.z = Math.PI / 2;
+                        poziom.position.set(pos.x + str * 0.3, ty + wys * 0.5, pos.z);
+                        scene.add(poziom); obstacleMeshes.push(poziom);
+                        const pion = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.12, h, 7), mat);
+                        pion.position.set(pos.x + str * 0.5, ty + wys * 0.5 + h / 2, pos.z);
+                        scene.add(pion); obstacleMeshes.push(pion);
+                    }
+                    // Kwiat na szczycie - rzadko, ale od razu widać
+                    if (Math.random() < 0.25) {
+                        const kwiat = new THREE.Mesh(new THREE.SphereGeometry(0.13, 7, 5),
+                            new THREE.MeshLambertMaterial({ color: 0xd8607a }));
+                        kwiat.position.set(pos.x, ty + wys + 0.08, pos.z);
+                        scene.add(kwiat); obstacleMeshes.push(kwiat);
+                    }
+                }
+                else if (pos.type === 'trzcina') {
+                    // Kępa źdźbeł z brązowymi kolbami - rośnie w wodzie i przy brzegu
+                    const zdzblo = new THREE.MeshLambertMaterial({ color: 0x6f8a4a });
+                    const kolba = new THREE.MeshLambertMaterial({ color: 0x6a4a2a });
+                    const ile = 5 + Math.floor(Math.random() * 5);
+                    for (let k = 0; k < ile; k++) {
+                        const h = 1.0 + Math.random() * 0.9;
+                        const ox = (Math.random() - 0.5) * 0.7, oz = (Math.random() - 0.5) * 0.7;
+                        const t = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, h, 4), zdzblo);
+                        t.position.set(pos.x + ox, ty + h / 2, pos.z + oz);
+                        t.rotation.z = (Math.random() - 0.5) * 0.4;
+                        scene.add(t); obstacleMeshes.push(t);
+                        if (Math.random() < 0.6) {
+                            const kb = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.26, 6), kolba);
+                            kb.position.set(pos.x + ox, ty + h, pos.z + oz);
+                            scene.add(kb); obstacleMeshes.push(kb);
+                        }
+                    }
+                }
+                else if (pos.type === 'paproc') {
+                    // Rozeta pierzastych liści rozchylonych na boki
+                    const mat = new THREE.MeshLambertMaterial({ color: 0x2f5e30 });
+                    const ile = 5 + Math.floor(Math.random() * 4);
+                    for (let k = 0; k < ile; k++) {
+                        const kat = (k / ile) * Math.PI * 2 + Math.random() * 0.4;
+                        const dl = 0.55 + Math.random() * 0.35;
+                        const lisc = new THREE.Mesh(new THREE.BoxGeometry(dl, 0.05, 0.16), mat);
+                        lisc.position.set(pos.x + Math.cos(kat) * dl * 0.45,
+                                          ty + 0.3 + Math.random() * 0.12,
+                                          pos.z + Math.sin(kat) * dl * 0.45);
+                        lisc.rotation.y = kat;
+                        lisc.rotation.z = -0.4 - Math.random() * 0.25;
+                        scene.add(lisc); obstacleMeshes.push(lisc);
+                    }
+                }
+                else if (pos.type === 'krzak') {
+                    // Krzak jagodowy: kilka kul listowia i czerwone owoce
+                    const liscie = new THREE.MeshLambertMaterial({ color: 0x3a6a32 });
+                    const ile = 3 + Math.floor(Math.random() * 3);
+                    for (let k = 0; k < ile; k++) {
+                        const r = 0.26 + Math.random() * 0.17;
+                        const kula = new THREE.Mesh(new THREE.SphereGeometry(r, 7, 6), liscie);
+                        kula.position.set(pos.x + (Math.random() - 0.5) * 0.55,
+                                          ty + r * 0.85 + Math.random() * 0.2,
+                                          pos.z + (Math.random() - 0.5) * 0.55);
+                        scene.add(kula); obstacleMeshes.push(kula);
+                    }
+                    if (Math.random() < 0.55) {
+                        const owoc = new THREE.MeshLambertMaterial({ color: 0xa8303a });
+                        for (let k = 0; k < 4; k++) {
+                            const j = new THREE.Mesh(new THREE.SphereGeometry(0.055, 5, 4), owoc);
+                            j.position.set(pos.x + (Math.random() - 0.5) * 0.6,
+                                           ty + 0.35 + Math.random() * 0.3,
+                                           pos.z + (Math.random() - 0.5) * 0.6);
+                            scene.add(j); obstacleMeshes.push(j);
+                        }
+                    }
+                }
+                else if (pos.type === 'kepa') {
+                    // Kępa suchych traw - niska, nie zasłania, ale łamie pustkę
+                    const barwy = [0x8a8450, 0x9a9060, 0x7a7444];
+                    const mat = new THREE.MeshLambertMaterial({ color: barwy[Math.floor(Math.random() * barwy.length)] });
+                    const ile = 7 + Math.floor(Math.random() * 6);
+                    for (let k = 0; k < ile; k++) {
+                        const h = 0.32 + Math.random() * 0.3;
+                        const t = new THREE.Mesh(new THREE.BoxGeometry(0.05, h, 0.05), mat);
+                        t.position.set(pos.x + (Math.random() - 0.5) * 0.75,
+                                       ty + h / 2,
+                                       pos.z + (Math.random() - 0.5) * 0.75);
+                        t.rotation.z = (Math.random() - 0.5) * 0.9;
+                        t.rotation.x = (Math.random() - 0.5) * 0.9;
+                        scene.add(t); obstacleMeshes.push(t);
+                    }
+                }
+                else if (pos.type === 'grzyby') {
+                    // Kilka kapeluszy na jednym polu - ślad wilgoci i próchna
+                    const trzon = new THREE.MeshLambertMaterial({ color: 0xd8d0b8 });
+                    const czerwony = Math.random() < 0.5;
+                    const kap = new THREE.MeshLambertMaterial({ color: czerwony ? 0xa03028 : 0x7a5a38 });
+                    const ile = 3 + Math.floor(Math.random() * 4);
+                    for (let k = 0; k < ile; k++) {
+                        const h = 0.16 + Math.random() * 0.16;
+                        const ox = (Math.random() - 0.5) * 0.6, oz = (Math.random() - 0.5) * 0.6;
+                        const n = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, h, 6), trzon);
+                        n.position.set(pos.x + ox, ty + h / 2, pos.z + oz);
+                        scene.add(n); obstacleMeshes.push(n);
+                        const c = new THREE.Mesh(new THREE.ConeGeometry(0.13 + Math.random() * 0.05, 0.1, 8), kap);
+                        c.position.set(pos.x + ox, ty + h + 0.04, pos.z + oz);
+                        scene.add(c); obstacleMeshes.push(c);
+                    }
+                }
+                else if (pos.type === 'liany') {
+                    // Pnącza zwisające z góry - dżungla i zarośnięte ruiny
+                    const mat = new THREE.MeshLambertMaterial({ color: 0x3c6b34 });
+                    const ile = 4 + Math.floor(Math.random() * 4);
+                    for (let k = 0; k < ile; k++) {
+                        const dl = 1.4 + Math.random() * 1.6;
+                        const ox = (Math.random() - 0.5) * 0.8, oz = (Math.random() - 0.5) * 0.8;
+                        const p2 = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.03, dl, 5), mat);
+                        p2.position.set(pos.x + ox, ty + 2.6 - dl / 2, pos.z + oz);
+                        p2.rotation.z = (Math.random() - 0.5) * 0.3;
+                        scene.add(p2); obstacleMeshes.push(p2);
+                        // Liść na końcu pnącza
+                        const l = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.04, 0.12), mat);
+                        l.position.set(pos.x + ox, ty + 2.6 - dl, pos.z + oz);
+                        l.rotation.y = Math.random() * Math.PI;
+                        scene.add(l); obstacleMeshes.push(l);
+                    }
+                }
+                else if (pos.type === 'pniak') {
+                    // Pniak po ściętym drzewie, z odłamkami i słojami na przekroju
+                    const kora = new THREE.MeshLambertMaterial({ color: 0x4a3828 });
+                    const h = 0.4 + Math.random() * 0.3;
+                    const r = 0.32 + Math.random() * 0.14;
+                    const p2 = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.12, h, 10), kora);
+                    p2.position.set(pos.x, ty + h / 2, pos.z);
+                    scene.add(p2); obstacleMeshes.push(p2);
+                    const sloje = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.94, r * 0.94, 0.05, 10),
+                        new THREE.MeshLambertMaterial({ color: 0x9a7a52 }));
+                    sloje.position.set(pos.x, ty + h + 0.02, pos.z);
+                    scene.add(sloje); obstacleMeshes.push(sloje);
+                    // Drzazgi sterczące z pniaka - ścinano siekierą, nie piłą
+                    for (let k = 0; k < 2; k++) {
+                        const d = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.3, 0.07), kora);
+                        const kat = Math.random() * Math.PI * 2;
+                        d.position.set(pos.x + Math.cos(kat) * r * 0.6, ty + h + 0.14,
+                                       pos.z + Math.sin(kat) * r * 0.6);
+                        d.rotation.z = (Math.random() - 0.5) * 0.8;
+                        scene.add(d); obstacleMeshes.push(d);
+                    }
+                }
                 else if (pos.type === 'mogila') {
                     // Ziemny kopczyk z krzyżykiem - tak chowano zwykłych ludzi.
                     // Niski, więc widać ponad nim, ale wejść na niego nie sposób.
@@ -11875,7 +12280,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                        atak: 'spider_attack', smierc: 'spider_death', cios: 'spider_hit', wysokosc: 1.0 },
             strzyga: { plik: 'models/strzyga.glb', idle: 'strzyga_idle', walk: 'strzyga_walk',
                        atak: 'strzyga_attack', smierc: 'strzyga_death', cios: 'strzyga_hit',
-                       specjalna: 'strzyga_scream', wysokosc: 1.9 }
+                       specjalna: 'strzyga_scream', wysokosc: 1.9 },
+            // Ludzie Zakonu. Model dochodzi osobno - do tego czasu gra buduje
+            // zastępczą bryłę w kodzie, więc oblężenie działa i bez pliku.
+            // Wystarczy wgrać models/zakonnik.glb z animacjami o tych nazwach.
+            zakonnik:   { plik: 'models/zakonnik.glb', idle: 'zakonnik_idle', walk: 'zakonnik_walk',
+                          atak: 'zakonnik_attack', smierc: 'zakonnik_death', cios: 'zakonnik_hit',
+                          wysokosc: 1.95 },
+            // Inkwizytor to ten sam model, tylko wyższy - dopóki nie dostanie własnego
+            inkwizytor: { plik: 'models/zakonnik.glb', idle: 'zakonnik_idle', walk: 'zakonnik_walk',
+                          atak: 'zakonnik_attack', smierc: 'zakonnik_death', cios: 'zakonnik_hit',
+                          wysokosc: 2.2 }
         };
 
         const wrogModele = {};   // typ -> { proto, klipy, gotowy }
@@ -12312,6 +12727,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         function killUnitWithAnim(unit, poZgonie) {
+            // Śmierć TOWARZYSZA widzą wszyscy - to najmocniejsze źródło zwątpienia.
+            // Wróg ani NPC nie liczą się: nikt nie wątpi, bo padł demon.
+            if (unit && soldiers.indexOf(unit) !== -1 && !unit.isNPC && !unit.isAngel &&
+                !unit.isEscortee && !unit.obudzony && typeof zwatpienieZeSmierci === 'function') {
+                zwatpienieZeSmierci(unit);
+            }
             if (!unit) return;
             unit.isDead = true;
             const m = unit.mesh;
@@ -12878,12 +13299,20 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function clearMissionObjectives() {
             clearMissionObjects();
+            wyczyscZadaniaPlanszy();
             if (missionArtifact && missionArtifact.mesh) scene.remove(missionArtifact.mesh);
             missionArtifact = null;
             escortCivilian = null;
         }
 
+        // Gdy Zakon namierzył Ostoję, następna misja jest przesądzona: nie idziecie
+        // do cudzego snu, tylko bronicie własnego domu.
+        function czyCzasNaOblezenieOstoi() {
+            return !!oblezenieOstoiCzeka && !misjaTestowa;
+        }
+
         function decideMissionType() {
+            if (czyCzasNaOblezenieOstoi()) return 'oblezenie';
             // Standardowa misja pozostaje najczęstsza, reszta urozmaica rozgrywkę
             // Powódź ma własną planszę - typ i motyw są ze sobą związane
             if (currentCombatTheme && currentCombatTheme.id === 'powodz') return 'flood';
@@ -14868,6 +15297,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 zamowienieZiol: zamowienieZiol,
                 kaplicaCwiczen: kaplicaCwiczen, kaplicaOstatniDzien: kaplicaOstatniDzien,
                 telekinezaWyuczona: telekinezaWyuczona, naukaWToku: naukaWToku,
+                // Zwątpienie wojowników przeżywa zapis - to stan kampanii, nie misji
+                zwatpienieDruzyny: recruitedWarriors.map(w => ({ name: w.name, zw: w.zwatpienie || 0 })),
+                // Śledzenie przeżywa zapis; sami audytorzy nie - wracają z Naporem
+                sledzenieZakonu: sledzenieZakonu, oblezenieOstoiCzeka: oblezenieOstoiCzeka,
                 ostojaWspomniana: ostojaWspomniana,
                 skryptoriumOstatni: skryptoriumOstatni, tropArtefaktu: tropArtefaktu,
                 uwiezieniWojownicy: uwiezieniWojownicy.map(w => ({ ...w })),
@@ -14921,6 +15354,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             kaplicaCwiczen = data.kaplicaCwiczen || 0;
             telekinezaWyuczona = !!data.telekinezaWyuczona;
             naukaWToku = data.naukaWToku || null;
+            sledzenieZakonu = data.sledzenieZakonu || 0;
+            oblezenieOstoiCzeka = !!data.oblezenieOstoiCzeka;
+            (data.zwatpienieDruzyny || []).forEach(z => {
+                const w = recruitedWarriors.find(r => r.name === z.name);
+                if (w) w.zwatpienie = z.zw || 0;
+            });
             ostojaWspomniana = !!data.ostojaWspomniana;
             kaplicaOstatniDzien = (data.kaplicaOstatniDzien === undefined) ? -1 : data.kaplicaOstatniDzien;
             skryptoriumOstatni = (data.skryptoriumOstatni === undefined) ? -1 : data.skryptoriumOstatni;
@@ -15020,6 +15459,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // zwierzęta i auta zostają na planszy jako "powidoki", w które nie da się strzelić.
             if (hero) { scene.remove(hero.mesh); hero = null; }
             townNPCs.forEach(n => scene.remove(n.mesh)); townNPCs = [];
+            audytorzy = [];
             sleepingNPCs.forEach(n => scene.remove(n.mesh)); sleepingNPCs = [];
             nightEnemies.forEach(e => scene.remove(e.mesh)); nightEnemies = [];
             clearCloudSea();
@@ -15912,6 +16352,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             dreamPortals.forEach(p => scene.remove(p.mesh)); dreamPortals = [];
             specialNPCs.forEach(n => scene.remove(n.mesh)); specialNPCs = [];
             townNPCs.forEach(n => scene.remove(n.mesh)); townNPCs = [];
+            audytorzy = [];
             pets.forEach(p => scene.remove(p.mesh)); pets = [];
             if (ambulance) { scene.remove(ambulance.mesh); ambulance = null; }
             roadCars.forEach(c => scene.remove(c.mesh)); roadCars = [];
@@ -17043,6 +17484,21 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // (miasteczko rysowane jest w generowaniu przeszkód)
             // AMBUSH: oddział startuje przy krawędzi, a cywil czeka w zabudowaniach
             // na środku planszy - trzeba tam dojść.
+            // OSTOJA: nie przychodzicie tu z zewnątrz - budzicie się u siebie,
+            // pośrodku własnego dziedzińca, a wróg już stoi pod murami.
+            if (currentCombatTheme && currentCombatTheme.id === 'ostoja') {
+                for (let t = 0; t < 600; t++) {
+                    const jx = Math.floor(Math.random() * 11) - 5;
+                    const jz = Math.floor(Math.random() * 11) - 5;
+                    if (!isWithinPlayBounds(jx, jz) || isObstacle(jx, jz)) continue;
+                    // floodStart trzeba ustawić RAZEM z clusterX: niżej jest blok,
+                    // który bez niego przelosowuje punkt startu i oddział budzi się
+                    // na drugim końcu mapy zamiast na własnym dziedzińcu.
+                    floodStart = { x: jx, z: jz }; clusterX = jx; clusterZ = jz;
+                    break;
+                }
+            }
+
             if (currentCombatTheme && currentCombatTheme.id === 'ambush') {
                 const brzeg = (Math.random() < 0.5) ? -offsetZ + 8 : offsetZ - 8;
                 for (let t = 0; t < 1200; t++) {
@@ -17228,6 +17684,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function isSoldierObedient(idx) {
             const s = soldiers[idx];
             if (isSoldierIncapacitated(s)) return false;
+            // Kryzys wiary odbiera posłuszeństwo niezależnie od Charyzmy
+            if (s && s.wKryzysie) return false;
             if (s && s.isEscortee) return true;   // powierzonym cywilem sterujemy zawsze
             if (s && s.summonedTurns > 0) return true;
             if (s && s.isAngel) return false;  // patron walczy samodzielnie - nie da się nim kierować
@@ -18701,6 +19159,68 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return g;
         }
 
+        // Człowiek Zakonu - zastępcza bryła na czas, zanim dojdzie model.
+        // Ciemny habit z kapturem, pas i pochodnia albo kusza; inkwizytor wyższy,
+        // w czerwonej stule. Nie demon: sylwetka ma być ludzka i tym groźniejsza.
+        function createZakonnikMesh(inkwizytor) {
+            const g = new THREE.Group();
+            const habit = new THREE.MeshLambertMaterial({ color: inkwizytor ? 0x2a2026 : 0x332c28 });
+            const skora = new THREE.MeshLambertMaterial({ color: 0xd8b48c });
+            const metal = new THREE.MeshLambertMaterial({ color: 0x6a6a70 });
+            const h = inkwizytor ? 1.12 : 1.0;
+
+            // Habit do ziemi - stożek ścięty, więc postać nie ma nóg: sunie
+            const sukno = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.42, 1.25 * h, 9), habit);
+            sukno.position.y = 0.62 * h; g.add(sukno);
+            const tors = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.42 * h, 0.26), habit);
+            tors.position.y = 1.4 * h; g.add(tors);
+            // Kaptur - twarz w cieniu, widać tylko skrawek
+            const kaptur = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.42, 9), habit);
+            kaptur.position.y = 1.82 * h; g.add(kaptur);
+            const twarz = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 7), skora);
+            twarz.position.set(0, 1.72 * h, 0.07); g.add(twarz);
+            // Pas i pieczęć Zakonu na piersi - po niej się ich poznaje
+            const pas = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.08, 0.3),
+                new THREE.MeshLambertMaterial({ color: 0x4a3828 }));
+            pas.position.y = 1.2 * h; g.add(pas);
+            const pieczec = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.03, 8),
+                new THREE.MeshLambertMaterial({ color: inkwizytor ? 0xb03030 : 0xa08a40 }));
+            pieczec.rotation.x = Math.PI / 2;
+            pieczec.position.set(0, 1.44 * h, 0.15); g.add(pieczec);
+            if (inkwizytor) {
+                // Stuła - dwa czerwone pasy przez pierś
+                [-1, 1].forEach(side => {
+                    const st = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.5 * h, 0.04),
+                        new THREE.MeshLambertMaterial({ color: 0x8a2a2a }));
+                    st.position.set(side * 0.1, 1.42 * h, 0.14); g.add(st);
+                });
+            }
+            // Ręce i to, co w nich: kusza albo pochodnia
+            [-1, 1].forEach(side => {
+                const reka = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.045, 0.6 * h, 5), habit);
+                reka.position.set(side * 0.27, 1.32 * h, 0.06);
+                reka.rotation.z = side * 0.22;
+                reka.rotation.x = -0.4;
+                g.add(reka);
+            });
+            if (inkwizytor) {
+                const drzewce = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.1, 5),
+                    new THREE.MeshLambertMaterial({ color: 0x4a3724 }));
+                drzewce.position.set(0.32, 1.25 * h, 0.14); g.add(drzewce);
+                const plomien = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.3, 6),
+                    new THREE.MeshBasicMaterial({ color: 0xff9a3a, transparent: true, opacity: 0.85,
+                                                  depthWrite: false, blending: THREE.AdditiveBlending }));
+                plomien.position.set(0.32, 1.9 * h, 0.14); g.add(plomien);
+            } else {
+                const loze = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.06, 0.09), metal);
+                loze.position.set(0.1, 1.3 * h, 0.22); g.add(loze);
+                const luk = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.06, 0.42), metal);
+                luk.position.set(0.3, 1.3 * h, 0.22); g.add(luk);
+            }
+            g.userData.yOffset = 0;
+            return g;
+        }
+
         function createZombieMesh() {
             const g = new THREE.Group();
             const fleshMat = new THREE.MeshLambertMaterial({ color: 0x7a8a5e });
@@ -19777,7 +20297,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             bezimienny: 'BEZIMIENNY', bluznierca: 'BLUŹNIERCA', poborca: 'POBORCA',
             oltarznik: 'OŁTARZNIK', roj: 'RÓJ', wydrazony: 'WYDRĄŻONY', gasiciel: 'GASICIEL',
             zalobnica: 'ŻAŁOBNICA',
-            spider_small: 'PAJĄK', spider_big: 'WIELKI PAJĄK', klaun: 'KLAUN', robak: 'ROBAK', general: 'GENERAŁ', femina: 'FEMINA'
+            spider_small: 'PAJĄK', spider_big: 'WIELKI PAJĄK', klaun: 'KLAUN', robak: 'ROBAK', general: 'GENERAŁ', femina: 'FEMINA',
+            zakonnik: 'ZAKONNIK', inkwizytor: 'INKWIZYTOR'
         };
 
         function nazwaWroga(e) {
@@ -20485,13 +21006,19 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // dostępne dopiero od 3 wojowników w oddziale.
             const LANDMARK_THEME_IDS = ['whitehouse', 'pentagon', 'kremlin', 'zhongnanhai'];
             let availableThemes = getMaxSquadSize() >= 3 ? COMBAT_THEMES : COMBAT_THEMES.filter(t => !LANDMARK_THEME_IDS.includes(t.id));
+            // Oblężenie Ostoi nie jest snem do wylosowania - przychodzi tylko wtedy,
+            // gdy Zakon naprawdę ją namierzył.
+            availableThemes = availableThemes.filter(t => t.id !== 'ostoja');
             // Dzwonnica decyduje, jak daleko słyszysz cudze sny - dalsze plansze
             // pozostają poza zasięgiem, dopóki jej nie rozbudujesz.
             const wZasiegu = availableThemes.filter(planszaWZasiegu);
             if (wZasiegu.length > 0) availableThemes = wZasiegu;
             if (availableThemes.length === 0) availableThemes = COMBAT_THEMES; // zabezpieczenie: nigdy nie zostawiaj pustej puli
             const dreamTheme = (pendingDream && !forcedThemeId) ? COMBAT_THEMES.find(t => t.id === pendingDream.themeId) : null;
-            const forced = forcedThemeId ? COMBAT_THEMES.find(t => t.id === forcedThemeId) : dreamTheme;
+            let forced = forcedThemeId ? COMBAT_THEMES.find(t => t.id === forcedThemeId) : dreamTheme;
+            if (czyCzasNaOblezenieOstoi() && !forcedThemeId) {
+                forced = COMBAT_THEMES.find(t => t.id === 'ostoja') || forced;
+            }
             currentCombatTheme = forced || availableThemes[Math.floor(Math.random() * availableThemes.length)];
             // Nowe miejsce na mapie świata - ten sam układ terenu, inna nazwa
             if (currentCombatTheme) {
@@ -20522,6 +21049,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 SoundEngine.musicEnabled ? SoundEngine.windBaseVol * SoundEngine.windVolScale : 0;
             // Powódź to plansza nierozłączna ze swoim celem - bez zamku i wody
             // pozostałe typy misji nie miałyby tu sensu
+            if (currentCombatTheme && currentCombatTheme.id === 'ostoja') currentMissionType = 'oblezenie';
             if (currentCombatTheme && currentCombatTheme.id === 'powodz') currentMissionType = 'flood';
             // Sicario: zadaniem jest zawsze przeprowadzenie cywila przez granicę
             if (currentCombatTheme && currentCombatTheme.id === 'sicario') currentMissionType = 'escort';
@@ -20641,8 +21169,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             rozsnujPajeczyny();
             // Cel misji MUSI być znany przed sadzaniem zasadzki - inaczej nie da się
             // ustawić kryjówek przy trasie, którą gracz naprawdę pójdzie.
+            wczytajZwatpienie();
+            laskaNaStarcieMisji = playerStats.grace || 0;
+            kryzysAktywny = null;
             setupMissionObjectives();
             posadzWZasadzce();
+            // Zadania poboczne po celu głównym - mają leżeć z dala od trasy,
+            // więc muszą wiedzieć, gdzie ta trasa się kończy.
+            rozstawZadania();
             // Obstawa tropu PO celach misji - inaczej podmiana mogła zabrać bossa,
             // na którym stoi warunek zwycięstwa
             dostawObstaweTropu();
@@ -20811,6 +21345,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             })();
             document.getElementById('btn-shield').style.display = isHealerClass ? '' : 'none';
             odswiezPrzyciskTelekinezy();
+            odswiezPrzyciskZadania();
             
             const turnInd = document.getElementById('turn-indicator'); 
             turnInd.innerText = isPlayerTurn ? "TURA GRACZA" : "TURA WROGA"; 
@@ -21119,6 +21654,30 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // wykonywał - misja eskorty startowała bez cywila.
             // OBLĘŻENIE: serce stoi POŚRODKU planszy, oddział dochodzi do niego od krawędzi
             if (currentMissionType === 'oblezenie') {
+                // Na własnym dziedzińcu serce ma swoje miejsce: w kaplicy, a gdy jej
+                // nie wznieśliście - pośrodku dziedzińca, bez dachu nad głową.
+                if (currentCombatTheme && currentCombatTheme.id === 'ostoja') {
+                    const kapl = ostojaIzbyNaPlanszy.find(i => i.id === 'kaplica' && i.poziom > 0);
+                    let hx2 = kapl ? kapl.x : 0, hz2 = kapl ? kapl.z : 0;
+                    if (isObstacle(hx2, hz2)) {
+                        for (let r = 1; r <= 6 && isObstacle(hx2, hz2); r++)
+                            for (let dx = -r; dx <= r && isObstacle(hx2, hz2); dx++)
+                                for (let dz = -r; dz <= r && isObstacle(hx2, hz2); dz++) {
+                                    const nx = (kapl ? kapl.x : 0) + dx, nz = (kapl ? kapl.z : 0) + dz;
+                                    if (isWithinPlayBounds(nx, nz) && !isObstacle(nx, nz)) { hx2 = nx; hz2 = nz; }
+                                }
+                    }
+                    const mH = createHeartPrison('wolne', SINS[0]);
+                    mH.position.set(hx2, getTerrainY(hx2, hz2), hz2);
+                    scene.add(mH);
+                    oblezenieSerce = { x: hx2, z: hz2, mesh: mH };
+                    oblezenieHp = OBLEZENIE_WYTRZYMALOSC + (kapl ? kapl.poziom : 0);
+                    oblezenieAktywne = false;
+                    updateUI(kapl
+                        ? 'Serce Ostoi bije w kaplicy. Mury wytrzymają tyle, ile zdążyliście zbudować.'
+                        : 'Nie macie kaplicy. Serce Ostoi leży na gołym dziedzińcu - brońcie go sobą.');
+                    return;
+                }
                 let sx2 = null, sz2 = null;
                 for (let t = 0; t < 1200; t++) {
                     const cx = Math.floor(Math.random() * 24) - 12;
@@ -22044,6 +22603,22 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     : (missionObjectiveFailed() ? "MISJA NIEUDANA!" : "GAME OVER!");
                 const statsSummary = finalizeMissionCombatStats();
                 let loseText = currentMissionStory ? currentMissionStory.lose : '';
+                // Przegrane oblężenie to nie tylko przegrana misja - Ostoja płonie.
+                // Jedna z izb zostaje zrównana z ziemią i trzeba ją wznieść od nowa.
+                if (currentCombatTheme && currentCombatTheme.id === 'ostoja') {
+                    oblezenieOstoiCzeka = false;
+                    sledzenieZakonu = Math.round(SLEDZENIE_MAX * 0.6);
+                    const stojace = Object.keys(ostoja).filter(k => ostoja[k] > 0);
+                    if (stojace.length) {
+                        const zburzona = stojace[Math.floor(Math.random() * stojace.length)];
+                        ostoja[zburzona] = Math.max(0, ostoja[zburzona] - 1);
+                        const nazwa = (IZBY[zburzona] && IZBY[zburzona].nazwa) || zburzona;
+                        loseText += `\n\nOdeszli dopiero nad ranem. ${nazwa} - zgliszcza. ` +
+                                    'Trzeba ją wznieść od nowa.';
+                    } else {
+                        loseText += '\n\nOstoja stoi pusta. Nie mieli czego palić.';
+                    }
+                }
                 if (statsSummary) loseText += '\n\n' + statsSummary;
                 document.getElementById('game-over-story').innerText = loseText;
                 highlightMesh.visible = false;
@@ -22061,6 +22636,28 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 document.getElementById('game-over-text').innerText = "ZWYCIĘSTWO!";
                 const statsSummary = finalizeMissionCombatStats();
                 let storyText = currentMissionStory ? currentMissionStory.win : '';
+                // Obroniona Ostoja gubi Zakon na długo
+                if (currentCombatTheme && currentCombatTheme.id === 'ostoja') {
+                    oblezenieOstoiCzeka = false;
+                    sledzenieZakonu = 0;
+                    audytorzy.slice().forEach(a => usunAudytora(a, null));
+                    storyText += '\n\nOdparliście szturm. Ci, co uszli, nie wrócą z tą samą pewnością - ' +
+                                 'Zakon stracił trop do Ostoi.';
+                }
+                // Wygrana misja przywraca wiarę - ale nie kasuje jej całkiem
+                ukojCalyOddzial(ZW_ZWYCIESTWO);
+                zapiszZwatpienie();
+                // Zadania poboczne: co udało się zrobić poza samym celem misji
+                const zad = podsumujZadaniaPlanszy();
+                if (zad.wszystkieKapliczki || zad.wszystkieWrota) {
+                    let linie = [];
+                    if (zad.wszystkieKapliczki)
+                        linie.push(`Kapliczki zapalone: ${zad.zapalone}/${zad.wszystkieKapliczki}` +
+                                   (zad.laska ? ` (+${zad.laska} Łaski)` : ''));
+                    if (zad.wszystkieWrota)
+                        linie.push(`Przejścia zamknięte: ${zad.zamkniete}/${zad.wszystkieWrota}`);
+                    storyText += '\n\n' + linie.join('\n');
+                }
                 if (pendingRecruitSlot) {
                     const secretNpc = npcs.find(n => n.isSecretWarrior);
                     if (secretNpc && !secretNpc.isDead) {
@@ -22501,6 +23098,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const b = document.getElementById('btn-telekineza');
             if (b) b.addEventListener('click', (e) => { e.stopPropagation(); telekinezaAction(); });
         })();
+        (function () {
+            const b = document.getElementById('btn-zadanie');
+            if (b) b.addEventListener('click', (e) => { e.stopPropagation(); zadanieAction(); });
+        })();
         document.getElementById('btn-shield').addEventListener('click', shieldAction);
         document.getElementById('btn-end-soldier-turn').addEventListener('click', () => {
             if (gameOver || !isPlayerTurn) return;
@@ -22655,6 +23256,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // [T] telekineza, [Esc] wyjscie z celowania
             if (k === 't' && gameMode === 'dream' && !dialogueOpen && !nameScreenOpen) {
                 e.preventDefault(); telekinezaAction();
+            }
+            // [G] zapal kapliczkę albo zamknij przejście, przy którym stoisz
+            if (k === 'g' && gameMode === 'dream' && !dialogueOpen && !nameScreenOpen) {
+                e.preventDefault(); zadanieAction();
             }
             if (e.key === 'Escape' && trybTelekinezy) {
                 e.preventDefault(); przerwijTelekineze('Telekineza odwołana.');
@@ -23034,7 +23639,293 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             renderHospitalUpper(); // pościel zmienia kolor na "już pomożony"
         }
 
+
+        // ===================== MASKARADA: AUDYTORZY ZAKONU =====================
+        // Zakon nie czeka, aż przyjdziesz po niego do snu. Im grubszy Rejestr, tym
+        // pewniej w miasteczku pojawi się ktoś obcy: Audytor - człowiek Zakonu,
+        // który wtapia się w tłum, wypytuje o nowego przybysza i szuka Ostoi.
+        // Na pierwszy rzut oka nie różni się od mieszkańca. Różni się tym, czego
+        // NIE robi: nigdy nie prosi o pomoc.
+        const AUDYTOR_CO_ILE_H = 20;         // jak często Zakon próbuje kogoś podesłać
+        const AUDYTOR_MAX = 2;               // tylu naraz w mieście
+        const SLEDZENIE_MAX = 100;           // przy tylu Zakon wie, gdzie jest Ostoja
+        const SLEDZENIE_NA_DZIEN = 8;        // tyle dokłada jeden audytor na wolności
+        const AUDYTOR_SABOTAZ_CO_H = 26;     // jak często uderza
+        const DEMASKACJA_MADROSC = 13;       // od tylu Mądrości widać pieczęć
+        let audytorzy = [];                  // { npc, odkryty, odDnia, ostatniSabotaz }
+        let sledzenieZakonu = 0;             // pasek: ile Zakon wie o Ostoi
+        let oblezenieOstoiCzeka = false;     // następna misja to obrona Ostoi
+        let nastepnyAudytorO = null;
+
+        const AUDYTOR_PYTANIA = [
+            'Pytam o nowego w miasteczku. Podobno ktoś się tu sprowadził.',
+            'Szukam pewnego domu. Mówią, że przychodzą tam ludzie po pomoc.',
+            'Ciekawe miejsce. Dużo tu... pobożnych. Zna pan kogoś takiego?',
+            'Nie, dziękuję. Niczego mi nie trzeba. Ja tylko patrzę.'
+        ];
+        const AUDYTOR_TROPY = [
+            'Ten człowiek ma pod płaszczem pieczęć Zakonu, a jego oczy nie mrugają.',
+            'Stoi tu od rana i nie zamienił słowa z nikim. Notuje, kto wchodzi do twojego domu.',
+            'Buty ma czyste, choć od tygodnia pada. Nie przyszedł z żadnej z tutejszych dróg.',
+            'Mówi tutejszym imieniem, ale wymawia je tak, jak zapisano w księdze, nie jak ludzie.'
+        ];
+
+        function czyAudytor(npc) {
+            return !!(npc && npc.audytor);
+        }
+
+        // --- Pojawienie się ---
+        function zaplanujAudytora() {
+            nastepnyAudytorO = czasGry.getTime() + (AUDYTOR_CO_ILE_H * 0.6 + Math.random() * AUDYTOR_CO_ILE_H) * 3600 * 1000;
+        }
+
+        function tikAudytorow() {
+            if (!isExploreMode() || gameMode !== 'present') return;
+            if (typeof townNPCs === 'undefined') return;
+            sprzatnijAudytorow();
+            // 1. Czy Zakon kogoś podsyła
+            if (nastepnyAudytorO === null) { zaplanujAudytora(); return; }
+            if (czasGry.getTime() >= nastepnyAudytorO) {
+                zaplanujAudytora();
+                if (audytorzy.length < AUDYTOR_MAX && Math.random() < naporZakonu() && aktualnyAkt() >= 2) {
+                    podesljAudytora();
+                }
+            }
+            // 2. Ci, którzy chodzą wolno, robią swoje
+            audytorzy.forEach(a => {
+                if (a.odkryty) return;
+                const dni = dzienGry() - a.odDnia;
+                if (dni > a.ostatnieDni) {
+                    a.ostatnieDni = dni;
+                    zwiekszSledzenie(SLEDZENIE_NA_DZIEN);
+                }
+                if (czasGry.getTime() - a.ostatniSabotaz >= AUDYTOR_SABOTAZ_CO_H * 3600 * 1000) {
+                    a.ostatniSabotaz = czasGry.getTime();
+                    sabotazAudytora(a);
+                }
+            });
+        }
+
+        function sprzatnijAudytorow() {
+            audytorzy = audytorzy.filter(a => a.npc && townNPCs.indexOf(a.npc) !== -1);
+        }
+
+        function podesljAudytora() {
+            const hx = hero ? Math.round(hero.mesh.position.x) : 0;
+            const hz = hero ? Math.round(hero.mesh.position.z) : 0;
+            let x = null, z = null;
+            for (let t = 0; t < 300; t++) {
+                const kat = Math.random() * Math.PI * 2;
+                const r = 16 + Math.random() * 26;
+                const nx = Math.round(hx + Math.cos(kat) * r), nz = Math.round(hz + Math.sin(kat) * r);
+                if (!isWithinPlayBounds(nx, nz) || isObstacle(nx, nz)) continue;
+                x = nx; z = nz; break;
+            }
+            if (x === null) return null;
+            // Wygląda jak mieszkaniec: ta sama bryła, ten sam chód, niebieska aura
+            // "zadowolonego". Cała rzecz w tym, żeby nie dało się go odróżnić wzrokiem.
+            const mesh = createCharacter(TOWN_BODY_COLORS[Math.floor(Math.random() * TOWN_BODY_COLORS.length)],
+                                         0xffccaa, 0x442200, 0.95, 'town-npc', true);
+            mesh.position.set(x, getTerrainY(x, z) + mesh.userData.yOffset, z);
+            scene.add(mesh);
+            const npc = {
+                mesh: mesh, aura: addAuraEffect(mesh, 0x66ccff), kind: 'happy',
+                needType: null, helped: false, taskTaken: false,
+                audytor: true,
+                wander: { homeX: x, homeZ: z, state: 'idle', targetX: x, targetZ: z,
+                          waitUntil: performance.now() + 1000 + Math.random() * 3000,
+                          speed: 1.1 + Math.random() * 0.4 }
+            };
+            townNPCs.push(npc);
+            audytorzy.push({ npc: npc, odkryty: false, odDnia: dzienGry(),
+                             ostatnieDni: 0, ostatniSabotaz: czasGry.getTime(), podwojny: false });
+            // Gołębnik ostrzega, że ktoś obcy wszedł do miasta - nie mówi kto
+            if (typeof golebnikOstrzega === 'function' && golebnikOstrzega()) {
+                updateUI('List z Gołębnika: "Ktoś obcy pyta o ciebie w miasteczku. Nie wiemy który."');
+                showFloatingWarning('Obcy w miasteczku');
+            }
+            return npc;
+        }
+
+        // --- Pasek śledzenia ---
+        function zwiekszSledzenie(ile) {
+            const przed = sledzenieZakonu;
+            sledzenieZakonu = Math.min(SLEDZENIE_MAX, sledzenieZakonu + ile);
+            if (przed < 50 && sledzenieZakonu >= 50) {
+                updateUI('Coś jest nie tak. Ludzie patrzą na twój dom dłużej, niż wypada. ' +
+                         'Zakon depcze wam po piętach.');
+                showFloatingWarning('Zakon się zbliża');
+            }
+            if (przed < SLEDZENIE_MAX && sledzenieZakonu >= SLEDZENIE_MAX) {
+                oblezenieOstoiCzeka = true;
+                updateUI('Zakon wie, gdzie jest Ostoja. Następnej nocy przyjdą po was. ' +
+                         'Połóżcie się spać gotowi - obudzicie się na własnym dziedzińcu.');
+                showFloatingWarning('Ostoja namierzona - szykuje się oblężenie');
+            }
+        }
+        function zmniejszSledzenie(ile) {
+            sledzenieZakonu = Math.max(0, sledzenieZakonu - ile);
+        }
+
+        // --- Co robi niezdemaskowany audytor ---
+        function sabotazAudytora(a) {
+            if (a.podwojny) return;        // podwójny agent pracuje dla ciebie
+            const mozliwe = [];
+            if (ostojaBudowa) mozliwe.push('budowa');
+            if (townNPCs.some(n => n.helped && !czyAudytor(n))) mozliwe.push('zdrada');
+            mozliwe.push('trop');
+            const co = mozliwe[Math.floor(Math.random() * mozliwe.length)];
+
+            if (co === 'budowa') {
+                const dni = 1 + Math.floor(Math.random() * 2);
+                ostojaBudowa.gotoweDnia += dni;
+                updateUI(`Pożar w składzie przy Ostoi. Materiały przepadły - prace stoją ` +
+                         `${dni} ${dni === 1 ? 'dzień' : 'dni'} dłużej.`);
+                showFloatingWarning('Sabotaż w Ostoi');
+            } else if (co === 'zdrada') {
+                const pomozeni = townNPCs.filter(n => n.helped && !czyAudytor(n));
+                const ofiara = pomozeni[Math.floor(Math.random() * pomozeni.length)];
+                ofiara.helped = false;
+                ofiara.kind = 'suffering';
+                if (ofiara.aura) ofiara.aura.material.color.set(0x991111);
+                playerStats.grace = Math.max(0, (playerStats.grace || 0) - 5);
+                updatePlayerStatsUI();
+                updateUI('Ktoś szeptał po domach. Człowiek, któremu pomogłeś, odwraca wzrok, ' +
+                         'gdy przechodzisz. (-5 Łaski)');
+                showFloatingWarning('Mieszkaniec odwrócił się od ciebie');
+            } else {
+                zwiekszSledzenie(SLEDZENIE_NA_DZIEN);
+                updateUI('Czyjeś kroki za tobą cichną, gdy się zatrzymujesz. Ktoś notuje twoją drogę.');
+            }
+        }
+
+        // --- Rozpoznanie: co bohater widzi, podchodząc blisko ---
+        function tropAudytora() {
+            const m = getWarriorStat(0, 'madrosc');
+            if (m < DEMASKACJA_MADROSC) return null;
+            return AUDYTOR_TROPY[Math.floor(Math.random() * AUDYTOR_TROPY.length)];
+        }
+
+
+        // --- Przesłuchanie: trzy drogi, każda inna statystyka ---
+        const AUDYTOR_LASKA_ZA_DOKUMENTY = 12;
+
+        function pokazPrzesluchanie(a) {
+            const box = document.getElementById('kryzys-overlay');
+            const tytul = box ? box.querySelector('#stats-panel-title') : null;
+            const tresc = document.getElementById('kryzys-tresc');
+            const lista = document.getElementById('kryzys-lista');
+            if (!box || !tresc || !lista) return;
+            if (tytul) tytul.innerText = 'Audytor Zakonu';
+
+            const sila = getWarriorStat(0, 'silaPsychiczna');
+            const zrec = getWarriorStat(0, 'zrecznosc');
+            const char = getWarriorStat(0, 'charyzma');
+            const szansaWalki = Math.min(92, 30 + (sila - STAT_BASE) * 6 + (zrec - STAT_BASE) * 6);
+            const szansaPrzeciagniecia = Math.min(85, 15 + (char - STAT_BASE) * 10);
+
+            tresc.innerText = 'Człowiek nie ucieka. Odwraca się do ciebie spokojnie, jakby czekał.\n\n' +
+                              '"Długo ci to zajęło."\n\n' +
+                              `Śledzenie Zakonu: ${sledzenieZakonu}/${SLEDZENIE_MAX}.`;
+            lista.innerHTML = '';
+
+            const opcje = [
+                { tytul: `Zatrzymaj go siłą (${szansaWalki}% - Siła psychiczna ${sila}, Zręczność ${zrec})`,
+                  opis: `Uda się: zabierasz jego dokumenty (+${AUDYTOR_LASKA_ZA_DOKUMENTY} Łaski) i ` +
+                        'Zakon traci trop. Nie uda się: wyrywa się i ucieka, a Śledzenie rośnie.',
+                  run: () => {
+                      zamknijOknoKryzysu();
+                      if (Math.random() * 100 < szansaWalki) {
+                          playerStats.grace += AUDYTOR_LASKA_ZA_DOKUMENTY;
+                          updatePlayerStatsUI();
+                          zmniejszSledzenie(25);
+                          usunAudytora(a, 'Przyciskasz go do muru. Pod płaszczem ma pieczęć i zapiski - ' +
+                                          `imiona, adresy, godziny. Zabierasz je. (+${AUDYTOR_LASKA_ZA_DOKUMENTY} Łaski)`);
+                      } else {
+                          zwiekszSledzenie(15);
+                          usunAudytora(a, 'Wyrywa się i znika w zaułku. Zdążył zapamiętać twoją twarz.');
+                      }
+                  } },
+                { tytul: `Przeciągnij go na swoją stronę (${szansaPrzeciagniecia}% - Charyzma ${char})`,
+                  opis: 'Uda się: zostaje podwójnym agentem i myli Zakon - Śledzenie zaczyna spadać. ' +
+                        'Nie uda się: odchodzi i wie, że go rozpoznałeś.',
+                  run: () => {
+                      zamknijOknoKryzysu();
+                      if (Math.random() * 100 < szansaPrzeciagniecia) {
+                          a.podwojny = true;
+                          a.odkryty = true;
+                          updateUI('"Myślisz, że oni mnie oszczędzą, kiedy przestanę być potrzebny?" - ' +
+                                   'pytasz. Milczy długo. Potem kiwa głową. Od dziś będzie pisał to, ' +
+                                   'co mu podyktujesz.');
+                          showFloatingWarning('Audytor przeszedł na twoją stronę');
+                      } else {
+                          zwiekszSledzenie(10);
+                          usunAudytora(a, 'Słucha do końca, a potem odchodzi bez słowa. Wie już, ' +
+                                          'że go rozpoznałeś - i Zakon też się dowie.');
+                      }
+                  } },
+                { tytul: 'Zostaw go',
+                  opis: 'Oszczędzasz czas, ale on dalej chodzi po mieście i robi swoje.',
+                  run: () => { zamknijOknoKryzysu();
+                               updateUI('Mijasz go. Patrzy za tobą, dopóki nie skręcisz.'); } }
+            ];
+
+            opcje.forEach(o => {
+                const b = document.createElement('button');
+                b.className = 'ability-btn';
+                b.innerHTML = `<div class="ability-title">${o.tytul}</div>` +
+                              `<div class="ability-desc">${o.opis}</div>`;
+                b.addEventListener('click', o.run);
+                lista.appendChild(b);
+            });
+            box.style.display = 'flex';
+            dialogueOpen = true;
+        }
+
+        function usunAudytora(a, komunikat) {
+            if (komunikat) updateUI(komunikat);
+            if (a.npc) {
+                scene.remove(a.npc.mesh);
+                const i = townNPCs.indexOf(a.npc);
+                if (i !== -1) townNPCs.splice(i, 1);
+            }
+            audytorzy = audytorzy.filter(x => x !== a);
+        }
+
+        // Podwójny agent myli Zakon - raz na dobę Śledzenie spada
+        function tikPodwojnychAgentow() {
+            audytorzy.forEach(a => {
+                if (!a.podwojny) return;
+                if (a.ostatniRaport === dzienGry()) return;
+                a.ostatniRaport = dzienGry();
+                zmniejszSledzenie(12);
+                updateUI('Twój człowiek w Zakonie wysłał raport. Szukają teraz po drugiej stronie rzeki.');
+            });
+        }
+
         function interactWithTownNPC(npc) {
+            // Audytor nie prosi o pomoc - podejście do niego to przesłuchanie,
+            // o ile bohater w ogóle go przejrzał.
+            if (czyAudytor(npc)) {
+                const a = audytorzy.find(x => x.npc === npc);
+                if (a && a.podwojny) {
+                    speakAt(npc, 'Nic nowego. Szukają na północy, tak jak im napisałem.');
+                    return;
+                }
+                if (a && a.odkryty) { pokazPrzesluchanie(a); return; }
+                const trop = tropAudytora();
+                if (trop) {
+                    if (a) a.odkryty = true;
+                    showFloatingWarning('Rozpoznajesz go');
+                    updateUI(trop);
+                    pokazPrzesluchanie(a);
+                } else {
+                    // Za mało Mądrości, żeby przejrzeć maskaradę - słychać tylko
+                    // dziwne pytania, które sam zadaje.
+                    speakAt(npc, AUDYTOR_PYTANIA[Math.floor(Math.random() * AUDYTOR_PYTANIA.length)]);
+                }
+                return;
+            }
             if (npc.kind === 'happy' || npc.helped) {
                 // Co jakiś czas mieszkaniec zamiast zdawkowego powitania przytacza Pismo
                 if (Math.random() < 0.3) speakAt(npc, losowyCytat());
@@ -23700,6 +24591,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (s.panicTurns <= 0) { s.panicTurns = 0; updateUI(`${s.name} otrząsa się ze strachu.`); }
             });
             advanceFlood();
+            tikZadanPlanszy();
+            tikKryzysuWiary();
             tickAngels();
             tickLevitation();
             tickSummonedObedience();
@@ -26709,6 +27602,646 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return przeniesionych;
         }
 
+
+        // ===================== ZADANIA ROZSIANE PO PLANSZY =====================
+        // Bez nich misja sprowadza się do marszu po najkrótszej linii do celu.
+        // Dwa rodzaje, celowo o przeciwnym charakterze:
+        //   KAPLICZKI - nagradzają za rozejście się po planszy (światło, Łaska),
+        //   WROTA     - karzą za zignorowanie ich (bez końca sypią posiłkami).
+        // Pierwsze są wyborem, drugie przymusem - razem robią z planszy miejsce,
+        // po którym trzeba chodzić.
+
+        const KAPLICZKA_AP = 3;             // koszt zapalenia
+        const KAPLICZKA_PROMIEN = 11;       // zasięg kręgu światła
+        const KAPLICZKA_LASKA = 3;          // Łaska za każdą zapaloną
+        const KAPLICZKA_OBRAZENIA = 2;      // tyle traci nieumarły w kręgu co turę
+        const KAPLICZKA_LECZENIE = 3;       // tyle zdrowia wraca przy kapliczce
+        const KAPLICZKA_LECZENIE_AP = 3;    // koszt modlitwy
+        const KAPLICZKA_MIN = 4, KAPLICZKA_MAX = 6;
+        const KAPLICZKA_ROZSTAW = 26;       // minimalna odległość między kapliczkami
+        const KAPLICZKA_OD_ODDZIALU = 14;
+        // Nieumarli - ich święty krąg parzy. Reszta wrogów go nie czuje.
+        const NIEUMARLI = ['zombie', 'strzyga', 'vampire', 'szkielet', 'upior', 'wisp', 'mara'];
+
+        const WROTA_AP = 4;                 // koszt zamknięcia
+        const WROTA_CO_ILE_TUR = 3;
+        const WROTA_MIN = 2, WROTA_MAX = 3;
+        const WROTA_ROZSTAW = 34;
+        const WROTA_OD_ODDZIALU = 26;
+        const WROTA_LIMIT = 10;             // tylu przyzwanych naraz wystarczy
+
+        let kapliczkiMisji = [];            // { x, z, zapalona, mesh }
+        let wrotaMisji = [];                // { x, z, zamkniete, mesh, nastepny, przyzwanych }
+
+        // Jak wrota wyglądają na danej planszy - ta sama rzecz, inne wcielenie
+        function rodzajWrot() {
+            const id = currentCombatTheme ? currentCombatTheme.id : '';
+            if (['otchlan', 'wulkan', 'parow'].indexOf(id) !== -1) return 'czeluść';
+            if (['cyber', 'pentagon', 'stacja', 'alcatraz', 'szpital'].indexOf(id) !== -1) return 'skażenie';
+            return 'pentagram';
+        }
+        function nazwaWrot() {
+            const r = rodzajWrot();
+            return r === 'czeluść' ? 'Czeluść' : (r === 'skażenie' ? 'Ognisko skażenia' : 'Wrota');
+        }
+
+        function wyczyscZadaniaPlanszy() {
+            kapliczkiMisji.forEach(k => { if (k.mesh) scene.remove(k.mesh); });
+            wrotaMisji.forEach(w => { if (w.mesh) scene.remove(w.mesh); });
+            kapliczkiMisji = [];
+            wrotaMisji = [];
+        }
+
+        // Pole wolne, osiągalne i dostatecznie daleko od już wybranych.
+        // Wymagania luzujemy stopniowo: na ciasnych planszach (most, parów, wyspy)
+        // pełnego rozstawu nie da się dotrzymać i zadania nie powstawały wcale,
+        // a lepsze zadanie bliżej niż żadne.
+        function miejsceNaZadanie(juzWybrane, minRozstaw, odOddzialu) {
+            for (const ulga of [1, 0.6, 0.35, 0.15]) {
+                const m = szukajMiejscaNaZadanie(juzWybrane,
+                                                 Math.round(minRozstaw * ulga),
+                                                 Math.round(odOddzialu * ulga));
+                if (m) return m;
+            }
+            return null;
+        }
+
+        function szukajMiejscaNaZadanie(juzWybrane, minRozstaw, odOddzialu) {
+            const d = soldiers.find(x => !x.isDead && !x.isNPC && x.mesh);
+            for (let t = 0; t < 900; t++) {
+                const x = Math.floor(Math.random() * (mapWidth - 20)) + 10 - offsetX;
+                const z = Math.floor(Math.random() * (mapDepth - 20)) + 10 - offsetZ;
+                if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) continue;
+                if (!isFarFromSquad(x, z, odOddzialu)) continue;
+                // Musi mieć wolne pole obok - inaczej nie da się przy nim stanąć
+                const jestGdzieStanac = [[1,0],[-1,0],[0,1],[0,-1]].some(([dx, dz]) =>
+                    isWithinPlayBounds(x + dx, z + dz) && !isObstacle(x + dx, z + dz));
+                if (!jestGdzieStanac) continue;
+                if (juzWybrane.some(q => Math.hypot(q.x - x, q.z - z) < minRozstaw)) continue;
+                if (d && !findPath(Math.round(d.mesh.position.x), Math.round(d.mesh.position.z), x, z, 0, d)) continue;
+                return { x: x, z: z };
+            }
+            return null;
+        }
+
+        function rozstawZadania() {
+            wyczyscZadaniaPlanszy();
+            if (gameOver) return;
+
+            // --- KAPLICZKI ---
+            const ileK = KAPLICZKA_MIN + Math.floor(Math.random() * (KAPLICZKA_MAX - KAPLICZKA_MIN + 1));
+            for (let i = 0; i < ileK; i++) {
+                const m = miejsceNaZadanie(kapliczkiMisji, KAPLICZKA_ROZSTAW, KAPLICZKA_OD_ODDZIALU);
+                if (!m) break;
+                const mesh = createKapliczka();
+                mesh.position.set(m.x, getTerrainY(m.x, m.z), m.z);
+                // Niezapalona kapliczka stoi ciemna - światło zapala się dopiero przy niej
+                if (mesh.userData.shrineLight) mesh.userData.shrineLight.intensity = 0;
+                scene.add(mesh);
+                kapliczkiMisji.push({ x: m.x, z: m.z, zapalona: false, uleczyla: false, mesh: mesh });
+                if (obstacleGrid[m.x + offsetX][m.z + offsetZ] === null)
+                    obstacleGrid[m.x + offsetX][m.z + offsetZ] = { type: 'kapliczka', x: m.x, z: m.z };
+            }
+
+            // --- WROTA ---
+            const ileW = WROTA_MIN + Math.floor(Math.random() * (WROTA_MAX - WROTA_MIN + 1));
+            for (let i = 0; i < ileW; i++) {
+                const m = miejsceNaZadanie(wrotaMisji.concat(kapliczkiMisji), WROTA_ROZSTAW, WROTA_OD_ODDZIALU);
+                if (!m) break;
+                const mesh = zbudujWrota(rodzajWrot());
+                mesh.position.set(m.x, getTerrainY(m.x, m.z) + 0.02, m.z);
+                scene.add(mesh);
+                wrotaMisji.push({ x: m.x, z: m.z, zamkniete: false, mesh: mesh,
+                                  nastepny: combatTurnCounter + WROTA_CO_ILE_TUR, przyzwanych: 0 });
+                if (obstacleGrid[m.x + offsetX][m.z + offsetZ] === null)
+                    obstacleGrid[m.x + offsetX][m.z + offsetZ] = { type: 'wrota', x: m.x, z: m.z };
+            }
+            if (wrotaMisji.length) {
+                updateUI(`Na planszy tli się ${wrotaMisji.length} ${wrotaMisji.length === 1 ? 'przejście' : 'przejścia'} ` +
+                         `dla Złego. Póki są otwarte, wróg będzie nadchodził bez końca.`);
+            }
+        }
+
+        function zbudujWrota(rodzaj) {
+            const g = new THREE.Group();
+            const barwa = rodzaj === 'skażenie' ? 0x6aff9a : (rodzaj === 'czeluść' ? 0xff4a10 : 0xaa2222);
+            // Krąg na ziemi - wspólny dla wszystkich wcieleń
+            const krag = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.25, 0.06, 20),
+                new THREE.MeshBasicMaterial({ color: barwa, transparent: true, opacity: 0.45 }));
+            krag.position.y = 0.03;
+            g.add(krag);
+            if (rodzaj === 'pentagram') {
+                // Pięć ramion gwiazdy
+                for (let k = 0; k < 5; k++) {
+                    const r = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.04, 0.09),
+                        new THREE.MeshBasicMaterial({ color: barwa }));
+                    r.position.y = 0.07;
+                    r.rotation.y = k * (Math.PI * 2 / 5) + 0.3;
+                    g.add(r);
+                }
+            } else if (rodzaj === 'czeluść') {
+                const dziura = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.3, 0.5, 14),
+                    new THREE.MeshBasicMaterial({ color: 0x1a0a04 }));
+                dziura.position.y = -0.2;
+                g.add(dziura);
+                const zar = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.08, 14),
+                    new THREE.MeshBasicMaterial({ color: barwa, transparent: true, opacity: 0.8 }));
+                zar.position.y = 0.05;
+                g.add(zar);
+            } else {
+                // Skażenie: beczka z wyciekiem
+                const beczka = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 1.0, 10),
+                    new THREE.MeshLambertMaterial({ color: 0x4a5a3a }));
+                beczka.position.y = 0.5;
+                beczka.rotation.z = 0.5;
+                g.add(beczka);
+            }
+            // Słup światła - widać go z daleka, to on mówi "tu trzeba podejść"
+            const slup = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.9, 5.0, 12, 1, true),
+                new THREE.MeshBasicMaterial({ color: barwa, transparent: true, opacity: 0.16,
+                                              depthWrite: false, side: THREE.DoubleSide }));
+            slup.position.y = 2.5;
+            g.add(slup);
+            const sw = new THREE.PointLight(barwa, 1.6, 14, 1.6);
+            sw.position.y = 1.0;
+            g.add(sw);
+            g.userData.wrotaSwiatlo = sw;
+            g.userData.wrotaSlup = slup;
+            return g;
+        }
+
+        // --- Co stoi obok aktywnego wojownika ---
+        function zadanieObok(s) {
+            if (!s || s.isDead || !s.mesh) return null;
+            const x = Math.round(s.mesh.position.x), z = Math.round(s.mesh.position.z);
+            const blisko = (q) => Math.max(Math.abs(q.x - x), Math.abs(q.z - z)) <= 1;
+            const w = wrotaMisji.find(q => !q.zamkniete && blisko(q));
+            if (w) return { rodzaj: 'wrota', cel: w };
+            const k = kapliczkiMisji.find(q => !q.zapalona && blisko(q));
+            if (k) return { rodzaj: 'kapliczka', cel: k };
+            // Przy ZAPALONEJ kapliczce można się pomodlić o zdrowie - raz na kapliczkę.
+            // Niezapalona nic nie da: najpierw trzeba ją rozpalić.
+            const u = kapliczkiMisji.find(q => q.zapalona && !q.uleczyla && blisko(q));
+            if (u && s.hp < (s.maxHp || 10)) return { rodzaj: 'modlitwa', cel: u };
+            return null;
+        }
+
+        // Przy kapliczce wojownik klęka i się modli - ta sama animacja, od której
+        // zaczyna się każda umiejętność duchowa i przywołanie patrona.
+        function uklaknijDoModlitwy(s) {
+            if (!s || !s.mesh) return;
+            // 'pray' zawiera i klęknięcie, i modlitwę - to dokładnie ten klip,
+            // który gra przy przywołaniu patrona.
+            if (typeof playWarriorAnimAny === 'function')
+                playWarriorAnimAny(s.mesh, ['pray'], true);
+        }
+
+        function zadanieAction() {
+            if (gameOver || !isPlayerTurn) return;
+            const s = getActiveSoldier();
+            if (!s || s.isDead || s.nieprzytomny) return;
+            if (s.turnEnded) { updateUI('Ten wojownik zakończył już ruch w tej turze.'); return; }
+            const z = zadanieObok(s);
+            if (!z) { updateUI('Nie stoisz przy kapliczce ani przy wrotach.'); return; }
+
+            if (z.rodzaj === 'kapliczka') {
+                if (s.ap < KAPLICZKA_AP) { updateUI(`Za mało punktów ruchu (potrzeba ${KAPLICZKA_AP}).`); return; }
+                s.ap -= KAPLICZKA_AP;
+                uklaknijDoModlitwy(s);
+                zapalKapliczke(z.cel, s);
+            } else if (z.rodzaj === 'modlitwa') {
+                if (s.ap < KAPLICZKA_LECZENIE_AP) { updateUI(`Za mało punktów ruchu (potrzeba ${KAPLICZKA_LECZENIE_AP}).`); return; }
+                s.ap -= KAPLICZKA_LECZENIE_AP;
+                uklaknijDoModlitwy(s);
+                pomodlSieUKapliczki(z.cel, s);
+            } else {
+                if (s.ap < WROTA_AP) { updateUI(`Za mało punktów ruchu (potrzeba ${WROTA_AP}).`); return; }
+                s.ap -= WROTA_AP;
+                zamknijWrota(z.cel, s);
+            }
+            odswiezPrzyciskZadania();
+            if (typeof updateUI === 'function') updatePlayerStatsUI();
+        }
+
+        function zapalKapliczke(k, s) {
+            k.zapalona = true;
+            if (k.mesh && k.mesh.userData.shrineLight) k.mesh.userData.shrineLight.intensity = 2.6;
+            // Krąg światła odsłania mgłę na stałe - kapliczka świeci do końca misji
+            for (let dx = -KAPLICZKA_PROMIEN; dx <= KAPLICZKA_PROMIEN; dx++)
+                for (let dz = -KAPLICZKA_PROMIEN; dz <= KAPLICZKA_PROMIEN; dz++) {
+                    if (dx * dx + dz * dz > KAPLICZKA_PROMIEN * KAPLICZKA_PROMIEN) continue;
+                    const mx = k.x + dx + offsetX, mz = k.z + dz + offsetZ;
+                    if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
+                    exploredGrid[mx][mz] = 1;
+                }
+            updateFoW();
+            // Zapalona kapliczka koi cały oddział - to widok, nie tylko światło
+            if (typeof ukojCalyOddzial === 'function') ukojCalyOddzial(ZW_KAPLICZKA);
+            showFloatingWarning('Kapliczka zapłonęła');
+            const zostalo = kapliczkiMisji.filter(q => !q.zapalona).length;
+            updateUI(`${s.name} zapala kapliczkę. Krąg światła sięga ${KAPLICZKA_PROMIEN} pól - ` +
+                     `nieumarli, którzy w niego wejdą, będą się palić. ` +
+                     (zostalo ? `Zostało ${zostalo}.` : 'To była ostatnia na tej planszy.'));
+            if (typeof playFileSfx === 'function' && typeof AudioFiles !== 'undefined')
+                try { playFileSfx(AudioFiles.heal, 0.6); } catch (e) {}
+        }
+
+        // Modlitwa przy zapalonej kapliczce: wraca trochę zdrowia, ale tylko raz
+        // na kapliczkę. Inaczej jedna kapliczka leczyłaby cały oddział bez końca
+        // i rany przestałyby cokolwiek znaczyć.
+        function pomodlSieUKapliczki(k, s) {
+            const max = s.maxHp || 10;
+            const przed = s.hp;
+            s.hp = Math.min(max, s.hp + KAPLICZKA_LECZENIE);
+            k.uleczyla = true;
+            const odzyskane = s.hp - przed;
+            if (k.mesh && k.mesh.userData.shrineLight) {
+                // Krótki rozbłysk - widać, że kapliczka oddała, co miała
+                const sw = k.mesh.userData.shrineLight;
+                const bylo = sw.intensity;
+                sw.intensity = bylo * 2.2;
+                setTimeout(() => { sw.intensity = bylo; }, 450);
+            }
+            if (typeof ukojZwatpienie === 'function') ukojZwatpienie(s, ZW_MODLITWA);
+            showFloatingWarning(`+${odzyskane} życia`);
+            updateUI(`${s.name} modli się przy kapliczce i odzyskuje ${odzyskane} ` +
+                     `${odzyskane === 1 ? 'punkt' : 'punkty'} życia (${s.hp}/${max}). ` +
+                     'Ta kapliczka oddała już swoje.');
+            if (typeof playFileSfx === 'function' && typeof AudioFiles !== 'undefined')
+                try { playFileSfx(AudioFiles.heal, 0.7); } catch (e) {}
+            if (typeof updateHealthBars === 'function') updateHealthBars();
+        }
+
+        function zamknijWrota(w, s) {
+            w.zamkniete = true;
+            if (w.mesh) {
+                if (w.mesh.userData.wrotaSwiatlo) w.mesh.userData.wrotaSwiatlo.intensity = 0;
+                if (w.mesh.userData.wrotaSlup) w.mesh.userData.wrotaSlup.visible = false;
+                w.mesh.children.forEach(c => {
+                    if (c.material && c.material.transparent) c.material.opacity *= 0.3;
+                });
+            }
+            const mx = w.x + offsetX, mz = w.z + offsetZ;
+            if (obstacleGrid[mx] && obstacleGrid[mx][mz] && obstacleGrid[mx][mz].type === 'wrota')
+                obstacleGrid[mx][mz] = null;
+            showFloatingWarning(nazwaWrot() + ' zamknięte');
+            const zostalo = wrotaMisji.filter(q => !q.zamkniete).length;
+            updateUI(`${s.name} zamyka przejście. ` +
+                     (zostalo ? `Otwarte zostają jeszcze ${zostalo}.` : 'Żadne już się nie otworzy - posiłki nie nadejdą.'));
+            if (typeof SoundEngine !== 'undefined' && SoundEngine.playHit) SoundEngine.playHit();
+        }
+
+        // Co turę: otwarte wrota sypią posiłkami, a święty krąg parzy nieumarłych
+        function tikZadanPlanszy() {
+            if (gameOver) return;
+            // --- Kapliczki ---
+            const zapalone = kapliczkiMisji.filter(k => k.zapalona);
+            if (zapalone.length) {
+                enemies.forEach(e => {
+                    if (e.isDead || !e.mesh || e.wZasadzce) return;
+                    if (NIEUMARLI.indexOf(e.type) === -1) return;
+                    const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
+                    const wKregu = zapalone.some(k => Math.hypot(k.x - ex, k.z - ez) <= KAPLICZKA_PROMIEN);
+                    if (!wKregu) return;
+                    e.hp -= KAPLICZKA_OBRAZENIA;
+                    if (e.hp <= 0) {
+                        e.isDead = true;
+                        scene.remove(e.mesh);
+                        if (typeof releaseHypnotized === 'function') releaseHypnotized(e);
+                        refreshEnemyPositions();
+                        updateUI('Nieumarły rozsypuje się w kręgu światła.');
+                    }
+                });
+                checkGameOver();
+            }
+            // --- Wrota ---
+            const otwarte = wrotaMisji.filter(w => !w.zamkniete);
+            if (!otwarte.length) return;
+            const zywych = enemies.filter(e => !e.isDead).length;
+            otwarte.forEach(w => {
+                if (combatTurnCounter < w.nastepny) return;
+                w.nastepny = combatTurnCounter + WROTA_CO_ILE_TUR;
+                if (zywych >= WROTA_LIMIT + 8) return;       // na planszy i tak już ciasno
+                if (w.przyzwanych >= WROTA_LIMIT) return;
+                let spot = null;
+                for (let t = 0; t < 40 && !spot; t++) {
+                    const nx = w.x + Math.floor(Math.random() * 5) - 2;
+                    const nz = w.z + Math.floor(Math.random() * 5) - 2;
+                    if (!isWithinPlayBounds(nx, nz) || !canStandAt(nx, nz, 0)) continue;
+                    if (isUnitAtLevel(nx, nz, 0, null)) continue;
+                    spot = [nx, nz];
+                }
+                if (!spot) return;
+                const p2 = wylosujPosilek();
+                const mesh = p2.budowa();
+                if (!mesh) return;
+                mesh.position.set(spot[0], getLevelY(spot[0], spot[1], 0) + (mesh.userData.yOffset || 0), spot[1]);
+                scene.add(mesh);
+                enemies.push({ mesh: mesh, type: p2.typ, hp: p2.hp, maxHp: p2.hp, ap: p2.ap, maxAp: p2.ap,
+                               accuracyBonus: 0, isDead: false, facingAngle: 0, level: 0,
+                               gatunek: p2.gatunek, zWrot: true });
+                w.przyzwanych++;
+                if (typeof noteEnemyEncountered === 'function') noteEnemyEncountered(p2.typ);
+                refreshEnemyPositions();
+                updateFoW();
+                updateUI(`Z przejścia wychodzi ${typeof nazwaWroga === 'function' ? nazwaWroga(p2.typ) : 'wróg'}!`);
+            });
+        }
+
+        function odswiezPrzyciskZadania() {
+            const b = document.getElementById('btn-zadanie');
+            if (!b) return;
+            const s = getActiveSoldier();
+            const z = (isPlayerTurn && !gameOver) ? zadanieObok(s) : null;
+            b.style.display = z ? '' : 'none';
+            if (!z) return;
+            if (z.rodzaj === 'kapliczka') {
+                b.innerText = `Zapal kapliczkę (${KAPLICZKA_AP} PA)`;
+                b.style.borderColor = '#ffcc66';
+            } else if (z.rodzaj === 'modlitwa') {
+                b.innerText = `Módl się (+${KAPLICZKA_LECZENIE} życia, ${KAPLICZKA_LECZENIE_AP} PA)`;
+                b.style.borderColor = '#88dd99';
+            } else {
+                b.innerText = `Zamknij ${nazwaWrot().toLowerCase()} (${WROTA_AP} PA)`;
+                b.style.borderColor = '#cc5555';
+            }
+        }
+
+        // Podsumowanie po misji - ile udało się zrobić poza samym celem
+        function podsumujZadaniaPlanszy() {
+            const zapalone = kapliczkiMisji.filter(k => k.zapalona).length;
+            const zamkniete = wrotaMisji.filter(w => w.zamkniete).length;
+            const laska = zapalone * KAPLICZKA_LASKA;
+            if (laska > 0) playerStats.grace += laska;
+            return { zapalone: zapalone, wszystkieKapliczki: kapliczkiMisji.length,
+                     zamkniete: zamkniete, wszystkieWrota: wrotaMisji.length, laska: laska };
+        }
+
+
+        // ===================== KRYZYS WIARY =====================
+        // Samowola z niskiej Charyzmy mówi, KTO nie słucha rozkazów. Kryzys wiary
+        // mówi, DLACZEGO: wojownik, który raz po raz wpada w panikę, patrzy na
+        // śmierć towarzyszy i widzi, jak Łaska topnieje, zaczyna wątpić w sens
+        // tego, co robi. Zwątpienie narasta przez całą kampanię, nie tylko w misji.
+        const ZWATPIENIE_PROG = 60;        // od tylu punktów zaczyna się kryzys
+        const ZWATPIENIE_MAX = 100;
+        const KRYZYS_TUR_DO_UCIECZKI = 3;  // tyle tur na rozmowę, zanim odejdzie sam
+        // Skąd bierze się zwątpienie
+        const ZW_PANIKA = 15;
+        const ZW_SMIERC_TOWARZYSZA = 25;
+        const ZW_CIEZKA_RANA = 12;         // gdy spadnie poniżej jednej trzeciej życia
+        const ZW_SPADEK_LASKI = 10;        // gdy Łaska drastycznie spada
+        const LASKA_SPADEK_PROG = 15;      // o tyle musi spaść, żeby to poczuli
+        // Co je koi
+        const ZW_KAPLICZKA = 20;
+        const ZW_MODLITWA = 10;
+        const ZW_ZWYCIESTWO = 25;
+        const ZW_CWICZENIE = 15;
+
+        let kryzysAktywny = null;          // { s, tura } - trwający kryzys do rozegrania
+        let laskaNaStarcieMisji = null;    // do wykrycia drastycznego spadku
+
+        function zwatpienieOf(s) { return (s && s.zwatpienie) || 0; }
+
+        // Charyzma bohatera trzyma ludzi razem - im wyższa, tym wolniej narasta
+        // zwątpienie. To jedyne miejsce, w którym Charyzma działa poza samowolą.
+        function tlumienieZwatpienia() {
+            const ch = (typeof getWarriorStat === 'function') ? getWarriorStat(0, 'charyzma') : STAT_BASE;
+            return Math.max(0.4, 1 - Math.max(0, ch - STAT_BASE) * 0.07);
+        }
+
+        function dodajZwatpienie(s, ile, powod) {
+            if (!s || s.isDead || s.isNPC || s.isAngel || s.isEscortee) return;
+            if (s === soldiers[0]) return;          // bohater nie wątpi - to jego sen
+            if (s.wKryzysie) return;                // już wątpi, nie nakładamy drugi raz
+            const przed = zwatpienieOf(s);
+            s.zwatpienie = Math.min(ZWATPIENIE_MAX, przed + Math.round(ile * tlumienieZwatpienia()));
+            if (s.zwatpienie >= ZWATPIENIE_PROG && przed < ZWATPIENIE_PROG) {
+                zacznijKryzys(s, powod);
+            }
+        }
+
+        function ukojZwatpienie(s, ile) {
+            if (!s) return;
+            s.zwatpienie = Math.max(0, zwatpienieOf(s) - ile);
+        }
+        function ukojCalyOddzial(ile) {
+            soldiers.forEach(s => { if (!s.isNPC && !s.isAngel) ukojZwatpienie(s, ile); });
+        }
+
+        // --- Powody ---
+        function zwatpienieZPaniki(s) { dodajZwatpienie(s, ZW_PANIKA, 'panika'); }
+        function zwatpienieZeSmierci(polegly) {
+            soldiers.forEach(s => {
+                if (s === polegly || s.isDead) return;
+                dodajZwatpienie(s, ZW_SMIERC_TOWARZYSZA, 'smierc');
+            });
+        }
+        function zwatpienieZRany(s) {
+            const max = s.maxHp || 10;
+            if (s.hp > max / 3) { s.__bylCiezkoRanny = false; return; }
+            if (s.__bylCiezkoRanny) return;          // liczymy RAZ na zejście poniżej progu
+            s.__bylCiezkoRanny = true;
+            dodajZwatpienie(s, ZW_CIEZKA_RANA, 'rana');
+        }
+        function zwatpienieZLaski() {
+            if (laskaNaStarcieMisji === null) return;
+            const teraz = playerStats.grace || 0;
+            if (laskaNaStarcieMisji - teraz < LASKA_SPADEK_PROG) return;
+            laskaNaStarcieMisji = teraz;             // liczymy raz na każdy próg
+            soldiers.forEach(s => dodajZwatpienie(s, ZW_SPADEK_LASKI, 'laska'));
+        }
+
+        // --- Początek kryzysu ---
+        function zacznijKryzys(s, powod) {
+            s.wKryzysie = true;
+            s.kryzysTura = combatTurnCounter;
+            s.kryzysPowod = powod || 'panika';
+            s.turnEnded = true;                      // odmawia walki od razu
+            s.ap = 0;
+            kryzysAktywny = { s: s, tura: combatTurnCounter };
+            showFloatingWarning(`${s.name} opuszcza broń`);
+            updateUI(`${s.name} przestaje walczyć. Patrzy przed siebie i nie słucha rozkazów. ` +
+                     `Masz ${KRYZYS_TUR_DO_UCIECZKI} tury, żeby z nim pomówić - potem odejdzie sam.`);
+        }
+
+        const KRYZYS_SLOWA = {
+            panika:  'Ile razy mam jeszcze uciekać? Za każdym razem mówisz, że to ostatni sen.',
+            smierc:  'Widziałem, jak zginął. Za co? Za czyjś sen, którego nawet nie znamy.',
+            rana:    'Krew mi leci, a ty mówisz "jeszcze jedno pole". Nie jestem narzędziem.',
+            laska:   'Łaska topnieje w oczach. Jeśli On nas opuścił, to po co to wszystko?'
+        };
+
+        function pokazKryzys(s) {
+            if (!s || s.isDead) { kryzysAktywny = null; return; }
+            const box = document.getElementById('kryzys-overlay');
+            const tresc = document.getElementById('kryzys-tresc');
+            const lista = document.getElementById('kryzys-lista');
+            if (!box || !tresc || !lista) return;
+            const slowa = KRYZYS_SLOWA[s.kryzysPowod] || KRYZYS_SLOWA.panika;
+            const ch = getWarriorStat(0, 'charyzma');
+            const szansa = Math.min(90, 35 + (ch - STAT_BASE) * 9);
+            tresc.innerText = `${s.name} opuścił broń i patrzy na ciebie.\n\n"${slowa}"\n\n` +
+                              `Zwątpienie: ${zwatpienieOf(s)}/${ZWATPIENIE_MAX}. ` +
+                              `Jeśli nie znajdziesz dla niego słów, za ${KRYZYS_TUR_DO_UCIECZKI} tury ` +
+                              `odejdzie ze snu na własną rękę.`;
+            lista.innerHTML = '';
+
+            const opcje = [
+                { tytul: `Przemów mu do rozumu (${szansa}% - Charyzma ${ch})`,
+                  opis: 'Uda się: wraca do walki i zwątpienie znika. Nie uda się: zostaje przy swoim.',
+                  run: () => {
+                      if (Math.random() * 100 < szansa) {
+                          zakonczKryzys(s, true);
+                          updateUI(`${s.name} słucha. Podnosi broń. "Jeszcze ten jeden sen."`);
+                      } else {
+                          zamknijOknoKryzysu();
+                          updateUI(`${s.name} kręci głową. Twoje słowa się go nie imają.`);
+                      }
+                  } },
+                { tytul: 'Rozkaż mu walczyć',
+                  opis: 'Posłucha od razu, ale zwątpienie zostaje i wróci na następnej misji.',
+                  run: () => {
+                      s.wKryzysie = false;
+                      s.zwatpienie = ZWATPIENIE_PROG - 1;   // tuż pod progiem - wróci
+                      s.turnEnded = false;
+                      s.ap = getEffectiveMaxAp(s);
+                      zamknijOknoKryzysu();
+                      showFloatingWarning(`${s.name} wraca do szeregu`);
+                      updateUI(`${s.name} bierze broń bez słowa. Posłuchał rozkazu, ale nie uwierzył.`);
+                  } },
+                { tytul: 'Módl się z nim',
+                  opis: `Kosztuje ${KRYZYS_MODLITWA_LASKA} Łaski. Zawsze skutkuje - ` +
+                        'zwątpienie znika całkiem.',
+                  zablokowana: (playerStats.grace || 0) < KRYZYS_MODLITWA_LASKA,
+                  run: () => {
+                      playerStats.grace -= KRYZYS_MODLITWA_LASKA;
+                      zakonczKryzys(s, true);
+                      if (s.mesh && typeof playWarriorAnimAny === 'function')
+                          playWarriorAnimAny(s.mesh, ['pray'], true);
+                      if (soldiers[0] && soldiers[0].mesh && typeof playWarriorAnimAny === 'function')
+                          playWarriorAnimAny(soldiers[0].mesh, ['pray'], true);
+                      updateUI(`Klękacie razem. ${s.name} wstaje spokojny. Zwątpienie odeszło.`);
+                      updatePlayerStatsUI();
+                  } },
+                { tytul: 'Pozwól mu odejść',
+                  opis: 'Wybudza się natychmiast. Żyje, ale ta misja toczy się bez niego.',
+                  run: () => {
+                      zamknijOknoKryzysu();
+                      s.wKryzysie = false;
+                      updateUI(`${s.name} odwraca się i rusza ku mgle. Nie zatrzymujesz go.`);
+                      wyjdzZeSnuWojownik(s);
+                  } }
+            ];
+
+            opcje.forEach(o => {
+                const b = document.createElement('button');
+                b.className = 'ability-btn';
+                b.innerHTML = `<div class="ability-title">${o.tytul}</div>` +
+                              `<div class="ability-desc">${o.opis}</div>`;
+                b.disabled = !!o.zablokowana;
+                if (o.zablokowana) b.style.opacity = '0.45';
+                else b.addEventListener('click', o.run);
+                lista.appendChild(b);
+            });
+            box.style.display = 'flex';
+            dialogueOpen = true;
+        }
+
+        const KRYZYS_MODLITWA_LASKA = 5;
+
+        function zamknijOknoKryzysu() {
+            const box = document.getElementById('kryzys-overlay');
+            if (box) box.style.display = 'none';
+            dialogueOpen = false;
+        }
+
+        function zakonczKryzys(s, calkiem) {
+            zamknijOknoKryzysu();
+            if (!s) return;
+            s.wKryzysie = false;
+            s.zwatpienie = calkiem ? 0 : Math.max(0, zwatpienieOf(s) - 30);
+            s.turnEnded = false;
+            s.ap = getEffectiveMaxAp(s);
+            kryzysAktywny = null;
+            showFloatingWarning(`${s.name} wraca do walki`);
+            if (typeof odswiezPanel === 'function') odswiezPanel();
+        }
+
+        // Co turę: kryzys dojrzewa, a nierozegrany kończy się odejściem
+        function tikKryzysuWiary() {
+            if (gameOver) return;
+            zwatpienieZLaski();
+            soldiers.forEach(s => { if (!s.isDead && !s.isNPC) zwatpienieZRany(s); });
+            const wKryzysie = soldiers.filter(s => s.wKryzysie && !s.isDead);
+            wKryzysie.forEach(s => {
+                s.turnEnded = true; s.ap = 0;        // dopóki trwa, nie walczy
+                if (combatTurnCounter - s.kryzysTura >= KRYZYS_TUR_DO_UCIECZKI) {
+                    s.wKryzysie = false;
+                    if (kryzysAktywny && kryzysAktywny.s === s) { zamknijOknoKryzysu(); kryzysAktywny = null; }
+                    updateUI(`${s.name} nie doczekał się słowa. Rusza ku mgle i wybudza się sam.`);
+                    wyjdzZeSnuWojownik(s);
+                }
+            });
+            // Okno pokazujemy na początku tury gracza, nie w środku animacji
+            if (kryzysAktywny && kryzysAktywny.s && !kryzysAktywny.s.isDead &&
+                kryzysAktywny.s.wKryzysie && isPlayerTurn) {
+                pokazKryzys(kryzysAktywny.s);
+            }
+        }
+
+        // Zwątpienie przeżywa misję: wraca na wojowniku w kolejnym śnie
+        function zapiszZwatpienie() {
+            soldiers.forEach((s, i) => {
+                if (i === 0 || s.isNPC || s.isAngel || s.isEscortee) return;
+                const w = recruitedWarriors.find(r => r.name === s.name);
+                if (w) w.zwatpienie = zwatpienieOf(s);
+            });
+        }
+        function wczytajZwatpienie() {
+            soldiers.forEach((s, i) => {
+                if (i === 0) return;
+                const w = recruitedWarriors.find(r => r.name === s.name);
+                s.zwatpienie = (w && w.zwatpienie) || 0;
+                s.wKryzysie = false;
+            });
+        }
+
+        // Każda izba wygląda tak, jak jej przeznaczenie - a im wyższy poziom,
+        // tym więcej w niej sprzętu. To jedyne miejsce w grze, gdzie widać
+        // rozbudowę Ostoi na własne oczy.
+        let ostojaIzbyNaPlanszy = [];
+        // UWAGA: addObstacle żyje WEWNĄTRZ generatora, więc trzeba ją podać
+        // z zewnątrz. Bez tego funkcja wywracała się przy pierwszej zbudowanej
+        // izbie - a przy pustej Ostoi nigdy się nie uruchamiała i błąd się nie ujawniał.
+        function umebluJIzbe(izba, x0, z0, x1, z1, poziom, dodaj) {
+            const wnetrze = [];
+            for (let x = x0 + 1; x < x1; x++)
+                for (let z = z0 + 1; z < z1; z++)
+                    if (isWithinPlayBounds(x, z) && !isObstacle(x, z)) wnetrze.push([x, z]);
+            if (!wnetrze.length) return;
+            const SPRZET = {
+                kaplica:     ['kapliczka', 'swieca', 'lawka', 'lawka'],
+                skryptorium: ['regal', 'regal', 'skrzynia', 'swieca'],
+                dzwonnica:   ['column', 'swieca'],
+                zbrojownia:  ['skrzynia', 'skrzynia', 'beczka', 'regal'],
+                demonarium:  ['kosciotrup', 'regal', 'swieca', 'skrzynia'],
+                golebnik:    ['skrzynia', 'kosz'],
+                zielarnia:   ['regal', 'kosz', 'beczka', 'kosz']
+            };
+            const pula = SPRZET[izba.id] || ['skrzynia'];
+            // Poziom 1 to podstawy, 3 - izba pełna sprzętu
+            const ile = Math.min(wnetrze.length, Math.round(pula.length * (0.5 + poziom * 0.25)));
+            for (let i = wnetrze.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [wnetrze[i], wnetrze[j]] = [wnetrze[j], wnetrze[i]];
+            }
+            for (let k = 0; k < ile; k++) {
+                const [x, z] = wnetrze[k];
+                dodaj(x, z, pula[k % pula.length]);
+            }
+        }
+
         function przesunOdcietychWrogow() {
             // Działa na KAŻDEJ planszy, odkąd wrogowie stoją w gniazdach przy
             // osłonach i wchodzą do wnętrz - wtedy co kilkanaście misji ktoś
@@ -26819,7 +28352,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // i zasłaniały wejście na niższy poziom.
         function wykarczujStudnie() {
             if (!currentCombatTheme || currentCombatTheme.id !== 'studnia') return 0;
-            const ROSLINY = ['tree', 'palma', 'palm', 'kaktus', 'cactus', 'krzak', 'zywoplot', 'kloda'];
+            // Lista BYŁA martwa: 'palma', 'palm', 'cactus' nigdy nie istniały jako typy
+            // rekwizytów, a 'kaktus' i 'krzak' powstały dopiero teraz. Zostają same
+            // nazwy, które naprawdę stawia generator.
+            const ROSLINY = ['tree', 'kaktus', 'krzak', 'zywoplot', 'hedge', 'kloda',
+                             'paproc', 'trzcina', 'grzyby', 'liany', 'kepa', 'pniak'];
             let usunietych = 0;
             for (let i = obstaclePositions.length - 1; i >= 0; i--) {
                 const o = obstaclePositions[i];
@@ -27337,7 +28874,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function sprawdzDotarcieDoSerca() {
             if (currentMissionType !== 'oblezenie' || oblezenieAktywne || !oblezenieSerce || gameOver) return;
-            const blisko = soldiers.some(s => !s.isDead && !s.isNPC &&
+            // Na własnym dziedzińcu nie trzeba nigdzie dochodzić - szturm zaczyna się
+            // w chwili, gdy otwieracie oczy.
+            const uSiebie = currentCombatTheme && currentCombatTheme.id === 'ostoja';
+            const blisko = uSiebie || soldiers.some(s => !s.isDead && !s.isNPC &&
                 Math.max(Math.abs(Math.round(s.mesh.position.x) - oblezenieSerce.x),
                          Math.abs(Math.round(s.mesh.position.z) - oblezenieSerce.z)) <= 2);
             if (!blisko) return;
@@ -27608,7 +29148,40 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         // Rodzaj posiłku dobrany do planszy - te same reguły, co przy rozstawianiu
+        // Ostoję szturmuje ZAKON - ludzie, nie demony. Demony idą z nimi, ale jako
+        // wsparcie, nie trzon. To jedyna plansza, na której wróg ma ludzką twarz,
+        // i właśnie o to chodzi: przychodzą po was ci, którzy uważają się za swoich.
+        const OBLEZENIE_SKLAD = [
+            { typ: 'zakonnik',   hp: 11, ap: 10, waga: 5, budowa: () => buildEnemyModelInstance('zakonnik') || createZakonnikMesh(false) },
+            { typ: 'zakonnik',   hp: 11, ap: 10, waga: 4, budowa: () => buildEnemyModelInstance('zakonnik') || createZakonnikMesh(false) },
+            { typ: 'inkwizytor', hp: 17, ap: 9,  waga: 2, budowa: () => buildEnemyModelInstance('inkwizytor') || createZakonnikMesh(true) }
+        ];
+        const OBLEZENIE_UDZIAL_ZAKONU = 0.7;   // reszta to przyprowadzone demony
+
+        function wylosujSzturmujacego() {
+            if (Math.random() > OBLEZENIE_UDZIAL_ZAKONU) return wylosujPosilek();
+            const suma = OBLEZENIE_SKLAD.reduce((a, b) => a + b.waga, 0);
+            let los = Math.random() * suma;
+            for (const w of OBLEZENIE_SKLAD) {
+                los -= w.waga;
+                if (los <= 0) return w;
+            }
+            return OBLEZENIE_SKLAD[0];
+        }
+
         function wylosujPosilek() {
+            // Na własnym dziedzińcu nadchodzi Zakon, nie przypadkowe zło planszy
+            if (currentCombatTheme && currentCombatTheme.id === 'ostoja' &&
+                typeof wylosujSzturmujacego === 'function') {
+                // Uwaga: wylosujSzturmujacego samo woła wylosujPosilek dla demonów,
+                // więc tę gałąź trzeba ominąć, inaczej wpadamy w nieskończoność.
+                if (!wylosujPosilek.__wOstoi) {
+                    wylosujPosilek.__wOstoi = true;
+                    const w = wylosujSzturmujacego();
+                    wylosujPosilek.__wOstoi = false;
+                    return w;
+                }
+            }
             const id = currentCombatTheme ? currentCombatTheme.id : '';
             const mozliwe = [];
             if (szansaNaOgary(false) > 0) mozliwe.push({ typ: 'ogar', hp: 9, ap: 18, budowa: createHellhoundMesh });
@@ -28668,6 +30241,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const chance = Math.max(5, 55 - resist);
                     if (Math.random() * 100 < chance) {
                         bestTarget.panicTurns = 1;
+                        zwatpienieZPaniki(bestTarget);
                         bestTarget.turnEnded = true;
                         bestTarget.ap = 0;
                         animWroga(e, 'specjalna', true);
@@ -30814,6 +32388,69 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 <p><b>Odporność na ogień</b> rośnie z Witalnością: 14 daje 1. stopień (-35% obrażeń
                 od ognia), 18 drugi (-60%), 22 trzeci (-85%). Pełnej niewrażliwości nie ma -
                 ogień zawsze zabiera co najmniej 1 punkt.</p>
+                <h4>Oblężenie Ostoi</h4>
+                <p>Gdy <b>Śledzenie dojdzie do stu</b>, Zakon wie, gdzie mieszkacie. Następnej nocy
+                nie idziecie do cudzego snu - <b>budzicie się na własnym dziedzińcu</b>, a oni już
+                stoją pod murami i nacierają z czterech stron.</p>
+                <ul>
+                    <li>Ostoja wygląda dokładnie tak, jak ją <b>wznieśliście</b>. Izby zbudowane mają
+                        kamienne mury i sprzęt w środku; te, których nie zdążyliście postawić, to
+                        same fundamenty - kruche i puste.</li>
+                    <li>Serce Ostoi bije <b>w kaplicy</b> i jest tym wytrzymalsze, im wyższy jej poziom.
+                        Bez kaplicy leży na gołym dziedzińcu.</li>
+                    <li>Szturm zaczyna się <b>od razu</b> - nie ma dokąd iść. Trzeba wytrzymać do świtu.</li>
+                    <li>Idą po was <b>ludzie Zakonu</b>: zakonnicy z kuszami i inkwizytorzy z pochodniami.
+                        Demony przyprowadzają ze sobą, ale to tylko wsparcie - mniej więcej co trzeci
+                        napastnik. To jedyna plansza, na której wróg ma ludzką twarz.</li>
+                    <li>Obronione: Zakon gubi trop, Śledzenie spada do zera, audytorzy znikają z miasta.
+                        Przegrane: <b>jedna z izb idzie z dymem</b> i trzeba ją wznieść od nowa.</li>
+                </ul>
+                <h4>Maskarada - audytorzy Zakonu</h4>
+                <p>Im grubszy Rejestr, tym pewniej Zakon podsyła do miasteczka <b>Audytora</b>:
+                człowieka, który wygląda jak mieszkaniec, chodzi po ulicach i szuka Ostoi.
+                Pozna się go po tym, czego <b>nie</b> robi - nigdy nie prosi o pomoc, za to
+                sam wypytuje o nowego przybysza.</p>
+                <ul>
+                    <li><b>13 Mądrości</b> pozwala go przejrzeć, gdy podejdziesz blisko.
+                        Poniżej tego progu usłyszysz tylko jego dziwne pytania.</li>
+                    <li>Niezdemaskowany <b>opóźnia budowę w Ostoi</b>, <b>przekonuje mieszkańców</b>,
+                        żeby się od ciebie odwrócili (-5 Łaski), i podbija <b>Śledzenie</b>.</li>
+                    <li>Gdy Śledzenie dojdzie do stu, Zakon wie, gdzie jest Ostoja.</li>
+                    <li>Po zdemaskowaniu masz trzy drogi: <b>zatrzymać go siłą</b> (Siła psychiczna
+                        i Zręczność - łup to dokumenty i +12 Łaski), <b>przeciągnąć na swoją stronę</b>
+                        (Charyzma - zostaje podwójnym agentem i Śledzenie zaczyna spadać) albo
+                        <b>zostawić</b>.</li>
+                </ul>
+                <h4>Kryzys wiary</h4>
+                <p>Towarzysze nie są narzędziami. Każdy nosi <b>zwątpienie</b>, które rośnie,
+                gdy wpada w panikę, patrzy na śmierć towarzysza, sam ledwo uchodzi z życiem
+                albo widzi, jak topnieje Łaska. Zwątpienie <b>przechodzi na kolejne misje</b>.</p>
+                <ul>
+                    <li>Po przekroczeniu progu wojownik <b>opuszcza broń</b>: przestaje walczyć
+                        i nie słucha rozkazów, choćbyś miał najwyższą Charyzmę.</li>
+                    <li>Masz <b>trzy tury</b> na rozmowę. Możesz przemówić mu do rozumu (szansa
+                        zależy od Charyzmy), rozkazać mu walczyć (posłucha, ale nie uwierzy),
+                        pomodlić się z nim za 5 Łaski (zawsze skutkuje) albo pozwolić mu odejść.</li>
+                    <li>Jeśli nie znajdziesz dla niego słów, <b>odejdzie ze snu sam</b> - przeżyje,
+                        ale misja potoczy się bez niego.</li>
+                    <li>Koi je: zapalenie kapliczki, modlitwa przy niej, wygrana misja
+                        i dzień wyrzeczenia w Kaplicy. <b>Charyzma bohatera</b> spowalnia narastanie.</li>
+                </ul>
+                <h4>Kapliczki i przejścia</h4>
+                <p>Na każdej planszy stoją <b>kapliczki</b> i tlą się <b>przejścia dla Złego</b> -
+                zawsze z dala od trasy do celu, więc trzeba po planszę chodzić, a nie przeć prosto
+                przed siebie. Stań przy nich i naciśnij <b>[G]</b> albo przycisk.</p>
+                <ul>
+                    <li><b>Kapliczka</b> (3 PA): zapala się na resztę misji. Odsłania mgłę w promieniu
+                        11 pól, a nieumarli, którzy w ten krąg wejdą, tracą 2 życia co turę.
+                        Po misji każda zapalona daje 3 Łaski.</li>
+                    <li><b>Modlitwa</b> przy zapalonej kapliczce (3 PA): ranny wojownik odzyskuje
+                        3 punkty życia. Każda kapliczka oddaje to tylko RAZ - przy pięciu kapliczkach
+                        masz pięć uzdrowień na całą misję, nie więcej. Niezapalona nie uleczy nikogo.</li>
+                    <li><b>Przejście</b> (4 PA): póki jest otwarte, co trzy tury wychodzi z niego
+                        nowy wróg. Zamknięcie to jedyny sposób, żeby posiłki ustały - inaczej
+                        przegrasz na wyczerpanie, choćbyś wygrywał każdą potyczkę.</li>
+                </ul>
                 <h4>Telekineza</h4>
                 <p>Sztuki trzeba się najpierw <b>nauczyć w Kaplicy</b> - nauka trwa kilka dni
                 i nie kosztuje Łaski. Potem włada nią każdy wojownik o <b>13 Siły psychicznej</b>
@@ -31961,7 +33598,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             const kRej = document.createElement('div');
             kRej.className = 'izba rejestr';
-            kRej.innerHTML = `<h4>Rejestr<span class="poziom">${kartyRejestru.length} ${kartyRejestru.length === 1 ? 'karta' : 'kart'}</span></h4>` +
+            const paskiSledzenia = Math.round(sledzenieZakonu / 10);
+            const barwaSledz = sledzenieZakonu >= 70 ? '#c85a4a' : (sledzenieZakonu >= 40 ? '#c8a04a' : '#7a9a6a');
+            kRej.innerHTML = `<h4>Śledzenie Zakonu<span class="poziom" style="color:${barwaSledz};">` +
+                             `${sledzenieZakonu}/${SLEDZENIE_MAX}</span></h4>` +
+                             `<p style="color:${barwaSledz};">` +
+                             '\u2588'.repeat(paskiSledzenia) + '\u2591'.repeat(10 - paskiSledzenia) + '</p>' +
+                             `<p>${sledzenieZakonu >= SLEDZENIE_MAX
+                                 ? 'Wiedzą, gdzie jest Ostoja. Przyjdą.'
+                                 : (audytorzy.filter(a => !a.podwojny).length
+                                    ? 'Ktoś obcy chodzi po miasteczku i notuje.'
+                                    : 'Na razie cisza. Nikt obcy nie krąży.')}</p>` +
+                             `<h4>Rejestr<span class="poziom">${kartyRejestru.length} ${kartyRejestru.length === 1 ? 'karta' : 'kart'}</span></h4>` +
                              `<p>${kartyRejestru.length ? 'Karty wyrwane z księgi Zakonu. Przeczytaj, co udało się złożyć.' : 'Pusty. Nie masz jeszcze ani jednej karty.'}</p>`;
             kRej.onclick = () => otworzRejestr();
             plan.appendChild(kRej);
@@ -32153,6 +33801,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         // Ćwiczenie w kaplicy - raz dziennie
         function cwiczWKaplicy(cw) {
+            // Dzień wyrzeczenia koi też zwątpienie - po to jest Kaplica
+            recruitedWarriors.forEach(w => {
+                if (w.zwatpienie) w.zwatpienie = Math.max(0, w.zwatpienie - ZW_CWICZENIE);
+            });
             const cecha = (cw && cw.cecha) ? cw.cecha : cw;
             if (ostoja.kaplica === 0) { updateUI('Nie masz jeszcze Kaplicy.'); return; }
             if (kaplicaOstatniDzien === dzienGry()) { updateUI('Dziś już ćwiczyłeś. Ciało i duch potrzebują nocy.'); return; }
@@ -33295,7 +34947,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             whitehouse: 3, pentagon: 3, kremlin: 3, zhongnanhai: 3,
             // Plansze dołożone później - krąg zgodny z aktem, w którym prowadzi je trop
             las: 0, dom: 1, szpital: 1, jezioro: 1, pobojowisko: 1,
-            pozar: 2, most: 2, studnia: 2, wieza: 3
+            pozar: 2, most: 2, studnia: 2, wieza: 3,
+            // Ostoja leży w kręgu 0 - to wasz własny dom, nie cudzy sen w oddali.
+            // Zasięg Dzwonnicy i tak jej nie dotyczy: nie wybiera się jej z mapy,
+            // przychodzi sama, gdy Zakon ją namierzy.
+            ostoja: 0
         };
 
         function planszaWZasiegu(t) {
