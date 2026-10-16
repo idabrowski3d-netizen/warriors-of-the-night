@@ -2014,6 +2014,8 @@
               palette: { grass:'#4b4a33', grassDetail1:'#58563c', grassDetail2:'#3c3b29', dirt:'#5c4a38', dirtDetail1:'#6b5742', dirtDetail2:'#4a3c2d', road:'#4a4336', roadDetail1:'#564e3f', roadDetail2:'#3b352b' } },
             { id: 'pozar', name: 'Miasto w Ogniu',
               palette: { grass:'#4a4038', grassDetail1:'#564a3e', grassDetail2:'#3a322c', dirt:'#6b5a46', dirtDetail1:'#7a6850', dirtDetail2:'#5a4a3a', road:'#3e3a38', roadDetail1:'#4a4542', roadDetail2:'#332f2d' } },
+            { id: 'klaustrofobia', name: 'Ciasnota - Labirynt, Który Się Zaciska',
+              palette: { grass:'#3a3632', grassDetail1:'#45403b', grassDetail2:'#2e2b28', dirt:'#4a443c', dirtDetail1:'#565046', dirtDetail2:'#3c3730', road:'#423d37', roadDetail1:'#4e4942', roadDetail2:'#35312c' } },
             { id: 'ostoja', name: 'Oblężenie Ostoi',
               palette: { grass:'#4a4a3c', grassDetail1:'#565646', grassDetail2:'#3a3a30', dirt:'#6a5f4a', dirtDetail1:'#796d57', dirtDetail2:'#564d3e', road:'#5a5244', roadDetail1:'#675e4e', roadDetail2:'#4a4338' } },
             { id: 'wieza', name: 'Wieża Iluminatów',
@@ -3596,7 +3598,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Pole po bitwie nie ma ulicy z pasami dla pieszych. Przez środek
             // planszy biegł asfalt z zebrą - dokładnie to, czego na pobojowisku
             // być nie może. Są rowy, wydeptane ścieżki i błoto.
-            const BEZ_DROGI_PRZELOTOWEJ = ['cmentarzysko', 'pobojowisko', 'ostoja'];
+            const BEZ_DROGI_PRZELOTOWEJ = ['cmentarzysko', 'pobojowisko', 'ostoja', 'klaustrofobia'];
             const bezDrogiPrzelotowej = currentCombatTheme &&
                 BEZ_DROGI_PRZELOTOWEJ.indexOf(currentCombatTheme.id) !== -1;
             for(let z=0; z<mapDepth && !bezDrogiPrzelotowej; z++) {
@@ -3868,7 +3870,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // W Otchłani rzeka płynie zawsze - krwista
             // W więzieniu i na stacji nie ma rzeki - to tereny zabudowane
             } else if (gameMode === 'dream' &&
-                       !(currentCombatTheme && ['alcatraz', 'stacja', 'most', 'dom', 'wieza', 'jezioro', 'studnia', 'szpital'].includes(currentCombatTheme.id)) &&
+                       // Labirynt i Ostoja też są zabudową - rzeka przecinałaby
+                       // korytarze i zostawiała w nich pas trawy.
+                       !(currentCombatTheme && ['alcatraz', 'stacja', 'most', 'dom', 'wieza', 'jezioro', 'studnia', 'szpital', 'klaustrofobia', 'ostoja'].includes(currentCombatTheme.id)) &&
                        (isVolcanoTheme ||
                        (currentCombatTheme && currentCombatTheme.id === 'otchlan') ||
                        Math.random() < 0.45)) {
@@ -4481,7 +4485,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // się chować w drodze do oddziału.
                 // Cmentarzysko ma wlasny uklad kwater i alejek - ogolne posypanie
                 // glazami po losowych polach rozbijaloby go na konfetti.
-                if (currentCombatTheme && !['cyber', 'katedra', 'cmentarzysko', 'stacja', 'pobojowisko', 'alabama', 'ostoja'].includes(currentCombatTheme.id)) {
+                if (currentCombatTheme && !['cyber', 'katedra', 'cmentarzysko', 'stacja', 'pobojowisko', 'alabama', 'ostoja', 'klaustrofobia'].includes(currentCombatTheme.id)) {
                     // Więcej osłon = wrogowie mają czym się zasłaniać w drodze do oddziału
                     const ile = 170 + Math.floor(Math.random() * 110);
                     for (let t = 0; t < ile; t++) {
@@ -5266,6 +5270,139 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
 
 
+
+                // ===== LABIRYNT, KTÓRY SIĘ ZACISKA =====
+                // Korytarze na dwa pola, ściany z ruchomych bloków. Labirynt
+                // kopiemy przeszukiwaniem w głąb z losową kolejnością kierunków -
+                // daje długie, kręte korytarze zamiast regularnej kraty. Do tego
+                // kilka szerszych komór: bez nich nie da się stoczyć walki, bo
+                // w korytarzu na dwa pola nikt nikogo nie wyminie.
+                if (currentCombatTheme && currentCombatTheme.id === 'klaustrofobia') {
+                    const KORYTARZ = 2;          // szerokość przejścia
+                    const SCIANA = 1;            // grubość ściany między korytarzami
+                    const KROK = KORYTARZ + SCIANA;
+                    const marginesX = Math.floor(offsetX * 0.14), marginesZ = Math.floor(offsetZ * 0.14);
+                    const odX = -offsetX + marginesX, doX = offsetX - marginesX;
+                    const odZ = -offsetZ + marginesZ, doZ = offsetZ - marginesZ;
+                    const kolumn = Math.floor((doX - odX) / KROK);
+                    const wierszy = Math.floor((doZ - odZ) / KROK);
+
+                    // 1. Wszystko jest skałą - korytarze dopiero wykujemy
+                    const skala = [];
+                    for (let x = odX; x < doX; x++)
+                        for (let z = odZ; z < doZ; z++) skala.push([x, z]);
+
+                    // 2. Przeszukiwanie w głąb po komórkach
+                    const odwiedzone = new Set();
+                    const korytarze = new Set();
+                    const kluczK = (a, b) => a + '/' + b;
+                    const polaKomorki = (cx, cz) => {
+                        const x0 = odX + cx * KROK, z0 = odZ + cz * KROK;
+                        const lista = [];
+                        for (let dx = 0; dx < KORYTARZ; dx++)
+                            for (let dz = 0; dz < KORYTARZ; dz++) lista.push([x0 + dx, z0 + dz]);
+                        return lista;
+                    };
+                    const polaPrzejscia = (cx, cz, kx, kz) => {
+                        // Pas ściany między dwiema komórkami - to on znika
+                        const x0 = odX + cx * KROK, z0 = odZ + cz * KROK;
+                        const lista = [];
+                        if (kx !== 0) {
+                            const px = x0 + (kx > 0 ? KORYTARZ : -1);
+                            for (let dz = 0; dz < KORYTARZ; dz++) lista.push([px, z0 + dz]);
+                        } else {
+                            const pz = z0 + (kz > 0 ? KORYTARZ : -1);
+                            for (let dx = 0; dx < KORYTARZ; dx++) lista.push([x0 + dx, pz]);
+                        }
+                        return lista;
+                    };
+                    const startC = [Math.floor(kolumn / 2), Math.floor(wierszy / 2)];
+                    const stos = [startC];
+                    odwiedzone.add(kluczK(startC[0], startC[1]));
+                    polaKomorki(startC[0], startC[1]).forEach(([x, z]) => korytarze.add(kluczK(x, z)));
+                    while (stos.length) {
+                        const [cx, cz] = stos[stos.length - 1];
+                        const kier = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+                        for (let i = kier.length - 1; i > 0; i--) {
+                            const j = Math.floor(Math.random() * (i + 1));
+                            [kier[i], kier[j]] = [kier[j], kier[i]];
+                        }
+                        let poszedl = false;
+                        for (const [kx, kz] of kier) {
+                            const nx = cx + kx, nz = cz + kz;
+                            if (nx < 0 || nx >= kolumn || nz < 0 || nz >= wierszy) continue;
+                            if (odwiedzone.has(kluczK(nx, nz))) continue;
+                            odwiedzone.add(kluczK(nx, nz));
+                            polaPrzejscia(cx, cz, kx, kz).forEach(([x, z]) => korytarze.add(kluczK(x, z)));
+                            polaKomorki(nx, nz).forEach(([x, z]) => korytarze.add(kluczK(x, z)));
+                            stos.push([nx, nz]);
+                            poszedl = true;
+                            break;
+                        }
+                        if (!poszedl) stos.pop();
+                    }
+
+                    // 3. Pętle: labirynt bez nich to jedna ścieżka tam i z powrotem,
+                    // a w walce trzeba móc kogoś obejść. Co kilkanaście ścian pada.
+                    const ILE_PETLI = Math.floor(kolumn * wierszy * 0.12);
+                    for (let n = 0; n < ILE_PETLI; n++) {
+                        const cx = Math.floor(Math.random() * kolumn), cz = Math.floor(Math.random() * wierszy);
+                        const kier = [[1, 0], [-1, 0], [0, 1], [0, -1]][Math.floor(Math.random() * 4)];
+                        const nx = cx + kier[0], nz = cz + kier[1];
+                        if (nx < 0 || nx >= kolumn || nz < 0 || nz >= wierszy) continue;
+                        polaPrzejscia(cx, cz, kier[0], kier[1]).forEach(([x, z]) => korytarze.add(kluczK(x, z)));
+                    }
+
+                    // 4. Komory - miejsca, gdzie da się stanąć do walki. Dwa rodzaje:
+                    // nisze (r 2-3), gdzie zmieści się dwóch, i sale (r 5-7), w których
+                    // może dojść do prawdziwego zwarcia całym oddziałem. Sale dostają
+                    // filary - pusty kwadrat to strzelnica, filar daje się za czym schować.
+                    const ILE_KOMOR = 15 + Math.floor(Math.random() * 5);
+                    const ILE_SAL = 5 + Math.floor(Math.random() * 3);
+                    const ROZSTAW_KOMOR = 13;   // bliżej - zlewają się w jeden plac
+                    klaustrofobiaKomory = [];
+                    for (let n = 0, prob = 0; n < ILE_KOMOR && prob < ILE_KOMOR * 12; prob++) {
+                        const cx = 1 + Math.floor(Math.random() * Math.max(1, kolumn - 2));
+                        const cz = 1 + Math.floor(Math.random() * Math.max(1, wierszy - 2));
+                        const sx = odX + cx * KROK, sz = odZ + cz * KROK;
+                        const sala = n < ILE_SAL;
+                        const r = sala ? 5 + Math.floor(Math.random() * 3) : 2 + Math.floor(Math.random() * 2);
+                        if (klaustrofobiaKomory.some(k =>
+                            Math.hypot(k.x - sx, k.z - sz) < ROZSTAW_KOMOR + (sala ? 4 : 0))) continue;
+                        for (let x = sx - r; x <= sx + r; x++)
+                            for (let z = sz - r; z <= sz + r; z++) {
+                                if (x < odX || x >= doX || z < odZ || z >= doZ) continue;
+                                if (sala && Math.abs(x - sx) % 4 === 0 && Math.abs(z - sz) % 4 === 0
+                                    && (x !== sx || z !== sz)) continue;   // filar zostaje skałą
+                                korytarze.add(kluczK(x, z));
+                            }
+                        klaustrofobiaKomory.push({ x: sx, z: sz, r: r, sala: sala });
+                        n++;
+                    }
+
+                    // 5. Co nie jest korytarzem, staje się blokiem
+                    skala.forEach(([x, z]) => {
+                        if (korytarze.has(kluczK(x, z))) {
+                            const mx = x + offsetX, mz = z + offsetZ;
+                            if (mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth) {
+                                terrainTypeMap[mx][mz] = 3;
+                                heightMap[mx][mz] = 0;
+                            }
+                            return;
+                        }
+                        if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) return;
+                        addObstacle(x, z, 'blok');
+                    });
+
+                    // 6. Poza labiryntem nie ma nic - lita skała po brzegi planszy
+                    for (let x = -offsetX; x < offsetX; x++)
+                        for (let z = -offsetZ; z < offsetZ; z++) {
+                            if (x >= odX && x < doX && z >= odZ && z < doZ) continue;
+                            if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) continue;
+                            addObstacle(x, z, 'blok');
+                        }
+                }
+
                 // ===== OSTOJA: TO, CO ZBUDOWAŁEŚ, TERAZ TRZEBA OBRONIĆ =====
                 // Jedyna plansza, której układ nie jest wymyślony: w środku stoi
                 // Ostoja dokładnie w takim kształcie, w jakim ją wzniosłeś. Izby,
@@ -5798,7 +5935,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // Pojedyncze głazy dają osłonę punktową, te - całe odcinki do przebiegnięcia.
                 // Cmentarzysko: pasma murkow laduja w poprzek alejek i kwater,
                 // wiec tam rumowisko ustawia wlasny uklad.
-                if (currentCombatTheme && !['cyber', 'katedra', 'cmentarzysko', 'stacja', 'pobojowisko', 'alabama', 'ostoja'].includes(currentCombatTheme.id)) {
+                if (currentCombatTheme && !['cyber', 'katedra', 'cmentarzysko', 'stacja', 'pobojowisko', 'alabama', 'ostoja', 'klaustrofobia'].includes(currentCombatTheme.id)) {
                     const ilePasm = 16 + Math.floor(Math.random() * 14);
                     for (let t = 0; t < ilePasm; t++) {
                         const sx = Math.floor(Math.random() * (mapWidth - 24)) + 12 - offsetX;
@@ -6603,7 +6740,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Plansze, które same układają swoją zabudowę - generyczny rozsiewacz
             // domów tylko by im ją rozsypał. Alabama dopisana, bo stawia zagrody
             // wzdłuż drogi i siedem przypadkowych chat na polach psuło cały układ.
-            const BEZ_GENERYCZNYCH_DOMOW = ['newyork', 'powodz', 'cyber', 'otchlan', 'las', 'alabama', 'ostoja'];
+            const BEZ_GENERYCZNYCH_DOMOW = ['newyork', 'powodz', 'cyber', 'otchlan', 'las', 'alabama', 'ostoja', 'klaustrofobia'];
             const genericHouseCount = (currentCombatTheme && BEZ_GENERYCZNYCH_DOMOW.includes(currentCombatTheme.id))
                 ? 0
                 // Miasto w Ogniu MUSI być miastem - to, co płonie, ma być zabudową,
@@ -8096,7 +8233,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             alabama:      { oprawa: 'kaganek',   barwa: 0xffd090, wys: 1.6, rozstaw: 'domy',   gestosc: 14 },
             wulkan:       { oprawa: 'kaganek',   barwa: 0xff4a20, wys: 1.3, rozstaw: 'rozsyp', gestosc: 12 },
             // Własna Ostoja: pochodnie na murach i świece w izbach
-            ostoja:       { oprawa: 'pochodnia', barwa: 0xffd8a0, wys: 2.4, rozstaw: 'rozsyp', gestosc: 9 }
+            ostoja:       { oprawa: 'pochodnia', barwa: 0xffd8a0, wys: 2.4, rozstaw: 'rozsyp', gestosc: 9 },
+            // Labirynt: kagańce wmurowane w bloki, zimne i rzadkie
+            klaustrofobia:{ oprawa: 'kaganek',   barwa: 0x9ad0e0, wys: 1.5, rozstaw: 'rozsyp', gestosc: 11 }
         };
 
         // Buduje oprawę opisaną w tabeli. Każdy rodzaj ma własną bryłę i własne
@@ -8207,7 +8346,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // podłoga szpitala ma typ chodnika, a most to jezdnia. Tam liczy się tylko
         // to, czy pole jest wolne.
         const PLANSZE_SWIATLO_WSZEDZIE = ['szpital', 'most', 'jezioro', 'studnia', 'wieza',
-                                          'dom', 'alcatraz', 'katedra', 'stacja'];
+                                          'dom', 'alcatraz', 'katedra', 'stacja', 'klaustrofobia'];
         function dobreMiejsceNaOprawe(lx, lz) {
             if (!isWithinPlayBounds(lx, lz)) return false;
             if (currentCombatTheme && PLANSZE_SWIATLO_WSZEDZIE.indexOf(currentCombatTheme.id) !== -1) {
@@ -9377,7 +9516,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Plansze o własnym klimacie nie znają asfaltu, chodników ani pasów.
         // Czyścimy je na samym końcu, po WSZYSTKICH generatorach - wcześniejsze
         // przejście nie łapało dróg stawianych później (mostki, place, dojazdy).
-        const BEZ_WSPOLCZESNOSCI_LISTA = ['las', 'szpital', 'studnia', 'wieza', 'most', 'dom', 'otchlan', 'parow', 'alcatraz', 'amazonia', 'wyspy', 'bagno', 'sahara', 'zamiec', 'wulkan'];
+        const BEZ_WSPOLCZESNOSCI_LISTA = ['las', 'szpital', 'studnia', 'wieza', 'most', 'dom', 'otchlan', 'parow', 'alcatraz', 'amazonia', 'wyspy', 'bagno', 'sahara', 'zamiec', 'wulkan', 'klaustrofobia'];
         // Na kręgach przyzywania nie może nic leżeć - ani kamień, ani konar.
         // Inne generatory stawiają swoje rzeczy już po pentagramach, więc
         // sprzątamy wokół nich na samym końcu.
@@ -9546,6 +9685,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // Las wreszcie wygląda jak las: podszyt, próchno i grzyby
                 case 'las':          return ['kloda','paproc','paproc','krzak','krzak','grzyby','pniak','rock'];
                 case 'wieza':        return ['regal','skrzynia','lawka'];
+                // W labiryncie poza blokami leżą tylko rzeczy po tych, co nie wyszli
+                case 'klaustrofobia': return ['kosciotrup','skrzynia','beczka','kosciotrup'];
                 case 'stacja':       return ['regal','skrzynia','skrzynia','beczka','lawka'];
                 default:             return ['rock','kloda','zywoplot','krzak','kepa'];
             }
@@ -9557,7 +9698,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const MURY_ZAMIAST_GLAZOW = ['alcatraz', 'stacja', 'cyber', 'katedra', 'newyork',
                                      'szpital', 'dom', 'wieza', 'studnia', 'most', 'pozar',
                                      // Ostoja: mur obwodowy i izby to budowla, nie rumowisko
-                                     'ostoja'];
+                                     'ostoja',
+                                     // Labirynt: ciosane bloki, nie usypane głazy
+                                     'klaustrofobia'];
 
         // ===== AKCENTY I ZNAKOWANIE REKWIZYTOW =====
         // Lekcja z UFO: scena jest wyciszona, ale siedzi w niej garstka mocno
@@ -11108,6 +11251,28 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         scene.add(pal); obstacleMeshes.push(pal);
                     }
                 }
+                else if (pos.type === 'blok') {
+                    // Blok labiryntu: ciosany kamień pełnej wysokości. Ma wyglądać
+                    // na coś, co MOŻE się przesunąć - stąd widoczne spoiny u dołu
+                    // i okucia na narożach, nie gładka ściana.
+                    const kamien = new THREE.MeshLambertMaterial({ color: 0x55504a });
+                    const bryla = new THREE.Mesh(new THREE.BoxGeometry(1, 2.4, 1), kamien);
+                    bryla.position.set(pos.x, ty + 1.2, pos.z);
+                    bryla.userData = { type: 'blok', x: pos.x, z: pos.z };
+                    scene.add(bryla); obstacleMeshes.push(bryla);
+                    // Spoina - pozioma szczelina, po której widać, że to osobna bryła
+                    const spoina = new THREE.Mesh(new THREE.BoxGeometry(1.02, 0.06, 1.02),
+                        new THREE.MeshLambertMaterial({ color: 0x3a3630 }));
+                    spoina.position.set(pos.x, ty + 0.12, pos.z);
+                    scene.add(spoina); obstacleMeshes.push(spoina);
+                    // Okucia na dwóch narożach - ślad po tym, czym go ciągnięto
+                    [[-0.45, -0.45], [0.45, 0.45]].forEach(([dx, dz]) => {
+                        const ok = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.3, 0.14),
+                            new THREE.MeshLambertMaterial({ color: 0x6a6258 }));
+                        ok.position.set(pos.x + dx, ty + 1.9, pos.z + dz);
+                        scene.add(ok); obstacleMeshes.push(ok);
+                    });
+                }
                 else if (pos.type === 'kaktus') {
                     // Pustynny kandelabr: trzon i dwa ramiona wygięte do góry
                     const mat = new THREE.MeshLambertMaterial({ color: 0x4a7a46 });
@@ -11539,8 +11704,21 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const obs = obstacleGrid[mx][mz];
             if (!obs) return false;
             if (obs.type === 'wall-resistant') return false;
-            if (obs.type !== 'house-wall' && obs.type !== 'wall-destructible' && obs.type !== 'wagon-sciana') return false;
+            if (obs.type !== 'house-wall' && obs.type !== 'wall-destructible' && obs.type !== 'wagon-sciana' && obs.type !== 'blok') return false;
 
+            // Blok labiryntu rysuje się z czterech brył (trzon, spoina, dwa okucia),
+            // a sprzątanie na dole szuka tylko tych z userData - bez tego po rozkuciu
+            // zostawały w powietrzu okucia bez kolizji.
+            if (obs.type === 'blok') {
+                zdejmijBlok(obs);
+                const gruz = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.22, 0.8),
+                    new THREE.MeshLambertMaterial({ color: 0x4e4942 }));
+                gruz.position.set(Math.round(x), getTerrainY(x, z) + 0.11, Math.round(z));
+                scene.add(gruz); obstacleMeshes.push(gruz);
+                try { SoundEngine.playHit(); } catch (err) {}
+                updateFoW();
+                return true;
+            }
             if (obs.type === 'wall-destructible' || obs.type === 'wagon-sciana') {
                 obstacleGrid[mx][mz] = null;
                 const i2 = obstaclePositions.indexOf(obs);
@@ -15765,6 +15943,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (!o) return null;
             if (o.type === 'wall-destructible') return o;
             if (o.type === 'wagon-sciana') return o;   // blacha wagonu ustępuje pod ostrzałem
+            if (o.type === 'blok') return o;           // blok labiryntu da się rozkuć
             if (o.type === 'house-wall' && o.destructible !== false) return o;
             return null;
         }
@@ -18346,6 +18525,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             noteEnemyEncountered('glizda');
             showFloatingWarning(komunikat || 'Grunt się rozstępuje - GLIZDA!');
             updateUI(komunikat || 'Spod ziemi wystrzela GLIZDA.');
+            fobiaGlizdy(e);
             updateFoW();
         }
 
@@ -20984,6 +21164,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             switAktywny = false; switStart = 0; switNastepna = 0; switUciekli = 0;
             domScianySegmenty = []; domNastepna = 0;
             mostNastepna = 0; mostZawalone = 0;
+            murNastepna = 2; murZapowiedzi = []; murAnimacje = []; murObudzone = [];
+            if (typeof wyczyscZnacznikiMuru === 'function') wyczyscZnacznikiMuru();
             wyczyscOzdobyWiezy();
             wyczyscPodlogiWagonow();
             wyczyscPozar();
@@ -21170,6 +21352,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Cel misji MUSI być znany przed sadzaniem zasadzki - inaczej nie da się
             // ustawić kryjówek przy trasie, którą gracz naprawdę pójdzie.
             wczytajZwatpienie();
+            wczytajFobie();
             laskaNaStarcieMisji = playerStats.grace || 0;
             kryzysAktywny = null;
             setupMissionObjectives();
@@ -21554,6 +21737,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
             }
             unit.hp -= amount;
+            // Hematofobia reaguje na WŁASNĄ krew, więc sprawdzamy przy każdej ranie
+            if (soldiers.indexOf(unit) !== -1) fobiaKrwi(unit);
         }
 
         // Rozstawienie celów wybranej misji - wywoływane po rozstawieniu oddziału i wrogów
@@ -22243,6 +22428,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         // Odporność na panikę rośnie z Siłą psychiczną
         function getPanicResistance(soldier) {
+            // Tanatofobia: przy Śmierci albo Bezimiennym cała hartowana wola
+            // przestaje się liczyć - zostaje goły strach.
+            if (soldier && soldier.bezOdpornosciNaPanike) return 0;
             const idx = soldiers.indexOf(soldier);
             const ps = getWarriorStat(idx < 0 ? 0 : idx, 'silaPsychiczna');
             return Math.max(0, (ps - STAT_BASE) * 5);
@@ -22619,6 +22807,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         loseText += '\n\nOstoja stoi pusta. Nie mieli czego palić.';
                     }
                 }
+                zapiszZwatpienie();
+                const noweFobieP = nabierzFobii();
+                zapiszFobie();
+                if (noweFobieP.length)
+                    loseText += '\n\nCi, co uszli, przynieśli ze sobą więcej niż rany: ' + noweFobieP.join('; ') + '.';
                 if (statsSummary) loseText += '\n\n' + statsSummary;
                 document.getElementById('game-over-story').innerText = loseText;
                 highlightMesh.visible = false;
@@ -22647,6 +22840,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // Wygrana misja przywraca wiarę - ale nie kasuje jej całkiem
                 ukojCalyOddzial(ZW_ZWYCIESTWO);
                 zapiszZwatpienie();
+                // Lęk zostaje po misji - także po wygranej. Zwłaszcza po wygranej,
+                // bo to z niej się wraca i jest komu śnić.
+                const noweFobie = nabierzFobii();
+                zapiszFobie();
+                if (noweFobie.length)
+                    storyText += '\n\nNie wszyscy wrócili tacy sami. ' + noweFobie.join('; ') + '.';
                 // Zadania poboczne: co udało się zrobić poza samym celem misji
                 const zad = podsumujZadaniaPlanszy();
                 if (zad.wszystkieKapliczki || zad.wszystkieWrota) {
@@ -22901,6 +23100,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (!active || active.isDead) return;
             if (active.isEscortee) { updateUI('Powierzony nie potrafi walczyć.'); return; }
             if (active.turnEnded) { updateUI("Ten wojownik zakończył już ruch w tej turze."); return; }
+            if (wrecznieZablokowaneFobia(active)) {
+                updateUI(`${active.name} nie zniesie dotknięcia krwi. Zostaje broń dystansowa, odwrót albo Uzdrowiciel.`);
+                showFloatingWarning('Nie potrafi uderzyć wręcz!');
+                return;
+            }
             const meleeCost = 3;
             // Spętany nie sięgnie wroga - może tylko szarpać się w oplocie
             if (isSoldierWebbed(active)) {
@@ -24497,8 +24701,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 
                 moveAlongPath({mesh: active.mesh, userData: active.mesh.userData, __zolnierz: active}, clonedPath, 150, () => {
                     // Gdy marsz przerwało dostrzeżenie wroga, płacimy tylko za przebyte pola
-                    const doZaplaty = (active.__przeszedlPol !== undefined && active.__przeszedlPol !== null)
+                    let doZaplaty = (active.__przeszedlPol !== undefined && active.__przeszedlPol !== null)
                         ? Math.min(finalCost, active.__przeszedlPol) : finalCost;
+                    // Klaustrofobik płaci za każde ciasne pole po drodze
+                    const doplata = doplataKlaustrofobii(active, clonedPath);
+                    if (doplata > 0) {
+                        doZaplaty += doplata;
+                        updateUI(`${active.name} przeciska się bokiem - ciasnota kosztuje ${doplata} PA więcej.`);
+                    }
                     active.__przeszedlPol = null;
                     if (!(active.freeMoveTurns > 0)) active.ap = Math.max(0, active.ap - doZaplaty);
                     updateUI(partialMove ? `${active.name} zatrzymał się${apReserve > 0 ? " - zachowuje " + apReserve + " PA rezerwy." : " - brak dalszych PA."}` : "Ruch zakończony."); 
@@ -24507,6 +24717,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     sprawdzPajeczyne(active);
                     // Przejście tuż przy płycie może obudzić grób
                     mijanieGrobu(active);
+                    // W labiryncie ściany reagują na obecność - blok ruszy się
+                    // też wtedy, gdy ktoś po prostu podejdzie za blisko
+                    obudzSciany(active);
                     // Kto podszedł pod kryjówkę, ten dostaje z góry - jeszcze
                     // w swojej turze, zanim zdąży cokolwiek zrobić
                     tikZasadzek();
@@ -24566,6 +24779,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             tikOblezenia();
             tikSwitu();
             przestawDom();
+            tikMurow();
             zawalMost();
             tikPozaru();
             tikZasadzek();
@@ -24583,6 +24797,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             soldiers.forEach(s => { if (isSoldierHypnotized(s)) { s.turnEnded = true; s.ap = 0; } });
             // Nieprzytomny leży do czasu, aż ktoś go ocuci albo uleczy
             soldiers.forEach(s => { if (s.nieprzytomny && !s.isDead) { s.turnEnded = true; s.ap = 0; } });
+            // Zamarły ze strachu stoi jak wryty - tak samo jak przygnieciony
+            soldiers.forEach(s => {
+                if (!(s.zamarl > 0) || s.isDead) return;
+                s.turnEnded = true; s.ap = 0; s.zamarl--;
+                if (s.zamarl === 0) updateUI(`${s.name} odzyskuje władzę nad nogami.`);
+            });
+            // Przygnieciony blokiem traci jedną turę - wygrzebuje się spod kamienia
+            soldiers.forEach(s => {
+                if (!(s.przygnieciony > 0) || s.isDead) return;
+                s.turnEnded = true; s.ap = 0; s.przygnieciony--;
+                if (s.przygnieciony === 0) updateUI(`${s.name} wygrzebuje się spod kamienia.`);
+            });
             soldiers.forEach(s => {
                 if (!s.panicTurns || s.isDead) return;
                 s.ap = getEffectiveMaxAp(s);
@@ -24593,6 +24819,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             advanceFlood();
             tikZadanPlanszy();
             tikKryzysuWiary();
+            tikFobii();
             tickAngels();
             tickLevitation();
             tickSummonedObedience();
@@ -24974,6 +25201,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             isPlayerTurn = false; updateUI("Tura obcych..."); highlightMesh.visible = false; document.getElementById('ap-tooltip').style.display = 'none';
             budujMapeZagrozen();   // jedna wspólna ocena terenu dla całej tury
             enemies.forEach(e => { if(!e.isDead) e.ap = getEffectiveMaxAp(e); }); 
+            // Kamień nie wybiera - przygnieciony wróg też stoi jedną turę
+            enemies.forEach(e => { if (!e.isDead && e.przygnieciony > 0) { e.ap = 0; e.przygnieciony--; } });
             zbudujMapeZagrozenia();
             npcs.forEach(n => { if(!n.isDead) n.ap = getEffectiveMaxAp(n); });
             clearTimeout(enemyTurnTimeout);
@@ -25675,6 +25904,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (blisko) updateUI('Piorun wali w ziemię obok was. Huk dzwoni w uszach.');
                 }
             }
+            fobiaPiorun(x, z);
             refreshFogOfWarSafe();
         }
 
@@ -28207,10 +28437,291 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
         }
 
+        // ===================== GŁĘBOKIE FOBIE =====================
+        // Zwątpienie pyta, czy warto walczyć. Fobia nie pyta o nic - po prostu
+        // odbiera władzę nad ciałem. Sen jest poligonem lęków, więc to, czego
+        // wojownik boi się naprawdę, działa tu dosłownie: ciasnota naprawdę go
+        // spowalnia, krew naprawdę nie pozwala sięgnąć wręcz.
+        // Fobia JEST TRWAŁA - zostaje na wojowniku między misjami i schodzi tylko
+        // w Kaplicy, Rytuałem Oczyszczenia.
+        const FOBIE = {
+            keraunofobia: { nazwa: 'Keraunofobia', co: 'Strach przed burzą i piorunem',
+                objaw: 'Na huk grzmotu w pobliżu zamiera na całą turę.' },
+            klaustrofobia: { nazwa: 'Klaustrofobia', co: 'Lęk przed ciasnotą',
+                objaw: 'Każdy krok w ciasnym przejściu kosztuje o 1 PA więcej. Osaczony z dwóch stron wpada w panikę.' },
+            entomofobia: { nazwa: 'Entomofobia', co: 'Wstręt do robactwa i rojów',
+                objaw: 'Rój na karku albo glizda tuż obok wyrywają go do panicznej ucieczki i kosztują 1 PA.' },
+            hematofobia: { nazwa: 'Hematofobia', co: 'Paniczny strach przed krwią',
+                objaw: 'Poniżej połowy życia nie potrafi uderzyć wręcz - zostaje mu broń dystansowa, ucieczka albo Uzdrowiciel.' },
+            tanatofobia: { nazwa: 'Tanatofobia', co: 'Lęk przed śmiercią i zjawami',
+                objaw: 'Przy Śmierci i Bezimiennym traci odporność na panikę; twarzą w twarz zamyka oczy na turę.' },
+            agorafobia: { nazwa: 'Agorafobia', co: 'Strach przed otwartą przestrzenią',
+                objaw: 'Bez ściany za plecami celuje o 15% gorzej.' }
+        };
+        const FOBIA_TRAUMA_PROG = 100;      // ile trzeba przeżyć, żeby coś zostało na stałe
+        const FOBIA_KARA_CELNOSC = 15;      // agorafobia, w punktach celności
+        const FOBIA_WOLNYCH_CIASNO = 2;     // tylu wolnych sąsiadów to już ciasnota
+        const FOBIA_DOPLATA_AP = 1;         // ile kosztuje krok w ciasnocie
+        const FOBIA_OSLONA_PROMIEN = 4;     // z jakiej odległości agorafobik czuje ścianę
+        const FOBIA_ZJAWY = ['smierc', 'bezimienny'];
+        // Rytuał Oczyszczenia w Kaplicy
+        const FOBIA_RYTUAL_LASKA = 25, FOBIA_RYTUAL_DNI = 3, FOBIA_RYTUAL_KAPLICA = 2;
+        // Skąd bierze się trauma. Nazwa źródła decyduje potem, JAKA fobia zostanie.
+        const TR = { piorun: 34, roj: 26, krew: 20, zjawa: 30, ciasno: 12, otwarte: 10,
+                     panika: 16, rana: 14 };
+        const TRAUMA_FOBIA = { piorun: 'keraunofobia', roj: 'entomofobia', krew: 'hematofobia',
+                               zjawa: 'tanatofobia', ciasno: 'klaustrofobia', otwarte: 'agorafobia' };
+
+        function fobiaOf(s) { return (s && s.fobia) || null; }
+        function maFobie(s, id) { return fobiaOf(s) === id; }
+        function nazwaFobii(id) { return (FOBIE[id] && FOBIE[id].nazwa) || id; }
+
+        function dodajTraume(s, zrodlo) {
+            if (!s || s.isDead || s.isNPC || s.isAngel || s.isEscortee) return;
+            if (!TR[zrodlo]) return;
+            s.trauma = (s.trauma || 0) + TR[zrodlo];
+            if (!s.traumaZrodla) s.traumaZrodla = {};
+            s.traumaZrodla[zrodlo] = (s.traumaZrodla[zrodlo] || 0) + TR[zrodlo];
+        }
+
+        // Po misji: kto przeżył za dużo jednego rodzaju grozy, wraca z fobią.
+        // Decyduje NAJCZĘSTSZE źródło - wojownik boi się tego, co go dopadło,
+        // a nie czegoś losowego.
+        function nabierzFobii() {
+            const nowe = [];
+            soldiers.forEach((s, i) => {
+                if (i === 0 || s.isNPC || s.isAngel || s.isEscortee) return;
+                if (fobiaOf(s)) return;
+                if ((s.trauma || 0) < FOBIA_TRAUMA_PROG) return;
+                const zrodla = s.traumaZrodla || {};
+                let najmocniej = null, ile = 0;
+                Object.keys(zrodla).forEach(k => {
+                    if (TRAUMA_FOBIA[k] && zrodla[k] > ile) { ile = zrodla[k]; najmocniej = k; }
+                });
+                // Panika i rany same w sobie nie mówią, CZEGO się bać - wtedy losujemy
+                const id = najmocniej ? TRAUMA_FOBIA[najmocniej]
+                    : Object.keys(FOBIE)[Math.floor(Math.random() * Object.keys(FOBIE).length)];
+                s.fobia = id;
+                s.trauma = 0; s.traumaZrodla = {};
+                nowe.push(`${s.name}: ${nazwaFobii(id)}`);
+            });
+            return nowe;
+        }
+
+        function zapiszFobie() {
+            soldiers.forEach((s, i) => {
+                if (i === 0 || s.isNPC || s.isAngel || s.isEscortee) return;
+                const w = recruitedWarriors.find(r => r.name === s.name);
+                if (!w) return;
+                w.fobia = fobiaOf(s);
+                w.trauma = s.trauma || 0;
+                w.traumaZrodla = s.traumaZrodla || {};
+            });
+        }
+        function wczytajFobie() {
+            soldiers.forEach((s, i) => {
+                if (i === 0) return;
+                const w = recruitedWarriors.find(r => r.name === s.name);
+                s.fobia = (w && w.fobia) || null;
+                s.trauma = (w && w.trauma) || 0;
+                s.traumaZrodla = (w && w.traumaZrodla) ? Object.assign({}, w.traumaZrodla) : {};
+                s.zamarl = 0; s.szokKrwi = false; s.karaAgorafobii = 0;
+            });
+        }
+
+        function pokazFobie(s, tekst) {
+            showFloatingWarning(tekst);
+            updateUI(`${s.name}: ${tekst}`);
+        }
+
+        // --- 1. KERAUNOFOBIA: grzmot w pobliżu ---
+        function fobiaPiorun(x, z) {
+            soldiers.forEach(s => {
+                if (s.isDead || !s.mesh || s.nieprzytomny) return;
+                const d = Math.max(Math.abs(Math.round(s.mesh.position.x) - x),
+                                   Math.abs(Math.round(s.mesh.position.z) - z));
+                if (d > PIORUN_ZASIEG_HUKU) return;
+                dodajTraume(s, 'piorun');
+                if (!maFobie(s, 'keraunofobia')) return;
+                s.zamarl = 1; s.ap = 0; s.turnEnded = true;
+                pokazFobie(s, 'Grzmot. Zamiera w bezruchu.');
+                zwatpienieZPaniki(s);
+            });
+        }
+
+        // --- 2. KLAUSTROFOBIA: ciasnota kosztuje, osaczenie łamie ---
+        // Ciasnota to WĄSKI PAS, nie "mało wolnych sąsiadów". Pierwsza wersja liczyła
+        // sąsiadów i korytarz labiryntu szeroki na dwa pola wychodził jej przestronny
+        // (trzech wolnych sąsiadów), więc klaustrofobik nie dopłacał nigdzie.
+        // Mierzymy węższy z dwóch wolnych pasów przez to pole - tak samo jak przy
+        // sprawdzaniu samego labiryntu.
+        function ciasnePole(x, z, poziom) {
+            // Na piętrze o ciasnocie decyduje podłoga, nie przeszkody parteru -
+            // bez tego wąski korytarz Wieży i Studni nie liczył się wcale, a to
+            // właśnie tam klaustrofobia ma boleć najbardziej.
+            const wolne = (poziom > 0)
+                ? ((ax, az) => hasFloorAt(ax, az, poziom))
+                : ((ax, az) => isWithinPlayBounds(ax, az) && !isObstacle(ax, az));
+            const ZASIEG = 4;
+            let wx = 1, wz = 1;
+            for (let d = 1; d <= ZASIEG && wolne(x + d, z); d++) wx++;
+            for (let d = 1; d <= ZASIEG && wolne(x - d, z); d++) wx++;
+            for (let d = 1; d <= ZASIEG && wolne(x, z + d); d++) wz++;
+            for (let d = 1; d <= ZASIEG && wolne(x, z - d); d++) wz++;
+            return Math.min(wx, wz) <= FOBIA_WOLNYCH_CIASNO;
+        }
+
+        // Dopłata liczona PO marszu, od przebytych pól. Koszt ruchu siedzi w findPath,
+        // które nic nie wie o wojowniku - doliczanie tutaj daje ten sam efekt
+        // i nie wymaga przepisywania szukania drogi.
+        function doplataKlaustrofobii(s, sciezka) {
+            if (!maFobie(s, 'klaustrofobia') || !sciezka || !sciezka.length) return 0;
+            let ciasnych = 0;
+            sciezka.forEach(p => { if (ciasnePole(Math.round(p.x), Math.round(p.z), s.level || 0)) ciasnych++; });
+            if (ciasnych) dodajTraume(s, 'ciasno');
+            return ciasnych * FOBIA_DOPLATA_AP;
+        }
+
+        function osaczonyZDwochStron(s) {
+            const x = Math.round(s.mesh.position.x), z = Math.round(s.mesh.position.z);
+            const wrog = (dx, dz) => enemies.some(e => !e.isDead && e.mesh && !e.podZiemia &&
+                Math.round(e.mesh.position.x) === x + dx && Math.round(e.mesh.position.z) === z + dz);
+            return (wrog(1, 0) && wrog(-1, 0)) || (wrog(0, 1) && wrog(0, -1));
+        }
+
+        // --- 3. ENTOMOFOBIA: rój i glizda ---
+        function fobiaRobactwa(s, co) {
+            if (!s || s.isDead) return;
+            dodajTraume(s, 'roj');
+            if (!maFobie(s, 'entomofobia')) return;
+            s.ap = Math.max(0, (s.ap || 0) - 1);
+            s.panicTurns = Math.max(s.panicTurns || 0, 1);   // ucieczką zajmie się panika
+            pokazFobie(s, co === 'glizda' ? 'Coś wypełzło spod ziemi - zrywa się do ucieczki!'
+                                          : 'Robactwo na karku - traci głowę!');
+            zwatpienieZPaniki(s);
+        }
+        function fobiaRoju(s) { fobiaRobactwa(s, 'roj'); }
+        function fobiaGlizdy(e) {
+            if (!e || !e.mesh) return;
+            const gx = Math.round(e.mesh.position.x), gz = Math.round(e.mesh.position.z);
+            soldiers.forEach(s => {
+                if (s.isDead || !s.mesh) return;
+                const d = Math.max(Math.abs(Math.round(s.mesh.position.x) - gx),
+                                   Math.abs(Math.round(s.mesh.position.z) - gz));
+                if (d <= 2) fobiaRobactwa(s, 'glizda');
+            });
+        }
+
+        // --- 4. HEMATOFOBIA: własna krew odbiera rękę ---
+        function fobiaKrwi(s) {
+            if (!s || s.isDead || s.isNPC) return;
+            const max = s.maxHp || 10;
+            if (s.hp > max / 2) { s.szokKrwi = false; return; }
+            dodajTraume(s, 'krew');
+            if (!maFobie(s, 'hematofobia') || s.szokKrwi) return;
+            s.szokKrwi = true;
+            pokazFobie(s, 'Widzi własną krew - nie potrafi już uderzyć wręcz.');
+        }
+        function wrecznieZablokowaneFobia(s) {
+            return !!(s && s.szokKrwi && maFobie(s, 'hematofobia'));
+        }
+
+        // --- 5. TANATOFOBIA: Śmierć i Bezimienny ---
+        function zjawaNaPlanszy() {
+            return enemies.some(e => !e.isDead && FOBIE_ZJAWY_TEST(e));
+        }
+        function FOBIE_ZJAWY_TEST(e) { return FOBIA_ZJAWY.indexOf(e.type) !== -1; }
+        function zjawaObok(s) {
+            const x = Math.round(s.mesh.position.x), z = Math.round(s.mesh.position.z);
+            return enemies.some(e => !e.isDead && e.mesh && FOBIE_ZJAWY_TEST(e) &&
+                Math.max(Math.abs(Math.round(e.mesh.position.x) - x),
+                         Math.abs(Math.round(e.mesh.position.z) - z)) <= 1);
+        }
+
+        // --- 6. AGORAFOBIA: brak oparcia dla pleców ---
+        function bezOslonyWokol(x, z) {
+            for (let dx = -FOBIA_OSLONA_PROMIEN; dx <= FOBIA_OSLONA_PROMIEN; dx++)
+                for (let dz = -FOBIA_OSLONA_PROMIEN; dz <= FOBIA_OSLONA_PROMIEN; dz++) {
+                    if (!dx && !dz) continue;
+                    if (isObstacle(x + dx, z + dz)) return false;
+                }
+            return true;
+        }
+
+        // Jeden przebieg na turę gracza. Kary liczone różnicowo (jak kara świtu),
+        // bo accuracyBonus jest wspólny dla wielu efektów - dodawanie bez
+        // odejmowania poprzedniej wartości narastałoby w nieskończoność.
+        function tikFobii() {
+            if (gameOver) return;
+            const zjawy = zjawaNaPlanszy();
+            soldiers.forEach(s => {
+                if (s.isDead || !s.mesh || s.isNPC || s.isAngel) return;
+                if (s.karaAgorafobii === undefined) s.karaAgorafobii = 0;
+                const x = Math.round(s.mesh.position.x), z = Math.round(s.mesh.position.z);
+
+                // Agorafobia: kara za gołe pole
+                let kara = 0;
+                if (maFobie(s, 'agorafobia') && bezOslonyWokol(x, z)) {
+                    kara = FOBIA_KARA_CELNOSC;
+                    dodajTraume(s, 'otwarte');
+                }
+                if (kara !== s.karaAgorafobii) {
+                    s.accuracyBonus = (s.accuracyBonus || 0) + s.karaAgorafobii - kara;
+                    if (kara && !s.__agoraPowiedziane) {
+                        pokazFobie(s, 'Nic za plecami. Ręce drżą.');
+                        s.__agoraPowiedziane = true;
+                    }
+                    if (!kara) s.__agoraPowiedziane = false;
+                    s.karaAgorafobii = kara;
+                }
+
+                // Tanatofobia: obecność zjawy
+                if (zjawy) {
+                    dodajTraume(s, 'zjawa');
+                    if (maFobie(s, 'tanatofobia')) {
+                        s.bezOdpornosciNaPanike = true;
+                        if (zjawaObok(s) && !s.zamarl) {
+                            s.zamarl = 1; s.ap = 0; s.turnEnded = true;
+                            pokazFobie(s, 'Zamyka oczy i udaje, że go nie ma.');
+                        }
+                    }
+                } else { s.bezOdpornosciNaPanike = false; }
+
+                // Klaustrofobia: osaczenie
+                if (maFobie(s, 'klaustrofobia') && osaczonyZDwochStron(s)) {
+                    dodajTraume(s, 'ciasno');
+                    if (!s.panicTurns) {
+                        s.panicTurns = 1;
+                        pokazFobie(s, 'Ściśnięty z dwóch stron - rzuca się do ucieczki!');
+                        zwatpienieZPaniki(s);
+                    }
+                }
+
+                // Hematofobia sprawdza się sama przy każdej ranie, ale po leczeniu
+                // trzeba zdjąć szok - inaczej zostałby do końca misji.
+                if (s.hp > (s.maxHp || 10) / 2) s.szokKrwi = false;
+            });
+        }
+
+        // Rytuał Oczyszczenia: jedyny sposób na pozbycie się fobii
+        function rytualOczyszczenia(idx) {
+            const w = recruitedWarriors[idx - 1];
+            if (!w || !w.fobia) return false;
+            if (ostoja.kaplica < FOBIA_RYTUAL_KAPLICA) return false;
+            if ((playerStats.grace || 0) < FOBIA_RYTUAL_LASKA) return false;
+            if (naukaWToku) return false;
+            playerStats.grace -= FOBIA_RYTUAL_LASKA;
+            naukaWToku = { co: 'rytual', kogo: idx, gotoweDnia: dzienGry() + FOBIA_RYTUAL_DNI };
+            updatePlayerStatsUI();
+            updateUI(`Kaplica: zaczyna się Rytuał Oczyszczenia nad ${w.name}. Potrwa ${FOBIA_RYTUAL_DNI} dni.`);
+            return true;
+        }
+
         // Każda izba wygląda tak, jak jej przeznaczenie - a im wyższy poziom,
         // tym więcej w niej sprzętu. To jedyne miejsce w grze, gdzie widać
         // rozbudowę Ostoi na własne oczy.
         let ostojaIzbyNaPlanszy = [];
+        let klaustrofobiaKomory = [];      // szersze miejsca w labiryncie - tam da się walczyć
         // UWAGA: addObstacle żyje WEWNĄTRZ generatora, więc trzeba ją podać
         // z zewnątrz. Bez tego funkcja wywracała się przy pierwszej zbudowanej
         // izbie - a przy pustej Ostoi nigdy się nie uruchamiała i błąd się nie ujawniał.
@@ -28824,6 +29335,407 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             bryla.position.set(x, ty + 1.3, z);
             scene.add(bryla);
             obstacleMeshes.push(bryla);
+        }
+
+        // ===================== LABIRYNT, KTÓRY SIĘ ZACISKA =====================
+        // Ściany ruszają się w rytmie trzech rund: ZGRZYT (widać, dokąd pójdą),
+        // RUCH, CISZA. Rytm jest po to, żeby zgniecenie nigdy nie było pechem -
+        // przez całą rundę widać znaczniki na polach, które zaraz znikną.
+        // Zasada obrażeń: blok najpierw ODPYCHA. Rani dopiero wtedy, gdy nie ma
+        // dokąd odepchnąć - wtedy dociska do ściany i staje. Śmierć jest możliwa,
+        // ale wyłącznie z rany, nigdy "bo blok wszedł na pole".
+        const MUR_PCHNIEC = 7;              // ile odcinków muru rusza się naraz
+        const MUR_ODCINEK_MIN = 2, MUR_ODCINEK_MAX = 4;
+        const MUR_OBRAZENIA = 6;
+        const MUR_PRZERWA = 2;              // rundy od ruchu do następnego zgrzytu
+        // Ruch MUSI się dziać tam, gdzie patrzy gracz. Pierwsza wersja losowała
+        // odcinki z całej planszy - przy sześciu tysiącach bloków na mapie 100x200
+        // szansa, że którykolwiek ruszy się w zasięgu wzroku, była znikoma i wyglądało
+        // to tak, jakby ściany w ogóle nie działały.
+        const MUR_PROMIEN = 16;             // z jakiej odległości od oddziału budzą się ściany
+        const MUR_PRZESUW_S = 1.6;          // ile sekund trwa przesunięcie - ma być widać
+        const MUR_BARWA = 0x55504a;         // kamień w spoczynku
+        const MUR_BARWA_ZGRZYT = 0x8c3a2a;  // kamień, który zaraz ruszy
+        let murNastepna = 2;                // pierwszy zgrzyt nie od razu w 1. rundzie
+        let murZapowiedzi = [];             // { pola: [{x,z}], kx, kz }
+        let murZnaczniki = [];              // bryły ostrzegawcze do sprzątnięcia
+        let murRozgrzane = [];              // bryły przefarbowane na czas zgrzytu
+        let murAnimacje = [];               // trwające przesunięcia: { m, ox, oz, dx, dz, t }
+
+        function czyBlok(x, z) {
+            const mx = x + offsetX, mz = z + offsetZ;
+            if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return null;
+            const o = obstacleGrid[mx][mz];
+            return (o && o.type === 'blok') ? o : null;
+        }
+
+        function polePusteDlaBloku(x, z) {
+            if (!isWithinPlayBounds(x, z)) return false;
+            const mx = x + offsetX, mz = z + offsetZ;
+            if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return false;
+            return !obstacleGrid[mx][mz];
+        }
+
+        function jednostkaNaPolu(x, z) {
+            const szukaj = u => u && !u.isDead && u.mesh &&
+                Math.round(u.mesh.position.x) === x && Math.round(u.mesh.position.z) === z;
+            return soldiers.find(szukaj) || enemies.find(szukaj) || npcs.find(szukaj) || null;
+        }
+
+        function zdejmijBlok(o) {
+            const mx = Math.round(o.x) + offsetX, mz = Math.round(o.z) + offsetZ;
+            usunBryleOslony(o);
+            const i2 = obstaclePositions.indexOf(o);
+            if (i2 !== -1) obstaclePositions.splice(i2, 1);
+            obstacleMap.delete(`${Math.round(o.x)},${Math.round(o.z)}`);
+            if (mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth) obstacleGrid[mx][mz] = null;
+            // usunBryleOslony zna tylko bryłę zapisaną przy obiekcie, a blok rysuje
+            // się z czterech kawałków (trzon, spoina, dwa okucia). Bez tego na planszy
+            // zostawały wiszące kamienie bez kolizji.
+            for (let i = obstacleMeshes.length - 1; i >= 0; i--) {
+                const m = obstacleMeshes[i];
+                if (Math.round(m.position.x) === Math.round(o.x) &&
+                    Math.round(m.position.z) === Math.round(o.z)) {
+                    scene.remove(m); obstacleMeshes.splice(i, 1);
+                }
+            }
+        }
+
+        function postawBlok(x, z) {
+            const mx = x + offsetX, mz = z + offsetZ;
+            if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return null;
+            if (obstacleGrid[mx][mz]) return null;
+            const obj = { x: x, z: z, type: 'blok' };
+            obstaclePositions.push(obj);
+            obstacleGrid[mx][mz] = obj;
+            obstacleMap.set(`${x},${z}`, obj);
+            const ty = getTerrainY(x, z);
+            const kamien = new THREE.MeshLambertMaterial({ color: 0x55504a });
+            const bryla = new THREE.Mesh(new THREE.BoxGeometry(1, 2.4, 1), kamien);
+            bryla.position.set(x, ty + 1.2, z);
+            bryla.userData = { type: 'blok', x: x, z: z };
+            scene.add(bryla); obstacleMeshes.push(bryla);
+            obj.mesh = bryla;
+            const spoina = new THREE.Mesh(new THREE.BoxGeometry(1.02, 0.06, 1.02),
+                new THREE.MeshLambertMaterial({ color: 0x3a3630 }));
+            spoina.position.set(x, ty + 0.12, z);
+            scene.add(spoina); obstacleMeshes.push(spoina);
+            [[-0.45, -0.45], [0.45, 0.45]].forEach(([dx, dz]) => {
+                const ok = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.3, 0.14),
+                    new THREE.MeshLambertMaterial({ color: 0x6a6258 }));
+                ok.position.set(x + dx, ty + 1.9, z + dz);
+                scene.add(ok); obstacleMeshes.push(ok);
+            });
+            return obj;
+        }
+
+        function wyczyscZnacznikiMuru() {
+            murZnaczniki.forEach(m => scene.remove(m));
+            murZnaczniki = [];
+            murRozgrzane.forEach(r => {
+                if (r.m && r.m.material && r.m.material.color) r.m.material.color.setHex(r.stara);
+            });
+            murRozgrzane = [];
+        }
+
+        // Przesuwanie na oczach gracza. Siatka kolizji zmienia się od razu (inaczej
+        // ktoś wszedłby w lecący kamień), ale bryły jadą jeszcze przez chwilę -
+        // bez tego blok po prostu znikał i pojawiał się obok, czego nikt nie zauważał.
+        function animujRuchMurow(dt) {
+            if (!murAnimacje.length) return;
+            for (let i = murAnimacje.length - 1; i >= 0; i--) {
+                const a = murAnimacje[i];
+                a.t = Math.min(1, a.t + dt / MUR_PRZESUW_S);
+                // Kamień rusza ciężko i zatrzymuje się twardo
+                const p = a.t * a.t * (3 - 2 * a.t);
+                a.m.position.x = a.ox + a.dx * p;
+                a.m.position.z = a.oz + a.dz * p;
+                // Drganie, dopóki jedzie
+                a.m.position.y = a.oy + (a.t < 1 ? Math.sin(a.t * 40) * 0.03 : 0);
+                if (a.t >= 1) {
+                    if (a.m.material && a.m.material.color && a.barwa !== undefined)
+                        a.m.material.color.setHex(a.barwa);
+                    murAnimacje.splice(i, 1);
+                }
+            }
+        }
+
+        // --- RUNDA 1: ZGRZYT. Wybieramy odcinki i pokazujemy, dokąd wejdą ---
+        function bryliNaPolu(x, z) {
+            const lista = [];
+            obstacleMeshes.forEach(m => {
+                if (!m.position) return;
+                if (Math.round(m.position.x) === x && Math.round(m.position.z) === z) lista.push(m);
+            });
+            return lista;
+        }
+
+        function rozgrzejBlok(x, z) {
+            bryliNaPolu(x, z).forEach(m => {
+                if (!m.material || !m.material.color) return;
+                murRozgrzane.push({ m: m, stara: m.material.color.getHex() });
+                m.material = m.material.clone();   // bez tego farbujemy wszystkie bloki naraz
+                m.material.color.setHex(MUR_BARWA_ZGRZYT);
+            });
+        }
+
+        function zapowiedzRuchMurow() {
+            murZapowiedzi = [];
+            // Tylko ściany w zasięgu wzroku oddziału. Jeśli nikt nie żyje albo nic
+            // nie ma w pobliżu, bierzemy całą planszę - niech labirynt żyje dalej.
+            const zywi = soldiers.filter(s => !s.isDead && s.mesh);
+            const blisko = o => zywi.some(s =>
+                Math.abs(Math.round(s.mesh.position.x) - Math.round(o.x)) <= MUR_PROMIEN &&
+                Math.abs(Math.round(s.mesh.position.z) - Math.round(o.z)) <= MUR_PROMIEN);
+            const wszystkie = obstaclePositions.filter(o => o.type === 'blok');
+            let bloki = zywi.length ? wszystkie.filter(blisko) : wszystkie;
+            if (bloki.length < MUR_ODCINEK_MAX * 2) bloki = wszystkie;
+            if (!bloki.length) return 0;
+            const kierunki = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+            const zajete = new Set();
+            for (let prob = 0; prob < MUR_PCHNIEC * 40 && murZapowiedzi.length < MUR_PCHNIEC; prob++) {
+                const b = bloki[Math.floor(Math.random() * bloki.length)];
+                const [kx, kz] = kierunki[Math.floor(Math.random() * 4)];
+                // Odcinek biegnie W POPRZEK kierunku ruchu - inaczej blok wchodziłby
+                // na blok z własnego odcinka i nic by się nie ruszyło.
+                const ox = kz, oz = kx;
+                const dl = MUR_ODCINEK_MIN + Math.floor(Math.random() * (MUR_ODCINEK_MAX - MUR_ODCINEK_MIN + 1));
+                const pola = [];
+                let dobry = true;
+                for (let i = 0; i < dl; i++) {
+                    const x = Math.round(b.x) + ox * i, z = Math.round(b.z) + oz * i;
+                    if (!czyBlok(x, z)) { dobry = false; break; }
+                    if (!polePusteDlaBloku(x + kx, z + kz)) { dobry = false; break; }
+                    if (zajete.has(x + '/' + z) || zajete.has((x + kx) + '/' + (z + kz))) { dobry = false; break; }
+                    pola.push({ x: x, z: z });
+                }
+                if (!dobry || pola.length < MUR_ODCINEK_MIN) continue;
+                pola.forEach(p => {
+                    zajete.add(p.x + '/' + p.z);
+                    zajete.add((p.x + kx) + '/' + (p.z + kz));
+                });
+                murZapowiedzi.push({ pola: pola, kx: kx, kz: kz });
+            }
+            if (!murZapowiedzi.length) return 0;
+
+            // Znaczniki: pole, które zaraz zniknie pod kamieniem. Sam kamień
+            // czerwienieje - po to, żeby było widać, KTÓRY blok się rusza, a nie
+            // tylko dokąd pójdzie.
+            murZapowiedzi.forEach(z => z.pola.forEach(p => {
+                rozgrzejBlok(p.x, p.z);
+                const cx = p.x + z.kx, cz = p.z + z.kz;
+                const mat = new THREE.MeshBasicMaterial({ color: 0xff3a22, transparent: true,
+                    opacity: 0.75, blending: THREE.AdditiveBlending });
+                const plama = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.04, 0.92), mat);
+                plama.position.set(cx, getTerrainY(cx, cz) + 0.03, cz);
+                scene.add(plama); murZnaczniki.push(plama);
+                // Pył sypiący się ze szczeliny - widać go także zza rogu
+                const pyl = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.6, 0.2),
+                    new THREE.MeshBasicMaterial({ color: 0xc9b79a, transparent: true, opacity: 0.22 }));
+                pyl.position.set(p.x, getTerrainY(p.x, p.z) + 0.8, p.z);
+                scene.add(pyl); murZnaczniki.push(pyl);
+            }));
+            try { SoundEngine.playStep && SoundEngine.playStep('brute'); } catch (err) {}
+            showFloatingWarning('Skała zgrzyta.');
+            updateUI('Coś się porusza w ścianach. Pola oznaczone pyłem za chwilę przestaną istnieć.');
+            return murZapowiedzi.length;
+        }
+
+        // --- RUNDA 2: RUCH ---
+        function wykonajRuchMurow() {
+            wyczyscZnacznikiMuru();
+            let przesuniete = 0, zaklinowane = 0, rannych = 0;
+            murZapowiedzi.forEach(zap => {
+                const kx = zap.kx, kz = zap.kz;
+                // Najpierw sprawdzamy całą drogę odcinka: jeśli choć jeden blok
+                // ma kogoś przed sobą i nie da się go odepchnąć, STAJE CAŁY ODCINEK.
+                // Inaczej kamień przechodziłby obok własnego sąsiada.
+                let blokada = false;
+                zap.pola.forEach(p => {
+                    const cx = p.x + kx, cz = p.z + kz;
+                    const u = jednostkaNaPolu(cx, cz);
+                    if (!u) return;
+                    if (odepchnijSprzedMuru(u, kx, kz)) return;
+                    // Nie ma dokąd - dociśnięcie do ściany
+                    blokada = true; rannych++;
+                    u.przygnieciony = 1;
+                    if (u.name) updateUI(`${u.name} zostaje dociśnięty do ściany (-${MUR_OBRAZENIA} HP).`);
+                    applyDamageToUnit(u, MUR_OBRAZENIA, null);
+                });
+                if (blokada) { zaklinowane++; return; }
+                // Zdejmujemy CAŁY odcinek, dopiero potem stawiamy - kolejność
+                // odwrotna kasowała blok dopiero co postawiony na tym samym polu.
+                const stare = [];
+                zap.pola.forEach(p => {
+                    const o = czyBlok(p.x, p.z);
+                    if (o) { zdejmijBlok(o); stare.push(p); }
+                });
+                stare.forEach(p => {
+                    if (!postawBlok(p.x + kx, p.z + kz)) return;
+                    przesuniete++;
+                    // Nowe bryły zaczynają drogę na STARYM polu i dojeżdżają na nowe,
+                    // nadal czerwone - dopiero na końcu stygną.
+                    bryliNaPolu(p.x + kx, p.z + kz).forEach(m => {
+                        let barwa;
+                        if (m.material && m.material.color) {
+                            // Zapamiętujemy WŁASNY kolor każdej bryłki (spoina i okucia
+                            // mają inny niż trzon) - inaczej po ruchu zostawały czerwone.
+                            barwa = m.material.color.getHex();
+                            m.material = m.material.clone();
+                            m.material.color.setHex(MUR_BARWA_ZGRZYT);
+                        }
+                        m.position.x -= kx; m.position.z -= kz;
+                        murAnimacje.push({ m: m, ox: m.position.x, oz: m.position.z,
+                            oy: m.position.y, dx: kx, dz: kz, t: 0, barwa: barwa });
+                    });
+                });
+            });
+            murZapowiedzi = [];
+            if (przesuniete) {
+                odetkajLabirynt();
+                buildTerrainMeshes();
+                refreshEnemyPositions(); refreshPlayerPositions(); updateFoW();
+                try { SoundEngine.playStep && SoundEngine.playStep('brute'); } catch (err) {}
+                showFloatingWarning('Ściany się przesunęły!');
+                updateUI(`Labirynt zacisnął się w ${przesuniete} ${przesuniete === 1 ? 'miejscu' : 'miejscach'}.`
+                    + (zaklinowane ? ` ${zaklinowane} ${zaklinowane === 1 ? 'blok zaklinował się' : 'bloki zaklinowały się'} na kimś.` : '')
+                    + (rannych ? ' Ktoś nie zdążył zejść z drogi.' : ''));
+            }
+            checkGameOver();
+            return przesuniete;
+        }
+
+        // Odepchnięcie: najpierw prosto przed siebie (tak, jakby kamień popchnął),
+        // potem w bok. Działa tak samo na wojownika, wroga i cywila.
+        function odepchnijSprzedMuru(u, kx, kz) {
+            const ux = Math.round(u.mesh.position.x), uz = Math.round(u.mesh.position.z);
+            const proby = [[kx, kz], [kz, kx], [-kz, -kx], [-kx, -kz]];
+            for (const [dx, dz] of proby) {
+                const nx = ux + dx, nz = uz + dz;
+                if (!polePusteDlaBloku(nx, nz)) continue;
+                if (jednostkaNaPolu(nx, nz)) continue;
+                u.mesh.position.x = nx; u.mesh.position.z = nz;
+                u.mesh.position.y = getTerrainY(nx, nz);
+                if (u.name) updateUI(`${u.name} odskakuje spod nasuwającej się ściany.`);
+                return true;
+            }
+            return false;
+        }
+
+        // Po każdym ruchu sprawdzamy, czy labirynt nadal trzyma się w jednym kawałku.
+        // Jeśli komuś zamknął się kieszonka bez wyjścia, jeden blok PĘKA - lepszy
+        // rysa w kamieniu niż misja nie do przejścia.
+        function odetkajLabirynt() {
+            const zywi = soldiers.filter(s => !s.isDead && s.mesh);
+            if (!zywi.length) return 0;
+            const klucz = (x, z) => x + '/' + z;
+            const wolne = (x, z) => polePusteDlaBloku(x, z);
+            const osiagalne = new Set();
+            const kol = [];
+            zywi.forEach(s => {
+                const x = Math.round(s.mesh.position.x), z = Math.round(s.mesh.position.z);
+                if (!osiagalne.has(klucz(x, z))) { osiagalne.add(klucz(x, z)); kol.push([x, z]); }
+            });
+            while (kol.length) {
+                const [x, z] = kol.pop();
+                [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dz]) => {
+                    const nx = x + dx, nz = z + dz;
+                    if (!wolne(nx, nz) || osiagalne.has(klucz(nx, nz))) return;
+                    osiagalne.add(klucz(nx, nz)); kol.push([nx, nz]);
+                });
+            }
+            // Czy wszystko, co ważne, jest po tej samej stronie kamienia
+            const odciete = [];
+            [...enemies, ...npcs].forEach(u => {
+                if (u.isDead || !u.mesh) return;
+                const x = Math.round(u.mesh.position.x), z = Math.round(u.mesh.position.z);
+                if (!osiagalne.has(klucz(x, z))) odciete.push({ x: x, z: z });
+            });
+            kapliczkiMisji.concat(wrotaMisji || []).forEach(q => {
+                if (q && !q.zrobione && !osiagalne.has(klucz(q.x, q.z))) odciete.push({ x: q.x, z: q.z });
+            });
+            if (!odciete.length) return 0;
+
+            // Pękamy bloki stykające się z osiągalną częścią, idąc w stronę odciętych
+            let pekle = 0;
+            odciete.slice(0, 4).forEach(cel => {
+                let najlepszy = null, najblizej = Infinity;
+                obstaclePositions.forEach(o => {
+                    if (o.type !== 'blok') return;
+                    const x = Math.round(o.x), z = Math.round(o.z);
+                    const przyDrodze = [[1, 0], [-1, 0], [0, 1], [0, -1]]
+                        .some(([dx, dz]) => osiagalne.has(klucz(x + dx, z + dz)));
+                    if (!przyDrodze) return;
+                    const d = Math.hypot(x - cel.x, z - cel.z);
+                    if (d < najblizej) { najblizej = d; najlepszy = o; }
+                });
+                if (najlepszy) { zdejmijBlok(najlepszy); pekle++; }
+            });
+            if (pekle) updateUI('Kamień pęka pod własnym naporem - otwiera się szczelina.');
+            return pekle;
+        }
+
+        // ŚCIANY REAGUJĄ NA OBECNOŚĆ. Sam rytm trzech rund to za mało: gracz może
+        // przejść cały korytarz i nic się nie wydarzy, bo akurat wypadła cisza.
+        // Tutaj wystarczy podejść - najbliższy blok rusza od razu. Nie jest to
+        // niesprawiedliwe, bo zasada "najpierw odepchnięcie" obowiązuje tak samo.
+        const MUR_BUDZENIE = 3;             // z ilu pól czuje, że ktoś stoi obok
+        let murObudzone = [];               // pola, które już zareagowały w tej turze
+
+        function obudzSciany(s) {
+            if (!currentCombatTheme || currentCombatTheme.id !== 'klaustrofobia') return 0;
+            if (!s || s.isDead || !s.mesh || gameOver) return 0;
+            const sx = Math.round(s.mesh.position.x), sz = Math.round(s.mesh.position.z);
+            if (murObudzone.some(p => Math.abs(p.x - sx) <= MUR_BUDZENIE &&
+                                      Math.abs(p.z - sz) <= MUR_BUDZENIE)) return 0;
+            // Szukamy bloku w pobliżu, który ma dokąd się przesunąć - najlepiej
+            // W STRONĘ wojownika, bo o to w tym chodzi.
+            const kandydaci = [];
+            for (let dx = -MUR_BUDZENIE; dx <= MUR_BUDZENIE; dx++)
+                for (let dz = -MUR_BUDZENIE; dz <= MUR_BUDZENIE; dz++) {
+                    const x = sx + dx, z = sz + dz;
+                    if (!czyBlok(x, z)) continue;
+                    const kx = Math.sign(sx - x), kz = Math.sign(sz - z);
+                    // Tylko ruch wzdłuż jednej osi - po skosie blok nie chodzi
+                    const kier = (Math.abs(sx - x) >= Math.abs(sz - z)) ? [kx, 0] : [0, kz];
+                    if (!kier[0] && !kier[1]) continue;
+                    if (!polePusteDlaBloku(x + kier[0], z + kier[1])) continue;
+                    kandydaci.push({ x: x, z: z, kx: kier[0], kz: kier[1],
+                                     d: Math.abs(dx) + Math.abs(dz) });
+                }
+            if (!kandydaci.length) return 0;
+            kandydaci.sort((a, b) => a.d - b.d);
+            const w = kandydaci[0];
+            murObudzone.push({ x: sx, z: sz });
+            // Drugi blok odcinka, jeśli sąsiad też może iść - ściana rusza kawałkiem
+            const ox = w.kz, oz = w.kx;
+            const pola = [{ x: w.x, z: w.z }];
+            if (czyBlok(w.x + ox, w.z + oz) && polePusteDlaBloku(w.x + ox + w.kx, w.z + oz + w.kz))
+                pola.push({ x: w.x + ox, z: w.z + oz });
+            // Zapowiedziany ruch rytmu czeka na swoją rundę - nie wolno go zgubić
+            // przy okazji obudzenia pojedynczej ściany.
+            const odlozone = murZapowiedzi;
+            const odlozoneZnaczniki = murZnaczniki, odlozoneBarwy = murRozgrzane;
+            murZnaczniki = []; murRozgrzane = [];
+            murZapowiedzi = [{ pola: pola, kx: w.kx, kz: w.kz }];
+            showFloatingWarning('Ściana budzi się obok ciebie!');
+            wykonajRuchMurow();
+            murZapowiedzi = odlozone;
+            murZnaczniki = odlozoneZnaczniki; murRozgrzane = odlozoneBarwy;
+            return 1;
+        }
+
+        function tikMurow() {
+            murObudzone = [];               // nowa tura, ściany znów czujne
+            if (!currentCombatTheme || currentCombatTheme.id !== 'klaustrofobia' || gameOver) return;
+            if (combatTurnCounter < murNastepna) return;
+            if (murZapowiedzi.length) {
+                wykonajRuchMurow();
+                murNastepna = combatTurnCounter + MUR_PRZERWA;   // runda ciszy
+            } else {
+                if (zapowiedzRuchMurow()) murNastepna = combatTurnCounter + 1;
+                else murNastepna = combatTurnCounter + MUR_PRZERWA;
+            }
         }
 
         function tikSwitu() {
@@ -29674,6 +30586,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         }
                     } else {
                         celR.rojTury = ROJ_TURY;
+                        fobiaRoju(celR);
                         applyDamageToUnit(celR, ROJ_UPUST);
                         updateUI(`RÓJ oblepia ${celR.name} - nie widzi już nic dalej niż na krok. (-${ROJ_UPUST} HP)`);
                         showFloatingWarning('Muchy w oczach!');
@@ -31560,6 +32473,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             animujPozar(time);
             animujPioruny(time);
             animujMgleSnu(time);
+            animujRuchMurow(dt);
             animujZjazdyZasadzki(dt);
             przezroczysteDachyWagonow();
             animujOtchlan(time, dt);
@@ -33700,6 +34614,35 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
             }
             html += '</div>';
+
+            // --- RYTUAŁY OCZYSZCZENIA: zdejmowanie lęków przywiezionych ze snu ---
+            html += '<div style="margin-top:12px; border-top:1px solid #4a4230; padding-top:8px;">' +
+                    '<b>Rytuały Oczyszczenia</b><br>';
+            const dotknieci = recruitedWarriors
+                .map((w, i) => ({ w: w, idx: i + 1 }))
+                .filter(r => r.w && r.w.fobia);
+            if (naukaWToku && naukaWToku.co === 'rytual') {
+                const kogo = recruitedWarriors[naukaWToku.kogo - 1];
+                html += `<span style="color:#6a9ac8;">Rytuał nad ${kogo ? kogo.name : '-'} ` +
+                        `(${Math.max(0, naukaWToku.gotoweDnia - dzienGry())} dni)</span>`;
+            } else if (!dotknieci.length) {
+                html += '<span style="color:#8a8270;">Nikt nie przywiózł ze snu lęku, który trzeba by zdejmować.</span>';
+            } else if (ostoja.kaplica < FOBIA_RYTUAL_KAPLICA) {
+                html += `<span style="color:#8a8270;">Potrzebna Kaplica poziomu ${FOBIA_RYTUAL_KAPLICA}. ` +
+                        `Dotknięci: ${dotknieci.map(r => r.w.name + ' (' + nazwaFobii(r.w.fobia) + ')').join(', ')}.</span>`;
+            } else {
+                dotknieci.forEach(r => {
+                    const def = FOBIE[r.w.fobia] || {};
+                    const stac = (playerStats.grace || 0) >= FOBIA_RYTUAL_LASKA;
+                    html += `<button class="start-btn rytual-btn" data-i="${r.idx}" ${stac ? '' : 'disabled'} ` +
+                            `style="display:block; width:100%; text-align:left; font-size:12px; padding:7px; ` +
+                            `margin-bottom:5px; ${stac ? '' : 'opacity:0.45;'}">` +
+                            `<b>${r.w.name} - ${def.nazwa || r.w.fobia}</b><br>` +
+                            `<span style="color:#9a8f70;">${def.objaw || ''}<br>` +
+                            `${FOBIA_RYTUAL_LASKA} Łaski, ${FOBIA_RYTUAL_DNI} dni.</span></button>`;
+                });
+            }
+            html += '</div>';
             html += '<div style="margin-top:8px;"><button class="start-btn" id="btn-rozbuduj-kaplice" style="font-size:12px;">' +
                     (ostoja.kaplica >= IZBY.kaplica.maxPoziom ? 'Kaplica w pełni wzniesiona'
                      : `Rozbuduj Kaplicę (${IZBY.kaplica.koszt(ostoja.kaplica)} Łaski)`) + '</button></div>';
@@ -33712,6 +34655,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             };
             op.querySelectorAll('.cw-btn').forEach(b => {
                 b.onclick = () => { cwiczWKaplicy(CWICZENIA[parseInt(b.dataset.i, 10)]); pokazCwiczenia(); rysujOstoje(); };
+            });
+            op.querySelectorAll('.rytual-btn').forEach(b => {
+                b.onclick = () => {
+                    if (rytualOczyszczenia(parseInt(b.dataset.i, 10))) { pokazCwiczenia(); rysujOstoje(); }
+                };
             });
             const rb = document.getElementById('btn-rozbuduj-kaplice');
             if (rb) rb.onclick = () => { rozbudujIzbe('kaplica'); };
@@ -33760,7 +34708,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function tikOstoi() {
             // Zakończona nauka zostaje w drużynie na zawsze
             if (naukaWToku && dzienGry() >= naukaWToku.gotoweDnia) {
-                if (naukaWToku.co === 'telekineza') {
+                if (naukaWToku.co === 'rytual') {
+                    const w = recruitedWarriors[naukaWToku.kogo - 1];
+                    if (w && w.fobia) {
+                        const byla = nazwaFobii(w.fobia);
+                        w.fobia = null; w.trauma = 0; w.traumaZrodla = {};
+                        showFloatingWarning('Kaplica: lęk odstąpił');
+                        updateUI(`Rytuał Oczyszczenia dobiegł końca. ${w.name} nie boi się już tego, ` +
+                                 `co nosił w sobie (${byla}).`);
+                    }
+                } else if (naukaWToku.co === 'telekineza') {
                     telekinezaWyuczona = true;
                     showFloatingWarning('Kaplica: Telekineza opanowana');
                     updateUI('Dni skupienia przyniosły owoc: wojownicy o dość mocnym umyśle i pewnej ręce ' +
@@ -34951,7 +35908,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Ostoja leży w kręgu 0 - to wasz własny dom, nie cudzy sen w oddali.
             // Zasięg Dzwonnicy i tak jej nie dotyczy: nie wybiera się jej z mapy,
             // przychodzi sama, gdy Zakon ją namierzy.
-            ostoja: 0
+            ostoja: 0,
+            klaustrofobia: 2
         };
 
         function planszaWZasiegu(t) {
