@@ -13433,9 +13433,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // KAŻDA klasa ma w sumie tyle samo: paladyn po 10 w pięciu cechach, czyli
             // STAT_PULA_KLASY punktów. Pozostałe klasy to ta sama pula inaczej
             // rozłożona - suma modyfikatorów każdej z nich wynosi zero.
-            // Punkty ruchu i życie biorą się TYLKO z cech. Płaskie maxApBonus
-            // i maxHpBonus zostały wyzerowane, bo liczyły to samo drugi raz:
-            // wojownik dostawał +4 życia od klasy i jeszcze +4 od Witalności.
+            //
+            // PUNKTY RUCHU: każdy wojownik ma co najmniej MIN_AP, a do tego
+            // dochodzi PREMIA SPECJALIZACJI (maxApBonus) i wyćwiczona Zręczność
+            // ponad bazę. Modyfikator Zręczności od klasy NIE przelicza się już
+            // na punkty ruchu - inaczej klasa dawałaby swoje dwa razy, raz przez
+            // premię i raz tylnimi drzwiami przez cechę.
+            // ŻYCIE bierze się nadal wprost z Witalności; maxHpBonus zostaje
+            // wyzerowany, bo liczył to samo drugi raz.
             uniwersalna: {
                 name: 'Paladyn',
                 desc: 'Zrównoważony wojownik. Potrafi wezwać na pomoc swojego patrona - anioła, który walczy u jego boku.',
@@ -13447,21 +13452,21 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 name: 'Wojownik',
                 desc: 'Preferuje walkę wręcz. Silny i wytrzymały, ale gorzej strzela z dystansu.',
                 statMods: { zrecznosc: -2, witalnosc: 5, madrosc: -3, silaPsychiczna: 2, charyzma: -2 },
-                rangedAccuracyMod: -15, meleeBonus: 4, maxApBonus: 0, maxHpBonus: 0,
+                rangedAccuracyMod: -15, meleeBonus: 4, maxApBonus: 1, maxHpBonus: 0,
                 abilities: ['melee']
             },
             uzdrowiciel: {
                 name: 'Uzdrowiciel / Mentalista',
                 desc: 'Gorzej strzela, przeciętnie wytrzymały, ponadprzeciętna mądrość. Potrafi leczyć i osłaniać drużynę.',
                 statMods: { zrecznosc: -2, witalnosc: -2, madrosc: 5, silaPsychiczna: 1, charyzma: -2 },
-                rangedAccuracyMod: -10, meleeBonus: -2, maxApBonus: 0, maxHpBonus: 0,
+                rangedAccuracyMod: -10, meleeBonus: -2, maxApBonus: 2, maxHpBonus: 0,
                 abilities: ['heal', 'shield']
             },
             snajper: {
                 name: 'Snajper / Łucznik',
                 desc: 'Bardzo celny na dystans, duży zasięg ruchu.',
                 statMods: { zrecznosc: 5, witalnosc: -2, madrosc: 0, silaPsychiczna: -1, charyzma: -2 },
-                rangedAccuracyMod: 20, meleeBonus: -3, maxApBonus: 0, maxHpBonus: 0,
+                rangedAccuracyMod: 20, meleeBonus: -3, maxApBonus: 4, maxHpBonus: 0,
                 abilities: []
             }
         };
@@ -15645,7 +15650,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const STAT_BASE = 10;
         const STAT_CECHY = ['zrecznosc', 'witalnosc', 'madrosc', 'silaPsychiczna', 'charyzma'];
         const STAT_PULA_KLASY = STAT_BASE * 5;   // tyle punktów ma każda klasa łącznie
-        const AGILITY_AP_CAP = 8;      // maks. +8 punktów ruchu
+        const AGILITY_AP_CAP = 8;      // maks. +8 punktów ruchu z wyćwiczonej Zręczności
+        const MIN_AP = 10;             // tyle punktów ruchu ma KAŻDY wojownik, bez wyjątku
         const PSYCHE_ACC_CAP = 30;     // maks. +30% celności
 
         // Statystyki wojownika: bohater korzysta z playerCharacterStats (+ ekwipunek),
@@ -15687,14 +15693,33 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (!w || !w.stats) return Math.max(1, STAT_BASE + zKlasy);
             return Math.max(1, (w.stats[key] || STAT_BASE) + zKlasy + getItemBonusFor(idx, key));
         }
-        // Cecha poniżej bazy ODEJMUJE, nie tylko przestaje dodawać. Inaczej
-        // klasy różniły się cechami tylko w jedną stronę: snajperowi z 8
-        // Witalności życie i tak zostawało na dziesięciu.
-        const AGILITY_AP_MALUS = 4;    // najwięcej, ile można stracić na Zręczności
-        const VITALITY_HP_MALUS = 4;   // ...i na Witalności
+        // Witalność poniżej bazy ODEJMUJE życie, nie tylko przestaje dodawać.
+        // Inaczej klasy różniłyby się cechami tylko w jedną stronę: snajperowi
+        // z 8 Witalności życie i tak zostawałoby na dziesięciu.
+        const VITALITY_HP_MALUS = 4;   // najwięcej, ile można stracić na Witalności
+
+        // WYĆWICZONA Zręczność - własna cecha wojownika, BEZ modyfikatora klasy.
+        // Premię za specjalizację klasa dostaje raz, przez maxApBonus; gdyby jej
+        // modyfikator Zręczności liczył się jeszcze do punktów ruchu, dostałaby
+        // to samo drugi raz. Relikwie i ćwiczenia w Kaplicy liczą się normalnie.
+        function zrecznoscWyuczona(warriorIndex) {
+            const idx = warriorIndex || 0;
+            if (idx === 0) return (playerCharacterStats.zrecznosc || 0) + getItemBonusFor(0, 'zrecznosc');
+            const w = recruitedWarriors[idx - 1];
+            if (!w || !w.stats) return STAT_BASE;
+            return (w.stats.zrecznosc || STAT_BASE) + getItemBonusFor(idx, 'zrecznosc');
+        }
+        // Premia do ruchu nigdy nie schodzi poniżej zera - stąd gwarantowane MIN_AP
         function getAgilityApBonus(idx) {
-            const d = getWarriorStat(idx || 0, 'zrecznosc') - STAT_BASE;
-            return Math.max(-AGILITY_AP_MALUS, Math.min(AGILITY_AP_CAP, d));
+            return Math.max(0, Math.min(AGILITY_AP_CAP, zrecznoscWyuczona(idx) - STAT_BASE));
+        }
+
+        // PULA RUCHU w jednym miejscu: dziesiątka dla każdego, premia za
+        // specjalizację i to, co wojownik wyćwiczył. Żaden człon nie jest ujemny,
+        // więc minimum jest gwarantowane z samej budowy, a nie obcinaniem wyniku.
+        function pulaRuchu(warriorIndex, klasa) {
+            const cls = WARRIOR_CLASSES[klasa || klasaWojownika(warriorIndex)] || WARRIOR_CLASSES.uniwersalna;
+            return MIN_AP + (cls.maxApBonus || 0) + getAgilityApBonus(warriorIndex);
         }
         function getVitalityHpBonus(idx) {
             const d = getWarriorStat(idx || 0, 'witalnosc') - STAT_BASE;   // w górę bez sufitu
@@ -16913,7 +16938,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (s.isNPC || s.isAngel) return;
                 const cls = WARRIOR_CLASSES[s.class] || WARRIOR_CLASSES.uniwersalna;
                 s.maxHp = 10 + cls.maxHpBonus + getVitalityHpBonus(i);
-                s.maxAp = maxAP + cls.maxApBonus + getAgilityApBonus(i);
+                s.maxAp = pulaRuchu(i, s.class);
                 s.hp = s.maxHp;
                 if (!s.isDead) { s.ap = getEffectiveMaxAp(s); s.turnEnded = false; }
             });
@@ -19478,7 +19503,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const heroAp = getAgilityApBonus(i);
                 soldiers.push({
                     mesh: soldierMesh, hp: 10 + classInfo.maxHpBonus + heroHp, maxHp: 10 + classInfo.maxHpBonus + heroHp,
-                    ap: maxAP + classInfo.maxApBonus + heroAp, maxAp: maxAP + classInfo.maxApBonus + heroAp,
+                    ap: pulaRuchu(i, wClass), maxAp: pulaRuchu(i, wClass),
                     isDead: false, name: name, class: wClass, accuracyBonus: 0, turnEnded: false, isKneeling: false, shieldHp: 0,
                     shotsFired: 0, shotsHit: 0, kills: 0,
                     hitStreak: 0, healsUsed: 0, shieldsUsed: 0, crossUsed: 0,
