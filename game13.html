@@ -763,6 +763,19 @@
             font-size: 12px; color: #cfe9ff; text-shadow: 0 1px 3px #000;
         }
 
+        /* Koszt akcji w PA (data-ap) - znaczek w rogu. Ikony mają font-size 0, więc rozmiar podany wprost */
+        #controls button[data-ap] { position: relative; }
+        #controls button[data-ap]:not(.ma-ikone) { padding-right: 44px; }
+        body.mobilny #controls button[data-ap]:not(.ma-ikone) { padding-right: 32px !important; }
+        #controls button[data-ap]::after {
+            content: attr(data-ap);
+            position: absolute; right: 3px; top: 2px;
+            font-size: 10px; line-height: 1; font-weight: bold; color: #ffdd88; text-shadow: 0 1px 2px #000;
+        }
+        #controls button[data-ap]:disabled::after { color: #777; }
+        /* Grupy na pasku: akcje | koniec ruchu i tury | zapis i ucieczka */
+        #btn-end-soldier-turn, #btn-save-combat { margin-left: 18px; }
+
         body.mobilny #btn-next.ma-ikone { background-position: -2.5px center !important; }
         body.mobilny #btn-kneel.ma-ikone { background-position: -40.0px center !important; }
         body.mobilny #btn-reserve.ma-ikone { background-position: -76.8px center !important; }
@@ -1058,13 +1071,13 @@
         <button id="btn-ziolo-sokoleOko" style="border-color: #66aacc; display: none;">Sokole Oko (0)</button>
         <button id="btn-shield" style="border-color: #6699cc; display: none;">Osłoń drużynę</button>
         <button id="btn-abilities" style="border-color: #ddbb55; display: none;">✝ Umiejętności</button>
+        <div id="level-indicator" style="display:none; position:absolute; top:-34px; left:50%; transform:translateX(-50%); color:#99ddff; font-size:14px; background:rgba(0,0,0,0.6); padding:4px 12px; border-radius:4px; white-space:nowrap;">Poziom: parter</div>
+        <button id="btn-level-up" style="border-color: #99ddff;">▲ Piętro wyżej</button>
+        <button id="btn-level-down" style="border-color: #99ddff;">▼ Piętro niżej</button>
         <button id="btn-end-soldier-turn" style="border-color: #888888;">Koniec ruchu</button>
         <button id="btn-turn" style="border-color: #ffaa00;">Zakończ Turę</button>
         <button id="btn-save-combat" style="border-color: #ffcc66;">💾 Zapisz grę</button>
         <button id="btn-ucieczka" style="border-color: #cc4444;" title="Przerwij sen - stracisz całą Łaskę">Przerwij sen</button>
-        <div id="level-indicator" style="display:none; position:absolute; top:-34px; left:50%; transform:translateX(-50%); color:#99ddff; font-size:14px; background:rgba(0,0,0,0.6); padding:4px 12px; border-radius:4px; white-space:nowrap;">Poziom: parter</div>
-        <button id="btn-level-up" style="border-color: #99ddff;">▲ Piętro wyżej</button>
-        <button id="btn-level-down" style="border-color: #99ddff;">▼ Piętro niżej</button>
     </div>
     <div id="instructions">Zarządzaj całym oddziałem!<br>Klawisz Tab przełącza wojaków.<br>Uważaj na zwiadowców!</div>
 
@@ -22920,7 +22933,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             updateMinimap();
         }
 
-        const maxAP = 10, shootCost = 5, kneelCost = 2; let isPlayerTurn = true, gameOver = false;
+        const maxAP = 10, shootCost = 5, kneelCost = 2, meleeCost = 3, healCost = 5, shieldCost = 5; let isPlayerTurn = true, gameOver = false;
         let currentEnemyIndex = 0;
         let moralePenalty = 0;
 
@@ -22960,8 +22973,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function tryMeleeInterrupt(enemy, victim) {
             if (!enemy || enemy.isDead || !victim || victim.isDead || victim.isEscortee) return false;
             if (isSoldierIncapacitated(victim)) return false;
-            const MELEE_COST = 3;
-            if ((victim.ap || 0) < MELEE_COST) return false;
+            if ((victim.ap || 0) < meleeCost) return false;
             const idx = soldiers.indexOf(victim);
             const agi = getWarriorStat(idx < 0 ? 0 : idx, 'zrecznosc');
             // Każdy wojownik z zapasem punktów próbuje się bronić - przy bazowej Zręczności
@@ -22972,7 +22984,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const chance = Math.min(90, 35 + Math.max(0, agi - STAT_BASE) * 6 + bonusKlasy);
             if (Math.random() * 100 >= chance) return false;
 
-            victim.ap -= MELEE_COST;
+            victim.ap -= meleeCost;
             playWarriorAnim(victim.mesh, 'attack', true);
             const dmg = getMeleeDamage(victim);
             const hit = Math.random() * 100 < getMeleeHitChance(victim);
@@ -23412,7 +23424,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             document.getElementById('btn-shield').style.display = isHealerClass ? '' : 'none';
             odswiezPrzyciskTelekinezy();
             odswiezPrzyciskZadania();
-            
+            // Koszt w PA na przycisku; za mało punktów - przycisk wyszarzony
+            const lvlCost = (active && (active.levitateTurns || 0) > 0) ? 1 : LEVEL_CHANGE_COST;
+            [['btn-kneel', kneelCost], ['btn-melee', meleeCost], ['btn-heal', healCost], ['btn-shield', shieldCost],
+             ['btn-ocuc', PIORUN_OCUCENIE_AP], ['btn-level-up', lvlCost], ['btn-level-down', lvlCost]].forEach(([id, koszt]) => {
+                const b = document.getElementById(id);
+                b.dataset.ap = koszt + ' PA';
+                b.disabled = !active || active.ap < koszt;
+            });
+
             const turnInd = document.getElementById('turn-indicator'); 
             turnInd.innerText = isPlayerTurn ? "TURA GRACZA" : "TURA WROGA"; 
             turnInd.style.color = isPlayerTurn ? "#44aaff" : "#ff4444";
@@ -25163,7 +25183,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 showFloatingWarning('Nie potrafi uderzyć wręcz!');
                 return;
             }
-            const meleeCost = 3;
             // Spętany nie sięgnie wroga - może tylko szarpać się w oplocie
             // Schwytany przez grabarza albo zamknięty w krypcie - zamiast ciosu
             // szarpie się. To jedyne, co może w tym stanie zrobić.
@@ -25227,7 +25246,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (!active || active.isDead) return;
             if (active.class !== 'uzdrowiciel') { updateUI("Tylko Uzdrowiciel/Mentalista potrafi leczyć."); return; }
             if (active.turnEnded) { updateUI("Ten wojownik zakończył już ruch w tej turze."); return; }
-            const healCost = 5;
             const healLimit = getMentalistUses(soldiers.indexOf(active));
             if ((active.healsUsed || 0) >= healLimit) {
                 updateUI(`Leczenie wyczerpane w tej misji (${healLimit}/${healLimit}). Wyższa Mądrość daje więcej użyć.`);
@@ -25273,7 +25291,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (!active || active.isDead) return;
             if (active.class !== 'uzdrowiciel') { updateUI("Tylko Uzdrowiciel/Mentalista potrafi tworzyć osłony."); return; }
             if (active.turnEnded) { updateUI("Ten wojownik zakończył już ruch w tej turze."); return; }
-            const shieldCost = 5;
             const shieldLimit = getMentalistUses(soldiers.indexOf(active));
             if ((active.shieldsUsed || 0) >= shieldLimit) {
                 updateUI(`Osłony wyczerpane w tej misji (${shieldLimit}/${shieldLimit}). Wyższa Mądrość daje więcej użyć.`);
@@ -38044,6 +38061,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 b.style.display = widoczny ? '' : 'none';
                 b.innerText = `${ZIOLA[k].nazwa} (${ile})`;
                 b.title = ZIOLA[k].opis;
+                if (ZIOLA[k].koszt) b.dataset.ap = ZIOLA[k].koszt + ' PA';
             });
         }
 
