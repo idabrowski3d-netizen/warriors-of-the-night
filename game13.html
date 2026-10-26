@@ -14505,6 +14505,36 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
         }
 
+        // ========================================================
+        // --- ZWŁOKI NA PLANSZY ---
+        // Zabity wróg nie znika w powietrzu: zostaje tam, gdzie padł, zastygły
+        // na ostatniej klatce animacji zgonu. Dzięki temu po walce widać, co się
+        // tu działo. Potwory BEZ animacji zgonu znikają jak dotąd - bez niej
+        // zostałaby stojąca bryła, która wyglądałaby na żywego przeciwnika.
+        // ========================================================
+        let zwlokiNaPlanszy = [];
+
+        function zostawZwloki(wrog) {
+            const m = wrog && wrog.mesh;
+            if (!m) return false;
+            // Na pobojowisku ciała mają własną bryłę i własne zasady (wstają),
+            // więc tam nie zostawiamy drugiego ciała na tym samym polu.
+            const x = Math.round(m.position.x), z = Math.round(m.position.z);
+            if (typeof trupy !== 'undefined' && trupy.some(t => t.x === x && t.z === z)) {
+                scene.remove(m);
+                return false;
+            }
+            m.userData.zwloki = true;
+            wrog.zwloki = true;
+            zwlokiNaPlanszy.push(wrog);
+            return true;
+        }
+
+        function wyczyscZwloki() {
+            zwlokiNaPlanszy.forEach(w => { if (w.mesh) scene.remove(w.mesh); });
+            zwlokiNaPlanszy = [];
+        }
+
         function killUnitWithAnim(unit, poZgonie) {
             // Śmierć TOWARZYSZA widzą wszyscy - to najmocniejsze źródło zwątpienia.
             // Wróg ani NPC nie liczą się: nikt nie wątpi, bo padł demon.
@@ -14528,7 +14558,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const klip = m.userData.actions[nazwaZgonu];
                 const dl = ((klip && klip._clip && klip._clip.duration) ||
                             (warriorModelClips.death ? warriorModelClips.death.duration : 2)) * 1000;
-                setTimeout(() => { scene.remove(m); if (poZgonie) poZgonie(); }, Math.min(3000, dl));
+                // Wróg z animacją zgonu zostaje na planszy jako zwłoki; reszta znika.
+                const czyWrog = (typeof enemies !== 'undefined') && enemies.indexOf(unit) !== -1;
+                setTimeout(() => {
+                    if (!czyWrog || !zostawZwloki(unit)) scene.remove(m);
+                    if (poZgonie) poZgonie();
+                }, Math.min(3000, dl));
             } else {
                 scene.remove(m);
                 if (poZgonie) poZgonie();
@@ -20619,9 +20654,21 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         // Ołów nic jej nie zrobi - pociski przelatują między muchami
-        function pociskWRoj(e) {
+        const ROJ_OD_OGNIA = 99;          // ogień rozprasza chmarę od razu, bez reszty
+
+        // Zwykły ołów przelatuje przez chmarę. ŁADUNEK ZAPALAJĄCY to co innego:
+        // ogień działa na owady tak samo jak światło latarni, tylko gwałtowniej.
+        // Zwraca true, gdy pocisk został "zużyty" na roju i reszta strzału nie
+        // ma już czego liczyć.
+        function pociskWRoj(e, rodzajAmu, x, z) {
             if (!e || e.type !== 'roj') return false;
-            updateUI('Pocisk przelatuje przez RÓJ bez śladu. Ołów go nie bierze - weź światło.');
+            if (rodzajAmu === 'zapalajacy') {
+                updateUI('Ładunek zapalający wybucha w środku ROJU - owady płoną w locie.');
+                if (x !== undefined && z !== undefined) zapalPole(x, z, AMU_ZAPAL_PROMIEN);
+                swiatloWRoj(e, ROJ_OD_OGNIA);
+                return true;
+            }
+            updateUI('Pocisk przelatuje przez RÓJ bez śladu. Ołów go nie bierze - weź światło albo ogień.');
             return true;
         }
 
@@ -21202,6 +21249,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 });
             }
             enemies = [];
+            wyczyscZwloki();           // ciała z poprzedniej planszy nie mogą zostać
             zamknijPortale();          // portale z poprzedniej planszy nie mogą zostać
             refreshEnemyPositions();
             // Im więcej wojowników w oddziale, tym więcej wrogów - żeby walka skalowała się z siłą drużyny.
@@ -22628,6 +22676,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 m.visible = odkryte(m.position.x, m.position.z);
             });
 
+            // Zwłoki to już tylko bryła na planszy - widać je tam, gdzie teren
+            // został odkryty, tak samo jak przeszkody. Bez tego ciało byłoby
+            // widoczne przez mgłę w miejscu, którego gracz jeszcze nie odkrył.
+            zwlokiNaPlanszy.forEach(w => {
+                if (!w.mesh) return;
+                w.mesh.visible = odkryte(w.mesh.position.x, w.mesh.position.z) &&
+                                 !w.mesh.userData.hiddenByLevel;
+            });
+
             // Źródła blasku chowamy tak samo - neon za nieodkrytym murem nie może
             // świecić graczowi przez mgłę i zdradzać, co tam stoi.
             zrodlaBlasku.forEach(z => {
@@ -22829,6 +22886,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 return fowVisible[L][mx][mz] === 1;
             };
             enemies.forEach(e => { if (!e.isDead) e.mesh.visible = seenAt(e) && !e.mesh.userData.hiddenByLevel; });
+
             npcs.forEach(n => { if (!n.isDead) n.mesh.visible = seenAt(n) && !n.mesh.userData.hiddenByLevel && !n.hidden; });
             obstacleMeshes.forEach(m => { 
                 let mx = Math.round(m.position.x) + offsetX, mz = Math.round(m.position.z) + offsetZ;
@@ -26631,7 +26689,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                 if (isHit) { 
                                     active.shotsHit = (active.shotsHit || 0) + 1;
                                     const gainHit = awardHitBonus(active);
-                                    if (pociskWRoj(clickedEnemy)) {
+                                    if (pociskWRoj(clickedEnemy, rodzajAmu, targetX, targetZ)) {
                                         checkGameOver(); if(!gameOver) { checkEnemyOverwatch(() => { isPlayerTurn = true; autoSelectActiveSoldier(); }, true); }
                                         return;
                                     }

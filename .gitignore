@@ -1,0 +1,29 @@
+# Stare wersje gry - tylko lokalnie
+old_versions/
+game13_*.html
+
+# Modele: na GitHub trafiają tylko gotowe .glb z models/ (bez podfolderów roboczych)
+models/*/
+models/*.blend
+models/*.blend1
+models/*.fbx
+models/*.zip
+models/*.rar
+models/*_.glb
+models/*_backup.glb
+
+# Pliki źródłowe audio/wideo/grafiki
+*.wav
+*.flac
+*.psd
+audio/*.mp4
+mov/source/
+
+# Zapisy gry
+*_zapis_bitwy_*.json
+
+# Blender / system
+*.blend
+*.blend1
+Thumbs.db
+desktop.ini

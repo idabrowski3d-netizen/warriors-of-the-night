@@ -1,0 +1,367 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{background:#14141a;color:#ddd;font:13px system-ui;margin:0;padding:18px}
+h2{font-size:15px;margin:18px 0 8px;color:#f0c674;font-weight:600}
+.rzad{display:flex;gap:14px;flex-wrap:wrap}.kafel{text-align:center}
+.kafel canvas{image-rendering:pixelated;border:1px solid #333;display:block}
+.kafel div{margin-top:4px;font-size:11px;color:#aaa}
+</style></head><body>
+<h2>TEREN &mdash; kafel powtorzony 2x2, tak jak lezy na planszy</h2><div class="rzad" id="teren"></div>
+<h2>MURY I POSADZKI &mdash; studnia i wnetrza</h2><div class="rzad" id="mury"></div>
+<script>
+var plotnaStudni = {};
+        function hexNaRGB(hex, mnoznik) {
+            const m = mnoznik === undefined ? 1 : mnoznik;
+            const r = Math.min(255, Math.round(((hex >> 16) & 255) * m));
+            const g = Math.min(255, Math.round(((hex >> 8) & 255) * m));
+            const b = Math.min(255, Math.round((hex & 255) * m));
+            return 'rgb(' + r + ',' + g + ',' + b + ')';
+        }
+
+        // Mur z ciosów: rzędy bloków przesunięte o pół, z fugą i wżerami
+        function plotnoMuru(barwa) {
+            const klucz = 'mur' + barwa;
+            if (plotnaStudni[klucz]) return plotnaStudni[klucz];
+            const c = document.createElement('canvas'); c.width = 128; c.height = 128;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = hexNaRGB(barwa, 0.62); ctx.fillRect(0, 0, 128, 128);   // fuga
+            const rzedow = 4, wys = 128 / rzedow;
+            for (let r = 0; r < rzedow; r++) {
+                const przesun = (r % 2) ? -16 : 0;
+                for (let k = -1; k < 5; k++) {
+                    ctx.fillStyle = hexNaRGB(barwa, 0.86 + Math.random() * 0.3);
+                    ctx.fillRect(przesun + k * 32 + 1.5, r * wys + 1.5, 32 - 3, wys - 3);
+                }
+            }
+            for (let i = 0; i < 90; i++) {
+                ctx.fillStyle = hexNaRGB(barwa, 0.55 + Math.random() * 0.25);
+                ctx.fillRect(Math.random() * 128, Math.random() * 128, 2 + Math.random() * 3, 2);
+            }
+            plotnaStudni[klucz] = c;
+            return c;
+        }
+
+        // Posadzka: nieregularne płyty i piach w szczelinach
+        function plotnoPosadzki(barwa) {
+            const klucz = 'posadzka' + barwa;
+            if (plotnaStudni[klucz]) return plotnaStudni[klucz];
+            const c = document.createElement('canvas'); c.width = 128; c.height = 128;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = hexNaRGB(barwa, 0.6); ctx.fillRect(0, 0, 128, 128);
+            for (let gx = 0; gx < 4; gx++)
+                for (let gz = 0; gz < 4; gz++) {
+                    ctx.fillStyle = hexNaRGB(barwa, 0.88 + Math.random() * 0.28);
+                    ctx.fillRect(gx * 32 + 1 + Math.random() * 2, gz * 32 + 1 + Math.random() * 2,
+                                 32 - 3 - Math.random() * 3, 32 - 3 - Math.random() * 3);
+                }
+            for (let i = 0; i < 260; i++) {
+                ctx.fillStyle = hexNaRGB(barwa, 0.5 + Math.random() * 0.5);
+                ctx.fillRect(Math.random() * 128, Math.random() * 128, 2, 2);
+            }
+            plotnaStudni[klucz] = c;
+            return c;
+        }
+
+            // Zadna z tych "szarosci" nie jest czysta szaroscia - kazda ma odcien.
+            // Asfalt leci lekko w zimny bLekit, chodnik w cieple piaskowe zlamanie.
+            // To wlasnie robi roznice miedzy martwym szarym a szarym, ktory zyje.
+            var palette = { grass: '#2d4c1e', grassDetail1: '#3a5f27', grassDetail2: '#243d18',
+                                   grassAkcent1: '#c8a33a', grassAkcent2: '#b4543c',   // kwiaty w trawie
+                                   dirt: '#5c4033', dirtDetail1: '#4a332a', dirtDetail2: '#6b4d3f',
+                                   road: '#34363a', roadDetail1: '#25272b', roadDetail2: '#454850',
+                                   sidewalk: '#8c8a80', sidewalkDetail1: '#7d7b70', sidewalkDetail2: '#9a978a' };
+            // ===== TEKSTURY TERENU =====
+            // Dotad kazda byla plaskim kolorem obsypanym 400 losowymi kropkami w dwoch
+            // odcieniach - czyli szumem na jednolitym tle. Z gory i z bliska wygladalo
+            // to martwo, bo nie bylo ani zroznicowania tonu, ani zadnego detalu, ktory
+            // da sie rozpoznac. Teraz kazda tekstura ma trzy warstwy:
+            //   1. PLAMY - wolnozmienny szum przyciemniajacy i rozjasniajacy duze obszary,
+            //      zeby kafel nie byl jednolity;
+            //   2. DETALE - kamyki, kepki, rysy, szczeliny; kazdy ma wlasne swiatlo
+            //      i cien, bo to one sprawiaja, ze piksel czyta sie jako bryla;
+            //   3. ZIARNO - rzadkie, niskokontrastowe, na samym koncu.
+            const TEX = 128;
+
+            // Wolnozmienny szum na kratce - ta sama metoda, ktora uporzadkowala laty
+            // ziemi na planszy. Zwraca funkcje probkujaca w zakresie 0..1.
+            // Szum ZAWIJAJACY SIE: kratka musi dzielic 128 bez reszty, a indeksy
+            // liczymy modulo, wiec prawa krawedz laczy sie z lewa. Pierwsza wersja
+            // tego nie robila i przy powtarzaniu bylo widac siatke kafli - blad
+            // gorszy od tekstury, ktora chcialem naprawic.
+            function szumPlam(kratka) {
+                const N = Math.max(2, Math.round(TEX / kratka));
+                const krok = TEX / N;
+                const g = [];
+                for (let i = 0; i < N; i++) {
+                    const kol = new Float32Array(N);
+                    for (let j = 0; j < N; j++) kol[j] = Math.random();
+                    g.push(kol);
+                }
+                return (x, y) => {
+                    const fx = x / krok, fy = y / krok;
+                    const i = Math.floor(fx) % N, j = Math.floor(fy) % N;
+                    const i2 = (i + 1) % N, j2 = (j + 1) % N;
+                    const tx = fx - Math.floor(fx), ty = fy - Math.floor(fy);
+                    const wx = tx * tx * (3 - 2 * tx), wy = ty * ty * (3 - 2 * ty);
+                    const a = g[i][j] * (1 - wx) + g[i2][j] * wx;
+                    const b = g[i][j2] * (1 - wx) + g[i2][j2] * wx;
+                    return a * (1 - wy) + b * wy;
+                };
+            }
+
+            // Nakladamy plamy swiatla i cienia na to, co juz narysowane
+            function nalozPlamy(ctx, kratka, sila) {
+                const sz = szumPlam(kratka);
+                const obraz = ctx.getImageData(0, 0, TEX, TEX);
+                const d = obraz.data;
+                for (let y = 0; y < TEX; y++) {
+                    for (let x = 0; x < TEX; x++) {
+                        const m = 1 + (sz(x, y) - 0.5) * 2 * sila;
+                        const i = (y * TEX + x) * 4;
+                        d[i]     = Math.max(0, Math.min(255, d[i] * m));
+                        d[i + 1] = Math.max(0, Math.min(255, d[i + 1] * m));
+                        d[i + 2] = Math.max(0, Math.min(255, d[i + 2] * m));
+                    }
+                }
+                ctx.putImageData(obraz, 0, 0);
+            }
+
+            // Kamyk: trzy piksele cienia pod spodem, jasny grzbiet u gory.
+            // To ta para - swiatlo i cien - robi z plamki bryle.
+            function kamyk(ctx, x, y, r, barwa, jasna, ciemna) {
+                ctx.fillStyle = ciemna;
+                ctx.fillRect(x - r, y - r + 1, r * 2, r * 2);
+                ctx.fillStyle = barwa;
+                ctx.fillRect(x - r, y - r, r * 2, r * 2 - 1);
+                ctx.fillStyle = jasna;
+                ctx.fillRect(x - r, y - r, r * 2 - 1, 1);
+            }
+
+            // Kepka trawy: kilka pionowych zdzbel roznej dlugosci z jednego punktu
+            function kepka(ctx, x, y, barwy) {
+                const ile = 3 + Math.floor(Math.random() * 4);
+                for (let i = 0; i < ile; i++) {
+                    const dx = x + i - Math.floor(ile / 2);
+                    const h = 3 + Math.floor(Math.random() * 5);
+                    ctx.fillStyle = barwy[Math.floor(Math.random() * barwy.length)];
+                    ctx.fillRect(dx, y - h, 1, h);
+                }
+            }
+
+            // Rysa: lamana linia, jasniejsza z jednej strony - jak szczelina w asfalcie
+            function rysa(ctx, x, y, dlugosc, barwa, obrys) {
+                let cx = x, cy = y;
+                const kierunek = Math.random() * Math.PI * 2;
+                let kat = kierunek;
+                for (let i = 0; i < dlugosc; i++) {
+                    kat += (Math.random() - 0.5) * 0.9;
+                    cx += Math.cos(kat); cy += Math.sin(kat);
+                    if (cx < 0 || cx > TEX || cy < 0 || cy > TEX) break;
+                    if (obrys) { ctx.fillStyle = obrys; ctx.fillRect(Math.round(cx), Math.round(cy) + 1, 1, 1); }
+                    ctx.fillStyle = barwa;
+                    ctx.fillRect(Math.round(cx), Math.round(cy), 1, 1);
+                }
+            }
+
+            function makeTex(type) {
+                const c = document.createElement('canvas'); c.width = TEX; c.height = TEX;
+                const ctx = c.getContext('2d');
+                if (type === 'grass') {
+                    // Trawa: podklad, laty suchszej i ciemniejszej zieleni, kepki,
+                    // pojedyncze kamyki i ziarno. Dotad: jeden zielony i 400 kresek.
+                    ctx.fillStyle = palette.grass; ctx.fillRect(0, 0, TEX, TEX);
+                    const sz = szumPlam(16);
+                    ctx.globalAlpha = 0.3;
+                    for (let y = 0; y < TEX; y += 2)
+                        for (let x = 0; x < TEX; x += 2) {
+                            const v = sz(x, y);
+                            if (v > 0.66) { ctx.fillStyle = palette.grassDetail1; ctx.fillRect(x, y, 2, 2); }
+                            else if (v < 0.34) { ctx.fillStyle = palette.grassDetail2; ctx.fillRect(x, y, 2, 2); }
+                        }
+                    ctx.globalAlpha = 1;
+                    const zdzbla = [palette.grassDetail1, palette.grassDetail2, palette.grass];
+                    for (let i = 0; i < 120; i++)
+                        kepka(ctx, Math.random() * TEX, 4 + Math.random() * (TEX - 4), zdzbla);
+                    for (let i = 0; i < 14; i++)
+                        kamyk(ctx, 3 + Math.random() * (TEX - 6), 3 + Math.random() * (TEX - 6),
+                              1 + Math.floor(Math.random() * 2), '#6e6a5e', '#8c8778', '#403d35');
+                    // KWIATY: kilkanascie mocno nasyconych punktow na zlamanym tle.
+                    // W UFO akcenty zajmuja kilka procent obrazu, a to one sprawiaja,
+                    // ze scena nie jest jednolita plama. Podnoszenie nasycenia calej
+                    // tekstury dalo by efekt odwrotny - krzykliwa papke.
+                    for (let i = 0; i < 18; i++) {
+                        const fx = 2 + Math.random() * (TEX - 4), fy = 2 + Math.random() * (TEX - 4);
+                        const barwa = Math.random() < 0.6 ? palette.grassAkcent1 : palette.grassAkcent2;
+                        ctx.fillStyle = barwa;
+                        ctx.fillRect(fx, fy, 2, 2);
+                        // jasniejszy srodek - kwiat ma wtedy swoje swiatlo
+                        ctx.fillStyle = 'rgba(255,245,210,0.75)';
+                        ctx.fillRect(fx, fy, 1, 1);
+                    }
+                    nalozPlamy(ctx, 32, 0.07);
+                } else if (type === 'dirt') {
+                    // Ziemia: ubite placki, kamyki ze swiatlem i cieniem, slady kol
+                    ctx.fillStyle = palette.dirt; ctx.fillRect(0, 0, TEX, TEX);
+                    const sz = szumPlam(16);
+                    ctx.globalAlpha = 0.32;
+                    for (let y = 0; y < TEX; y += 2)
+                        for (let x = 0; x < TEX; x += 2) {
+                            const v = sz(x, y);
+                            if (v > 0.64) { ctx.fillStyle = palette.dirtDetail2; ctx.fillRect(x, y, 2, 2); }
+                            else if (v < 0.36) { ctx.fillStyle = palette.dirtDetail1; ctx.fillRect(x, y, 2, 2); }
+                        }
+                    ctx.globalAlpha = 1;
+                    for (let i = 0; i < 40; i++)
+                        kamyk(ctx, 3 + Math.random() * (TEX - 6), 3 + Math.random() * (TEX - 6),
+                              1 + Math.floor(Math.random() * 3), '#6b5b48', '#8a7659', '#3e3428');
+                    for (let i = 0; i < 10; i++)
+                        rysa(ctx, Math.random() * TEX, Math.random() * TEX, 14 + Math.random() * 20,
+                             '#4a3c2e', '#70604a');
+                    nalozPlamy(ctx, 32, 0.08);
+                } else if (type === 'road') {
+                    // Asfalt: kruszywo, laty po lataniu, pekniecia i wytarty srodek
+                    ctx.fillStyle = palette.road; ctx.fillRect(0, 0, TEX, TEX);
+                    const sz = szumPlam(16);
+                    ctx.globalAlpha = 0.35;
+                    for (let y = 0; y < TEX; y += 2)
+                        for (let x = 0; x < TEX; x += 2) {
+                            const v = sz(x, y);
+                            if (v > 0.66) { ctx.fillStyle = palette.roadDetail2; ctx.fillRect(x, y, 2, 2); }
+                            else if (v < 0.34) { ctx.fillStyle = palette.roadDetail1; ctx.fillRect(x, y, 2, 2); }
+                        }
+                    ctx.globalAlpha = 1;
+                    for (let i = 0; i < 260; i++) {
+                        ctx.fillStyle = Math.random() > 0.5 ? '#53565e' : '#282a2f';
+                        ctx.fillRect(Math.random() * TEX, Math.random() * TEX, 1 + Math.random() * 2, 1);
+                    }
+                    for (let i = 0; i < 9; i++)
+                        rysa(ctx, Math.random() * TEX, Math.random() * TEX, 20 + Math.random() * 30,
+                             '#191b20', null);
+                    // Latane dziury i wytarte sladami kol pasy - bez nich asfalt mial
+                    // rozpietosc jasnosci 0.22, czyli byl plaski jak papier
+                    // Latki po remoncie: nieregularne, o postrzepionym brzegu.
+                    // Prostokaty czytaly sie jak naklejki, a pasy na cala wysokosc
+                    // kafla znow pokazywaly powtarzanie.
+                    const latka = szumPlam(16);
+                    for (let i = 0; i < 3; i++) {
+                        const lx = Math.random() * TEX, ly = Math.random() * TEX;
+                        const lw = 16 + Math.random() * 24, lh = 12 + Math.random() * 20;
+                        for (let x = 0; x < lw; x++)
+                            for (let y = 0; y < lh; y++) {
+                                // brzeg rozmywany szumem - im dalej od srodka, tym rzadziej
+                                const dx = Math.abs(x / lw - 0.5) * 2, dy = Math.abs(y / lh - 0.5) * 2;
+                                const odSrodka = Math.max(dx, dy);
+                                const px2 = (lx + x) % TEX, py2 = (ly + y) % TEX;
+                                if (odSrodka > 0.55 && latka(px2, py2) < odSrodka) continue;
+                                ctx.fillStyle = 'rgba(22,24,28,0.5)';
+                                ctx.fillRect(px2, py2, 1, 1);
+                            }
+                    }
+                    nalozPlamy(ctx, 32, 0.06);
+                } else if (type === 'mud') {
+                    // Bloto: mokra maz, kaluze z odbiciem nieba i wygniecione koleiny
+                    ctx.fillStyle = '#3a3226'; ctx.fillRect(0, 0, TEX, TEX);
+                    const sz = szumPlam(16);
+                    ctx.globalAlpha = 0.45;
+                    for (let y = 0; y < TEX; y += 2)
+                        for (let x = 0; x < TEX; x += 2) {
+                            const v = sz(x, y);
+                            if (v > 0.6) { ctx.fillStyle = '#463c2c'; ctx.fillRect(x, y, 2, 2); }
+                            else if (v < 0.4) { ctx.fillStyle = '#2c261c'; ctx.fillRect(x, y, 2, 2); }
+                        }
+                    ctx.globalAlpha = 1;
+                    for (let i = 0; i < 5; i++) {
+                        const px = Math.random() * TEX, py = Math.random() * TEX, pr = 5 + Math.random() * 9;
+                        ctx.fillStyle = 'rgba(96,112,104,0.4)';
+                        ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2); ctx.fill();
+                        // Odblask na gornej krawedzi kaluzy - bez niego to plaska plama
+                        ctx.fillStyle = 'rgba(170,190,180,0.3)';
+                        ctx.beginPath(); ctx.arc(px, py - pr * 0.3, pr * 0.5, 0, Math.PI * 2); ctx.fill();
+                    }
+                    for (let i = 0; i < 16; i++)
+                        kamyk(ctx, 3 + Math.random() * (TEX - 6), 3 + Math.random() * (TEX - 6),
+                              1 + Math.floor(Math.random() * 2), '#4e4336', '#6a5c49', '#26201a');
+                    nalozPlamy(ctx, 32, 0.09);
+                } else if (type === 'crosswalk') {
+                    ctx.fillStyle = palette.road; ctx.fillRect(0, 0, TEX, TEX);
+                    for (let i = 0; i < 200; i++) {
+                        ctx.fillStyle = Math.random() > 0.5 ? palette.roadDetail1 : palette.roadDetail2;
+                        ctx.fillRect(Math.random() * TEX, Math.random() * TEX, 2, 2);
+                    }
+                    // Pasy WYTARTE - pelna biel wygladala jak swiezo malowane, a to
+                    // opuszczone miejsca. Farba schodzi placami i ma brudne brzegi.
+                    // Farba schodzi od KRAWEDZI pasa i cienkimi zadrapaniami wzdluz
+                    // ruchu. Pierwsza wersja wygryzala dziury w srodku i pasy
+                    // wygladaly jak splesniale, a nie wytarte.
+                    const starcie = szumPlam(8);
+                    for (let i = 0; i < 4; i++) {
+                        const bx = 6 + i * 32, szerPasa = 18;
+                        for (let x = bx; x < bx + szerPasa; x++)
+                            for (let y = 0; y < TEX; y++) {
+                                // 0 w srodku pasa, 1 przy jego krawedzi
+                                const doKrawedzi = 1 - Math.abs((x - bx) / (szerPasa - 1) - 0.5) * 2;
+                                const trzyma = doKrawedzi * 0.75 + starcie(x, y) * 0.35;
+                                if (trzyma < 0.3) continue;
+                                ctx.fillStyle = trzyma > 0.6 ? '#e8e8e0' : '#cfcfc2';
+                                ctx.fillRect(x, y, 1, 1);
+                            }
+                    }
+                    for (let i = 0; i < 16; i++) {
+                        ctx.fillStyle = 'rgba(38,40,46,0.5)';
+                        ctx.fillRect(Math.random() * TEX, Math.random() * TEX, 1, 3 + Math.random() * 7);
+                    }
+                    nalozPlamy(ctx, 32, 0.05);
+                } else if (type === 'sidewalk') {
+                    const sw = palette.sidewalk || '#8a8a82';
+                    const sd1 = palette.sidewalkDetail1 || '#7c7c74';
+                    const sd2 = palette.sidewalkDetail2 || '#96968c';
+                    ctx.fillStyle = sd1; ctx.fillRect(0, 0, TEX, TEX);       // fuga
+                    // Plyty z FAZA: jasna krawedz od gory i lewej, ciemna od dolu i prawej.
+                    // Sama siatka linii dawala plaska krate - dopiero faza robi plyte.
+                    for (let gx = 0; gx < 4; gx++)
+                        for (let gy = 0; gy < 4; gy++) {
+                            const x = gx * 32 + 1, y = gy * 32 + 1, w = 30;
+                            ctx.fillStyle = sw; ctx.fillRect(x, y, w, w);
+                            ctx.fillStyle = sd2; ctx.fillRect(x, y, w, 1); ctx.fillRect(x, y, 1, w);
+                            ctx.fillStyle = sd1; ctx.fillRect(x, y + w - 1, w, 1); ctx.fillRect(x + w - 1, y, 1, w);
+                            // Wyszczerbienia na rogach - nowe plyty wygladaja sztucznie
+                            if (Math.random() < 0.5) {
+                                ctx.fillStyle = sd1;
+                                const rx = Math.random() < 0.5 ? x : x + w - 3, ry = Math.random() < 0.5 ? y : y + w - 3;
+                                ctx.fillRect(rx, ry, 2 + Math.random() * 2, 2);
+                            }
+                        }
+                    for (let i = 0; i < 90; i++) {
+                        ctx.fillStyle = Math.random() > 0.5 ? sd1 : sd2;
+                        ctx.fillRect(Math.random() * TEX, Math.random() * TEX, 1, 1);
+                    }
+                    for (let i = 0; i < 5; i++)
+                        rysa(ctx, Math.random() * TEX, Math.random() * TEX, 10 + Math.random() * 16, sd1, null);
+                    // Zacieki i przetarcia - chodnik mial rozpietosc jasnosci 0.16,
+                    // czyli byl praktycznie jednolita plama w jednym tonie
+                    for (let i = 0; i < 5; i++) {
+                        ctx.fillStyle = 'rgba(58,56,50,0.3)';
+                        const zx = Math.random() * TEX, zy = Math.random() * TEX;
+                        ctx.fillRect(zx, zy, 6 + Math.random() * 18, 5 + Math.random() * 14);
+                    }
+                    for (let i = 0; i < 3; i++) {
+                        ctx.fillStyle = 'rgba(206,202,190,0.28)';
+                        ctx.fillRect(Math.random() * TEX, Math.random() * TEX, 8 + Math.random() * 16, 4);
+                    }
+                    nalozPlamy(ctx, 32, 0.05);
+                }
+                return c;
+            }
+function pokaz(gdzie, plotno, podpis, powt){
+  powt = powt || 2;
+  var d = document.createElement('div'); d.className='kafel';
+  var c = document.createElement('canvas'); c.width = 128*powt; c.height = 128*powt;
+  var x = c.getContext('2d');
+  for (var a=0;a<powt;a++) for (var b=0;b<powt;b++) x.drawImage(plotno, a*128, b*128);
+  var p = document.createElement('div'); p.textContent = podpis;
+  d.appendChild(c); d.appendChild(p);
+  document.getElementById(gdzie).appendChild(d);
+}
+['grass','dirt','road','sidewalk','crosswalk','mud'].forEach(function(t){ pokaz('teren', makeTex(t), t); });
+[[0x6b6257,'mur kamienny'],[0x7a6a52,'mur piaskowy'],[0x55606b,'mur sinny']].forEach(function(p){ pokaz('mury', plotnoMuru(p[0]), p[1]); });
+[[0x6b6257,'posadzka kamienna'],[0x7a6a52,'posadzka piaskowa']].forEach(function(p){ pokaz('mury', plotnoPosadzki(p[0]), p[1]); });
+</script></body></html>
