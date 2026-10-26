@@ -13353,13 +13353,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
         }
 
-        function calculateHitChance(dist, heightAdvantage, targetInCover, shooterInCover, extraBonus = 0, forceZero = false) {
+        // czesci (opcjonalnie) - tablica, do której trafiają składniki wyniku [opis, wartość] dla podpowiedzi
+        function calculateHitChance(dist, heightAdvantage, targetInCover, shooterInCover, extraBonus = 0, forceZero = false, czesci = null) {
             if (forceZero) return 0;
-            let baseChance = 20; 
+            const dodaj = czesci ? (opis, v) => czesci.push([opis, v]) : () => {};
+            let baseChance = 20;
             if (dist <= 3) baseChance = 90; else if (dist <= 6) baseChance = 60; else if (dist <= 10) baseChance = 40;
-            if (heightAdvantage) baseChance += 20;
-            if (targetInCover) baseChance -= 30;
-            if (shooterInCover) baseChance -= 15;
+            dodaj(`Odległość (${dist})`, baseChance);
+            if (heightAdvantage) { baseChance += 20; dodaj('Przewaga wysokości', 20); }
+            if (targetInCover) { baseChance -= 30; dodaj('Cel za osłoną', -30); }
+            if (shooterInCover) { baseChance -= 15; dodaj('Strzelasz zza osłony', -15); }
+            if (extraBonus) dodaj('Wojownik, stan i teren', extraBonus);
             return Math.max(5, Math.min(100, baseChance + extraBonus));
         }
 
@@ -25797,10 +25801,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         let shooterCover = getCoverObstacle(startX, startZ, targetX, targetZ);
                         let cornPenaltyPreview = isCornfield(targetX, targetZ) ? -20 : 0;
                         let blindInCornPreview = isCornfield(startX, startZ) && active.isKneeling;
-                        let hitChance = calculateHitChance(distanceXY, startY > targetY, targetCover !== null, shooterCover !== null, getPlayerAccuracyBonus(active, hoveredEnemy) + cornPenaltyPreview, blindInCornPreview);
-                        hitInfo = blindInCornPreview 
-                            ? `<span style="color:#ff4444;">Nic nie widać zza kukurydzy w przyklęku!</span>` 
-                            : `Szansa trafienia: <span style="color:#ffcc00; font-weight:bold;">${hitChance}%</span>`;
+                        const czesci = [];
+                        let hitChance = calculateHitChance(distanceXY, startY > targetY, targetCover !== null, shooterCover !== null, getPlayerAccuracyBonus(active, hoveredEnemy) + cornPenaltyPreview, blindInCornPreview, czesci);
+                        const suma = czesci.reduce((a, [, v]) => a + v, 0);
+                        const rozbicie = czesci.map(([opis, v], i) => `${opis}: ${i && v > 0 ? '+' : ''}${v}`).join('<br>') +
+                            (suma !== hitChance ? `<br>(ograniczone do 5-100%)` : '');
+                        hitInfo = blindInCornPreview
+                            ? `<span style="color:#ff4444;">Nic nie widać zza kukurydzy w przyklęku!</span>`
+                            : `Szansa trafienia: <span style="color:#ffcc00; font-weight:bold;">${hitChance}%</span>` +
+                              `<br><span style="color:#aaa; font-size:12px;">${rozbicie}</span>`;
                     }
                     msg = `Cel: ${eName}<br>HP: ${hoveredEnemy.hp}/${hoveredEnemy.maxHp}<br>${hitInfo}<br>STRZAŁ (-${shootCost} AP)<br>Zostanie: ${remainingAP} AP`;
                 } 
