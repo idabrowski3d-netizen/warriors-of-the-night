@@ -10111,7 +10111,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // głazy i drzewa - przez co nie dało się nawet wystartować.
         function oczyscMost() {
             if (!currentCombatTheme || currentCombatTheme.id !== 'most') return 0;
-            const DOZWOLONE = ['skrzynia', 'beczka', 'balustrada', 'przepasc'];
+            const DOZWOLONE = ['skrzynia', 'skrzynia_metal', 'beczka', 'balustrada', 'przepasc'];
             let usuniete = 0;
             for (let i = obstaclePositions.length - 1; i >= 0; i--) {
                 const p = obstaclePositions[i];
@@ -10241,13 +10241,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // które niosą barwny akcent - bez nich bagno robiło się jednolicie zielone.
                 case 'bagno':        return ['trzcina','trzcina','trzcina','paproc','kloda','grzyby','pniak','beczka','skrzynia'];
                 // Pustynia miała SAME kamienie i ani jednego kaktusa
-                case 'sahara':       return ['kaktus','kaktus','kepa','kepa','rock','rock','kosciotrup'];
-                case 'wioska':       return ['rock','krzak','beczka','kloda','zywoplot','kepa'];
+                case 'sahara':       return ['kaktus','kaktus','kepa','kepa','rock','rock','kosciotrup','skrzynia'];
+                case 'wioska':       return ['rock','krzak','beczka','kloda','zywoplot','kepa','skrzynia'];
                 case 'alabama':      return ['zywoplot','zywoplot','lawka','kosz','kloda','krzak','kepa'];
                 case 'kremlin':
                 case 'whitehouse':
                 case 'zhongnanhai':  return ['lawka','lawka','kosz','kosz','zywoplot','zywoplot','beczka','rock'];
-                case 'pentagon':     return ['beczka','beczka','kosz','rock','rock'];
+                case 'pentagon':     return ['beczka','beczka','kosz','rock','rock','skrzynia_metal','skrzynia_metal'];
                 case 'wesole':       return ['beczka','kosz','kosz','lawka','lawka','beczka','zywoplot'];
                 case 'nekropolia':
                 case 'cmentarzysko': return ['nagrobek','nagrobek','rock','kloda','krzak','grzyby'];
@@ -10258,20 +10258,20 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // Otchłań: tylko kamień, kości i czarny monolit - nic żywego
                 case 'otchlan':      return ['rock','rock','kosciotrup','obelisk','kosciotrup'];
                 // Wnętrza: żadnych kamieni ani kłód - sprzęty, które tu pasują
-                case 'alcatraz':     return ['regal','regal','skrzynia','beczka','lawka'];
+                case 'alcatraz':     return ['regal','regal','skrzynia','beczka','lawka','skrzynia_metal'];
                 case 'dom':          return ['regal','skrzynia','lawka','skrzynia'];
-                case 'most':         return ['skrzynia','beczka','skrzynia'];
-                case 'pozar':        return ['beczka','lawka','kosz','skrzynia','pniak'];
-                case 'pobojowisko':  return ['kosciotrup','wlocznie','sztandar','nagrobek','pniak','kepa'];
+                case 'most':         return ['skrzynia','beczka','skrzynia','skrzynia_metal'];
+                case 'pozar':        return ['beczka','lawka','kosz','skrzynia','pniak','skrzynia_metal'];
+                case 'pobojowisko':  return ['kosciotrup','wlocznie','sztandar','nagrobek','pniak','kepa','skrzynia'];
                 case 'jezioro':      return ['kra','kra','rock','trzcina','trzcina'];
                 case 'studnia':      return ['kosciotrup','beczka','skrzynia','rock'];
                 case 'szpital':      return ['lozko','wozek','kroplowka','regal'];
                 // Las wreszcie wygląda jak las: podszyt, próchno i grzyby
                 case 'las':          return ['kloda','paproc','paproc','krzak','krzak','grzyby','pniak','rock'];
-                case 'wieza':        return ['regal','skrzynia','lawka'];
+                case 'wieza':        return ['regal','skrzynia','lawka','skrzynia_metal'];
                 // W labiryncie poza blokami leżą tylko rzeczy po tych, co nie wyszli
                 case 'klaustrofobia': return ['kosciotrup','skrzynia','beczka','kosciotrup'];
-                case 'stacja':       return ['regal','skrzynia','skrzynia','beczka','lawka'];
+                case 'stacja':       return ['regal','skrzynia','skrzynia','beczka','lawka','skrzynia_metal','skrzynia_metal'];
                 default:             return ['rock','kloda','zywoplot','krzak','kepa'];
             }
         }
@@ -11781,6 +11781,29 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         mala.rotation.y = (Math.random() - 0.5) * 0.6;
                         g.add(mala);
                     }
+                    g.position.set(pos.x, ty, pos.z);
+                    g.rotation.y = Math.random() * Math.PI;
+                    scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'skrzynia_metal') {
+                    // Stalowa skrzynia z przetłoczeniami - pudło jej nie rozbije (NIEZNISZCZALNE_OSLONY)
+                    const g = new THREE.Group();
+                    const blacha = new THREE.MeshLambertMaterial({
+                        color: [0x5a5f63, 0x4a5a3c, 0x6e6a5e][Math.floor(Math.random() * 3)] });
+                    const ciemna = new THREE.MeshLambertMaterial({ color: 0x2e3133 });
+                    const korpus = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.6, 0.65), blacha);
+                    korpus.position.y = 0.3; g.add(korpus);
+                    [-0.22, 0, 0.22].forEach(dx => {
+                        const zebro = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.5, 0.69), blacha);
+                        zebro.position.set(dx, 0.3, 0); g.add(zebro);
+                    });
+                    const rama = new THREE.Mesh(new THREE.BoxGeometry(0.94, 0.06, 0.69), ciemna);
+                    rama.position.y = 0.61; g.add(rama);
+                    [-0.47, 0.47].forEach(dx => {
+                        const raczka = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.06, 0.25), ciemna);
+                        raczka.position.set(dx, 0.45, 0); g.add(raczka);
+                    });
+                    if (Math.random() < 0.5) dodajZnakowanie(g, 0.9, 0.6, 0.65, 0xc89a22);
                     g.position.set(pos.x, ty, pos.z);
                     g.rotation.y = Math.random() * Math.PI;
                     scene.add(g); obstacleMeshes.push(g);
@@ -13339,8 +13362,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             obstacleMeshes.splice(naj, 1);
         }
 
+        // Osłony, których pudło nie niszczy
+        const NIEZNISZCZALNE_OSLONY = ['wall-resistant', 'skrzynia_metal'];
         function destroyObstacle(obstacle) {
-            if (!obstacle || obstacle.type === 'wall-resistant') return;
+            if (!obstacle || NIEZNISZCZALNE_OSLONY.includes(obstacle.type)) return;
             if (obstacle.type.startsWith('house') && !(obstacle.type === 'house-wall' && obstacle.destructible)) return;
             let key = `${obstacle.x},${obstacle.z}`;
             if (obstacleMap.has(key)) {
@@ -22288,7 +22313,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return przedrostek + (NAZWY_WROGOW[e.type] || (e.type || '').toUpperCase());
         }
 
-        const NISKIE_PRZESZKODY = ['lozko', 'wozek', 'kroplowka', 'kra', 'wlocznie', 'balustrada', 'skrzynia', 'tor', 'krata', 'prycza', 'kibel', 'ruina', 'zachod-weranda', 'koniowiaz', 'woz',
+        const NISKIE_PRZESZKODY = ['lozko', 'wozek', 'kroplowka', 'kra', 'wlocznie', 'balustrada', 'skrzynia', 'skrzynia_metal', 'tor', 'krata', 'prycza', 'kibel', 'ruina', 'zachod-weranda', 'koniowiaz', 'woz',
                                    'rock', 'kloda', 'lawka', 'kosz', 'zywoplot', 'beczka',
                                    'nagrobek', 'crate', 'barrel', 'bush', 'grave', 'tombstone'];
 
@@ -25663,7 +25688,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             if (target.hp <= 0) { shooter.kills = (shooter.kills || 0) + 1; zliczRodzaj(shooter, target); releaseHypnotized(target); chatter(shooter, CHATTER_KILL, 0.6); playEnemyDeathSfx(target); zglosZabojstwo(shooter, target); zabijWroga(target); }
                             else chatter(shooter, CHATTER_HIT, 0.5);
                         } else { 
-                            if (targetCover && targetCover.type !== 'wall-resistant') { destroyObstacle(targetCover); updateUI("Pudło z warty! Mur zniszczony."); }
+                            if (targetCover && !NIEZNISZCZALNE_OSLONY.includes(targetCover.type)) { destroyObstacle(targetCover); updateUI("Pudło z warty! Mur zniszczony."); }
                             else updateUI(`PUDŁO Z WARTY! (Szansa: ${hitChance}%)`); 
                             chatter(shooter, CHATTER_MISS, 0.5);
                             playFileSfx(AudioFiles.wallHit, 0.5);
@@ -25729,7 +25754,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     createProjectile(ex, ey, ez, px, py, pz, isHit, targetCover, () => {
                         if (isHit) { applyDamageToUnit(active, 4); updateUI(`Otrzymałeś trafienie z warty! (${hitChance}%)`); playFileSfx(AudioFiles.warriorOuch, 0.6); if (active.hp > 0) chatter(active, active.hp <= 3 ? CHATTER_LOW_HP : CHATTER_HIT_TAKEN, 0.6); }
                         else {
-                            if (targetCover && targetCover.type !== 'wall-resistant') { destroyObstacle(targetCover); updateUI("Pudło z warty! Ale zniszczyli Twój mur."); }
+                            if (targetCover && !NIEZNISZCZALNE_OSLONY.includes(targetCover.type)) { destroyObstacle(targetCover); updateUI("Pudło z warty! Ale zniszczyli Twój mur."); }
                             else updateUI(`Obcy pudłuje z warty! (${hitChance}%)`);
                             playFileSfx(AudioFiles.wallHit, 0.5);
                         }
@@ -26751,7 +26776,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                     else chatter(active, CHATTER_HIT, 0.5);
                                 }
                                 else { 
-                                    if (targetCover && targetCover.type !== 'wall-resistant') { destroyObstacle(targetCover); updateUI(`Pudło! Ale mur wroga zniszczony.`); }
+                                    if (targetCover && !NIEZNISZCZALNE_OSLONY.includes(targetCover.type)) { destroyObstacle(targetCover); updateUI(`Pudło! Ale mur wroga zniszczony.`); }
                                     else updateUI(`Pudło! (Szansa: ${hitChance}%)`); 
                                     // Zapalający i po pudle gdzieś upada - ogień wybucha mimo wszystko
                                     if (rodzajAmu === 'zapalajacy') skutekAmunicji('zapalajacy', null, targetX, targetZ, active);
@@ -28270,7 +28295,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                            'lozko', 'kroplowka', 'wlocznie', 'sztandar', 'rock'];
         // Kamień i żeliwo - uniesie je tylko mocniejszy umysł, ale biją ciężej
         const TK_CIEZKIE = ['nagrobek', 'gravestone', 'obelisk', 'sarcophagus', 'statue',
-                            'column', 'kra'];
+                            'column', 'kra', 'skrzynia_metal'];
         const TK_RZUCALNE = TK_LEKKIE.concat(TK_CIEZKIE);
         const TK_OBR_CIEZKI_BONUS = 3;   // głaz boli bardziej niż beczka
 
@@ -28536,7 +28561,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         function nazwaRzucanego(typ) {
-            const N = { beczka: 'beczkę', skrzynia: 'skrzynię', kloda: 'kłodę', lawka: 'ławkę',
+            const N = { beczka: 'beczkę', skrzynia: 'skrzynię', skrzynia_metal: 'metalową skrzynię',kloda: 'kłodę', lawka: 'ławkę',
                         kosz: 'kosz', regal: 'regał', koniowiaz: 'koniowiąz', kosciotrup: 'kości',
                         rock: 'kamień', wozek: 'wózek', kibel: 'kibel', prycza: 'pryczę',
                         lozko: 'łóżko', kroplowka: 'kroplówkę', wlocznie: 'włócznie',
@@ -35076,7 +35101,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         if(isHit && lodemWrog) { skutekAmunicji('mrozacy', bestTarget, px, pz, e); }
                         else if(isHit) { applyDamageToUnit(bestTarget, 4); updateUI(bestTarget.isNPC ? `Cywil trafiony! (Szansa wroga: ${hitChance}%)` : `Otrzymałeś trafienie! (Szansa wroga: ${hitChance}%)`); if (!bestTarget.isNPC) playFileSfx(AudioFiles.warriorOuch, 0.6); if (!bestTarget.isNPC && bestTarget.hp > 0) chatter(bestTarget, bestTarget.hp <= 3 ? CHATTER_LOW_HP : CHATTER_HIT_TAKEN, 0.6); }
                         else { 
-                            if (targetCover && targetCover.type !== 'wall-resistant') { destroyObstacle(targetCover); updateUI(`Wróg spudłował, niszcząc Twój mur!`); }
+                            if (targetCover && !NIEZNISZCZALNE_OSLONY.includes(targetCover.type)) { destroyObstacle(targetCover); updateUI(`Wróg spudłował, niszcząc Twój mur!`); }
                             else updateUI(`Wróg pudłuje! (Szansa wroga: ${hitChance}%)`); 
                             playFileSfx(AudioFiles.wallHit, 0.5);
                         }
