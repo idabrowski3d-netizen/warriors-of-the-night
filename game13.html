@@ -887,6 +887,7 @@
 
     <div id="start-screen">
         <div id="start-title">Misja we śnie</div>
+        <div id="start-info" style="color:#ccc; font-size:18px; line-height:1.6; text-align:center; margin-bottom:24px;"></div>
         <div style="display: flex; gap: 20px;">
             <button class="start-btn" data-count="1">1 Wojownik</button>
             <button class="start-btn" data-count="2">2 Wojowników</button>
@@ -1068,10 +1069,10 @@
     <div id="instructions">Zarządzaj całym oddziałem!<br>Klawisz Tab przełącza wojaków.<br>Uważaj na zwiadowców!</div>
 
     <div id="player-stats-panel">
-        <div class="stat-line">GRACE: <span id="stat-grace">0</span></div>
-        <div class="stat-line">Level: <span id="stat-level">1</span></div>
+        <div class="stat-line">ŁASKA: <span id="stat-grace">0</span></div>
+        <div class="stat-line">Poziom: <span id="stat-level">1</span></div>
         <div class="stat-line">Misja: <span id="stat-mission">0</span></div>
-        <div class="stat-line">GOOD DEEDS: <span id="stat-gooddeeds">0</span></div>
+        <div class="stat-line">UCZYNKI: <span id="stat-gooddeeds">0</span></div>
         <div class="stat-line" id="stat-zdrowie-linia" style="display:none;color:#ff8a7a;">ZDROWIE: <span id="stat-zdrowie">-</span></div>
     </div>
 
@@ -7997,7 +7998,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
             showDialogue('[Uczynek względem duszy: Modlić się za zmarłych]\n' +
                 'Stawiasz symboliczną świeczkę i szepczesz cichą modlitwę za spokój duszy zmarłej... ' +
-                'Gdzieś w zaświatach ktoś w końcu odnalazł spokój. (+' + zyskLaski + ' Grace)\n\n' +
+                'Gdzieś w zaświatach ktoś w końcu odnalazł spokój. (+' + zyskLaski + ' Łaski)\n\n' +
                 'Jeśli ktoś w miasteczku skarżył się na nawiedzenia - teraz powinien zaznać spokoju.',
                 'OK', null, null, null);
         }
@@ -9116,7 +9117,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (d < bestD) { bestD = d; best = l; }
             });
             if (!best || bestD > 2.5) return false;
-            if (playerStats.grace < RELIGHT_COST) { showFloatingWarning('Za mało Grace, by zapalić latarnię.'); return false; }
+            if (playerStats.grace < RELIGHT_COST) { showFloatingWarning('Za mało Łaski, by zapalić latarnię.'); return false; }
             playerStats.grace -= RELIGHT_COST;
             updatePlayerStatsUI();
             setLampLit(best, true);
@@ -14861,81 +14862,81 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         };
 
         const SAINTS_DB = {
-            'adam': { title: 'Swiety Adam', bio: 'Pierwszy czlowiek wg Biblii, symbol ludzkosci stworzonej na obraz Boga.', boost: { silaPsychiczna: 2, witalnosc: 1 } },
-            'aleksander': { title: 'Swiety Aleksander', bio: 'Papiez i meczennik z II wieku, broniacy jednosci wczesnego Kosciola.', boost: { charyzma: 2, silaPsychiczna: 1 } },
-            'andrzej': { title: 'Swiety Andrzej Apostol', bio: 'Brat sw. Piotra, rybak powolany przez Jezusa, patron m.in. Polski.', boost: { zrecznosc: 2, charyzma: 1 } },
-            'antoni': { title: 'Swiety Antoni z Padwy', bio: 'Franciszkanski kaznodzieja i cudotworca, patron od zguby rzeczy.', boost: { madrosc: 2, charyzma: 1 } },
-            'bartlomiej': { title: 'Swiety Bartlomiej Apostol', bio: 'Jeden z Dwunastu Apostolow, wedlug tradycji meczennik w Armenii.', boost: { silaPsychiczna: 2, zrecznosc: 1 } },
-            'blazej': { title: 'Swiety Blazej', bio: 'Biskup i lekarz, patron chorych na gardlo.', boost: { witalnosc: 2, madrosc: 1 } },
-            'daniel': { title: 'Swiety Daniel Prorok', bio: 'Biblijny prorok, znany z odwagi w jaskini lwow.', boost: { silaPsychiczna: 3 } },
-            'dawid': { title: 'Swiety Dawid Krol', bio: 'Biblijny krol-poeta, autor Psalmow, pokonal Goliata.', boost: { zrecznosc: 2, charyzma: 1 } },
-            'dominik': { title: 'Swiety Dominik', bio: 'Zalozyciel zakonu dominikanow, glosil kazania po calej Europie.', boost: { madrosc: 2, charyzma: 1 } },
-            'filip': { title: 'Swiety Filip Apostol', bio: 'Jeden z Dwunastu Apostolow, przywiodl do Jezusa Natanaela.', boost: { charyzma: 2, madrosc: 1 } },
-            'franciszek': { title: 'Swiety Franciszek z Asyzu', bio: 'Patron ekologow i zwierzat, symbol ubostwa i pokory.', boost: { charyzma: 2, witalnosc: 1 } },
-            'grzegorz': { title: 'Swiety Grzegorz Wielki', bio: 'Papiez i doktor Kosciola, reformator liturgii.', boost: { madrosc: 2, silaPsychiczna: 1 } },
-            'henryk': { title: 'Swiety Henryk II', bio: 'Cesarz rzymsko-niemiecki, znany z poboznosci i sprawiedliwych rzadow.', boost: { silaPsychiczna: 2, charyzma: 1 } },
-            'ignacy': { title: 'Swiety Ignacy Loyola', bio: 'Zalozyciel jezuitow, byly zolnierz, mistrz duchowej dyscypliny.', boost: { silaPsychiczna: 2, madrosc: 1 } },
-            'jakub': { title: 'Swiety Jakub Apostol', bio: 'Apostol, patron pielgrzymow, cel slynnej drogi do Santiago.', boost: { witalnosc: 2, zrecznosc: 1 } },
-            'jan': { title: 'Swiety Jan Apostol', bio: 'Umilowany uczen Jezusa, autor Ewangelii i Apokalipsy.', boost: { madrosc: 2, charyzma: 1 } },
-            'jerzy': { title: 'Swiety Jerzy', bio: 'Rycerz-meczennik, wedlug legendy pogromca smoka.', boost: { zrecznosc: 2, silaPsychiczna: 1 } },
-            'jozef': { title: 'Swiety Jozef', bio: 'Opiekun Swietej Rodziny, ciesla, patron pracujacych.', boost: { witalnosc: 2, silaPsychiczna: 1 } },
-            'kacper': { title: 'Swiety Kacper', bio: 'Jeden z Trzech Medrcow ze Wschodu, zlozyl dar Dzieciatku Jezus.', boost: { madrosc: 2, charyzma: 1 } },
-            'kamil': { title: 'Swiety Kamil de Lellis', bio: 'Zalozyciel zakonu opiekujacego sie chorymi i umierajacymi.', boost: { witalnosc: 3 } },
-            'karol': { title: 'Swiety Karol Boromeusz', bio: 'Biskup, reformator, niosl pomoc podczas epidemii dzumy.', boost: { silaPsychiczna: 2, madrosc: 1 } },
-            'kazimierz': { title: 'Swiety Kazimierz', bio: 'Polski krolewicz znany z czystosci obyczajow i poboznosci.', boost: { charyzma: 2, witalnosc: 1 } },
-            'krzysztof': { title: 'Swiety Krzysztof', bio: 'Patron podroznych, wedlug legendy przeniosl Dzieciatko Jezus przez rzeke.', boost: { witalnosc: 2, zrecznosc: 1 } },
-            'lukasz': { title: 'Swiety Lukasz Ewangelista', bio: 'Lekarz i autor Ewangelii oraz Dziejow Apostolskich.', boost: { madrosc: 2, witalnosc: 1 } },
-            'maciej': { title: 'Swiety Maciej Apostol', bio: 'Wybrany losem na miejsce Judasza w gronie Dwunastu.', boost: { silaPsychiczna: 2, zrecznosc: 1 } },
-            'marcin': { title: 'Swiety Marcin z Tours', bio: 'Rzymski zolnierz, oddal polowe plaszcza zebrakowi.', boost: { charyzma: 2, silaPsychiczna: 1 } },
-            'marek': { title: 'Swiety Marek Ewangelista', bio: 'Autor najstarszej Ewangelii, symbolizowany przez lwa.', boost: { madrosc: 2, zrecznosc: 1 } },
-            'mateusz': { title: 'Swiety Mateusz Ewangelista', bio: 'Byly poborca podatkowy, powolany przez Jezusa na Apostola.', boost: { madrosc: 3 } },
-            'michal': { title: 'Swiety Michal Archaniol', bio: 'Wodz zastepow niebieskich, pogromca szatana.', boost: { silaPsychiczna: 2, zrecznosc: 1 } },
-            'mikolaj': { title: 'Swiety Mikolaj z Miry', bio: 'Biskup znany z hojnosci i tajemnych darow dla potrzebujacych.', boost: { charyzma: 2, witalnosc: 1 } },
-            'pawel': { title: 'Swiety Pawel Apostol', bio: 'Przesladowca chrzescijan nawrocony pod Damaszkiem, apostol narodow.', boost: { charyzma: 2, madrosc: 1 } },
-            'piotr': { title: 'Swiety Piotr Apostol', bio: 'Rybak powolany przez Jezusa, pierwszy papiez, filar Kosciola.', boost: { silaPsychiczna: 2, charyzma: 1 } },
-            'rafal': { title: 'Swiety Rafal Archaniol', bio: 'Aniol uzdrowienia, towarzysz Tobiasza w podrozy.', boost: { witalnosc: 3 } },
-            'roman': { title: 'Swiety Roman', bio: 'Wczesnochrzescijanski meczennik, symbol wytrwalosci w wierze.', boost: { silaPsychiczna: 2, witalnosc: 1 } },
-            'stanislaw': { title: 'Swiety Stanislaw ze Szczepanowa', bio: 'Biskup krakowski, patron Polski, symbol odwagi wobec wladzy.', boost: { silaPsychiczna: 2, charyzma: 1 } },
-            'stefan': { title: 'Swiety Szczepan', bio: 'Pierwszy meczennik chrzescijanstwa, diakon pelen madrosci.', boost: { madrosc: 2, silaPsychiczna: 1 } },
-            'szymon': { title: 'Swiety Szymon Apostol', bio: 'Jeden z Dwunastu, zwany Gorliwym za zarliwa wiare.', boost: { zrecznosc: 2, silaPsychiczna: 1 } },
-            'tadeusz': { title: 'Swiety Tadeusz Juda', bio: 'Apostol, patron spraw beznadziejnych i trudnych.', boost: { silaPsychiczna: 3 } },
-            'tomasz': { title: 'Swiety Tomasz Apostol', bio: 'Apostol znany z watpliwosci, pozniej glosil wiare az po Indie.', boost: { madrosc: 2, silaPsychiczna: 1 } },
-            'wojciech': { title: 'Swiety Wojciech', bio: 'Biskup i meczennik, jeden z patronow Polski.', boost: { charyzma: 2, silaPsychiczna: 1 } },
-            'zygmunt': { title: 'Swiety Zygmunt Burgundzki', bio: 'Krol, ktory po nawroceniu poswiecil sie pokucie i milosierdziu.', boost: { witalnosc: 2, charyzma: 1 } },
-            'agata': { title: 'Swieta Agata', bio: 'Wczesnochrzescijanska meczennica, patronka chroniaca przed ogniem.', boost: { silaPsychiczna: 2, witalnosc: 1 } },
-            'agnieszka': { title: 'Swieta Agnieszka', bio: 'Mloda rzymska meczennica, symbol czystosci i stalosci wiary.', boost: { silaPsychiczna: 2, charyzma: 1 } },
-            'alicja': { title: 'Swieta Alicja', bio: 'Sredniowieczna mistyczka znana z pokory i milosierdzia wobec chorych.', boost: { witalnosc: 2, madrosc: 1 } },
-            'anna': { title: 'Swieta Anna', bio: 'Matka Maryi, babka Jezusa, patronka matek i babc.', boost: { witalnosc: 2, charyzma: 1 } },
-            'barbara': { title: 'Swieta Barbara', bio: 'Meczennica, patronka gornikow i osob w niebezpiecznych zawodach.', boost: { silaPsychiczna: 2, witalnosc: 1 } },
-            'beata': { title: 'Swieta Beata', bio: 'Wczesnochrzescijanska swieta, jej imie znaczy blogoslawiona.', boost: { charyzma: 2, witalnosc: 1 } },
-            'cecylia': { title: 'Swieta Cecylia', bio: 'Patronka muzyki koscielnej i muzykow.', boost: { charyzma: 3 } },
-            'danuta': { title: 'Swieta Danuta', bio: 'Patronka kobiet o silnym duchu i wytrwalosci.', boost: { silaPsychiczna: 2, madrosc: 1 } },
-            'dorota': { title: 'Swieta Dorota', bio: 'Meczennica znana z cudownych roz i jablek z niebianskiego ogrodu.', boost: { witalnosc: 2, charyzma: 1 } },
-            'elzbieta': { title: 'Swieta Elzbieta Wegierska', bio: 'Ksiezna, ktora poswiecila majatek na pomoc ubogim i chorym.', boost: { witalnosc: 2, charyzma: 1 } },
-            'ewa': { title: 'Swieta Ewa', bio: 'Pierwsza kobieta wg Biblii, matka ludzkosci.', boost: { witalnosc: 2, zrecznosc: 1 } },
-            'gabriela': { title: 'Swieta Gabriela', bio: 'Imie zenskie od Archaniola Gabriela, zwiastuna dobrej nowiny.', boost: { madrosc: 2, charyzma: 1 } },
-            'helena': { title: 'Swieta Helena', bio: 'Matka cesarza Konstantyna, odnalazla relikwie Krzyza Swietego.', boost: { madrosc: 2, silaPsychiczna: 1 } },
-            'irena': { title: 'Swieta Irena', bio: 'Jej imie znaczy pokoj - patronka niosacych pojednanie.', boost: { charyzma: 2, madrosc: 1 } },
-            'izabela': { title: 'Swieta Izabela Francuska', bio: 'Ksiezniczka, ktora zalozyla klasztor i zyla w prostocie.', boost: { madrosc: 2, witalnosc: 1 } },
-            'jadwiga': { title: 'Swieta Jadwiga Krolowa', bio: 'Krolowa Polski, fundatorka Akademii Krakowskiej.', boost: { madrosc: 2, charyzma: 1 } },
-            'joanna': { title: 'Swieta Joanna dArc', bio: 'Francuska wojowniczka i wizjonerka, prowadzila wojska do zwyciestw.', boost: { zrecznosc: 2, silaPsychiczna: 1 } },
-            'julia': { title: 'Swieta Julia z Kartaginy', bio: 'Meczennica znana z niezlomnosci wobec przesladowan.', boost: { silaPsychiczna: 2, zrecznosc: 1 } },
-            'katarzyna': { title: 'Swieta Katarzyna Aleksandryjska', bio: 'Wyksztalcona meczennica, patronka filozofow i studentow.', boost: { madrosc: 3 } },
-            'klara': { title: 'Swieta Klara z Asyzu', bio: 'Zalozycielka klarysek, towarzyszka sw. Franciszka w ubostwie.', boost: { silaPsychiczna: 2, charyzma: 1 } },
-            'krystyna': { title: 'Swieta Krystyna', bio: 'Mloda meczennica znana z odwagi wobec wlasnej rodziny.', boost: { silaPsychiczna: 2, zrecznosc: 1 } },
-            'magdalena': { title: 'Swieta Maria Magdalena', bio: 'Uczennica Jezusa, pierwszy swiadek Zmartwychwstania.', boost: { charyzma: 2, silaPsychiczna: 1 } },
-            'malgorzata': { title: 'Swieta Malgorzata z Antiochii', bio: 'Meczennica, patronka kobiet w ciazy i trudnych chwilach.', boost: { witalnosc: 2, silaPsychiczna: 1 } },
-            'maria': { title: 'Najswietsza Maria Panna', bio: 'Matka Jezusa, patronka wstawiajaca sie za wszystkimi potrzebujacymi.', boost: { charyzma: 2, witalnosc: 1 } },
-            'marta': { title: 'Swieta Marta z Betanii', bio: 'Siostra Lazarza, znana z goscinnosci i pracowitosci.', boost: { witalnosc: 2, madrosc: 1 } },
-            'monika': { title: 'Swieta Monika', bio: 'Matka sw. Augustyna, wzor wytrwalej modlitwy o nawrocenie bliskich.', boost: { silaPsychiczna: 2, madrosc: 1 } },
-            'natalia': { title: 'Swieta Natalia', bio: 'Wczesnochrzescijanska meczennica, jej imie wiaze sie z narodzeniem Panskim.', boost: { witalnosc: 2, charyzma: 1 } },
-            'rita': { title: 'Swieta Rita z Cascii', bio: 'Patronka spraw beznadziejnych i trudnych malzenstw.', boost: { silaPsychiczna: 3 } },
-            'roza': { title: 'Swieta Roza z Limy', bio: 'Pierwsza swieta z Ameryki, znana z surowej pokuty i modlitwy.', boost: { silaPsychiczna: 2, witalnosc: 1 } },
-            'teresa': { title: 'Swieta Teresa z Avili', bio: 'Mistyczka i reformatorka karmelitanek, doktor Kosciola.', boost: { madrosc: 2, silaPsychiczna: 1 } },
-            'urszula': { title: 'Swieta Urszula', bio: 'Legendarna ksiezniczka i meczennica, patronka nauczycielek.', boost: { madrosc: 2, charyzma: 1 } },
-            'weronika': { title: 'Swieta Weronika', bio: 'Wg tradycji otarla twarz Jezusa na Drodze Krzyzowej.', boost: { witalnosc: 2, charyzma: 1 } },
-            'zofia': { title: 'Swieta Zofia', bio: 'Jej imie znaczy madrosc - matka trzech corek-meczennic.', boost: { madrosc: 2, witalnosc: 1 } },
-            'zuzanna': { title: 'Swieta Zuzanna', bio: 'Biblijna bohaterka znana z niezlomnej prawosci i odwagi.', boost: { silaPsychiczna: 2, madrosc: 1 } }
+            'adam': { title: 'Święty Adam', bio: 'Pierwszy człowiek wg Biblii, symbol ludzkości stworzonej na obraz Boga.', boost: { silaPsychiczna: 2, witalnosc: 1 } },
+            'aleksander': { title: 'Święty Aleksander', bio: 'Papież i męczennik z II wieku, broniący jedności wczesnego Kościoła.', boost: { charyzma: 2, silaPsychiczna: 1 } },
+            'andrzej': { title: 'Święty Andrzej Apostoł', bio: 'Brat św. Piotra, rybak powołany przez Jezusa, patron m.in. Polski.', boost: { zrecznosc: 2, charyzma: 1 } },
+            'antoni': { title: 'Święty Antoni z Padwy', bio: 'Franciszkański kaznodzieja i cudotwórca, patron od zguby rzeczy.', boost: { madrosc: 2, charyzma: 1 } },
+            'bartlomiej': { title: 'Święty Bartłomiej Apostoł', bio: 'Jeden z Dwunastu Apostołów, według tradycji męczennik w Armenii.', boost: { silaPsychiczna: 2, zrecznosc: 1 } },
+            'blazej': { title: 'Święty Błażej', bio: 'Biskup i lekarz, patron chorych na gardło.', boost: { witalnosc: 2, madrosc: 1 } },
+            'daniel': { title: 'Święty Daniel Prorok', bio: 'Biblijny prorok, znany z odwagi w jaskini lwów.', boost: { silaPsychiczna: 3 } },
+            'dawid': { title: 'Święty Dawid Król', bio: 'Biblijny król-poeta, autor Psalmów, pokonał Goliata.', boost: { zrecznosc: 2, charyzma: 1 } },
+            'dominik': { title: 'Święty Dominik', bio: 'Założyciel zakonu dominikanów, głosił kazania po całej Europie.', boost: { madrosc: 2, charyzma: 1 } },
+            'filip': { title: 'Święty Filip Apostoł', bio: 'Jeden z Dwunastu Apostołów, przywiódł do Jezusa Natanaela.', boost: { charyzma: 2, madrosc: 1 } },
+            'franciszek': { title: 'Święty Franciszek z Asyżu', bio: 'Patron ekologów i zwierząt, symbol ubóstwa i pokory.', boost: { charyzma: 2, witalnosc: 1 } },
+            'grzegorz': { title: 'Święty Grzegorz Wielki', bio: 'Papież i doktor Kościoła, reformator liturgii.', boost: { madrosc: 2, silaPsychiczna: 1 } },
+            'henryk': { title: 'Święty Henryk II', bio: 'Cesarz rzymsko-niemiecki, znany z pobożności i sprawiedliwych rządów.', boost: { silaPsychiczna: 2, charyzma: 1 } },
+            'ignacy': { title: 'Święty Ignacy Loyola', bio: 'Założyciel jezuitów, były żołnierz, mistrz duchowej dyscypliny.', boost: { silaPsychiczna: 2, madrosc: 1 } },
+            'jakub': { title: 'Święty Jakub Apostoł', bio: 'Apostoł, patron pielgrzymów, cel słynnej drogi do Santiago.', boost: { witalnosc: 2, zrecznosc: 1 } },
+            'jan': { title: 'Święty Jan Apostoł', bio: 'Umiłowany uczeń Jezusa, autor Ewangelii i Apokalipsy.', boost: { madrosc: 2, charyzma: 1 } },
+            'jerzy': { title: 'Święty Jerzy', bio: 'Rycerz-męczennik, według legendy pogromca smoka.', boost: { zrecznosc: 2, silaPsychiczna: 1 } },
+            'jozef': { title: 'Święty Józef', bio: 'Opiekun Świętej Rodziny, cieśla, patron pracujących.', boost: { witalnosc: 2, silaPsychiczna: 1 } },
+            'kacper': { title: 'Święty Kacper', bio: 'Jeden z Trzech Mędrców ze Wschodu, złożył dar Dzieciątku Jezus.', boost: { madrosc: 2, charyzma: 1 } },
+            'kamil': { title: 'Święty Kamil de Lellis', bio: 'Założyciel zakonu opiekującego się chorymi i umierającymi.', boost: { witalnosc: 3 } },
+            'karol': { title: 'Święty Karol Boromeusz', bio: 'Biskup, reformator, niósł pomoc podczas epidemii dżumy.', boost: { silaPsychiczna: 2, madrosc: 1 } },
+            'kazimierz': { title: 'Święty Kazimierz', bio: 'Polski królewicz znany z czystości obyczajów i pobożności.', boost: { charyzma: 2, witalnosc: 1 } },
+            'krzysztof': { title: 'Święty Krzysztof', bio: 'Patron podróżnych, według legendy przeniósł Dzieciątko Jezus przez rzekę.', boost: { witalnosc: 2, zrecznosc: 1 } },
+            'lukasz': { title: 'Święty Łukasz Ewangelista', bio: 'Lekarz i autor Ewangelii oraz Dziejów Apostolskich.', boost: { madrosc: 2, witalnosc: 1 } },
+            'maciej': { title: 'Święty Maciej Apostoł', bio: 'Wybrany losem na miejsce Judasza w gronie Dwunastu.', boost: { silaPsychiczna: 2, zrecznosc: 1 } },
+            'marcin': { title: 'Święty Marcin z Tours', bio: 'Rzymski żołnierz, oddał połowę płaszcza żebrakowi.', boost: { charyzma: 2, silaPsychiczna: 1 } },
+            'marek': { title: 'Święty Marek Ewangelista', bio: 'Autor najstarszej Ewangelii, symbolizowany przez lwa.', boost: { madrosc: 2, zrecznosc: 1 } },
+            'mateusz': { title: 'Święty Mateusz Ewangelista', bio: 'Były poborca podatkowy, powołany przez Jezusa na Apostoła.', boost: { madrosc: 3 } },
+            'michal': { title: 'Święty Michał Archanioł', bio: 'Wódz zastępów niebieskich, pogromca szatana.', boost: { silaPsychiczna: 2, zrecznosc: 1 } },
+            'mikolaj': { title: 'Święty Mikołaj z Miry', bio: 'Biskup znany z hojności i tajemnych darów dla potrzebujących.', boost: { charyzma: 2, witalnosc: 1 } },
+            'pawel': { title: 'Święty Paweł Apostoł', bio: 'Prześladowca chrześcijan nawrócony pod Damaszkiem, apostoł narodów.', boost: { charyzma: 2, madrosc: 1 } },
+            'piotr': { title: 'Święty Piotr Apostoł', bio: 'Rybak powołany przez Jezusa, pierwszy papież, filar Kościoła.', boost: { silaPsychiczna: 2, charyzma: 1 } },
+            'rafal': { title: 'Święty Rafał Archanioł', bio: 'Anioł uzdrowienia, towarzysz Tobiasza w podróży.', boost: { witalnosc: 3 } },
+            'roman': { title: 'Święty Roman', bio: 'Wczesnochrześcijański męczennik, symbol wytrwałości w wierze.', boost: { silaPsychiczna: 2, witalnosc: 1 } },
+            'stanislaw': { title: 'Święty Stanisław ze Szczepanowa', bio: 'Biskup krakowski, patron Polski, symbol odwagi wobec władzy.', boost: { silaPsychiczna: 2, charyzma: 1 } },
+            'stefan': { title: 'Święty Szczepan', bio: 'Pierwszy męczennik chrześcijaństwa, diakon pełen mądrości.', boost: { madrosc: 2, silaPsychiczna: 1 } },
+            'szymon': { title: 'Święty Szymon Apostoł', bio: 'Jeden z Dwunastu, zwany Gorliwym za żarliwą wiarę.', boost: { zrecznosc: 2, silaPsychiczna: 1 } },
+            'tadeusz': { title: 'Święty Tadeusz Juda', bio: 'Apostoł, patron spraw beznadziejnych i trudnych.', boost: { silaPsychiczna: 3 } },
+            'tomasz': { title: 'Święty Tomasz Apostoł', bio: 'Apostoł znany z wątpliwości, później głosił wiarę aż po Indie.', boost: { madrosc: 2, silaPsychiczna: 1 } },
+            'wojciech': { title: 'Święty Wojciech', bio: 'Biskup i męczennik, jeden z patronów Polski.', boost: { charyzma: 2, silaPsychiczna: 1 } },
+            'zygmunt': { title: 'Święty Zygmunt Burgundzki', bio: 'Król, który po nawróceniu poświęcił się pokucie i miłosierdziu.', boost: { witalnosc: 2, charyzma: 1 } },
+            'agata': { title: 'Święta Agata', bio: 'Wczesnochrześcijańska męczennica, patronka chroniąca przed ogniem.', boost: { silaPsychiczna: 2, witalnosc: 1 } },
+            'agnieszka': { title: 'Święta Agnieszka', bio: 'Młoda rzymska męczennica, symbol czystości i stałości wiary.', boost: { silaPsychiczna: 2, charyzma: 1 } },
+            'alicja': { title: 'Święta Alicja', bio: 'Średniowieczna mistyczka znana z pokory i miłosierdzia wobec chorych.', boost: { witalnosc: 2, madrosc: 1 } },
+            'anna': { title: 'Święta Anna', bio: 'Matka Maryi, babka Jezusa, patronka matek i babć.', boost: { witalnosc: 2, charyzma: 1 } },
+            'barbara': { title: 'Święta Barbara', bio: 'Męczennica, patronka górników i osób w niebezpiecznych zawodach.', boost: { silaPsychiczna: 2, witalnosc: 1 } },
+            'beata': { title: 'Święta Beata', bio: 'Wczesnochrześcijańska święta, jej imię znaczy błogosławiona.', boost: { charyzma: 2, witalnosc: 1 } },
+            'cecylia': { title: 'Święta Cecylia', bio: 'Patronka muzyki kościelnej i muzyków.', boost: { charyzma: 3 } },
+            'danuta': { title: 'Święta Danuta', bio: 'Patronka kobiet o silnym duchu i wytrwałości.', boost: { silaPsychiczna: 2, madrosc: 1 } },
+            'dorota': { title: 'Święta Dorota', bio: 'Męczennica znana z cudownych róż i jabłek z niebiańskiego ogrodu.', boost: { witalnosc: 2, charyzma: 1 } },
+            'elzbieta': { title: 'Święta Elżbieta Węgierska', bio: 'Księżna, która poświęciła majątek na pomoc ubogim i chorym.', boost: { witalnosc: 2, charyzma: 1 } },
+            'ewa': { title: 'Święta Ewa', bio: 'Pierwsza kobieta wg Biblii, matka ludzkości.', boost: { witalnosc: 2, zrecznosc: 1 } },
+            'gabriela': { title: 'Święta Gabriela', bio: 'Imię żeńskie od Archanioła Gabriela, zwiastuna dobrej nowiny.', boost: { madrosc: 2, charyzma: 1 } },
+            'helena': { title: 'Święta Helena', bio: 'Matka cesarza Konstantyna, odnalazła relikwie Krzyża Świętego.', boost: { madrosc: 2, silaPsychiczna: 1 } },
+            'irena': { title: 'Święta Irena', bio: 'Jej imię znaczy pokój - patronka niosących pojednanie.', boost: { charyzma: 2, madrosc: 1 } },
+            'izabela': { title: 'Święta Izabela Francuska', bio: 'Księżniczka, która założyła klasztor i żyła w prostocie.', boost: { madrosc: 2, witalnosc: 1 } },
+            'jadwiga': { title: 'Święta Jadwiga Królowa', bio: 'Królowa Polski, fundatorka Akademii Krakowskiej.', boost: { madrosc: 2, charyzma: 1 } },
+            'joanna': { title: 'Święta Joanna d’Arc', bio: 'Francuska wojowniczka i wizjonerka, prowadziła wojska do zwycięstw.', boost: { zrecznosc: 2, silaPsychiczna: 1 } },
+            'julia': { title: 'Święta Julia z Kartaginy', bio: 'Męczennica znana z niezłomności wobec prześladowań.', boost: { silaPsychiczna: 2, zrecznosc: 1 } },
+            'katarzyna': { title: 'Święta Katarzyna Aleksandryjska', bio: 'Wykształcona męczennica, patronka filozofów i studentów.', boost: { madrosc: 3 } },
+            'klara': { title: 'Święta Klara z Asyżu', bio: 'Założycielka klarysek, towarzyszka św. Franciszka w ubóstwie.', boost: { silaPsychiczna: 2, charyzma: 1 } },
+            'krystyna': { title: 'Święta Krystyna', bio: 'Młoda męczennica znana z odwagi wobec własnej rodziny.', boost: { silaPsychiczna: 2, zrecznosc: 1 } },
+            'magdalena': { title: 'Święta Maria Magdalena', bio: 'Uczennica Jezusa, pierwszy świadek Zmartwychwstania.', boost: { charyzma: 2, silaPsychiczna: 1 } },
+            'malgorzata': { title: 'Święta Małgorzata z Antiochii', bio: 'Męczennica, patronka kobiet w ciąży i w trudnych chwilach.', boost: { witalnosc: 2, silaPsychiczna: 1 } },
+            'maria': { title: 'Najświętsza Maria Panna', bio: 'Matka Jezusa, patronka wstawiająca się za wszystkimi potrzebującymi.', boost: { charyzma: 2, witalnosc: 1 } },
+            'marta': { title: 'Święta Marta z Betanii', bio: 'Siostra Łazarza, znana z gościnności i pracowitości.', boost: { witalnosc: 2, madrosc: 1 } },
+            'monika': { title: 'Święta Monika', bio: 'Matka św. Augustyna, wzór wytrwałej modlitwy o nawrócenie bliskich.', boost: { silaPsychiczna: 2, madrosc: 1 } },
+            'natalia': { title: 'Święta Natalia', bio: 'Wczesnochrześcijańska męczennica, jej imię wiąże się z narodzeniem Pańskim.', boost: { witalnosc: 2, charyzma: 1 } },
+            'rita': { title: 'Święta Rita z Cascii', bio: 'Patronka spraw beznadziejnych i trudnych małżeństw.', boost: { silaPsychiczna: 3 } },
+            'roza': { title: 'Święta Róża z Limy', bio: 'Pierwsza święta z Ameryki, znana z surowej pokuty i modlitwy.', boost: { silaPsychiczna: 2, witalnosc: 1 } },
+            'teresa': { title: 'Święta Teresa z Ávili', bio: 'Mistyczka i reformatorka karmelitanek, doktor Kościoła.', boost: { madrosc: 2, silaPsychiczna: 1 } },
+            'urszula': { title: 'Święta Urszula', bio: 'Legendarna księżniczka i męczennica, patronka nauczycielek.', boost: { madrosc: 2, charyzma: 1 } },
+            'weronika': { title: 'Święta Weronika', bio: 'Wg tradycji otarła twarz Jezusa na Drodze Krzyżowej.', boost: { witalnosc: 2, charyzma: 1 } },
+            'zofia': { title: 'Święta Zofia', bio: 'Jej imię znaczy mądrość - matka trzech córek-męczennic.', boost: { madrosc: 2, witalnosc: 1 } },
+            'zuzanna': { title: 'Święta Zuzanna', bio: 'Biblijna bohaterka znana z niezłomnej prawości i odwagi.', boost: { silaPsychiczna: 2, madrosc: 1 } }
         };
 
         function normalizeName(name) {
@@ -17576,7 +17577,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const data = buildSaveData();
                     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
                     alert('Zapisano postęp w MIEŚCIE - wczytanie przeniesie cię do miasta, a kolejny sen wylosuje nową planszę.\n\n' +
-                          '(GRACE: ' + data.grace + ', Level: ' + data.level + ', Misja: ' + data.mission + ', GOOD DEEDS: ' + data.goodDeeds + ')');
+                          '(ŁASKA: ' + data.grace + ', Poziom: ' + data.level + ', Misja: ' + data.mission + ', UCZYNKI: ' + data.goodDeeds + ')');
                 }
             } catch (e) {
                 console.error('[save] Nie udało się zapisać gry:', e);
@@ -18188,7 +18189,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function triggerHeroDeath() {
             playerStats.grace = 0;
             updatePlayerStatsUI();
-            showDialogue('Cienie Cię dopadły... Grace spadło poniżej zera. Budzisz się osłabiony, z powrotem w rzeczywistości.', 'OK', null, () => { startPresentMode(); }, null);
+            showDialogue('Cienie Cię dopadły... Łaska spadła poniżej zera. Budzisz się osłabiony, z powrotem w rzeczywistości.', 'OK', null, () => { startPresentMode(); }, null);
         }
 
         let dreamTransitionPending = false;
@@ -18245,8 +18246,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         heroTouchCooldown = 1.5;
                         playerStats.grace -= 5;
                         updatePlayerStatsUI();
-                        // Bez wyraźnego sygnału gracz nie wie, czemu Grace spadło - i potem nie może wejść w sen
-                        showFloatingWarning(`Cień Cię dotknął! Tracisz 5 Grace (zostało: ${Math.max(0, playerStats.grace)})`);
+                        // Bez wyraźnego sygnału gracz nie wie, czemu Łaska spadła - i potem nie może wejść w sen
+                        showFloatingWarning(`Cień Cię dotknął! Tracisz 5 Łaski (zostało: ${Math.max(0, playerStats.grace)})`);
                         try { SoundEngine.playHit(); } catch (err) {}
                         if (playerStats.grace < 0) triggerHeroDeath();
                     }
@@ -18314,7 +18315,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             dialogueOpen = false;
             zblizKamereNaRozmowe(false);
             updatePlayerStatsUI();
-            document.getElementById('instructions').innerHTML = 'WSAD - poruszanie się (przenikasz przez ściany)<br>Nad śpiącymi widać, jaki sen ich dręczy<br><b>B</b> przy kościele - dzwon płoszy Cienie | <b>R</b> - zapal latarnię (1 Grace)';
+            document.getElementById('instructions').innerHTML = 'WSAD - poruszanie się (przenikasz przez ściany)<br>Nad śpiącymi widać, jaki sen ich dręczy<br><b>B</b> przy kościele - dzwon płoszy Cienie | <b>R</b> - zapal latarnię (1 Łaski)';
         }
 
         // Mieszkańcy nie wchodzą na jezdnię - mogą ją przekraczać wyłącznie po pasach
@@ -18609,7 +18610,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 playerStats.goodDeeds += 1;
                 playerStats.level = 1 + Math.floor(playerStats.goodDeeds / 3);
                 updatePlayerStatsUI();
-                showDialogue('Zwierzę chętnie pije podaną wodę i patrzy na ciebie z wdzięcznością! (+2 Grace)', 'OK', null, null, null);
+                showDialogue('Zwierzę chętnie pije podaną wodę i patrzy na ciebie z wdzięcznością! (+2 Łaski)', 'OK', null, null, null);
             } else {
                 showDialogue('Zwierzę czeka na wodę... Może w domu coś znajdziesz?', 'OK', null, null, null);
             }
@@ -18974,7 +18975,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             playerStats.level = 1 + Math.floor(playerStats.goodDeeds / 3);
             updatePlayerStatsUI();
             showDialogue('[Uczynek względem ciała: Chorych nawiedzać]\nOddajesz krew dla potrzebujących. ' +
-                         'Dziękujemy za Twoją hojność! (+10 Grace)\n\nKolejny raz możesz oddać krew za 3 dni.',
+                         'Dziękujemy za Twoją hojność! (+10 Łaski)\n\nKolejny raz możesz oddać krew za 3 dni.',
                          'OK', null, null, null);
         }
 
@@ -19004,7 +19005,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                  playerStats.level = 1 + Math.floor(playerStats.goodDeeds / 3);
                                  updatePlayerStatsUI();
                                  showDialogue('[Uczynek względem ciała: Chorych nawiedzać]\n' +
-                                              'Oddajesz szpik kostny. Ktoś, kto czekał na cud, dostaje szansę na życie. (+20 Grace)',
+                                              'Oddajesz szpik kostny. Ktoś, kto czekał na cud, dostaje szansę na życie. (+20 Łaski)',
                                               'OK', null, null, null);
                              },
                              () => zaproponujKrew());
@@ -19309,7 +19310,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function enterDreamMode() {
             if (!hero) return;
             if (playerStats.grace < 10) {
-                showDialogue(`Potrzebujesz co najmniej 10 punktów Grace, aby wejść do snu. (Masz: ${playerStats.grace})\n\nPamiętaj: każde dotknięcie przez Cień w nocy odbiera 5 Grace. Trzymaj się blisko kapliczek - w ich pobliżu Cienie nie mogą Cię tknąć.`, 'OK', null, null, null);
+                showDialogue(`Potrzebujesz co najmniej 10 punktów Łaski, aby wejść do snu. (Masz: ${playerStats.grace})\n\nPamiętaj: każde dotknięcie przez Cień w nocy odbiera 5 Łaski. Trzymaj się blisko kapliczek - w ich pobliżu Cienie nie mogą Cię tknąć.`, 'OK', null, null, null);
                 return;
             }
             playerStats.grace -= 10;
@@ -19327,7 +19328,23 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const c = parseInt(btn.dataset.count, 10);
                 if (c <= maxSquad) { btn.style.display = ''; btn.disabled = false; }
                 else { btn.style.display = 'none'; btn.disabled = true; }
+                // Liczba wrogów jak w spawnEnemies: 6 (z budynkiem do 12) + 2 za każdego wojownika ponad pierwszego
+                btn.innerHTML = `${c} ${c === 1 ? 'Wojownik' : 'Wojowników'}<br><small style="color:#aaa;">wrogów: od ${6 + 2 * (c - 1)}</small>`;
             });
+            // Te same reguły co w startGame: oblężenie Ostoi i trop artefaktu wygrywają ze snem
+            // "Zagraj ponownie" nie ma pendingDream - plansza i misja losują się dopiero w startGame
+            const d = pendingDream;
+            const oblezenie = czyCzasNaOblezenieOstoi();
+            const themeId = oblezenie ? 'ostoja' : (d && d.themeId);
+            const theme = COMBAT_THEMES.find(t => t.id === themeId);
+            const plansza = DREAM_ICONS[themeId] ? DREAM_ICONS[themeId].label
+                : (theme ? (theme.__bazowaNazwa || theme.name) : 'losowa');
+            const misja = oblezenie ? 'oblezenie' : (tropArtefaktu ? 'artifact' : (d && d.mission));
+            document.getElementById('start-info').innerHTML =
+                `Plansza: <b>${plansza}</b><br>` +
+                `Misja: <b>${misja ? missionTypeLabel(misja) : 'losowa'}</b>` +
+                (d ? `<br>Trudność: <b style="color:${d.hard ? '#ff7766' : '#88cc88'};">${d.hard ? 'ciężki sen' : 'zwykły sen'}</b>` +
+                     `<br>Wejście kosztowało 10 Łaski (zostało: ${playerStats.grace})` : '');
             const titleEl = document.getElementById('start-title');
             if (pendingRecruitSlot) {
                 titleEl.innerText = 'Misja we śnie - dziwna obecność...';
@@ -25908,16 +25925,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const zdrowy = wyleczTowarzysza(w, LECZENIE_ZA_UCZYNEK);
                 if (zdrowy) {
                     p.helped = true;
-                    speakAt(bubbleAt, `Dziękuję! Czuję się silny jak nigdy. Mogę znów walczyć.`, '(+2 Grace, w pełni zdrowy)');
+                    speakAt(bubbleAt, `Dziękuję! Czuję się silny jak nigdy. Mogę znów walczyć.`, '(+2 Łaski, w pełni zdrowy)');
                 } else {
                     const POTRZEBY = ['comfort', 'thirst', 'prayer', 'hunger'];
                     p.need = POTRZEBY[Math.floor(Math.random() * POTRZEBY.length)];
                     p.taskTaken = false; p.requestedAt = 0;
-                    speakAt(bubbleAt, `Dziękuję... już lepiej. (${w.zdrowie.hp}/${w.zdrowie.max})`, '(+2 Grace, +2 zdrowia)');
+                    speakAt(bubbleAt, `Dziękuję... już lepiej. (${w.zdrowie.hp}/${w.zdrowie.max})`, '(+2 Łaski, +2 zdrowia)');
                 }
             } else {
                 p.helped = true;
-                speakAt(bubbleAt, THANK_YOU_LINES[Math.floor(Math.random() * THANK_YOU_LINES.length)], '(+2 Grace)');
+                speakAt(bubbleAt, THANK_YOU_LINES[Math.floor(Math.random() * THANK_YOU_LINES.length)], '(+2 Łaski)');
             }
             updatePlayerStatsUI();
             renderHospitalUpper(); // pościel zmienia kolor na "już pomożony"
@@ -26249,7 +26266,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 playerStats.goodDeeds += 1;
                 playerStats.level = 1 + Math.floor(playerStats.goodDeeds / 3);
                 updatePlayerStatsUI();
-                speakAt(npc, THANK_YOU_LINES[Math.floor(Math.random() * THANK_YOU_LINES.length)], '(+2 Grace)');
+                speakAt(npc, THANK_YOU_LINES[Math.floor(Math.random() * THANK_YOU_LINES.length)], '(+2 Łaski)');
             } else {
                 npc.taskTaken = true;
                 if ((info.mode === 'home' || info.mode === 'specialist') && !npc.requestedAt) npc.requestedAt = performance.now();
@@ -36357,8 +36374,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             `,
             miasto: `
                 <h4>Po co jest miasto</h4>
-                <p>W Teraźniejszości zdobywasz <b>Grace</b> - to paliwo, dzięki któremu wchodzisz w cudze sny.
-                Wejście w sen kosztuje <b>10 Grace</b>.</p>
+                <p>W Teraźniejszości zdobywasz <b>Łaskę</b> - to paliwo, dzięki któremu wchodzisz w cudze sny.
+                Wejście w sen kosztuje <b>10 Łaski</b>.</p>
                 <h4>Uczynki miłosierdzia</h4>
                 <p>Mieszkańcy z czerwoną poświatą potrzebują pomocy. Podejdź i kliknij, żeby usłyszeć prośbę. Część z nich
                 wymaga czegoś konkretnego:</p>
@@ -36367,9 +36384,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     <li><b>Z domu</b> - jedzenie, woda, odzież: wróć do własnego domu, a potem do proszącego</li>
                     <li><b>Od ręki</b> - pocieszenie i gościnność wystarczy samą obecnością</li>
                 </ul>
-                <p>Każdy spełniony uczynek to <b>+2 Grace</b>.</p>
+                <p>Każdy spełniony uczynek to <b>+2 Łaski</b>.</p>
                 <h4>Noc</h4>
-                <p>Nocą po mieście krążą <b>Cienie</b>. Każde ich dotknięcie odbiera <b>5 Grace</b>.
+                <p>Nocą po mieście krążą <b>Cienie</b>. Każde ich dotknięcie odbiera <b>5 Łaski</b>.
                 W pobliżu kapliczek nie mogą Cię tknąć - to bezpieczne miejsca.</p>
                 <p>Aby wejść w sen, znajdź nocą <b>śpiącego mieszkańca</b> i kliknij go.</p>
             `,
@@ -37079,7 +37096,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 stage.style.background = '#1a1410';
                 stage.style.border = '1px solid #4a3f2a';
                 stage.style.aspectRatio = `${INV_IMG_W} / ${INV_IMG_H}`;
-                console.info('[grafika] Brak graphics/ekwipunek_statystyki.jpg - ekwipunek dzia�a na tle zast�pczym.');
+                console.info('[grafika] Brak graphics/ekwipunek_statystyki.jpg - ekwipunek działa na tle zastępczym.');
             }, { once: true });
         }
 
@@ -39682,7 +39699,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 console.info('[ikony] Arkusz wczytany - przyciski mają ikony.');
             };
             probny.onerror = () => {
-                console.info('[ikony] Brak graphics/ikony_small.png - przyciski zostaj� z samymi napisami.');
+                console.info('[ikony] Brak graphics/ikony_small.png - przyciski zostają z samymi napisami.');
             };
             probny.src = 'graphics/ikony_small.png';
         })();
