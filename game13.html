@@ -1388,8 +1388,9 @@
             if (!isSoldierWebbed(s)) return false;
             s.webbedTurns = 0;
             removeWebVisual(s);
-            updateUI(ktoPomogl ? `${ktoPomogl.name} rozrywa pajęczynę krępującą ${s.name}.`
-                               : `${s.name} uwalnia się z pajęczyny.`);
+            const liany = s.webLiany; s.webLiany = false;
+            updateUI(ktoPomogl ? `${ktoPomogl.name} rozrywa ${liany ? 'liany krępujące' : 'pajęczynę krępującą'} ${s.name}.`
+                               : `${s.name} uwalnia się ${liany ? 'z lian' : 'z pajęczyny'}.`);
             return true;
         }
 
@@ -6228,6 +6229,22 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             if (!isWithinPlayBounds(ox, oz) || isObstacle(ox, oz)) continue;
                             addObstacle(ox, oz, rodzajGrupy);
                         }
+                    }
+                }
+                // Porzucone wraki: osobowy na 3 pola, ciężarowy na 4. Środkowe pole niesie
+                // wygląd, pozostałe zajmuje niewidoczna część - przez auto się nie przejdzie.
+                if (currentCombatTheme && WRAKI_MAPY.includes(currentCombatTheme.id) && Math.random() < WRAKI_SZANSA) {
+                    const ile = 1 + Math.floor(Math.random() * 4);
+                    for (let t = 0, stoi = 0; t < 80 && stoi < ile; t++) {
+                        const ciezarowy = Math.random() < 0.35, osX = Math.random() < 0.5;
+                        const gx = Math.floor(Math.random() * (mapWidth - 20)) + 10 - offsetX;
+                        const gz = Math.floor(Math.random() * (mapDepth - 20)) + 10 - offsetZ;
+                        const pola = (ciezarowy ? [-1, 0, 1, 2] : [-1, 0, 1]).map(d => osX ? [gx + d, gz] : [gx, gz + d]);
+                        if (!pola.every(([x, z]) => isWithinPlayBounds(x, z) && !isObstacle(x, z))) continue;
+                        const cechy = { osX: osX, spalony: Math.random() < 0.5 };
+                        pola.forEach(([x, z]) => addObstacle(x, z,
+                            (x === gx && z === gz) ? (ciezarowy ? 'wrak_ciezarowy' : 'wrak_osobowy') : 'wrak-czesc', cechy));
+                        stoi++;
                     }
                 }
                 // Wesołe miasteczko dostaje swoje duże konstrukcje. Środek niesie wygląd,
@@ -11420,29 +11437,33 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // zboczach parowu dodatkowo wysoki, bo mają górować nad korytem.
         // Rodzaje osłon dobrane do charakteru planszy. Na poziomie modułu,
         // żeby dało się zapytać o paletę dowolnej planszy bez generowania jej.
+        const WRAKI_MAPY = ['pozar', 'stacja', 'pentagon', 'alabama', 'powodz', 'wesole',
+                            'kremlin', 'whitehouse', 'zhongnanhai', 'newyork', 'sicario'];
+        const WRAKI_SZANSA = 0.6;   // "czasami" - nie na każdej planszy z tej listy
+
         function paletaOslon() {
             const id = currentCombatTheme ? currentCombatTheme.id : '';
             switch (id) {
                 // Dżungla: paprocie i pnącza niosą ją mocniej niż kłody
-                case 'amazonia':     return ['paproc','paproc','liany','liany','kloda','kloda','grzyby','krzak'];
+                case 'amazonia':     return ['paproc','paproc','liany','liany','kloda','kloda','grzyby','krzak','drzewo_liany','drzewo_liany'];
                 // Bagno to trzciny, próchno i grzyby. Beczka i skrzynia zostają:
                 // to rzeczy wyrzucone na brzeg, a przy okazji jedyne na tej planszy,
                 // które niosą barwny akcent - bez nich bagno robiło się jednolicie zielone.
-                case 'bagno':        return ['trzcina','trzcina','trzcina','paproc','kloda','grzyby','pniak','beczka','skrzynia'];
+                case 'bagno':        return ['trzcina','trzcina','trzcina','paproc','kloda','grzyby','pniak','beczka','skrzynia','drzewo_liany'];
                 // Pustynia miała SAME kamienie i ani jednego kaktusa
                 case 'sahara':       return ['kaktus','kaktus','kepa','kepa','rock','rock','kosciotrup','skrzynia'];
-                case 'wioska':       return ['rock','krzak','beczka','kloda','zywoplot','kepa','skrzynia','stos_beczek','slup','beczka_prochu'];
-                case 'alabama':      return ['zywoplot','zywoplot','lawka','kosz','kloda','krzak','kepa','slup'];
+                case 'wioska':       return ['rock','krzak','beczka','kloda','zywoplot','kepa','skrzynia','stos_beczek','slup','beczka_prochu','zagajnik','stog_siana','stos_drewna'];
+                case 'alabama':      return ['zywoplot','zywoplot','lawka','kosz','kloda','krzak','kepa','slup','zagajnik','slup_energetyczny','stos_opon','stog_siana','paleta'];
                 case 'kremlin':
                 case 'whitehouse':
-                case 'zhongnanhai':  return ['lawka','lawka','kosz','kosz','zywoplot','zywoplot','beczka','rock'];
-                case 'pentagon':     return ['beczka','beczka','kosz','rock','rock','skrzynia_metal','skrzynia_metal','stos_beczek','beczka_prochu'];
-                case 'wesole':       return ['beczka','kosz','kosz','lawka','lawka','beczka','zywoplot'];
+                case 'zhongnanhai':  return ['lawka','lawka','kosz','kosz','zywoplot','zywoplot','beczka','rock','hydrant','budka_telefoniczna','znak_drogowy'];
+                case 'pentagon':     return ['beczka','beczka','kosz','rock','rock','skrzynia_metal','skrzynia_metal','stos_beczek','beczka_prochu','kontener','paleta','znak_drogowy'];
+                case 'wesole':       return ['beczka','kosz','kosz','lawka','lawka','beczka','zywoplot','kontener','hydrant','budka_telefoniczna'];
                 case 'nekropolia':
-                case 'cmentarzysko': return ['nagrobek','nagrobek','rock','kloda','krzak','grzyby','krzyz'];
+                case 'cmentarzysko': return ['nagrobek','nagrobek','rock','kloda','krzak','grzyby','krzyz','drzewo_liany'];
                 case 'wulkan':       return ['rock','rock','rock','rock'];
-                case 'zamiec':       return ['rock','kloda','pniak','krzak'];
-                case 'powodz':       return ['kloda','trzcina','trzcina','beczka','rock','slup'];
+                case 'zamiec':       return ['rock','kloda','pniak','krzak','zagajnik','stos_drewna'];
+                case 'powodz':       return ['kloda','trzcina','trzcina','beczka','rock','slup','zagajnik','slup_energetyczny','stos_opon','paleta'];
                 case 'wyspy':        return ['rock','trzcina','kloda','krzak','kepa'];
                 // Otchłań: tylko kamień, kości i czarny monolit - nic żywego
                 case 'otchlan':      return ['rock','rock','kosciotrup','obelisk','kosciotrup'];
@@ -11450,17 +11471,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 case 'alcatraz':     return ['regal','regal','skrzynia','beczka','lawka','skrzynia_metal','stos_beczek','beczka_prochu'];
                 case 'dom':          return ['regal','skrzynia','lawka','skrzynia'];
                 case 'most':         return ['skrzynia','beczka','skrzynia','skrzynia_metal','beczka_prochu'];
-                case 'pozar':        return ['beczka','lawka','kosz','skrzynia','pniak','skrzynia_metal','rusztowanie','stos_beczek','slup','beczka_prochu'];
+                case 'pozar':        return ['beczka','lawka','kosz','skrzynia','pniak','skrzynia_metal','rusztowanie','stos_beczek','slup','beczka_prochu','kontener','hydrant','stos_opon','znak_drogowy','budka_telefoniczna','slup_energetyczny','paleta'];
                 case 'pobojowisko':  return ['kosciotrup','wlocznie','sztandar','nagrobek','pniak','kepa','skrzynia','krzyz','beczka_prochu'];
                 case 'jezioro':      return ['kra','kra','rock','trzcina','trzcina'];
                 case 'studnia':      return ['kosciotrup','beczka','skrzynia','rock'];
                 case 'szpital':      return ['lozko','wozek','kroplowka','regal'];
                 // Las wreszcie wygląda jak las: podszyt, próchno i grzyby
-                case 'las':          return ['kloda','paproc','paproc','krzak','krzak','grzyby','pniak','rock'];
+                case 'las':          return ['kloda','paproc','paproc','krzak','krzak','grzyby','pniak','rock','zagajnik','zagajnik','drzewo_liany','stos_drewna'];
                 case 'wieza':        return ['regal','skrzynia','lawka','skrzynia_metal','rusztowanie'];
                 // W labiryncie poza blokami leżą tylko rzeczy po tych, co nie wyszli
                 case 'klaustrofobia': return ['kosciotrup','skrzynia','beczka','kosciotrup'];
-                case 'stacja':       return ['regal','skrzynia','skrzynia','beczka','lawka','skrzynia_metal','skrzynia_metal','rusztowanie','stos_beczek','slup','beczka_prochu'];
+                case 'stacja':       return ['regal','skrzynia','skrzynia','beczka','lawka','skrzynia_metal','skrzynia_metal','rusztowanie','stos_beczek','slup','beczka_prochu','paleta','kontener','slup_energetyczny','budka_telefoniczna'];
                 default:             return ['rock','kloda','zywoplot','krzak','kepa'];
             }
         }
@@ -13117,6 +13138,295 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     g.rotation.y = (Math.random() < 0.5) ? 0 : Math.PI / 2;
                     scene.add(g); obstacleMeshes.push(g);
                 }
+                else if (pos.type === 'zagajnik') {
+                    // Kępa młodych drzewek i krzewów na jednym polu - gęsta, wysoka osłona
+                    const g = new THREE.Group();
+                    const kora = new THREE.MeshLambertMaterial({ color: 0x4a3a28 });
+                    const ile = 3 + Math.floor(Math.random() * 3);
+                    for (let k = 0; k < ile; k++) {
+                        const ox = (Math.random() - 0.5) * 0.75, oz = (Math.random() - 0.5) * 0.75;
+                        const h = 1.2 + Math.random() * 1.3;
+                        const pien = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, h * 0.5, 5), kora);
+                        pien.position.set(ox, h * 0.25, oz); g.add(pien);
+                        const lisc = new THREE.MeshLambertMaterial({ color: [0x2f5a2a, 0x3d6b30, 0x4a7a38][k % 3] });
+                        const korona = Math.random() < 0.5
+                            ? new THREE.Mesh(new THREE.ConeGeometry(0.32 + Math.random() * 0.15, h * 0.7, 7), lisc)
+                            : new THREE.Mesh(new THREE.SphereGeometry(0.3 + Math.random() * 0.15, 7, 6), lisc);
+                        korona.position.set(ox, h * 0.62, oz); g.add(korona);
+                    }
+                    for (let k = 0; k < 3; k++) {
+                        const krzew = new THREE.Mesh(new THREE.SphereGeometry(0.22 + Math.random() * 0.1, 6, 5),
+                            new THREE.MeshLambertMaterial({ color: 0x35602c }));
+                        krzew.position.set((Math.random() - 0.5) * 0.8, 0.18, (Math.random() - 0.5) * 0.8);
+                        krzew.scale.y = 0.7; g.add(krzew);
+                    }
+                    g.position.set(pos.x, ty, pos.z);
+                    scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'drzewo_liany') {
+                    // Stare, poskręcane drzewo, z korony zwisają liany aż do ziemi (sprawdzLiany)
+                    const g = new THREE.Group();
+                    const kora = new THREE.MeshLambertMaterial({ color: 0x3e3022 });
+                    const pien = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.38, 2.6, 7), kora);
+                    pien.position.y = 1.3; pien.rotation.z = (Math.random() - 0.5) * 0.15; g.add(pien);
+                    [[0.5, 0.3], [-0.45, -0.2], [0.1, -0.5]].forEach(([cx, cz], k) => {
+                        const kor = new THREE.Mesh(new THREE.SphereGeometry(0.7 + k * 0.1, 8, 6),
+                            new THREE.MeshLambertMaterial({ color: [0x24461f, 0x2c5226, 0x1f3d1b][k] }));
+                        kor.position.set(cx, 2.7 + k * 0.15, cz); kor.scale.y = 0.65; g.add(kor);
+                    });
+                    const pnacze = new THREE.MeshLambertMaterial({ color: 0x3c6b34 });
+                    const ile = 7 + Math.floor(Math.random() * 4);
+                    for (let k = 0; k < ile; k++) {
+                        const a = Math.random() * Math.PI * 2, r = 0.35 + Math.random() * 0.75;
+                        const dl = 1.4 + Math.random() * 1.0;
+                        const l = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.025, dl, 4), pnacze);
+                        l.position.set(Math.cos(a) * r, 2.5 - dl / 2, Math.sin(a) * r);
+                        l.rotation.z = (Math.random() - 0.5) * 0.25; g.add(l);
+                        const lisc = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.04, 0.1), pnacze);
+                        lisc.position.set(Math.cos(a) * r, 2.5 - dl, Math.sin(a) * r); g.add(lisc);
+                    }
+                    g.position.set(pos.x, ty, pos.z);
+                    g.rotation.y = Math.random() * Math.PI * 2;
+                    scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'slup_energetyczny') {
+                    // Betonowy słup z poprzecznikiem, trzema izolatorami i transformatorem (PRZEWRACALNE, 4 pola)
+                    const g = new THREE.Group();
+                    const beton = new THREE.MeshLambertMaterial({ color: 0x9a9890 });
+                    const stal = new THREE.MeshLambertMaterial({ color: 0x55585c });
+                    const pal = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.17, 4.8, 6), beton);
+                    pal.position.y = 2.4; g.add(pal);
+                    const poprzecznik = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.12, 0.12), stal);
+                    poprzecznik.position.y = 4.4; g.add(poprzecznik);
+                    const szklo = new THREE.MeshLambertMaterial({ color: 0x8fb0a8 });
+                    [-0.75, 0, 0.75].forEach(ix => {
+                        const iz = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 0.2, 7), szklo);
+                        iz.position.set(ix, 4.56, 0); g.add(iz);
+                    });
+                    const trafo = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.6, 10), stal);
+                    trafo.position.set(0.32, 3.4, 0); g.add(trafo);
+                    const tabliczka = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.22, 0.16),
+                        new THREE.MeshLambertMaterial({ color: 0xd8b020 }));
+                    tabliczka.position.set(0.15, 1.9, 0); g.add(tabliczka);   // żółta - "nie dotykać"
+                    g.position.set(pos.x, ty, pos.z);
+                    g.rotation.y = (Math.random() < 0.5) ? 0 : Math.PI / 2;
+                    scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'wrak_osobowy' || pos.type === 'wrak_ciezarowy') {
+                    // Porzucony wrak, spalony albo rozbity. Bryła wzdłuż Z, obrót według osi wraku.
+                    const g = new THREE.Group();
+                    const spalony = !!pos.spalony, ciezarowy = pos.type === 'wrak_ciezarowy';
+                    const lakier = new THREE.MeshLambertMaterial({ color: spalony
+                        ? [0x2a2522, 0x3a2a20, 0x24201d][Math.floor(Math.random() * 3)]
+                        : [0x7a2a24, 0x2f4a6b, 0x6b6b6b, 0x3f5a3a, 0x8a7a3a][Math.floor(Math.random() * 5)] });
+                    const rdza = new THREE.MeshLambertMaterial({ color: 0x6b3a1f });
+                    const guma = new THREE.MeshLambertMaterial({ color: 0x151515 });
+                    const szyba = new THREE.MeshLambertMaterial({ color: 0x3a4650, transparent: true, opacity: 0.55 });
+                    const kolo = (kx, kz, r) => {
+                        // Spalony stoi na gołych felgach, rozbitemu brakuje jednego koła
+                        const k2 = new THREE.Mesh(new THREE.CylinderGeometry(spalony ? r * 0.7 : r, spalony ? r * 0.7 : r, 0.22, 10),
+                            spalony ? rdza : guma);
+                        k2.rotation.z = Math.PI / 2; k2.position.set(kx, spalony ? r * 0.7 : r, kz); g.add(k2);
+                    };
+                    if (!ciezarowy) {
+                        const nadwozie = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.55, 3.4), lakier);
+                        nadwozie.position.y = 0.55; g.add(nadwozie);
+                        // Rozbity: zgnieciony przód - krótszy i zadarty blok maski
+                        const maska = new THREE.Mesh(new THREE.BoxGeometry(1.66, 0.4, spalony ? 1.0 : 0.7), spalony ? rdza : lakier);
+                        maska.position.set(0, 0.85, spalony ? 1.15 : 1.35);
+                        if (!spalony) maska.rotation.x = -0.35;
+                        g.add(maska);
+                        if (spalony) {
+                            // Bez szyb - tylko słupki dachu i zwęglony dach
+                            [[-0.7, 0.55], [0.7, 0.55], [-0.7, -0.85], [0.7, -0.85]].forEach(([sx, sz]) => {
+                                const sl = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.5, 0.07), rdza);
+                                sl.position.set(sx, 1.07, sz); g.add(sl);
+                            });
+                            const dach = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.06, 1.5), lakier);
+                            dach.position.set(0, 1.33, -0.15); dach.rotation.z = 0.06; g.add(dach);
+                        } else {
+                            const kabina = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.5, 1.6), szyba);
+                            kabina.position.set(0, 1.07, -0.15); g.add(kabina);
+                            const drzwi = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.6, 1.1), lakier);
+                            drzwi.position.set(1.15, 0.65, 0.05); drzwi.rotation.y = 0.7; g.add(drzwi);   // wyrwane, otwarte
+                        }
+                        [[-0.75, 1.2], [0.75, 1.2], [-0.75, -1.2]].forEach(([kx, kz]) => kolo(kx, kz, 0.3));
+                        if (spalony) kolo(0.75, -1.2, 0.3);
+                        else g.rotation.z = 0.05;   // przysiadł na brakującym kole
+                    } else {
+                        const kab = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.4, 1.5), lakier);
+                        kab.position.set(0, 1.25, 1.55); g.add(kab);
+                        if (!spalony) {
+                            const okno = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.55, 0.05), szyba);
+                            okno.position.set(0, 1.55, 2.31); g.add(okno);
+                        }
+                        const rama = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.25, 4.2), rdza);
+                        rama.position.set(0, 0.6, -0.3); g.add(rama);
+                        if (spalony) {
+                            // Spalona paka: same żebra i kawałki poszycia
+                            for (let k = 0; k < 5; k++) {
+                                const z = -2.1 + k * 0.7;
+                                [-0.95, 0.95].forEach(sx => {
+                                    const zebro = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.6, 0.08), rdza);
+                                    zebro.position.set(sx, 1.55, z); g.add(zebro);
+                                });
+                            }
+                            const poszycie = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.9, 1.6), lakier);
+                            poszycie.position.set(-0.97, 1.2, -1.2); g.add(poszycie);
+                        } else {
+                            const paka = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.8, 3.0),
+                                new THREE.MeshLambertMaterial({ color: [0x8a8478, 0x5a6a4a, 0x7a5a3a][Math.floor(Math.random() * 3)] }));
+                            paka.position.set(0, 1.65, -0.9); paka.rotation.z = 0.12; g.add(paka);   // przechylona po zderzeniu
+                        }
+                        [[-0.85, 1.6], [0.85, 1.6], [-0.85, -1.2], [0.85, -1.2], [-0.85, -2.0], [0.85, -2.0]]
+                            .forEach(([kx, kz]) => kolo(kx, kz, 0.42));
+                    }
+                    // Wrak ciężarowy stoi na 4 polach (-1..2) - środek bryły przesunięty o pół pola
+                    const przes = ciezarowy ? 0.5 : 0;
+                    g.position.set(pos.x + (pos.osX ? przes : 0), ty, pos.z + (pos.osX ? 0 : przes));
+                    g.rotation.y = (pos.osX ? Math.PI / 2 : 0) + (Math.random() - 0.5) * 0.25;
+                    scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'stos_opon') {
+                    const g = new THREE.Group();
+                    const guma = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
+                    const ile = 3 + Math.floor(Math.random() * 3);
+                    for (let k = 0; k < ile; k++) {
+                        const o = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.12, 6, 12), guma);
+                        o.rotation.x = Math.PI / 2;
+                        o.position.set((Math.random() - 0.5) * 0.08, 0.12 + k * 0.22, (Math.random() - 0.5) * 0.08);
+                        g.add(o);
+                    }
+                    const zsunieta = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.12, 6, 12), guma);
+                    zsunieta.position.set(0.38, 0.4, 0.1); zsunieta.rotation.y = 0.4; g.add(zsunieta);   // oparta o stos
+                    g.position.set(pos.x, ty, pos.z);
+                    scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'kontener') {
+                    // Kontener na śmieci z uchyloną klapą
+                    const g = new THREE.Group();
+                    const blacha = new THREE.MeshLambertMaterial({ color: [0x2f5a3a, 0x2f4a6b, 0x6b5a2a][Math.floor(Math.random() * 3)] });
+                    const korpus = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.85, 0.75), blacha);
+                    korpus.position.y = 0.55; g.add(korpus);
+                    const klapa = new THREE.Mesh(new THREE.BoxGeometry(0.97, 0.05, 0.78), blacha);
+                    klapa.position.set(0, 1.02, -0.05); klapa.rotation.x = -0.3; g.add(klapa);
+                    [[-0.38, -0.28], [0.38, -0.28], [-0.38, 0.28], [0.38, 0.28]].forEach(([kx, kz]) => {
+                        const k2 = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.05, 8),
+                            new THREE.MeshLambertMaterial({ color: 0x151515 }));
+                        k2.rotation.z = Math.PI / 2; k2.position.set(kx, 0.07, kz); g.add(k2);
+                    });
+                    g.position.set(pos.x, ty, pos.z);
+                    g.rotation.y = Math.random() * Math.PI * 2;
+                    scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'hydrant') {
+                    const g = new THREE.Group();
+                    const farba = new THREE.MeshLambertMaterial({ color: 0xb02a20 });
+                    const korpus = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.16, 0.65, 10), farba);
+                    korpus.position.y = 0.33; g.add(korpus);
+                    const czapa = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), farba);
+                    czapa.position.y = 0.65; g.add(czapa);
+                    [-1, 1].forEach(st => {
+                        const k2 = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.12, 8),
+                            new THREE.MeshLambertMaterial({ color: 0xc8c0b0 }));
+                        k2.rotation.z = Math.PI / 2; k2.position.set(st * 0.17, 0.45, 0); g.add(k2);
+                    });
+                    g.position.set(pos.x, ty, pos.z);
+                    scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'znak_drogowy') {
+                    // Znak na słupku: stop, ustąp pierwszeństwa albo zakaz (PRZEWRACALNE)
+                    const g = new THREE.Group();
+                    const slupek = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 2.2, 6),
+                        new THREE.MeshLambertMaterial({ color: 0x8a8a8a }));
+                    slupek.position.y = 1.1; g.add(slupek);
+                    const rodzaj = Math.floor(Math.random() * 3);
+                    const tarcza = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.03, [8, 3, 16][rodzaj]),
+                        new THREE.MeshLambertMaterial({ color: [0xb02020, 0xe8e0d0, 0xb02020][rodzaj] }));
+                    tarcza.rotation.x = Math.PI / 2; tarcza.position.y = 2.15;
+                    if (rodzaj === 1) tarcza.rotation.y = Math.PI;   // trójkąt wierzchołkiem w dół
+                    g.add(tarcza);
+                    const lico = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.21, 0.035, [8, 3, 16][rodzaj]),
+                        new THREE.MeshLambertMaterial({ color: [0xe8e0d0, 0xc8a020, 0xe8e0d0][rodzaj] }));
+                    lico.rotation.copy(tarcza.rotation); lico.position.set(0, 2.15, 0.005); g.add(lico);
+                    g.position.set(pos.x, ty, pos.z);
+                    g.rotation.y = Math.random() * Math.PI * 2;
+                    g.rotation.z = (Math.random() - 0.5) * 0.12;   // lekko przekrzywiony
+                    scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'stog_siana') {
+                    const g = new THREE.Group();
+                    const siano = new THREE.MeshLambertMaterial({ color: 0xc8a84a });
+                    const dol = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.55, 0.7, 10), siano);
+                    dol.position.y = 0.35; g.add(dol);
+                    const gora = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.75, 10), siano);
+                    gora.position.y = 1.05; g.add(gora);
+                    const tyczka = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.5, 5),
+                        new THREE.MeshLambertMaterial({ color: 0x5a4632 }));
+                    tyczka.position.y = 1.5; g.add(tyczka);
+                    g.position.set(pos.x, ty, pos.z);
+                    scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'paleta') {
+                    // Stos drewnianych palet
+                    const g = new THREE.Group();
+                    const drewno = new THREE.MeshLambertMaterial({ color: [0xa88a5a, 0x8a7048][Math.floor(Math.random() * 2)] });
+                    const ile = 2 + Math.floor(Math.random() * 4);
+                    for (let k = 0; k < ile; k++) {
+                        const y = 0.07 + k * 0.15;
+                        for (let d = 0; d < 4; d++) {
+                            const deska = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.03, 0.15), drewno);
+                            deska.position.set(0, y + 0.05, -0.33 + d * 0.22); g.add(deska);
+                        }
+                        [-0.38, 0, 0.38].forEach(kx => {
+                            const kloc = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.85), drewno);
+                            kloc.position.set(kx, y, 0); g.add(kloc);
+                        });
+                    }
+                    g.position.set(pos.x, ty, pos.z);
+                    g.rotation.y = (Math.random() - 0.5) * 0.4;
+                    scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'budka_telefoniczna') {
+                    // Czerwona budka z szybami (PRZEWRACALNE)
+                    const g = new THREE.Group();
+                    const farba = new THREE.MeshLambertMaterial({ color: 0xa02018 });
+                    const szyba = new THREE.MeshLambertMaterial({ color: 0x9ab0b8, transparent: true, opacity: 0.35 });
+                    [[-0.36, -0.36], [0.36, -0.36], [-0.36, 0.36], [0.36, 0.36]].forEach(([sx, sz]) => {
+                        const sl = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.2, 0.08), farba);
+                        sl.position.set(sx, 1.1, sz); g.add(sl);
+                    });
+                    [[0, -0.36, 0], [0, 0.36, 0], [-0.36, 0, Math.PI / 2], [0.36, 0, Math.PI / 2]].forEach(([sx, sz, r]) => {
+                        const sz2 = new THREE.Mesh(new THREE.BoxGeometry(0.66, 1.7, 0.02), szyba);
+                        sz2.position.set(sx, 1.15, sz); sz2.rotation.y = r; g.add(sz2);
+                    });
+                    const dach = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.18, 0.86), farba);
+                    dach.position.y = 2.28; g.add(dach);
+                    const aparat = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.35, 0.12),
+                        new THREE.MeshLambertMaterial({ color: 0x2a2a2a }));
+                    aparat.position.set(0, 1.3, -0.28); g.add(aparat);
+                    g.position.set(pos.x, ty, pos.z);
+                    g.rotation.y = Math.floor(Math.random() * 4) * Math.PI / 2;
+                    scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'stos_drewna') {
+                    // Polana ułożone w piramidkę
+                    const g = new THREE.Group();
+                    const kora = new THREE.MeshLambertMaterial({ color: 0x5a4430 });
+                    const czolo = new THREE.MeshLambertMaterial({ color: 0xb08a5a });
+                    for (let rzad = 0; rzad < 3; rzad++) {
+                        for (let k = 0; k < 3 - rzad; k++) {
+                            const pol = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.9, 7), [kora, czolo]);
+                            pol.geometry.groups.forEach((gr, i) => { gr.materialIndex = i === 0 ? 0 : 1; });
+                            pol.rotation.x = Math.PI / 2;
+                            pol.position.set(-0.27 + rzad * 0.135 + k * 0.27, 0.13 + rzad * 0.23, 0);
+                            g.add(pol);
+                        }
+                    }
+                    g.position.set(pos.x, ty, pos.z);
+                    g.rotation.y = Math.random() * Math.PI;
+                    scene.add(g); obstacleMeshes.push(g);
+                }
                 else if (pos.type === 'rumowisko') {
                     // Po przewróconej konstrukcji: połamane deski (widać je po wczytaniu zapisu)
                     const g = new THREE.Group();
@@ -13274,7 +13584,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     scene.add(g); obstacleMeshes.push(g);
                     if (pos.kryjowka) autaKryjowki.push({ grupa: g, x: pos.x, z: pos.z, otwarte: false });
                 }
-                else if (pos.type === 'wesole-czesc') { /* niewidoczna część dużej konstrukcji */ }
+                else if (pos.type === 'wesole-czesc' || pos.type === 'wrak-czesc') { /* niewidoczna część dużej konstrukcji */ }
                 else if (pos.type === 'karuzela') {
                     const g = new THREE.Group();
                     const drewno = new THREE.MeshLambertMaterial({ color: 0x5a4636 });
@@ -14728,16 +15038,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         // Osłony, których pudło nie niszczy
-        const NIEZNISZCZALNE_OSLONY = ['wall-resistant', 'skrzynia_metal', 'rumowisko'];
+        const NIEZNISZCZALNE_OSLONY = ['wall-resistant', 'skrzynia_metal', 'rumowisko', 'wrak_osobowy', 'wrak_ciezarowy', 'wrak-czesc', 'kontener'];
 
         // ===================== CO SIĘ PRZEWRACA =====================
         // Wysokie konstrukcje nie znikają po pudle - walą się na sąsiednie pole
         // w losową stronę. Przygniatają tego, kto tam stoi, a leżące zostają na
         // stałe: przewrócony regał może zamknąć wrogowi przejście albo oddziałowi
         // drogę odwrotu. Rusza je też ciężki wróg przechodzący tuż obok.
-        const PRZEWRACALNE = ['regal', 'rusztowanie', 'krzyz', 'stos_beczek', 'slup'];
-        const PRZEWROT_NAZWY = { regal: 'Regał', rusztowanie: 'Rusztowanie', krzyz: 'Krzyż', stos_beczek: 'Stos beczek', slup: 'Słup' };
-        const PRZEWROT_DLUGOSC = { slup: 3 };   // na ile pól w linii pada (domyślnie 1)
+        const PRZEWRACALNE = ['regal', 'rusztowanie', 'krzyz', 'stos_beczek', 'slup', 'slup_energetyczny', 'znak_drogowy', 'budka_telefoniczna'];
+        const PRZEWROT_NAZWY = { regal: 'Regał', rusztowanie: 'Rusztowanie', krzyz: 'Krzyż', stos_beczek: 'Stos beczek', slup: 'Słup telefoniczny',
+                                 slup_energetyczny: 'Słup energetyczny', znak_drogowy: 'Znak drogowy', budka_telefoniczna: 'Budka telefoniczna' };
+        const PRZEWROT_DLUGOSC = { slup: 3, slup_energetyczny: 4 };   // na ile pól w linii pada (domyślnie 1)
         const PRZEWROT_OBRAZENIA = 6;
         const PRZEWROT_CIEZKI_SZANSA = 0.35;   // na krok ciężkiego wroga obok konstrukcji
 
@@ -14864,7 +15175,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const WYBUCH_PROMIEN = 2;      // tyle pól w każdą stronę rani
         const WYBUCH_OBRAZENIA = 8;    // w środku; na skraju mniej
         const WYBUCH_NISZCZY = ['beczka', 'beczka_prochu', 'skrzynia', 'kosz', 'lawka', 'zywoplot',
-                                'krzak', 'kepa', 'kloda', 'wall-destructible'].concat(PRZEWRACALNE);
+                                'krzak', 'kepa', 'kloda', 'wall-destructible', 'stos_opon', 'paleta', 'stog_siana',
+                                'stos_drewna', 'hydrant'].concat(PRZEWRACALNE);
         function wybuch(x, z) {
             // Błysk: rosnąca kula ognia i światło, które gaśnie
             const y = getTerrainY(x, z) + 0.6;
@@ -24839,6 +25151,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         const NISKIE_PRZESZKODY = ['lozko', 'wozek', 'kroplowka', 'kra', 'wlocznie', 'balustrada', 'skrzynia', 'skrzynia_metal', 'rumowisko', 'tor', 'krata', 'prycza', 'kibel', 'ruina', 'zachod-weranda', 'koniowiaz', 'woz',
                                    'rock', 'kloda', 'lawka', 'kosz', 'zywoplot', 'beczka', 'beczka_prochu',
+                                   'stos_opon', 'hydrant', 'paleta', 'stos_drewna',
                                    'nagrobek', 'crate', 'barrel', 'bush', 'grave', 'tombstone'];
 
         // Drzewa i słupy nie zasłaniają widoku: pień jest wąski, a korona wisi nad
@@ -29399,7 +29712,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     return;
                 }
                 if (isSoldierWebbed(active)) {
-                    updateUI('Pajęczyna trzyma - najpierw trzeba się uwolnić.');
+                    updateUI(active.webLiany ? 'Liany trzymają - najpierw trzeba się uwolnić.' : 'Pajęczyna trzyma - najpierw trzeba się uwolnić.');
                     return;
                 }
                 const startX = Math.round(active.mesh.position.x), startZ = Math.round(active.mesh.position.z);
@@ -29618,6 +29931,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     refreshPlayerPositions();
                     // Stara sieć pod stopami pęta tak samo jak ta wystrzelona przez pająka
                     sprawdzPajeczyne(active);
+                    sprawdzLiany(active);
                     // Przejście tuż przy płycie może obudzić grób
                     mijanieGrobu(active);
                     // W labiryncie ściany reagują na obecność - blok ruszy się
@@ -31345,7 +31659,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // po prostu kandydata - a to nie jest dobry powód, żeby jej nie było.
         const ZASADZKA_TYPY = ['spider_small', 'spider_big', 'vampire', 'strzyga',
                                'stalker', 'wisp', 'matrona'];
-        const ZASADZKA_KRYJOWKI = ['tree', 'kloda', 'house-roof', 'column', 'regal'];
+        const ZASADZKA_KRYJOWKI = ['tree', 'kloda', 'house-roof', 'column', 'regal', 'zagajnik', 'drzewo_liany'];
 
         function czyMapaZDrzewami() {
             if (!currentCombatTheme) return false;
@@ -31796,6 +32110,29 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         // Wejście w pajęczynę. Wołane po każdym ruchu wojownika.
+        // Drzewo z lianami: kto zatrzyma się tuż obok, może zostać oplątany na 1-2 tury.
+        // To samo spętanie co pajęczyna (webbedTurns) - szarpanie się i pomoc towarzysza działają.
+        const LIANY_SZANSA = 0.35;
+        function sprawdzLiany(s) {
+            if (!s || s.isDead || !s.mesh || isSoldierWebbed(s) || (s.level || 0) !== 0) return false;
+            const x = Math.round(s.mesh.position.x), z = Math.round(s.mesh.position.z);
+            let obok = false;
+            for (let dx = -1; dx <= 1 && !obok; dx++)
+                for (let dz = -1; dz <= 1 && !obok; dz++) {
+                    const o = obstacleMap.get(`${x + dx},${z + dz}`);
+                    if (o && o.type === 'drzewo_liany') obok = true;
+                }
+            if (!obok || Math.random() >= LIANY_SZANSA) return false;
+            s.webbedTurns = 1 + (Math.random() < 0.5 ? 1 : 0);
+            s.webLiany = true;
+            attachWebVisual(s);
+            if (s.webMesh) { s.webMesh.material.color.set(0x3c6b34); s.webMesh.material.opacity = 0.5; }
+            showFloatingWarning(`Liany oplatają: ${s.name}!`);
+            updateUI(`${s.name} zaplątał się w liany - ${s.webbedTurns === 1 ? 'tura' : '2 tury'} unieruchomienia ` +
+                     'albo pomoc towarzysza.');
+            return true;
+        }
+
         function sprawdzPajeczyne(s) {
             if (!s || s.isDead || !s.mesh || isSoldierWebbed(s)) return false;
             const x = Math.round(s.mesh.position.x), z = Math.round(s.mesh.position.z);
@@ -32108,7 +32445,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // co naprawdę łatwopalne. Inaczej jeden strzał zapalający
                 // kasowałby osłony na pół mapy.
                 if (!planszowy && ['kloda','zywoplot','tree','beczka','skrzynia','lawka',
-                                   'regal','kosz','namiot','wysciolka','rusztowanie','krzyz','stos_beczek','slup'].indexOf(p.type) === -1) continue;
+                                   'regal','kosz','namiot','wysciolka','rusztowanie','krzyz','stos_beczek','slup',
+                                   'zagajnik','drzewo_liany','stos_opon','stog_siana','paleta','stos_drewna'].indexOf(p.type) === -1) continue;
                 usunBryleOslony(p);
                 obstaclePositions.splice(i, 1);
                 obstacleMap.delete(`${p.x},${p.z}`);
