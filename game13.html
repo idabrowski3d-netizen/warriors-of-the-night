@@ -1066,6 +1066,7 @@
         <button id="btn-zapalajacy" style="border-color: #dd7744; display: none;" title="Następny strzał zostawi ogień na polu celu - parzy każdego, kto tam stanie lub tamtędy przejdzie">Zapalający (0)</button>
         <button id="btn-mrozacy" style="border-color: #66bbdd; display: none;" title="Następny strzał skuwa trafionego lodem na dwie rundy">Mrożący (0)</button>
         <button id="btn-zadanie" style="border-color: #ffcc66; display: none;" title="Zapal kapliczkę albo zamknij przejście, przy którym stoisz [G]">Zadanie</button>
+        <button id="btn-pochodnia" style="border-color: #ffa23a; display: none;" title="Zapal albo zgaś pochodnię. Zapalona rozprasza ciemność w promieniu 5 pól, ale płomień widzą też wrogowie" data-ap="1">Pochodnia</button>
         <button id="btn-ziolo-balsam" style="border-color: #8acc66; display: none;">Balsam (0)</button>
         <button id="btn-ziolo-wyciag" style="border-color: #ccaa66; display: none;">Wyciąg (0)</button>
         <button id="btn-ziolo-sokoleOko" style="border-color: #66aacc; display: none;">Sokole Oko (0)</button>
@@ -1289,6 +1290,10 @@
             }
             soldiers.forEach(s => {
                 if (nosiLampion(s)) lista.push({ x: s.mesh.position.x, z: s.mesh.position.z, r: LIGHT_FEAR_RADIUS });
+                // Pochodnia w ręku to pełnoprawne źródło światła - rozprasza ciemność
+                // i odstrasza to, co boi się ognia
+                if (typeof nosiPochodnie === 'function' && nosiPochodnie(s))
+                    lista.push({ x: s.mesh.position.x, z: s.mesh.position.z, r: POCHODNIA_PROMIEN });
             });
             return lista;
         }
@@ -1450,7 +1455,9 @@
         function wleczony(s) { return !!(s && s.wleczonyPrzez && !s.wleczonyPrzez.isDead); }
         function wKrypcie(s) { return !!(s && s.krypta); }
         // Jedno pytanie dla całej reszty silnika: czy ten wojownik może się ruszyć
-        function uwiezionyPrzezGrabarza(s) { return wleczony(s) || wKrypcie(s); }
+        // Przyssana Matrona trzyma tak samo jak ręce grabarza - jedno pytanie
+        // dla całego silnika, żeby nie było dwóch różnych rodzajów uwięzienia.
+        function uwiezionyPrzezGrabarza(s) { return wleczony(s) || wKrypcie(s) || przyssana(s) || topiony(s); }
 
         function najblizszaKrypta(x, z) {
             let naj = null, d0 = Infinity;
@@ -1553,6 +1560,28 @@
         function szarpnijSieGrabarzowi(s) {
             const szansa = szansaWyrwania(s);
             const udalo = Math.random() * 100 < szansa;
+            // Ręce topielca - to samo szarpnięcie, inny potwór
+            if (topiony(s)) {
+                const t = s.topionyPrzez;
+                if (udalo) {
+                    puscTopielca(t, `${s.name} wyrywa się z rąk topielca.`);
+                    showFloatingWarning('Wyrwał się z wody!');
+                    return true;
+                }
+                updateUI(`${s.name} szarpie się, ale topielec trzyma go pod wodą (szansa ${szansa}%).`);
+                return false;
+            }
+            // Matrona wczepiona w ciało - to samo szarpnięcie, inny potwór
+            if (przyssana(s)) {
+                const m = s.wyssanaPrzez;
+                if (udalo) {
+                    odczepMatrone(m, `${s.name} odrywa od siebie Matronę.`);
+                    showFloatingWarning('Oderwał ją!');
+                    return true;
+                }
+                updateUI(`${s.name} szarpie się, ale Matrona trzyma się ciała (szansa ${szansa}%).`);
+                return false;
+            }
             if (wKrypcie(s)) {
                 if (udalo) { wypuscZKrypty(s, null); return true; }
                 updateUI(`${s.name} napiera na płytę, ale ta ani drgnie (szansa ${szansa}%).`);
@@ -3331,6 +3360,1136 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 return [x, z];
             }
             return null;
+        }
+
+        // ===================== ZBIORNIKI WODNE =====================
+        // Do tej pory woda była tylko na kilku planszach z własnej tożsamości
+        // (powódź, jezioro, most, wyspy). Topielec potrzebuje jej wszędzie, więc
+        // zwyczajne plansze dostają sadzawki i rozlewiska - najchętniej przy
+        // krawędzi, gdzie nie przecinają drogi oddziałowi.
+        const ZBIORNIK_SZANSA = 0.6;
+        // Tam woda nie ma sensu albo psuje tożsamość planszy: cyberprzestrzeń,
+        // wulkan, a przede wszystkim labirynt klaustrofobii - tam ściany
+        // przesuwają się po polach i rozlewisko zablokowałoby cały mechanizm.
+        const ZBIORNIK_BEZ_WODY = ['cyber', 'wulkan', 'klaustrofobia', 'stacja',
+                                   'archiwum', 'alcatraz', 'wieza', 'studnia', 'ostoja'];
+        const ZBIORNIK_BRZEG_SZER = [8, 16];
+        const ZBIORNIK_BRZEG_GLEB = [3, 6];
+        const ZBIORNIK_SADZAWKA_R = [2, 3];
+
+        function czyWoda(x, z) {
+            if (!hasRiver || !riverGrid) return false;
+            const mx = Math.round(x) + offsetX, mz = Math.round(z) + offsetZ;
+            if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return false;
+            return riverGrid[mx][mz] === 1;
+        }
+
+        function najblizszaWoda(x, z, zasieg) {
+            if (!hasRiver || !riverGrid) return null;
+            const max = zasieg || 40;
+            let naj = null, d0 = Infinity;
+            for (let mx = 0; mx < mapWidth; mx++) {
+                for (let mz = 0; mz < mapDepth; mz++) {
+                    if (riverGrid[mx][mz] !== 1) continue;
+                    const wx = mx - offsetX, wz = mz - offsetZ;
+                    const d = Math.max(Math.abs(wx - Math.round(x)), Math.abs(wz - Math.round(z)));
+                    if (d < d0) { d0 = d; naj = { x: wx, z: wz, d: d }; }
+                }
+            }
+            return (naj && naj.d <= max) ? naj : null;
+        }
+
+        // Ile pól da się obejść pieszo, startując z jednego miejsca. Służy do
+        // sprawdzenia, czy świeżo wylana woda nie odcięła części planszy.
+        function policzDostepne(sx, sz) {
+            const widziane = new Set();
+            const kolejka = [[sx, sz]];
+            const klucz = (a, b) => a + ':' + b;
+            widziane.add(klucz(sx, sz));
+            while (kolejka.length) {
+                const [x, z] = kolejka.pop();
+                for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+                    const nx = x + dx, nz = z + dz;
+                    if (nx < 0 || nx >= mapWidth || nz < 0 || nz >= mapDepth) continue;
+                    const k = klucz(nx, nz);
+                    if (widziane.has(k)) continue;
+                    if (obstacleGrid[nx][nz]) continue;
+                    widziane.add(k);
+                    kolejka.push([nx, nz]);
+                }
+            }
+            return widziane.size;
+        }
+
+        // Wylewa wodę na podane pola. Zwraca listę pól, które faktycznie zalała -
+        // dzięki temu da się ją wycofać, gdyby odcięła planszę na pół.
+        function wylejWode(pola) {
+            const zalane = [];
+            pola.forEach(([mx, mz]) => {
+                if (mx < 1 || mx >= mapWidth - 1 || mz < 1 || mz >= mapDepth - 1) return;
+                if (riverGrid[mx][mz] === 1) return;
+                // Nie zalewamy dróg, chodników i pól zastawionych - woda ma się
+                // rozlać po otwartym gruncie, nie zjadać zabudowy i celów misji.
+                if (obstacleGrid[mx][mz]) return;
+                const t = terrainTypeMap[mx][mz];
+                if (t === 2 || t === 3 || t === 4) return;
+                riverGrid[mx][mz] = 1;
+                obstacleGrid[mx][mz] = { type: 'river' };
+                heightMap[mx][mz] = 0;
+                zalane.push([mx, mz]);
+            });
+            return zalane;
+        }
+
+        function cofnijWode(zalane) {
+            zalane.forEach(([mx, mz]) => {
+                riverGrid[mx][mz] = 0;
+                if (obstacleGrid[mx][mz] && obstacleGrid[mx][mz].type === 'river') obstacleGrid[mx][mz] = null;
+            });
+        }
+
+        // Błotnisty brzeg wokół wody: widać, gdzie kończy się grunt, a brnięcie
+        // przez błoto kosztuje podwójnie - podejście do wody ma mieć swoją cenę.
+        function obrysujBrzeg(zalane) {
+            zalane.forEach(([mx, mz]) => {
+                for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) {
+                    const nx = mx + dx, nz = mz + dz;
+                    if (nx < 0 || nx >= mapWidth || nz < 0 || nz >= mapDepth) continue;
+                    if (riverGrid[nx][nz] === 1) continue;
+                    if (obstacleGrid[nx][nz]) continue;
+                    const t = terrainTypeMap[nx][nz];
+                    if (t === 2 || t === 3 || t === 4) continue;
+                    terrainTypeMap[nx][nz] = 5;      // błoto
+                }
+            });
+        }
+
+        function rozlejZbiorniki() {
+            if (gameMode !== 'dream' || !currentCombatTheme) return 0;
+            // Plansza, która ma już własną wodę (jezioro, powódź, most) albo lawę
+            // i przepaść, nie potrzebuje niczego dokładać.
+            if (hasRiver) return 0;
+            if (ZBIORNIK_BEZ_WODY.indexOf(currentCombatTheme.id) !== -1) return 0;
+            if (Math.random() > ZBIORNIK_SZANSA) return 0;
+
+            // Punkt startowy do liczenia spójności: pierwsze wolne pole planszy
+            let sx = -1, sz = -1;
+            for (let mx = 2; mx < mapWidth - 2 && sx < 0; mx++)
+                for (let mz = 2; mz < mapDepth - 2 && sx < 0; mz++)
+                    if (!obstacleGrid[mx][mz]) { sx = mx; sz = mz; }
+            if (sx < 0) return 0;
+            const dostepnePrzed = policzDostepne(sx, sz);
+
+            const zalaneRazem = [];
+            const sprobuj = (pola) => {
+                const zalane = wylejWode(pola);
+                if (!zalane.length) return 0;
+                // Gdyby woda odcięła kawał planszy, zostałaby część, do której nie
+                // da się dojść - cofamy ją w całości.
+                let start = null;
+                for (let mx = 2; mx < mapWidth - 2 && !start; mx++)
+                    for (let mz = 2; mz < mapDepth - 2 && !start; mz++)
+                        if (!obstacleGrid[mx][mz]) start = [mx, mz];
+                const po = start ? policzDostepne(start[0], start[1]) : 0;
+                if (po < dostepnePrzed - zalane.length - 2) { cofnijWode(zalane); return 0; }
+                zalaneRazem.push.apply(zalaneRazem, zalane);
+                return zalane.length;
+            };
+
+            // 1. ROZLEWISKO PRZY KRAWĘDZI - zatoka wchodząca w planszę
+            const krawedz = ['polnoc', 'poludnie', 'wschod', 'zachod'][Math.floor(Math.random() * 4)];
+            const szer = ZBIORNIK_BRZEG_SZER[0] +
+                Math.floor(Math.random() * (ZBIORNIK_BRZEG_SZER[1] - ZBIORNIK_BRZEG_SZER[0] + 1));
+            const gleb = ZBIORNIK_BRZEG_GLEB[0] +
+                Math.floor(Math.random() * (ZBIORNIK_BRZEG_GLEB[1] - ZBIORNIK_BRZEG_GLEB[0] + 1));
+            const pola = [];
+            if (krawedz === 'polnoc' || krawedz === 'poludnie') {
+                const start = 2 + Math.floor(Math.random() * Math.max(1, mapWidth - szer - 4));
+                for (let i = 0; i < szer; i++) {
+                    // Zatoka jest głębsza w środku - brzeg ma być nieregularny
+                    const g = Math.max(1, Math.round(gleb * Math.sin((i / (szer - 1)) * Math.PI)));
+                    for (let j = 0; j < g; j++) {
+                        const mz = (krawedz === 'polnoc') ? 1 + j : mapDepth - 2 - j;
+                        pola.push([start + i, mz]);
+                    }
+                }
+            } else {
+                const start = 2 + Math.floor(Math.random() * Math.max(1, mapDepth - szer - 4));
+                for (let i = 0; i < szer; i++) {
+                    const g = Math.max(1, Math.round(gleb * Math.sin((i / (szer - 1)) * Math.PI)));
+                    for (let j = 0; j < g; j++) {
+                        const mx = (krawedz === 'zachod') ? 1 + j : mapWidth - 2 - j;
+                        pola.push([mx, start + i]);
+                    }
+                }
+            }
+            sprobuj(pola);
+
+            // 2. SADZAWKA W GŁĘBI - mała, żeby dało się ją obejść
+            if (Math.random() < 0.7) {
+                const r = ZBIORNIK_SADZAWKA_R[0] +
+                    Math.floor(Math.random() * (ZBIORNIK_SADZAWKA_R[1] - ZBIORNIK_SADZAWKA_R[0] + 1));
+                for (let t = 0; t < 30; t++) {
+                    const cx = 5 + Math.floor(Math.random() * Math.max(1, mapWidth - 10));
+                    const cz = 5 + Math.floor(Math.random() * Math.max(1, mapDepth - 10));
+                    const kolo = [];
+                    for (let dx = -r; dx <= r; dx++)
+                        for (let dz = -r; dz <= r; dz++)
+                            if (Math.hypot(dx, dz) <= r + 0.2) kolo.push([cx + dx, cz + dz]);
+                    if (sprobuj(kolo) > 0) break;
+                }
+            }
+
+            if (!zalaneRazem.length) return 0;
+            hasRiver = true;
+            riverIsLava = false;
+            if (typeof rzekaKrwi !== 'undefined') rzekaKrwi = false;
+            obrysujBrzeg(zalaneRazem);
+            return zalaneRazem.length;
+        }
+
+        // ===================== TOPIELEC =====================
+        // Człekokształtny, sino-niebieski, obrzmiały od wody. Czeka zanurzony i
+        // niewidoczny; kto podejdzie blisko brzegu, ten go wywabia. Nie strzela:
+        // OGŁUSZA - ogłuszony traci całą następną turę - a potem wlecze go do
+        // wody i tam trzyma pod powierzchnią. Z uścisku da się wyrwać (walka
+        // wręcz) albo ktoś musi topielca zabić. Dalej niż kilka pól od wody
+        // nie odejdzie: na suchym gruncie słabnie.
+        const TOPIELEC_HP = 12;
+        const TOPIELEC_AP = 10;
+        const TOPIELEC_WYWABIENIE = 3;      // z tylu pol od topielca wywabia go obecnosc
+        const TOPIELEC_OD_WODY = 6;         // dalej od wody nie odejdzie
+        const TOPIELEC_CHWYT_KOSZT = 3;
+        const TOPIELEC_CIOS = 3;
+        const TOPIELEC_WLECZENIE = 2;       // pol na ture
+        const TOPIELEC_TOPIENIE = 5;        // obrazenia na ture pod woda
+        const TOPIELEC_OGLUSZENIE = 1;      // tyle tur bez ruchu
+        const TOPIELCE_NA_PLANSZE = 2;
+
+        function createTopielecMesh() {
+            const g = new THREE.Group();
+            const skora = new THREE.MeshLambertMaterial({ color: 0x5b8a9c });
+            const skora2 = new THREE.MeshLambertMaterial({ color: 0x3f6b7a });
+            const wodorost = new THREE.MeshLambertMaterial({ color: 0x3d5a3a });
+            const oko = new THREE.MeshBasicMaterial({ color: 0xdfeff2 });
+
+            // Przygarbiony tors - obrzmiały od wody, barki wyżej niż głowa
+            const tors = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), skora);
+            tors.scale.set(1.15, 1.25, 0.85);
+            tors.position.y = 1.1;
+            g.add(tors);
+            const brzuch = new THREE.Mesh(new THREE.SphereGeometry(0.24, 10, 8), skora2);
+            brzuch.scale.set(1.2, 1, 0.9);
+            brzuch.position.y = 0.78;
+            g.add(brzuch);
+            // Głowa wtulona w barki, bez szyi
+            const glowa = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 10), skora);
+            glowa.scale.set(0.95, 1.05, 1);
+            glowa.position.set(0, 1.46, 0.04);
+            g.add(glowa);
+            [-1, 1].forEach(s => {
+                const o = new THREE.Mesh(new THREE.SphereGeometry(0.05, 7, 6), oko);
+                o.position.set(s * 0.08, 1.49, 0.19);
+                g.add(o);
+            });
+            const usta = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.06, 0.06),
+                new THREE.MeshBasicMaterial({ color: 0x17262b }));
+            usta.position.set(0, 1.36, 0.19);
+            g.add(usta);
+            // Długie ramiona zwisające niemal do ziemi - tymi chwyta i ciągnie
+            [-1, 1].forEach(s => {
+                const ramie = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.06, 0.72, 7), skora);
+                ramie.position.set(s * 0.34, 0.95, 0.06);
+                ramie.rotation.z = s * 0.12;
+                g.add(ramie);
+                const przedramie = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.56, 7), skora2);
+                przedramie.position.set(s * 0.4, 0.42, 0.12);
+                g.add(przedramie);
+                const dlon = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), skora2);
+                dlon.scale.set(1.2, 0.7, 1);
+                dlon.position.set(s * 0.42, 0.16, 0.14);
+                g.add(dlon);
+            });
+            // Nogi krótkie i grube - chodzi niechętnie
+            [-1, 1].forEach(s => {
+                const noga = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 0.6, 7), skora2);
+                noga.position.set(s * 0.13, 0.3, 0);
+                g.add(noga);
+            });
+            // Wodorosty na barkach i głowie - przyniósł je ze sobą z dna
+            for (let i = 0; i < 7; i++) {
+                const a = Math.random() * Math.PI * 2;
+                const w = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.01, 0.4 + Math.random() * 0.3, 4), wodorost);
+                w.position.set(Math.cos(a) * 0.2, 1.3 - Math.random() * 0.3, Math.sin(a) * 0.14);
+                w.rotation.x = 0.2 - Math.random() * 0.4;
+                g.add(w);
+            }
+            g.userData.yOffset = 0;
+            g.userData.unitType = 'topielec';
+            return g;
+        }
+
+        function topiony(s) { return !!(s && s.topionyPrzez && !s.topionyPrzez.isDead); }
+        function ogluszony(s) { return !!(s && (s.ogluszonyTury || 0) > 0); }
+
+        // Rozstawienie: topielce czekają ZANURZONE, na polach wody. Niewidoczne,
+        // nie blokują pola i nie liczą się do celownika, dopóki się nie wynurzą.
+        function rozstawTopielce() {
+            if (gameMode !== 'dream' || !hasRiver || !riverGrid) return 0;
+            const wodne = [];
+            for (let mx = 0; mx < mapWidth; mx++)
+                for (let mz = 0; mz < mapDepth; mz++)
+                    if (riverGrid[mx][mz] === 1) wodne.push([mx - offsetX, mz - offsetZ]);
+            if (!wodne.length) return 0;
+            let ilu = 0;
+            for (let i = 0; i < TOPIELCE_NA_PLANSZE; i++) {
+                const p = wodne[Math.floor(Math.random() * wodne.length)];
+                if (enemies.some(e => !e.isDead && e.mesh && Math.round(e.mesh.position.x) === p[0] &&
+                                      Math.round(e.mesh.position.z) === p[1])) continue;
+                const mesh = createTopielecMesh();
+                mesh.position.set(p[0], getTerrainY(p[0], p[1]), p[1]);
+                mesh.visible = false;
+                scene.add(mesh);
+                enemies.push({ mesh: mesh, type: 'topielec', hp: TOPIELEC_HP, maxHp: TOPIELEC_HP,
+                               ap: TOPIELEC_AP, maxAp: TOPIELEC_AP, accuracyBonus: 0, isDead: false,
+                               facingAngle: 0, level: 0, wWodzie: true, topi: null,
+                               gniazdoWody: { x: p[0], z: p[1] } });
+                if (typeof noteEnemyEncountered === 'function') noteEnemyEncountered('topielec');
+                ilu++;
+            }
+            return ilu;
+        }
+
+        function wynurzTopielca(e) {
+            if (!e || e.isDead || !e.wWodzie) return false;
+            e.wWodzie = false;
+            if (e.mesh) e.mesh.visible = true;
+            showFloatingWarning('Woda się burzy - TOPIELEC!');
+            updateUI('Z wody wychodzą sine ręce. TOPIELEC wyczuł kogoś na brzegu.');
+            if (typeof playFileSfx === 'function' && typeof AudioFiles !== 'undefined')
+                playFileSfx(AudioFiles.wallHit, 0.5);
+            refreshEnemyPositions();
+            return true;
+        }
+
+        // Kto podejdzie blisko brzegu, ten wywabia topielca
+        function tikTopielcow() {
+            if (gameOver) return 0;
+            let ilu = 0;
+            enemies.forEach(e => {
+                if (e.isDead || e.type !== 'topielec' || !e.wWodzie || !e.mesh) return;
+                const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
+                const blisko = soldiers.some(s => !s.isDead && s.mesh &&
+                    Math.max(Math.abs(Math.round(s.mesh.position.x) - ex),
+                             Math.abs(Math.round(s.mesh.position.z) - ez)) <= TOPIELEC_WYWABIENIE);
+                if (blisko && wynurzTopielca(e)) ilu++;
+            });
+            return ilu;
+        }
+
+        // OGŁUSZENIE: cios, po którym wojownik traci całą następną turę.
+        function ogluszWojownika(s, e) {
+            if (!s || s.isDead) return false;
+            s.ogluszonyTury = Math.max(s.ogluszonyTury || 0, TOPIELEC_OGLUSZENIE);
+            s.ap = 0; s.turnEnded = true;
+            showFloatingWarning(`${s.name} ogłuszony!`);
+            updateUI(`TOPIELEC ogłusza ${s.name} - przez turę nie zrobi ani kroku.`);
+            dodajTraume(s, 'rana');
+            return true;
+        }
+
+        // Ogłuszenie zjada turę. Liczymy je po turze wrogów, czyli tuż przed turą
+        // wojowników - wtedy ogłuszony budzi się dopiero na następną.
+        function tikOgluszenia() {
+            let ilu = 0;
+            soldiers.forEach(s => {
+                if (s.isDead || !(s.ogluszonyTury > 0)) return;
+                s.ogluszonyTury--;
+                s.ap = 0; s.turnEnded = true;
+                ilu++;
+                if (s.ogluszonyTury === 0) updateUI(`${s.name} dochodzi do siebie po ogłuszeniu.`);
+                else updateUI(`${s.name} jest ogłuszony - traci turę.`);
+            });
+            return ilu;
+        }
+
+        function chwycTopielec(e, s) {
+            if (!e || !s || s.isDead || s.isNPC || s.isAngel || s.isEscortee) return false;
+            if (e.topi || topiony(s) || uwiezionyPrzezGrabarza(s)) return false;
+            s.topionyPrzez = e;
+            e.topi = s;
+            s.ap = 0; s.turnEnded = true;
+            showFloatingWarning(`${s.name} w rękach topielca!`);
+            updateUI(`TOPIELEC chwyta ${s.name} i ciągnie go do wody. Szarpnij się ` +
+                     `(walka wręcz, ${GRABARZ_SZARPNIECIE_AP} PA) albo niech ktoś go zabije.`);
+            return true;
+        }
+
+        function puscTopielca(e, powod) {
+            if (!e || !e.topi) return;
+            const s = e.topi;
+            s.topionyPrzez = null;
+            e.topi = null;
+            if (powod) updateUI(powod);
+            // Puszczony nad wodą musi wrócić na grunt - na wodzie nie da się stać
+            if (s.mesh && czyWoda(s.mesh.position.x, s.mesh.position.z)) wyrzucNaBrzeg(s);
+        }
+
+        function wyrzucNaBrzeg(s) {
+            if (!s || !s.mesh) return false;
+            const sx = Math.round(s.mesh.position.x), sz = Math.round(s.mesh.position.z);
+            for (let r = 1; r <= 8; r++) {
+                for (let dx = -r; dx <= r; dx++) {
+                    for (let dz = -r; dz <= r; dz++) {
+                        if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+                        const x = sx + dx, z = sz + dz;
+                        if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) continue;
+                        if (isUnitAtLevel(x, z, s.level || 0, s)) continue;
+                        s.mesh.position.set(x, getLevelY(x, z, s.level || 0), z);
+                        refreshPlayerPositions();
+                        updateUI(`${s.name} wypełza na brzeg.`);
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        // Pod wodą: topielec trzyma ofiarę i ta się topi, dopóki ktoś tego nie przerwie
+        function topJeszcze(e) {
+            const s = e && e.topi;
+            if (!s || s.isDead) { puscTopielca(e, null); return 0; }
+            applyDamageToUnit(s, TOPIELEC_TOPIENIE, e, 'topienie');
+            showFloatingWarning(`${s.name} pod wodą!`);
+            updateUI(`TOPIELEC trzyma ${s.name} pod powierzchnią (-${TOPIELEC_TOPIENIE} PkŻ). ` +
+                     'Trzeba go wyrwać albo zabić topielca.');
+            dodajTraume(s, 'panika');
+            if (s.hp <= 0) {
+                puscTopielca(e, null);
+                playDyingSfx(); killUnitWithAnim(s); refreshPlayerPositions();
+                checkGameOver();
+            }
+            return TOPIELEC_TOPIENIE;
+        }
+
+        // Tura topielca. Nie strzela - ogłusza, chwyta, wlecze i topi.
+        function turaTopielca(e) {
+            const dalej = (ms) => setTimeout(processNextEnemy, ms || 250);
+            const koniec = () => { e.ap = 0; currentEnemyIndex++; setTimeout(processNextEnemy, 80); };
+            if (gameOver || !e.mesh) { koniec(); return; }
+            // Zanurzony czeka - wywabia go tikTopielcow, nie własna tura
+            if (e.wWodzie) { e.ap = 0; currentEnemyIndex++; setTimeout(processNextEnemy, 15); return; }
+
+            const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
+            const eLvl = e.level || 0;
+
+            // 1) TRZYMA OFIARĘ
+            if (e.topi) {
+                const s = e.topi;
+                if (s.isDead || s.topionyPrzez !== e) { puscTopielca(e, null); koniec(); return; }
+                // Już w wodzie - topi
+                if (czyWoda(s.mesh.position.x, s.mesh.position.z)) {
+                    topJeszcze(e);
+                    if (!gameOver) dalej(400); else koniec();
+                    return;
+                }
+                // Jeszcze na gruncie - wlecze do najbliższej wody
+                const woda = najblizszaWoda(ex, ez, 40);
+                if (!woda) { puscTopielca(e, `Topielec gubi wodę - puszcza ${s.name}.`); koniec(); return; }
+                // Stoi już nad samą wodą: wciąga ofiarę na pole wody
+                if (Math.max(Math.abs(ex - woda.x), Math.abs(ez - woda.z)) <= 1) {
+                    s.mesh.position.set(woda.x, getTerrainY(woda.x, woda.z), woda.z);
+                    s.ap = 0; s.turnEnded = true;
+                    refreshPlayerPositions();
+                    showFloatingWarning(`${s.name} wciągnięty do wody!`);
+                    topJeszcze(e);
+                    if (!gameOver) dalej(400); else koniec();
+                    return;
+                }
+                const trasa = findPath(ex, ez, woda.x, woda.z, eLvl, s, true);
+                const kroki = trasa && trasa.path ? trasa.path.slice(0, TOPIELEC_WLECZENIE) : [];
+                if (!kroki.length) { puscTopielca(e, `Topielec nie ma którędy wlec ${s.name}.`); koniec(); return; }
+                e.ap = 0;
+                let poprzednie = { x: ex, z: ez };
+                moveAlongPath({ mesh: e.mesh, userData: e.mesh.userData }, kroki, 220, () => {
+                    const przed = kroki.length > 1 ? kroki[kroki.length - 2] : poprzednie;
+                    s.mesh.position.set(przed.x, getTerrainY(przed.x, przed.z), przed.z);
+                    s.ap = 0; s.turnEnded = true;
+                    refreshEnemyPositions(); refreshPlayerPositions();
+                    if (typeof updateFoW === 'function') updateFoW();
+                    updateUI(`Topielec wlecze ${s.name} w stronę wody.`);
+                    currentEnemyIndex++; setTimeout(processNextEnemy, 150);
+                });
+                return;
+            }
+
+            // 2) WYBÓR OFIARY - tylko w pobliżu wody; dalej topielec nie idzie
+            const cele = soldiers.filter(s => !s.isDead && s.mesh && !s.isNPC);
+            if (!cele.length) { koniec(); return; }
+            let cel = null, najD = Infinity;
+            cele.forEach(s => {
+                const d = Math.max(Math.abs(Math.round(s.mesh.position.x) - ex),
+                                   Math.abs(Math.round(s.mesh.position.z) - ez));
+                if (d < najD) { najD = d; cel = s; }
+            });
+            const px = Math.round(cel.mesh.position.x), pz = Math.round(cel.mesh.position.z);
+
+            // 3) W ZWARCIU: ogłuszenie i chwyt - to jest cały jego atak
+            if (najD <= 1 && (cel.level || 0) === eLvl && e.ap >= TOPIELEC_CHWYT_KOSZT) {
+                e.ap -= TOPIELEC_CHWYT_KOSZT;
+                faceTowards(e, px, pz);
+                animWroga(e, 'atak', true);
+                applyDamageToUnit(cel, TOPIELEC_CIOS, e);
+                if (cel.hp > 0 && !uwiezionyPrzezGrabarza(cel)) {
+                    ogluszWojownika(cel, e);
+                    chwycTopielec(e, cel);
+                } else if (cel.hp <= 0) {
+                    playDyingSfx(); killUnitWithAnim(cel); refreshPlayerPositions();
+                }
+                checkGameOver();
+                if (!gameOver) dalej(350); else koniec();
+                return;
+            }
+
+            // 4) PODEJŚCIE - ale nie dalej niż TOPIELEC_OD_WODY od wody
+            if (e.ap > 0 && najD > 1) {
+                const sasiednie = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]];
+                let najkrotsza = null;
+                sasiednie.forEach(d => {
+                    const nx = px + d[0], nz = pz + d[1];
+                    if (!isWithinPlayBounds(nx, nz) || !canStandAt(nx, nz, eLvl)) return;
+                    if (isUnitAtLevel(nx, nz, eLvl, e)) return;
+                    // Pole musi leżeć w pobliżu wody - na suchy grunt nie wyjdzie
+                    const w = najblizszaWoda(nx, nz, TOPIELEC_OD_WODY);
+                    if (!w) return;
+                    const sc = findPath(ex, ez, nx, nz, eLvl, e, true);
+                    if (!sc || sc.path.length === 0) return;
+                    if (!najkrotsza || sc.path.length < najkrotsza.path.length) najkrotsza = sc;
+                });
+                if (najkrotsza) {
+                    const zapas = e.ap >= TOPIELEC_CHWYT_KOSZT ? TOPIELEC_CHWYT_KOSZT : 0;
+                    const krokow = najkrotsza.path.length + zapas <= e.ap
+                        ? najkrotsza.path.length
+                        : Math.min(najkrotsza.path.length, e.ap);
+                    if (krokow > 0) {
+                        const walk = najkrotsza.path.slice(0, krokow);
+                        e.ap -= walk.length;
+                        animWroga(e, 'walk');
+                        faceTowards(e, px, pz);
+                        moveAlongPath({ mesh: e.mesh, userData: e.mesh.userData }, walk, 170, () => {
+                            animWroga(e, 'idle');
+                            refreshEnemyPositions();
+                            if (typeof updateFoW === 'function') updateFoW();
+                            if (!gameOver) dalej(140); else koniec();
+                        });
+                        return;
+                    }
+                }
+            }
+
+            // 5) NIKOGO W POBLIŻU - wraca do wody i znowu się zanurza
+            if (czyWoda(ex, ez)) {
+                e.wWodzie = true;
+                if (e.mesh) e.mesh.visible = false;
+                refreshEnemyPositions();
+                updateUI('Topielec zapada się pod powierzchnię.');
+            }
+            koniec();
+        }
+
+        // ===================== GASZONE ŚWIATŁO =====================
+        // Światło na planszy da się zbić. Pocisk obok latarni, neonu czy okna
+        // tłucze szkło, pożar wypala klosz - i zostaje ciemność. W ciemności
+        // WOJOWNIK widzi niedaleko, ale wróg widzi tyle samo co przedtem, więc
+        // każda zgaszona lampa przesuwa przewagę na drugą stronę. Kto stoi w
+        // ciemności, ten zbiera traumę, a z niej bierze się nyktofobia.
+        // Przeciwwagą jest pochodnia: nosi się ją w ręku, oświetla krąg wokół
+        // wojownika - i zdradza, gdzie ten wojownik stoi.
+        const CIEMNOSC_PROMIEN = 6;          // na tyle pol wokol zbitego zrodla gasnie swiat
+        const CIEMNOSC_WZROK = 6;            // tyle widzi wojownik w ciemnosci
+        const CIEMNOSC_WZROK_FOBIK = 4;      // nyktofobik jeszcze mniej
+        const SZKLO_SZANSA = 0.5;            // szansa, ze pocisk obok zbije zrodlo
+        const SZKLO_PROMIEN = 1.6;           // z tej odleglosci pocisk tluche szklo
+        const POCHODNIE_NA_PLANSZE = 2;
+        const POCHODNIA_PROMIEN = 5;
+        const POCHODNIA_KOSZT = 1;           // PA za zapalenie albo zgaszenie
+        const POCHODNIA_ALARM = 12;          // z tej odleglosci wrog widzi plomien
+        let zgaszoneSwiatla = [];            // { x, z, promien }
+        let pochodnieNaPlanszy = [];         // { x, z, mesh }
+
+        function wyczyscCiemnosc() {
+            zgaszoneSwiatla = [];
+            pochodnieNaPlanszy.forEach(p => { if (p.mesh) scene.remove(p.mesh); });
+            pochodnieNaPlanszy = [];
+            soldiers.forEach(s => { s.maPochodnie = false; zgasPochodnieWojownika(s); });
+        }
+
+        // Ciemno jest tam, gdzie zbito światło, a żadne żywe źródło tego nie
+        // nadrabia. Pochodnia w ręku odwołuje ciemność dokładnie dlatego,
+        // że jest źródłem światła - nie ma tu dwóch osobnych reguł.
+        function czyCiemno(x, z) {
+            if (!zgaszoneSwiatla.length) return false;
+            const wCieniu = zgaszoneSwiatla.some(g => Math.hypot(g.x - x, g.z - z) <= g.promien);
+            if (!wCieniu) return false;
+            return !wSwietle(x, z);
+        }
+
+        // --- ZBIJANIE ŚWIATŁA ---
+        function zapisCiemnosci(x, z) {
+            if (zgaszoneSwiatla.some(g => g.x === x && g.z === z)) return false;
+            zgaszoneSwiatla.push({ x: x, z: z, promien: CIEMNOSC_PROMIEN });
+            return true;
+        }
+
+        // Zgaszone źródło blasku: lampa milczy, bryła traci świecenie
+        function zgasBlask(z) {
+            if (!z || z.zgaszone) return false;
+            z.zgaszone = true;
+            z.moc = 0;
+            if (z.lampa) z.lampa.intensity = 0;
+            if (z.mesh) {
+                z.mesh.traverse(ch => {
+                    if (!ch.material || !ch.material.color) return;
+                    ch.material.color.setHex(0x2a2a2e);
+                    if (ch.material.emissive) ch.material.emissive.setHex(0x000000);
+                    if (ch.material.opacity !== undefined && ch.material.transparent) ch.material.opacity = 0.35;
+                });
+            }
+            return zapisCiemnosci(Math.round(z.x), Math.round(z.z)) || true;
+        }
+
+        // Pocisk, wybuch albo pożar w pobliżu świateł. 'pewne' omija losowanie -
+        // ogień nie "może" wypalić klosza, on go wypala.
+        function stluczSwiatla(x, z, promien, pewne) {
+            if (gameOver) return 0;
+            const r = promien || SZKLO_PROMIEN;
+            let ile = 0;
+            if (typeof streetLamps !== 'undefined') {
+                streetLamps.forEach(l => {
+                    if (!l || !l.userData || l.userData.lit === false) return;
+                    if (Math.hypot(l.position.x - x, l.position.z - z) > r) return;
+                    if (!pewne && Math.random() > SZKLO_SZANSA) return;
+                    setLampLit(l, false);
+                    zapisCiemnosci(Math.round(l.position.x), Math.round(l.position.z));
+                    ile++;
+                });
+            }
+            if (typeof zrodlaBlasku !== 'undefined') {
+                zrodlaBlasku.forEach(zr => {
+                    if (!zr || zr.zgaszone) return;
+                    // Szczelina w ziemi i grzyb nie są ze szkła - gasną tylko neon,
+                    // okno i blask drzewa, czyli to, co da się zbić albo zgasić.
+                    if (['neon', 'okno', 'drzewo'].indexOf(zr.rodzaj) === -1) return;
+                    if (Math.hypot(zr.x - x, zr.z - z) > r) return;
+                    if (!pewne && Math.random() > SZKLO_SZANSA) return;
+                    zgasBlask(zr);
+                    ile++;
+                });
+            }
+            if (ile > 0) {
+                showFloatingWarning('Szkło pęka - gaśnie światło!');
+                updateUI(`Zbite światło (${ile}) - wokół zapada ciemność. Wojownicy widzą mniej, ` +
+                         'wrogowie tyle samo co przedtem.');
+                if (typeof playFileSfx === 'function' && typeof AudioFiles !== 'undefined')
+                    playFileSfx(AudioFiles.wallHit, 0.5);
+                if (typeof updateFoW === 'function') updateFoW();
+            }
+            return ile;
+        }
+
+        // Co turę: kto stoi w ciemności, ten się jej nabiera. Nyktofobik dodatkowo
+        // traci punkt ruchu - ciemność odbiera mu oddech.
+        function tikCiemnosci() {
+            if (gameOver || !zgaszoneSwiatla.length) return 0;
+            let ilu = 0;
+            soldiers.forEach(s => {
+                if (s.isDead || s.isNPC || !s.mesh) return;
+                if (!czyCiemno(s.mesh.position.x, s.mesh.position.z)) return;
+                dodajTraume(s, 'ciemnosc');
+                ilu++;
+                if (maFobie(s, 'nyktofobia')) {
+                    s.ap = Math.max(0, (s.ap || 0) - 1);
+                    pokazFobie(s, 'Ciemność odbiera mu oddech - traci punkt ruchu.');
+                }
+            });
+            return ilu;
+        }
+
+        // --- POCHODNIA ---
+        function bryłaPochodni(lezaca) {
+            const g = new THREE.Group();
+            const drzewce = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.035, 0.8, 7),
+                new THREE.MeshLambertMaterial({ color: 0x5a3f28 }));
+            drzewce.position.y = 0.4;
+            g.add(drzewce);
+            const owiniecie = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.07, 0.2, 8),
+                new THREE.MeshLambertMaterial({ color: 0x3a2a1c }));
+            owiniecie.position.y = 0.82;
+            g.add(owiniecie);
+            const plomien = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.3, 8),
+                new THREE.MeshBasicMaterial({ color: 0xffa23a, transparent: true, opacity: 0.9 }));
+            plomien.position.y = 1.02;
+            g.add(plomien);
+            g.userData.plomien = plomien;
+            if (lezaca) { g.rotation.z = Math.PI / 2 - 0.12; g.position.y = 0.1; }
+            return g;
+        }
+
+        // Pochodnie leżą na planszy - trzeba po nie podejść
+        function rozstawPochodnie() {
+            if (gameMode !== 'dream') return 0;
+            for (let i = 0; i < POCHODNIE_NA_PLANSZE; i++) {
+                let p = null;
+                for (let t = 0; t < 120 && !p; t++) {
+                    const x = Math.floor(Math.random() * (mapWidth - 8)) + 4 - offsetX;
+                    const z = Math.floor(Math.random() * (mapDepth - 8)) + 4 - offsetZ;
+                    if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) continue;
+                    if (pochodnieNaPlanszy.some(q => q.x === x && q.z === z)) continue;
+                    p = [x, z];
+                }
+                if (!p) break;
+                const mesh = bryłaPochodni(true);
+                mesh.position.set(p[0], getTerrainY(p[0], p[1]), p[1]);
+                mesh.userData.unitType = 'pochodnia';
+                scene.add(mesh);
+                pochodnieNaPlanszy.push({ x: p[0], z: p[1], mesh: mesh });
+            }
+            return pochodnieNaPlanszy.length;
+        }
+
+        function nosiPochodnie(s) {
+            return !!(s && s.maPochodnie && s.pochodniaZapalona && !((s.lampionDuszony || 0) > 0));
+        }
+
+        // Podniesienie: wystarczy stanąć na polu, na którym leży
+        function podniesPochodnie(s) {
+            if (!s || s.isDead || !s.mesh || s.isNPC) return false;
+            const x = Math.round(s.mesh.position.x), z = Math.round(s.mesh.position.z);
+            const i = pochodnieNaPlanszy.findIndex(p => p.x === x && p.z === z);
+            if (i === -1) return false;
+            const p = pochodnieNaPlanszy[i];
+            if (p.mesh) scene.remove(p.mesh);
+            pochodnieNaPlanszy.splice(i, 1);
+            s.maPochodnie = true;
+            showFloatingWarning(`${s.name} podnosi pochodnię.`);
+            updateUI(`${s.name} ma pochodnię. Zapalona oświetla ${POCHODNIA_PROMIEN} pól wokół, ` +
+                     `ale widać ją z daleka - także wrogom. Zapalenie i zgaszenie kosztuje ${POCHODNIA_KOSZT} PA.`);
+            return true;
+        }
+
+        function zapalPochodnieWojownika(s) {
+            if (!s || !s.mesh || s.pochodniaMesh) return;
+            const g = bryłaPochodni(false);
+            g.position.set(0.35, 0.9, 0.2);
+            g.userData.unitType = 'fx';
+            const sw = new THREE.PointLight(0xffa23a, 1.2, POCHODNIA_PROMIEN * 2.2, 1.6);
+            sw.position.y = 1.1;
+            g.add(sw);
+            s.mesh.add(g);
+            s.pochodniaMesh = g;
+        }
+
+        function zgasPochodnieWojownika(s) {
+            if (!s || !s.pochodniaMesh) return;
+            if (s.mesh) s.mesh.remove(s.pochodniaMesh);
+            s.pochodniaMesh = null;
+        }
+
+        // Zapalenie pochodni to decyzja: widzisz więcej, ale i ciebie widać.
+        // Dlatego zapalenie ALARMUJE wrogów w pobliżu - płomień w ciemności
+        // widać dalej niż człowieka.
+        function przelaczPochodnie(s) {
+            if (!s || s.isDead) return false;
+            if (!s.maPochodnie) { updateUI('Nikt tu nie ma pochodni - trzeba ją najpierw znaleźć.'); return false; }
+            if ((s.ap || 0) < POCHODNIA_KOSZT) {
+                updateUI(`Za mało PA, by sięgnąć po pochodnię (potrzeba ${POCHODNIA_KOSZT}).`);
+                return false;
+            }
+            s.ap -= POCHODNIA_KOSZT;
+            s.pochodniaZapalona = !s.pochodniaZapalona;
+            if (s.pochodniaZapalona) {
+                zapalPochodnieWojownika(s);
+                showFloatingWarning('Pochodnia płonie - widać ją z daleka!');
+                updateUI(`${s.name} zapala pochodnię. Ciemność ustępuje w promieniu ${POCHODNIA_PROMIEN} pól, ` +
+                         'ale płomień zdradza pozycję.');
+                const sx = Math.round(s.mesh.position.x), sz = Math.round(s.mesh.position.z);
+                let zbudzonych = 0;
+                enemies.forEach(e => {
+                    if (e.isDead || !e.mesh || e.zaalarmowany || e.zastygly) return;
+                    if (Math.hypot(e.mesh.position.x - sx, e.mesh.position.z - sz) > POCHODNIA_ALARM) return;
+                    e.zaalarmowany = true; e.patrol = null;
+                    zbudzonych++;
+                });
+                if (zbudzonych > 0) updateUI(`Płomień zauważyło ${zbudzonych} wrogów - idą tutaj.`);
+            } else {
+                zgasPochodnieWojownika(s);
+                updateUI(`${s.name} gasi pochodnię. Znowu jest ciemno, ale i nikt już nie widzi płomienia.`);
+            }
+            if (typeof updateFoW === 'function') updateFoW();
+            return true;
+        }
+
+        // Płomień w ręku widać z każdej strony - stożek widzenia tu nie obowiązuje
+        function zdradzaPochodnia(x, z) {
+            return soldiers.some(s => !s.isDead && s.mesh && nosiPochodnie(s) &&
+                Math.max(Math.abs(Math.round(s.mesh.position.x) - Math.round(x)),
+                         Math.abs(Math.round(s.mesh.position.z) - Math.round(z))) <= 0.5);
+        }
+
+        // ===================== ŚLADY WROGÓW NA PLANSZY =====================
+        // To samo, co kopiec kreta, tylko dla całej reszty bestiarium: plansza ma
+        // POWIEDZIEĆ, co na niej jest, zanim to wyjdzie z mgły. Kokony znaczą, że
+        // ktoś tu przędzie, nadgryziona padlina - że coś żywi się ciałami, pazury
+        // na murze - że chodzi tu coś dużego, a ślad krwi prowadzi w jedną stronę:
+        // tam, gdzie leży bestia.
+        // Wiedza się opłaca: kto ma już wpis w Kronice, ten z samego śladu pozna
+        // gatunek. Kto nie ma - dostaje tylko ostrzeżenie, że coś tu jest.
+        const SLAD_LIMIT_PLANSZY = 14;     // tyle sladow najwyzej, zeby nie bylo smietnika
+        let sladyWrogow = [];              // { x, z, rodzaj, mesh, wrog, widziany }
+        let sladyOpisane = [];             // rodzaje, o ktorych oddzial juz wie
+
+        // --- BRYŁY ---
+        function bryłaKokonu() {
+            const g = new THREE.Group();
+            const nic = new THREE.MeshLambertMaterial({ color: 0xe6e9ee });
+            const kok = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 8), nic);
+            kok.scale.set(0.75, 1.25, 0.75);
+            kok.position.y = 0.42;
+            g.add(kok);
+            // Zarys ciała w środku - to nie jest zwykły worek
+            const zarys = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.05, 0.42, 6),
+                new THREE.MeshLambertMaterial({ color: 0x9aa0a8 }));
+            zarys.position.y = 0.42;
+            g.add(zarys);
+            // Nici trzymające kokon nad ziemią
+            for (let i = 0; i < 3; i++) {
+                const a = (i / 3) * Math.PI * 2;
+                const n = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.55, 4), nic);
+                n.position.set(Math.cos(a) * 0.1, 0.95, Math.sin(a) * 0.1);
+                g.add(n);
+            }
+            return g;
+        }
+
+        function bryłaPadliny() {
+            const g = new THREE.Group();
+            const mieso = new THREE.MeshLambertMaterial({ color: 0x5d2a2a });
+            const kosc = new THREE.MeshLambertMaterial({ color: 0xcfc6b0 });
+            const tusza = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), mieso);
+            tusza.scale.set(1.3, 0.45, 0.8);
+            tusza.position.y = 0.13;
+            g.add(tusza);
+            // Obnażone żebra - to jest nadgryzione, nie po prostu martwe
+            for (let i = 0; i < 5; i++) {
+                const z = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.26, 4), kosc);
+                z.position.set(-0.18 + i * 0.09, 0.2, 0);
+                z.rotation.z = 0.5 + i * 0.08;
+                g.add(z);
+            }
+            const czaszka = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), kosc);
+            czaszka.position.set(0.34, 0.1, 0.06);
+            g.add(czaszka);
+            return g;
+        }
+
+        function bryłaPazurow() {
+            const g = new THREE.Group();
+            const rysa = new THREE.MeshBasicMaterial({ color: 0x2a1410 });
+            // Trzy równoległe bruzdy - ślad łapy ciągniętej po murze
+            for (let i = 0; i < 3; i++) {
+                const b = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.62, 0.03), rysa);
+                b.position.set(-0.16 + i * 0.16, 0, 0);
+                b.rotation.z = 0.22;
+                g.add(b);
+            }
+            return g;
+        }
+
+        function bryłaPlamyKrwi(wielkosc) {
+            const g = new THREE.Group();
+            const krew = new THREE.MeshBasicMaterial({ color: 0x6b1013 });
+            const w = wielkosc || 1;
+            const plama = new THREE.Mesh(new THREE.CylinderGeometry(0.3 * w, 0.26 * w, 0.02, 12), krew);
+            plama.position.y = 0.012;
+            g.add(plama);
+            for (let i = 0; i < 3; i++) {
+                const a = Math.random() * Math.PI * 2;
+                const k = new THREE.Mesh(new THREE.CylinderGeometry(0.07 * w, 0.05 * w, 0.02, 7), krew);
+                k.position.set(Math.cos(a) * 0.3 * w, 0.012, Math.sin(a) * 0.3 * w);
+                g.add(k);
+            }
+            return g;
+        }
+
+        function bryłaWylinki() {
+            const g = new THREE.Group();
+            const skorupa = new THREE.MeshLambertMaterial({ color: 0xbfae8e });
+            const pancerz = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), skorupa);
+            pancerz.position.y = 0.06;
+            g.add(pancerz);
+            // Puste odnóża - zrzucona skóra leży rozłożona
+            for (let i = 0; i < 6; i++) {
+                const a = (i / 6) * Math.PI * 2;
+                const o = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.012, 0.3, 5), skorupa);
+                o.position.set(Math.cos(a) * 0.26, 0.03, Math.sin(a) * 0.26);
+                o.rotation.z = Math.PI / 2.2;
+                o.rotation.y = a;
+                g.add(o);
+            }
+            return g;
+        }
+
+        function bryłaOsmalenia() {
+            const g = new THREE.Group();
+            const sadza = new THREE.MeshBasicMaterial({ color: 0x1b1613 });
+            const plama = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.3, 0.02, 12), sadza);
+            plama.position.y = 0.012;
+            g.add(plama);
+            // Odłamki kamienia - coś tu pękło od żaru
+            for (let i = 0; i < 4; i++) {
+                const a = Math.random() * Math.PI * 2;
+                const o = new THREE.Mesh(new THREE.DodecahedronGeometry(0.06 + Math.random() * 0.05),
+                    new THREE.MeshLambertMaterial({ color: 0x6f6a62 }));
+                o.position.set(Math.cos(a) * (0.2 + Math.random() * 0.2), 0.05,
+                               Math.sin(a) * (0.2 + Math.random() * 0.2));
+                g.add(o);
+            }
+            return g;
+        }
+
+        // --- CO JAKI ŚLAD ZNACZY ---
+        // Jeden wpis na rodzaj śladu. 'typy' to wrogowie, których ten ślad zdradza;
+        // 'naMurze' wiesza go na ścianie, 'trop' układa go w ciąg prowadzący do bestii.
+        // GLIZDY tu nie ma - ona ma swój własny kopiec kreta i dwa znaki naraz
+        // byłyby powtórzeniem.
+        const SLADY_DEF = {
+            kokon: {
+                typy: ['matrona', 'spider_big', 'spider_small'],
+                ile: 3, promien: 11, buduj: () => bryłaKokonu(),
+                mgliste: 'Kokony zwisają z gałęzi i gzymsów - coś tu przędzie.',
+                znane: (n) => `Kokony w kątach - na tej planszy poluje ${n}.`
+            },
+            padlina: {
+                typy: ['zombie', 'strzyga', 'vampire', 'roj', 'ogar', 'smierc', 'topielec'],
+                ile: 2, promien: 12, buduj: () => bryłaPadliny(),
+                mgliste: 'Nadgryziona padlina - ktoś się tu karmił i niedawno.',
+                znane: (n) => `Nadgryziona padlina - tak żywi się ${n}.`
+            },
+            pazury: {
+                typy: ['brute', 'ogar', 'smierc', 'gargulec', 'bezimienny', 'wydrazony'],
+                ile: 2, promien: 13, buduj: () => bryłaPazurow(), naMurze: true,
+                mgliste: 'Bruzdy po pazurach na murze, wyżej niż sięga człowiek.',
+                znane: (n) => `Pazury na murze - tędy przechodził ${n}.`
+            },
+            krew: {
+                typy: ['matrona', 'vampire', 'strzyga', 'zalobnica', 'oltarznik', 'poborca'],
+                ile: 5, promien: 10, buduj: (w) => bryłaPlamyKrwi(w), trop: true,
+                mgliste: 'Ślad krwi prowadzi w jedną stronę. Ktoś ciągnął tu ciało.',
+                znane: (n) => `Ślad krwi prowadzi w jedną stronę - w tamtą zaciągnął ofiarę ${n}.`
+            },
+            wylinka: {
+                typy: ['skorpion_maly', 'skorpion', 'skorpion_duzy', 'robak'],
+                ile: 2, promien: 12, buduj: () => bryłaWylinki(),
+                mgliste: 'Zrzucona skorupa, pusta i sucha. Coś z niej wyszło większe.',
+                znane: (n) => `Wylinka - ${n} zrzucił tu skorupę i wyszedł większy.`
+            },
+            osmalenie: {
+                typy: ['gargulec', 'koszmar', 'gasiciel'],
+                ile: 2, promien: 12, buduj: () => bryłaOsmalenia(),
+                mgliste: 'Osmalony krąg i popękany kamień - tu uderzył żar.',
+                znane: (n) => `Osmalony kamień - takim ogniem ciska ${n}.`
+            }
+        };
+
+        function wyczyscSladyWrogow() {
+            sladyWrogow.forEach(s => { if (s.mesh) scene.remove(s.mesh); });
+            sladyWrogow = [];
+            sladyOpisane = [];
+        }
+
+        // Wolne, naturalne pole pod ślad w promieniu od bestii
+        function poleNaSlad(gx, gz, promien) {
+            for (let t = 0; t < 140; t++) {
+                const kat = Math.random() * Math.PI * 2;
+                const d = 2 + Math.random() * (promien - 2);
+                const x = Math.round(gx + Math.cos(kat) * d);
+                const z = Math.round(gz + Math.sin(kat) * d);
+                if (Math.max(Math.abs(x - gx), Math.abs(z - gz)) > promien) continue;
+                if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) continue;
+                if (sladyWrogow.some(s => s.x === x && s.z === z)) continue;
+                if (kopceKrecie.some(k => k.x === x && k.z === z)) continue;
+                if (isUnitAtLevel(x, z, 0, null)) continue;
+                return [x, z];
+            }
+            return null;
+        }
+
+        // Mur w promieniu od bestii, od strony wolnego pola - pazury muszą być widoczne
+        function murNaSlad(gx, gz, promien) {
+            const mury = obstaclePositions.filter(o => /wall|blok|house/.test(o.type) &&
+                Math.max(Math.abs(o.x - gx), Math.abs(o.z - gz)) <= promien);
+            for (let t = 0; t < mury.length; t++) {
+                const m = mury[Math.floor(Math.random() * mury.length)];
+                if (sladyWrogow.some(s => s.x === m.x && s.z === m.z)) continue;
+                const strony = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+                const wolna = strony.find(([dx, dz]) => isWithinPlayBounds(m.x + dx, m.z + dz) &&
+                                                        !isObstacle(m.x + dx, m.z + dz));
+                if (!wolna) continue;
+                return { x: m.x, z: m.z, strona: wolna };
+            }
+            return null;
+        }
+
+        function dodajSlad(rodzaj, x, z, y, bryla, wrog, obrot) {
+            if (!bryla) return null;
+            bryla.position.set(x, y, z);
+            if (obrot !== undefined) bryla.rotation.y = obrot;
+            bryla.userData.unitType = 'slad';
+            scene.add(bryla);
+            const s = { x: x, z: z, rodzaj: rodzaj, mesh: bryla, wrog: wrog, widziany: false };
+            sladyWrogow.push(s);
+            return s;
+        }
+
+        // Ślad krwi: ciąg plam od punktu w oddali DO bestii, coraz większych.
+        // Kto pójdzie po nich w stronę, w którą rosną, trafi na to, co je zostawiło.
+        function ulozTropKrwi(def, wrog, gx, gz) {
+            const kat = Math.random() * Math.PI * 2;
+            let ile = 0;
+            for (let i = def.ile; i >= 1; i--) {
+                const d = 2 + (i / def.ile) * (def.promien - 2);
+                const x = Math.round(gx + Math.cos(kat) * d);
+                const z = Math.round(gz + Math.sin(kat) * d);
+                if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) continue;
+                if (sladyWrogow.some(s => s.x === x && s.z === z)) continue;
+                // Im bliżej bestii, tym plama większa - to jest strzałka na planszy
+                const w = 0.45 + 0.55 * (1 - (i - 1) / Math.max(1, def.ile - 1));
+                if (dodajSlad('krew', x, z, getTerrainY(x, z) + 0.01, def.buduj(w), wrog)) ile++;
+            }
+            return ile;
+        }
+
+        function rozstawSladyWrogow() {
+            wyczyscSladyWrogow();
+            if (gameOver) return 0;
+            const zywi = enemies.filter(e => !e.isDead && e.mesh);
+            Object.keys(SLADY_DEF).forEach(rodzaj => {
+                if (sladyWrogow.length >= SLAD_LIMIT_PLANSZY) return;
+                const def = SLADY_DEF[rodzaj];
+                const pasujacy = zywi.filter(e => def.typy.indexOf(e.type) !== -1);
+                if (!pasujacy.length) return;
+                const wrog = pasujacy[Math.floor(Math.random() * pasujacy.length)];
+                const gx = Math.round(wrog.mesh.position.x), gz = Math.round(wrog.mesh.position.z);
+                if (def.trop) { ulozTropKrwi(def, wrog, gx, gz); return; }
+                for (let i = 0; i < def.ile; i++) {
+                    if (sladyWrogow.length >= SLAD_LIMIT_PLANSZY) break;
+                    if (def.naMurze) {
+                        const m = murNaSlad(gx, gz, def.promien);
+                        if (!m) break;
+                        const obrot = (m.strona[0] !== 0) ? Math.PI / 2 : 0;
+                        dodajSlad(rodzaj, m.x + m.strona[0] * 0.54, m.z + m.strona[1] * 0.54,
+                                  getTerrainY(m.x, m.z) + 1.5, def.buduj(), wrog, obrot);
+                    } else {
+                        const p = poleNaSlad(gx, gz, def.promien);
+                        if (!p) break;
+                        dodajSlad(rodzaj, p[0], p[1], getTerrainY(p[0], p[1]), def.buduj(), wrog);
+                    }
+                }
+            });
+            return sladyWrogow.length;
+        }
+
+        // Odczytanie śladu. Kto ma wpis w Kronice, ten pozna gatunek; kto nie ma,
+        // dowie się tylko, że coś tu jest - i to już wystarczy, żeby się bać.
+        function odczytajSlad(slad) {
+            const def = SLADY_DEF[slad.rodzaj];
+            if (!def || sladyOpisane.indexOf(slad.rodzaj) !== -1) return false;
+            sladyOpisane.push(slad.rodzaj);
+            const typ = slad.wrog && slad.wrog.type;
+            const zna = typ && typeof bestiaryUnlocked !== 'undefined' &&
+                        bestiaryUnlocked.indexOf(typ) !== -1;
+            const nazwa = zna ? (NAZWY_WROGOW[typ] || typ.toUpperCase()) : null;
+            const tekst = nazwa ? def.znane(nazwa) : def.mgliste;
+            showFloatingWarning(tekst);
+            updateUI(tekst);
+            return true;
+        }
+
+        // === KOPIEC KRETA ===
+        // Glizda czai się pod ziemią i jej bryły nie widać wcale. Kopiec jest
+        // jedynym znakiem na planszy: kto go wypatrzy, ten wie, że coś tu ryje.
+        const KOPIEC_PROMIEN = 15;        // w tym promieniu od glizdy musi stanąć kopiec
+        const KOPIEC_MIN_OD_GLIZDY = 3;   // ale nie na jej głowie - to ostrzeżenie, nie celownik
+        let kopceKrecie = [];
+        let kopiecOstrzezenieDane = false;
+
+        function bryłaKopca() {
+            const g = new THREE.Group();
+            const ziemia = new THREE.MeshLambertMaterial({ color: 0x6b513a });
+            const stozek = new THREE.Mesh(new THREE.ConeGeometry(0.46, 0.34, 9), ziemia);
+            stozek.position.y = 0.17;
+            g.add(stozek);
+            // Grudy wokół - świeżo wyrzucona ziemia nie leży równo
+            for (let i = 0; i < 4; i++) {
+                const r = 0.05 + Math.random() * 0.05;
+                const b = new THREE.Mesh(new THREE.SphereGeometry(r, 6, 5), ziemia);
+                const kat = Math.random() * Math.PI * 2, d = 0.34 + Math.random() * 0.24;
+                b.position.set(Math.cos(kat) * d, r * 0.6, Math.sin(kat) * d);
+                g.add(b);
+            }
+            // Ciemny otwór na szczycie - tędy wyszła
+            const dziura = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.1, 0.07, 8),
+                new THREE.MeshBasicMaterial({ color: 0x120d08 }));
+            dziura.position.y = 0.33;
+            g.add(dziura);
+            g.userData.kopiec = true;
+            return g;
+        }
+
+        function wyczyscKopceKrecie() {
+            kopceKrecie.forEach(k => { if (k.mesh) scene.remove(k.mesh); });
+            kopceKrecie = [];
+            kopiecOstrzezenieDane = false;
+        }
+
+        // Pole pod kopiec: wolne, w granicach i - jeśli się da - w naturalnym
+        // gruncie, bo kret nie ryje w asfalcie. Gdy takiego nie ma, bierzemy
+        // dowolne wolne: kopiec MUSI stanąć, inaczej ostrzeżenia nie będzie.
+        function poleNaKopiec(gx, gz, luzno) {
+            for (let t = 0; t < 200; t++) {
+                const kat = Math.random() * Math.PI * 2;
+                const d = KOPIEC_MIN_OD_GLIZDY + Math.random() * (KOPIEC_PROMIEN - KOPIEC_MIN_OD_GLIZDY);
+                const x = Math.round(gx + Math.cos(kat) * d);
+                const z = Math.round(gz + Math.sin(kat) * d);
+                if (Math.max(Math.abs(x - gx), Math.abs(z - gz)) > KOPIEC_PROMIEN) continue;
+                if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) continue;
+                if (kopceKrecie.some(k => k.x === x && k.z === z)) continue;
+                if (soldiers.some(s => !s.isDead && s.mesh &&
+                        Math.round(s.mesh.position.x) === x && Math.round(s.mesh.position.z) === z)) continue;
+                if (!luzno) {
+                    const kol = terrainTypeMap[x + offsetX];
+                    const grunt = kol && kol[z + offsetZ];
+                    if (grunt !== 0 && grunt !== 1 && grunt !== 5) continue;
+                }
+                return [x, z];
+            }
+            return null;
+        }
+
+        // Jeden kopiec na każdą glizdę. Zwraca ich liczbę.
+        function rozstawKopceKrecie() {
+            wyczyscKopceKrecie();
+            const glizdy = enemies.filter(e => !e.isDead && e.type === 'glizda' && e.mesh);
+            glizdy.forEach(g => {
+                const gx = Math.round(g.mesh.position.x), gz = Math.round(g.mesh.position.z);
+                const p = poleNaKopiec(gx, gz, false) || poleNaKopiec(gx, gz, true);
+                if (!p) return;
+                const mesh = bryłaKopca();
+                mesh.position.set(p[0], getTerrainY(p[0], p[1]), p[1]);
+                scene.add(mesh);
+                kopceKrecie.push({ x: p[0], z: p[1], mesh: mesh, glizda: g, widziany: false });
+            });
+            return kopceKrecie.length;
         }
 
         function rozstawZrodlaBlasku() {
@@ -13401,9 +14560,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // ustawialiśmy to tylko przy tworzeniu wroga i wystarczyło, że inna
                 // część kodu pokazała wszystkie bryły, by glizda sterczała nad ziemią:
                 // niewidzialna dla celownika, a widoczna dla gracza.
-                if (!enemies[i].isDead && (enemies[i].podZiemia || enemies[i].wAucie || enemies[i].wZasadzce) && enemies[i].mesh)
+                if (!enemies[i].isDead && (enemies[i].podZiemia || enemies[i].wAucie || enemies[i].wZasadzce || enemies[i].wWodzie) && enemies[i].mesh)
                     enemies[i].mesh.visible = false;
-                if(!enemies[i].isDead && !enemies[i].podZiemia && !enemies[i].wAucie && !enemies[i].wZasadzce) {   // ukryci nie blokują pola
+                if(!enemies[i].isDead && !enemies[i].podZiemia && !enemies[i].wAucie && !enemies[i].wZasadzce && !enemies[i].wWodzie) {   // ukryci nie blokują pola
                     let mx = Math.round(enemies[i].mesh.position.x) + offsetX;
                     let mz = Math.round(enemies[i].mesh.position.z) + offsetZ;
                     if (mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth) enemyGrid[mx][mz] = 1;
@@ -14477,6 +15636,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Wróg oberwał, ale przeżył - krótkie wzdrygnięcie
         function wrogOberwal(wrog) {
             if (!wrog || wrog.isDead) return;
+            // Kto wali w kamienną figurę, ten ją budzi - i to natychmiast
+            if (wrog.type === 'gargulec' && wrog.zastygly) ozyjGargulec(wrog, 'postrzal');
             animWroga(wrog, 'cios', true);
         }
 
@@ -14485,6 +15646,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (!wrog) return;
             // Martwe ręce puszczają - inaczej wojownik zostawał uwięziony przez trupa
             if (wrog.wlecze) puscOfiare(wrog, `${wrog.wlecze.name} wyrywa się z martwych rąk.`);
+            // Martwa Matrona odpada od ciała - inaczej wojownik zostałby uwięziony na zawsze
+            if (wrog.przyssanaDo) odczepMatrone(wrog, `${wrog.przyssanaDo.name} zrzuca z siebie martwą Matronę.`);
+            // Martwy topielec puszcza nogi - inaczej wojownik zostałby pod wodą na zawsze
+            if (wrog.topi) puscTopielca(wrog, `${wrog.topi.name} wyrywa się martwym rękom topielca.`);
             zostawTrupa(wrog);
             // Ołtarznik pada - niesiony człowiek zsuwa mu się z pleców.
             // Jeśli przeżył, jest wolny; ta nagroda ma wynagrodzić podejście wręcz
@@ -16715,6 +17880,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 { typ: 'skorpion',      hp: 11, ap: 12, opis: 'Skorpion',         odmiana: 'sredni' },
                 { typ: 'skorpion_duzy', hp: 20, ap: 7,  opis: 'Skorpion pancerny', odmiana: 'duzy' },
                 { typ: 'glizda',    hp: 13, ap: 24, opis: 'Glizda' },
+                { typ: 'gargulec', hp: GARGULEC_HP, ap: GARGULEC_AP, opis: 'Gargulec' },
+                { typ: 'blizniaki', hp: BLIZNIAKI_HP, ap: BLIZNIAKI_AP, opis: 'Bliźniaki' },
+                { typ: 'matrona', hp: MATRONA_HP, ap: MATRONA_AP, opis: 'Czarna Matrona' },
+                { typ: 'topielec', hp: TOPIELEC_HP, ap: TOPIELEC_AP, opis: 'Topielec' },
                 { typ: 'lustrzak',  hp: 12, ap: 14, opis: 'Lustrzak' },
                 { typ: 'bezimienny', hp: 26, ap: 6, opis: 'Bezimienny' },
                 { typ: 'bluznierca', hp: 18, ap: 0, opis: 'Bluźnierca' },
@@ -16743,6 +17912,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 zombie: createZombieMesh, vampire: createVampireMesh, strzyga: createStrzygaMesh,
                 robot: createRobotMesh, droid: createDroidMesh, ogar: createHellhoundMesh, klaun: createClownMesh, robak: createWormMesh,
                 glizda: createGlizdaMesh,
+                gargulec: createGargulecMesh,
+                blizniaki: createBlizniakiMesh,
+                matrona: createMatronaMesh,
+                topielec: createTopielecMesh,
                 lustrzak: () => createLustrzakMesh(soldiers[0] ? soldiers[0].name : 'WOJOWNIK',
                                                    soldiers[0] ? soldiers[0].class : null),
                 bezimienny: createBezimiennyMesh,
@@ -17546,7 +18719,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 return { mesh: mesh, type: ed.type, hp: ed.hp, maxHp: ed.maxHp, ap: ed.ap, maxAp: ed.maxAp, accuracyBonus: ed.accuracyBonus, isDead: ed.isDead, facingAngle: fa, level: ed.level || 0, isBoss: !!ed.isBoss, bossTurn: ed.bossTurn || 0, hasOpened: !!ed.hasOpened, blindedTurns: ed.blindedTurns || 0, blindedFrom: ed.blindedFrom || null, gatunek: (ed.gatunek === undefined ? null : ed.gatunek), elita: !!ed.elita, podZiemia: !!ed.podZiemia, wAucie: !!ed.wAucie, glizdaPoprzedniDystans: (ed.glizdaPoprzedniDystans === undefined ? null : ed.glizdaPoprzedniDystans), glizdaZZaskoczenia: !!ed.glizdaZZaskoczenia, ujawniony: !!ed.ujawniony, podrobionyNaKim: ed.podrobionyNaKim || null, lup: ed.lup || [], ucieka: !!ed.ucieka, maZakladnika: !!ed.maZakladnika, zakladnikHp: ed.zakladnikHp || 0, przebrany: !!ed.przebrany, dmgBonus: ed.elita ? 1 : 0 };
             });
 
-            enemies.forEach(e => { if ((e.podZiemia || e.wAucie || e.wZasadzce) && e.mesh) e.mesh.visible = false; });
+            enemies.forEach(e => { if ((e.podZiemia || e.wAucie || e.wZasadzce || e.wWodzie) && e.mesh) e.mesh.visible = false; });
 
             // Lista spotkań nie jest zapisywana - odtwarzamy ją z wrogów na planszy,
             // inaczej po wczytaniu gry w trakcie misji nic by nie trafiło do Kroniki
@@ -20250,6 +21423,914 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const GLIZDA_SLUCH = 20;          // na tyle pól słyszy kroki
         const GLIZDA_ZASKOCZENIE = 2;     // mnożnik obrażeń przy ataku z zaskoczenia
         const GLIZDA_PROG_REFLEKSU = 16;  // od tej Zręczności da się wyczuć glizdę w ziemi
+        // ===================== GARGULEC =====================
+        // Stoi na planszy jako kamienna figura: nieruchoma, szara, łatwa do wzięcia
+        // za ozdobę murów. Ożywa dopiero wtedy, gdy ktoś podejdzie za blisko albo
+        // w niego strzeli - kamień pęka, skrzydła się rozkładają i lecą kule ognia.
+        // Pancerza nie ma żadnego, ale bije zajadle i potrafi wzlecieć tam, gdzie
+        // wojownik nie dojdzie: na dach, na piętro, na mur.
+        const GARGULEC_HP = 9;
+        const GARGULEC_AP = 14;
+        const GARGULEC_PRZEBUDZENIE = 6;    // z tylu pol wyczuwa obecnosc i ozywa
+        const GARGULEC_KULA_KOSZT = 5;      // PA za kule ognia
+        const GARGULEC_KULA_OBR = 5;
+        const GARGULEC_KULA_ZASIEG = 12;
+        const GARGULEC_CIOS = 4;            // cios pazurami w zwarciu
+        const GARGULEC_CIOS_KOSZT = 3;
+        const GARGULEC_LOT_KOSZT = 2;       // PA za pole w locie - drozej niz marsz
+        const GARGULEC_PULAP = 2;           // ile kondygnacji nad celem moze wzleciec
+        const GARGULEC_KAMIEN = 0x8a8578;
+        const GARGULEC_ZYWY = 0x5f4a42;
+
+        function createGargulecMesh() {
+            const g = new THREE.Group();
+            const kamien = new THREE.MeshLambertMaterial({ color: GARGULEC_KAMIEN });
+            const kamien2 = new THREE.MeshLambertMaterial({ color: 0x9b958a });
+            const oko = new THREE.MeshBasicMaterial({ color: 0x3a3a3a });
+            // Przykucnięty tułów - gargulec siedzi na zadzie jak figura na gzymsie
+            const tulow = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 10), kamien);
+            tulow.scale.set(1, 0.85, 0.9);
+            tulow.position.y = 0.72;
+            g.add(tulow);
+            const kark = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.22, 0.26, 8), kamien);
+            kark.position.y = 1.08;
+            g.add(kark);
+            // Łeb: krótki pysk, dwa rogi, para oczu
+            const leb = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.3, 0.42), kamien);
+            leb.position.set(0, 1.3, 0.06);
+            g.add(leb);
+            const pysk = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.26, 7), kamien2);
+            pysk.rotation.x = Math.PI / 2;
+            pysk.position.set(0, 1.25, 0.34);
+            g.add(pysk);
+            [-1, 1].forEach(s => {
+                const rog = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 6), kamien2);
+                rog.position.set(s * 0.14, 1.56, -0.02);
+                rog.rotation.z = s * -0.3;
+                g.add(rog);
+                const o = new THREE.Mesh(new THREE.SphereGeometry(0.05, 7, 6), oko);
+                o.position.set(s * 0.1, 1.33, 0.24);
+                g.add(o);
+            });
+            // Skrzydła - złożone przy ciele, dopóki jest kamieniem
+            const skrzydla = [];
+            [-1, 1].forEach(s => {
+                const sk = new THREE.Group();
+                const blona = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.52, 0.06), kamien2);
+                blona.position.set(s * 0.33, 0.1, 0);
+                sk.add(blona);
+                for (let i = 0; i < 3; i++) {
+                    const zebro = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.5, 0.1), kamien);
+                    zebro.position.set(s * (0.12 + i * 0.22), 0.1, 0.01);
+                    sk.add(zebro);
+                }
+                sk.position.set(s * 0.26, 0.95, -0.22);
+                sk.rotation.y = s * 1.15;       // złożone na plecach
+                g.add(sk);
+                skrzydla.push(sk);
+            });
+            // Zad, ogon i pazury
+            [-1, 1].forEach(s => {
+                const udo = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 7), kamien);
+                udo.position.set(s * 0.26, 0.4, 0.04);
+                g.add(udo);
+                const lapa = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.3), kamien2);
+                lapa.position.set(s * 0.26, 0.11, 0.18);
+                g.add(lapa);
+                for (let i = -1; i <= 1; i++) {
+                    const pazur = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.12, 5), kamien2);
+                    pazur.rotation.x = -Math.PI / 2;
+                    pazur.position.set(s * 0.26 + i * 0.07, 0.09, 0.36);
+                    g.add(pazur);
+                }
+            });
+            const ogon = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.8, 7), kamien);
+            ogon.rotation.x = -1.1;
+            ogon.position.set(0, 0.5, -0.45);
+            g.add(ogon);
+            // Postument - figura stoi na kamiennej płycie, nie na trawie
+            const plyta = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.5, 0.12, 10), kamien2);
+            plyta.position.y = 0.06;
+            g.add(plyta);
+
+            g.userData.yOffset = 0;
+            g.userData.unitType = 'gargulec';
+            g.userData.skrzydla = skrzydla;
+            g.userData.oczy = g.children.filter(c => c.material === oko);
+            // Materiały trzymamy osobno: przy ożywieniu zmieniamy im barwę, a nie
+            // całą bryłę - inaczej trzeba by budować gargulca drugi raz.
+            g.userData.kamienne = [kamien, kamien2];
+            g.userData.materialOczu = oko;
+            return g;
+        }
+
+        // Kamień pęka. Od tej chwili gargulec działa w swoich turach.
+        function ozyjGargulec(e, powod) {
+            if (!e || e.isDead || e.type !== 'gargulec' || !e.zastygly) return false;
+            e.zastygly = false;
+            e.gargulecObudzonyWTurze = combatTurnCounter;
+            const u = e.mesh && e.mesh.userData;
+            if (u) {
+                // Barwa schodzi z szarości kamienia na ciemne, żywe cielsko,
+                // oczy zapalają się na czerwono, skrzydła się rozkładają.
+                (u.kamienne || []).forEach((m, i) => {
+                    if (m && m.color) m.color.setHex(i === 0 ? GARGULEC_ZYWY : 0x6e5750);
+                });
+                if (u.materialOczu && u.materialOczu.color) u.materialOczu.color.setHex(0xff3311);
+                (u.skrzydla || []).forEach((sk, i) => { sk.rotation.y = (i === 0 ? -1 : 1) * 0.25; });
+            }
+            showFloatingWarning('Kamień pęka - GARGULEC ożywa!');
+            updateUI('Figura na postumencie rusza się. GARGULEC rozkłada skrzydła!');
+            if (typeof playFileSfx === 'function' && typeof AudioFiles !== 'undefined')
+                playFileSfx(AudioFiles.wallHit, 0.6);
+            if (typeof noteEnemyEncountered === 'function') noteEnemyEncountered('gargulec');
+            return true;
+        }
+
+        // Co turę i po każdym ruchu oddziału: kto podszedł za blisko figury?
+        function tikGargulcow() {
+            if (gameOver) return 0;
+            let obudzonych = 0;
+            enemies.forEach(e => {
+                if (e.isDead || e.type !== 'gargulec' || !e.zastygly || !e.mesh) return;
+                const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
+                const blisko = soldiers.some(s => {
+                    if (s.isDead || !s.mesh) return false;
+                    return Math.max(Math.abs(Math.round(s.mesh.position.x) - ex),
+                                    Math.abs(Math.round(s.mesh.position.z) - ez)) <= GARGULEC_PRZEBUDZENIE;
+                });
+                if (blisko && ozyjGargulec(e, 'blisko')) obudzonych++;
+            });
+            return obudzonych;
+        }
+
+        // Cel gargulca: najbliższy żywy wojownik. Cywile też, jeśli nie ma nikogo innego.
+        function celGargulca(e) {
+            const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
+            let naj = null, najD = Infinity;
+            soldiers.forEach(s => {
+                if (s.isDead || !s.mesh) return;
+                const d = Math.max(Math.abs(Math.round(s.mesh.position.x) - ex),
+                                   Math.abs(Math.round(s.mesh.position.z) - ez)) + (s.isNPC ? 6 : 0);
+                if (d < najD) { najD = d; naj = s; }
+            });
+            return naj;
+        }
+
+        function gargulecWidzi(e, ex, ez, eLvl, px, py, pz, tLvl) {
+            const ey = getLevelY(ex, ez, eLvl);
+            return checkLineOfSight3D(ex, ey + 1, ez, px, py + 0.5, pz) &&
+                   !floorsBlockShot(ex, ez, eLvl, px, pz, tLvl);
+            }
+
+        // Lot: gargulec nie chodzi ścieżką, przelatuje nad przeszkodami. Szuka pola,
+        // z którego WIDZI cel, najchętniej wyżej niż on - stąd strzela celniej.
+        function lotGargulca(e, cel, poLocie) {
+            const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
+            const eLvl = e.level || 0;
+            const px = Math.round(cel.mesh.position.x), pz = Math.round(cel.mesh.position.z);
+            const tLvl = cel.level || 0;
+            const py = getLevelY(px, pz, tLvl);
+            const zasieg = Math.min(8, Math.floor(e.ap / GARGULEC_LOT_KOSZT));
+            if (zasieg < 1) return false;
+            const gorny = Math.min(liczbaKondygnacji() - 1, tLvl + GARGULEC_PULAP);
+            let najlepsze = null, najPunkty = -Infinity;
+            for (let lvl = 0; lvl <= gorny; lvl++) {
+                for (let dx = -zasieg; dx <= zasieg; dx++) {
+                    for (let dz = -zasieg; dz <= zasieg; dz++) {
+                        const krokow = Math.max(Math.abs(dx), Math.abs(dz));
+                        if (krokow === 0 || krokow > zasieg) continue;
+                        const x = ex + dx, z = ez + dz;
+                        if (!isWithinPlayBounds(x, z)) continue;
+                        if (!canStandAt(x, z, lvl)) continue;
+                        if (isUnitAtLevel(x, z, lvl, e)) continue;
+                        const d = Math.max(Math.abs(x - px), Math.abs(z - pz));
+                        let punkty = 0;
+                        if (gargulecWidzi(e, x, z, lvl, px, py, pz, tLvl)) punkty += 60;
+                        if (getLevelY(x, z, lvl) > py + 0.5) punkty += 30;   // strzał z góry
+                        if (d >= 2 && d <= GARGULEC_KULA_ZASIEG) punkty += 25;
+                        punkty -= Math.abs(d - 4) * 3;                       // lubi średni dystans
+                        punkty -= krokow * 2;                                // lot kosztuje
+                        if (punkty > najPunkty) { najPunkty = punkty; najlepsze = { x: x, z: z, lvl: lvl, krokow: krokow }; }
+                    }
+                }
+            }
+            if (!najlepsze) return false;
+            // Lot musi się opłacać: inaczej gargulec przestępowałby z gzymsu na gzyms
+            const terazWidzi = gargulecWidzi(e, ex, ez, eLvl, px, py, pz, tLvl);
+            const teraz = (terazWidzi ? 60 : 0) +
+                          (getLevelY(ex, ez, eLvl) > py + 0.5 ? 30 : 0) +
+                          ((() => { const d = Math.max(Math.abs(ex - px), Math.abs(ez - pz));
+                                    return (d >= 2 && d <= GARGULEC_KULA_ZASIEG ? 25 : 0) - Math.abs(d - 4) * 3; })());
+            if (najPunkty <= teraz + 8) return false;
+
+            e.ap = Math.max(0, e.ap - najlepsze.krokow * GARGULEC_LOT_KOSZT);
+            e.level = najlepsze.lvl;
+            const yOff = (e.mesh.userData.yOffset || 0);
+            const szczyt = Math.max(getLevelY(ex, ez, eLvl), getLevelY(najlepsze.x, najlepsze.z, najlepsze.lvl)) + 2.6;
+            const docelowy = getLevelY(najlepsze.x, najlepsze.z, najlepsze.lvl) + yOff;
+            faceTowards(e, najlepsze.x, najlepsze.z);
+            machnijSkrzydlami(e);
+            // Trzy odcinki: wzlot, przelot nad przeszkodami, opadnięcie na miejsce.
+            slideObject(e.mesh, ex, szczyt, ez, 200, () => {
+                slideObject(e.mesh, najlepsze.x, szczyt, najlepsze.z, 120 + najlepsze.krokow * 55, () => {
+                    slideObject(e.mesh, najlepsze.x, docelowy, najlepsze.z, 200, () => {
+                        refreshEnemyPositions();
+                        if (typeof updateFoW === 'function') updateFoW();
+                        if (poLocie) poLocie();
+                    });
+                });
+            });
+            return true;
+        }
+
+        // Skrzydła biją przez chwilę - bez tego lot wyglądałby jak sunięcie kamienia
+        function machnijSkrzydlami(e) {
+            const sk = e.mesh && e.mesh.userData && e.mesh.userData.skrzydla;
+            if (!sk || !sk.length) return;
+            const start = performance.now();
+            activeAnimations.push((now) => {
+                const t = (now - start) / 1000;
+                const faza = Math.sin(t * 16) * 0.5;
+                sk[0].rotation.y = -0.25 - faza;
+                sk[1].rotation.y = 0.25 + faza;
+                if (t > 1.1) { sk[0].rotation.y = -0.25; sk[1].rotation.y = 0.25; return true; }
+                return false;
+            });
+        }
+
+        // Kula ognia: trafiony traci zdrowie, a pole pod nim zajmuje się ogniem -
+        // i to jest w niej najgroźniejsze, bo z płonącego kafla trzeba zejść.
+        function kulaOgniaGargulca(e, cel, gotowe) {
+            const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
+            const eLvl = e.level || 0, tLvl = cel.level || 0;
+            const px = Math.round(cel.mesh.position.x), pz = Math.round(cel.mesh.position.z);
+            const ey = getLevelY(ex, ez, eLvl), py = getLevelY(px, pz, tLvl);
+            const dist = Math.max(Math.abs(px - ex), Math.abs(pz - ez));
+            e.ap -= GARGULEC_KULA_KOSZT;
+            faceTowards(e, px, pz);
+            const oslonaCelu = getCoverObstacle(px, pz, ex, ez);
+            const hitChance = calculateHitChance(dist, ey > py, oslonaCelu !== null, false,
+                                                 (e.accuracyBonus || 0) - getEnemyWoundPenalty(e));
+            const trafi = (Math.random() * 100) <= hitChance;
+            updateUI('GARGULEC ciska kulą ognia!');
+            if (typeof playFileSfx === 'function' && typeof AudioFiles !== 'undefined')
+                playFileSfx(AudioFiles.laserShot, 0.5);
+            createProjectile(ex, ey, ez, px, py, pz, trafi, oslonaCelu, () => {
+                // Ogień zajmuje pole bez względu na trafienie - kula pęka na ziemi
+                const ile = zapalPole(px, pz, 0);
+                if (ile > 0) showFloatingWarning('Kula ognia - pole płonie!');
+                if (trafi) {
+                    applyDamageToUnit(cel, GARGULEC_KULA_OBR, e);
+                    updateUI(cel.isNPC ? 'Cywil trafiony kulą ognia!'
+                                       : `Kula ognia trafia! (-${GARGULEC_KULA_OBR} HP, szansa ${hitChance}%)`);
+                    if (!cel.isNPC && typeof playFileSfx === 'function') playFileSfx(AudioFiles.warriorOuch, 0.6);
+                } else {
+                    updateUI(`Kula ognia pęka obok celu (szansa ${hitChance}%).`);
+                }
+                if (cel.hp <= 0) { playDyingSfx(); killUnitWithAnim(cel); if (!cel.isNPC) refreshPlayerPositions(); }
+                checkGameOver();
+                if (gotowe) gotowe();
+            }, 'gargulec');
+        }
+
+        // Tura gargulca. Osobna od zwykłej, bo nikt inny nie lata i nie ciska ogniem.
+        function turaGargulca(e) {
+            const dalej = (ms) => { setTimeout(processNextEnemy, ms || 200); };
+            const koniec = () => { e.ap = 0; currentEnemyIndex++; setTimeout(processNextEnemy, 80); };
+            const cel = celGargulca(e);
+            if (!cel || gameOver) { koniec(); return; }
+            const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
+            const eLvl = e.level || 0, tLvl = cel.level || 0;
+            const px = Math.round(cel.mesh.position.x), pz = Math.round(cel.mesh.position.z);
+            const py = getLevelY(px, pz, tLvl);
+            const dist = Math.max(Math.abs(px - ex), Math.abs(pz - ez));
+
+            // 1) Zwarcie - pazury. Waleczny: jak już dopadnie, to bije.
+            if (dist <= 1 && tLvl === eLvl && e.ap >= GARGULEC_CIOS_KOSZT) {
+                e.ap -= GARGULEC_CIOS_KOSZT;
+                faceTowards(e, px, pz);
+                const trafi = Math.random() < 0.8;
+                updateUI('GARGULEC rozrywa pazurami!');
+                if (trafi) {
+                    applyDamageToUnit(cel, GARGULEC_CIOS, e);
+                    updateUI(cel.isNPC ? 'Cywil trafiony pazurami!' : `Pazury gargulca! (-${GARGULEC_CIOS} HP)`);
+                } else updateUI('Gargulec chybia pazurami.');
+                if (cel.hp <= 0) { playDyingSfx(); killUnitWithAnim(cel); if (!cel.isNPC) refreshPlayerPositions(); }
+                checkGameOver();
+                if (!gameOver) dalej(300);
+                return;
+            }
+
+            // 2) Kula ognia, jeśli widzi cel z miejsca, gdzie stoi
+            if (e.ap >= GARGULEC_KULA_KOSZT && dist <= GARGULEC_KULA_ZASIEG &&
+                gargulecWidzi(e, ex, ez, eLvl, px, py, pz, tLvl)) {
+                kulaOgniaGargulca(e, cel, () => { if (!gameOver) dalej(350); });
+                return;
+            }
+
+            // 3) Nie widzi albo za daleko - wzlatuje na pozycję i wraca do swojej tury
+            if (lotGargulca(e, cel, () => { if (!gameOver) dalej(150); })) return;
+
+            koniec();
+        }
+
+        // ===================== BLIŹNIAKI =====================
+        // Jedno cielsko, dwie głowy i ani jednej nogi - unosi się nad ziemią.
+        // Rzecz polega na tym, że KAŻDA GŁOWA lustruje inny kawałek terenu:
+        // bliźniaki widzą w dwóch osobnych sektorach naraz, więc obejście ich
+        // bokiem nic nie daje. Za to między sektorami zostaje martwe pole.
+        // Strzelają z obu głów - po jednym strzale na głowę w turze.
+        const BLIZNIAKI_HP = 14;
+        const BLIZNIAKI_AP = 12;
+        const BLIZNIAKI_STRZAL_KOSZT = 4;
+        const BLIZNIAKI_OBR = 3;
+        const BLIZNIAKI_ZASIEG = 14;
+        const BLIZNIAKI_DYSTANS = 3;        // blizej nie podlatuje - strzela z dystansu
+        const BLIZNIAKI_ROZSTAW = 2.4;      // docelowy rozstaw glow w radianach (~137 stopni)
+        const BLIZNIAKI_MIN_ROZSTAW = 1.2;  // nigdy nie patrza w ten sam kawalek terenu
+        const BLIZNIAKI_OBROT = 0.7;        // o tyle druga glowa przesuwa sie co ture
+        const BLIZNIAKI_UNOS = 0.9;         // na tej wysokosci lewituje
+
+        function createBlizniakiMesh() {
+            const g = new THREE.Group();
+            const skora = new THREE.MeshLambertMaterial({ color: 0x6d5b7a });
+            const skora2 = new THREE.MeshLambertMaterial({ color: 0x4e4059 });
+            const plyta = new THREE.MeshLambertMaterial({ color: 0x8e8a94 });
+            const oko = new THREE.MeshBasicMaterial({ color: 0xffd24a });
+
+            // Tułów: ciężki, barczysty, zwężający się ku dołowi w strzęp zamiast nóg
+            const tors = new THREE.Mesh(new THREE.SphereGeometry(0.44, 14, 11), skora);
+            tors.scale.set(1.15, 1, 0.8);
+            tors.position.y = 1.25;
+            g.add(tors);
+            const napiersnik = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.5, 0.3), plyta);
+            napiersnik.position.set(0, 1.22, 0.3);
+            g.add(napiersnik);
+            // Strzęp ciała poniżej - zwisa i kołysze się, nóg nie ma żadnych
+            const ogon = new THREE.Mesh(new THREE.ConeGeometry(0.3, 1.0, 10), skora2);
+            ogon.rotation.x = Math.PI;
+            ogon.position.y = 0.6;
+            g.add(ogon);
+            const strzepy = [];
+            for (let i = 0; i < 4; i++) {
+                const a = (i / 4) * Math.PI * 2;
+                const s = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.015, 0.55, 5), skora2);
+                s.position.set(Math.cos(a) * 0.16, 0.18, Math.sin(a) * 0.16);
+                g.add(s);
+                strzepy.push(s);
+            }
+            // Dwie szyje wyrastające z barków na dwie strony i dwie głowy
+            const glowy = [];
+            [-1, 1].forEach((s, idx) => {
+                const szyja = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.15, 0.42, 8), skora);
+                szyja.position.set(s * 0.26, 1.62, 0);
+                szyja.rotation.z = s * -0.35;
+                g.add(szyja);
+                // Głowa to osobna grupa - obraca się NIEZALEŻNIE od ciała,
+                // bo każda patrzy w swoją stronę.
+                const glowa = new THREE.Group();
+                const czaszka = new THREE.Mesh(new THREE.SphereGeometry(0.19, 11, 9), skora);
+                czaszka.scale.set(0.95, 1.05, 1);
+                glowa.add(czaszka);
+                const szczeka = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.22), skora2);
+                szczeka.position.set(0, -0.11, 0.1);
+                glowa.add(szczeka);
+                [-1, 1].forEach(o => {
+                    const e = new THREE.Mesh(new THREE.SphereGeometry(0.045, 7, 6), oko);
+                    e.position.set(o * 0.08, 0.03, 0.16);
+                    glowa.add(e);
+                });
+                const kolec = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.22, 6), plyta);
+                kolec.position.set(0, 0.2, -0.02);
+                glowa.add(kolec);
+                glowa.position.set(s * 0.38, 1.9, 0);
+                g.add(glowa);
+                glowy.push(glowa);
+            });
+            // Ramiona z lufami - stąd lecą strzały
+            [-1, 1].forEach(s => {
+                const ramie = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 0.62, 7), skora);
+                ramie.rotation.z = Math.PI / 2;
+                ramie.position.set(s * 0.6, 1.3, 0.08);
+                g.add(ramie);
+                const lufa = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.5, 8), plyta);
+                lufa.rotation.x = Math.PI / 2;
+                lufa.position.set(s * 0.82, 1.26, 0.3);
+                g.add(lufa);
+            });
+            // Poświata pod spodem - widać, że nic go nie podtrzymuje
+            const halo = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.1, 0.1, 12),
+                new THREE.MeshBasicMaterial({ color: 0x9a7fd0, transparent: true, opacity: 0.35 }));
+            halo.position.y = 0.06;
+            g.add(halo);
+
+            g.userData.yOffset = BLIZNIAKI_UNOS;
+            g.userData.unitType = 'blizniaki';
+            g.userData.glowy = glowy;
+            g.userData.halo = halo;
+            g.userData.strzepy = strzepy;
+            return g;
+        }
+
+        // Kąty obu głów. Druga głowa zawsze patrzy w INNY kawałek terenu -
+        // gdyby obie celowały w to samo, całe stworzenie traciłoby sens.
+        function katyGlow(e) {
+            const a = e.facingAngle || 0;
+            let b = (e.facingAngle2 === undefined || e.facingAngle2 === null) ? a + BLIZNIAKI_ROZSTAW : e.facingAngle2;
+            if (Math.abs(angleDiff(b, a)) < BLIZNIAKI_MIN_ROZSTAW) {
+                b = a + (angleDiff(b, a) >= 0 ? BLIZNIAKI_ROZSTAW : -BLIZNIAKI_ROZSTAW);
+            }
+            e.facingAngle2 = b;
+            return [a, b];
+        }
+
+        // Ustawienie bryły: ciało patrzy tam, gdzie pierwsza głowa, druga głowa
+        // obraca się względem ciała o różnicę kątów.
+        function ustawGlowy(e) {
+            if (!e || !e.mesh || !e.mesh.userData || !e.mesh.userData.glowy) return;
+            const [a, b] = katyGlow(e);
+            const gl = e.mesh.userData.glowy;
+            if (gl[0]) gl[0].rotation.y = 0;
+            if (gl[1]) gl[1].rotation.y = angleDiff(b, a);
+        }
+
+        // Druga głowa lustruje teren: co turę przesuwa się o kawałek, a gdy coś
+        // zobaczy w swoim sektorze - zostaje na tym.
+        function obrocDrugaGlowe(e) {
+            if (!e || e.isDead || !e.mesh) return;
+            const [a] = katyGlow(e);
+            const ex = e.mesh.position.x, ez = e.mesh.position.z;
+            // Czy w sektorze drugiej głowy ktoś jest? Wtedy nie wodzi wzrokiem dalej.
+            const cel = celGlowy(e, e.facingAngle2);
+            if (cel) {
+                e.facingAngle2 = Math.atan2(cel.mesh.position.x - ex, cel.mesh.position.z - ez);
+            } else {
+                e.kierunekLustracji = e.kierunekLustracji || 1;
+                e.facingAngle2 = e.facingAngle2 + BLIZNIAKI_OBROT * e.kierunekLustracji;
+                // Po pełnym odejściu od pierwszej głowy wraca - żeby nie kręcił się w kółko
+                if (Math.abs(angleDiff(e.facingAngle2, a)) > 2.9) e.kierunekLustracji *= -1;
+            }
+            katyGlow(e);
+            ustawGlowy(e);
+        }
+
+        // Cel w sektorze JEDNEJ głowy: musi się mieścić w jej stożku i być widoczny
+        function celGlowy(e, kat) {
+            if (!e || !e.mesh) return null;
+            const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
+            const eLvl = e.level || 0, ey = getLevelY(ex, ez, eLvl);
+            let naj = null, najD = Infinity;
+            soldiers.forEach(s => {
+                if (s.isDead || !s.mesh) return;
+                const sx = Math.round(s.mesh.position.x), sz = Math.round(s.mesh.position.z);
+                const d = Math.max(Math.abs(sx - ex), Math.abs(sz - ez));
+                if (d > BLIZNIAKI_ZASIEG) return;
+                const kątDo = Math.atan2(s.mesh.position.x - e.mesh.position.x,
+                                         s.mesh.position.z - e.mesh.position.z);
+                if (Math.abs(angleDiff(kątDo, kat)) > VISION_CONE_HALF_ANGLE && d > 1) return;
+                const sLvl = s.level || 0, sy = getLevelY(sx, sz, sLvl);
+                if (!checkLineOfSight3D(ex, ey + 1, ez, sx, sy + 0.5, sz)) return;
+                if (floorsBlockShot(ex, ez, eLvl, sx, sz, sLvl)) return;
+                const waga = d + (s.isNPC ? 8 : 0);
+                if (waga < najD) { najD = waga; naj = s; }
+            });
+            return naj;
+        }
+
+        // Strzał z jednej głowy. Druga strzela osobno, w swój własny cel.
+        function strzalGlowy(e, nrGlowy, cel, gotowe) {
+            const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
+            const eLvl = e.level || 0, tLvl = cel.level || 0;
+            const px = Math.round(cel.mesh.position.x), pz = Math.round(cel.mesh.position.z);
+            const ey = getLevelY(ex, ez, eLvl), py = getLevelY(px, pz, tLvl);
+            const dist = Math.max(Math.abs(px - ex), Math.abs(pz - ez));
+            e.ap -= BLIZNIAKI_STRZAL_KOSZT;
+            // Celuje TA głowa, nie całe ciało: pierwsza obraca ciałem, druga tylko sobą.
+            if (nrGlowy === 0) faceTowards(e, px, pz);
+            else e.facingAngle2 = Math.atan2(cel.mesh.position.x - e.mesh.position.x,
+                                             cel.mesh.position.z - e.mesh.position.z);
+            ustawGlowy(e);
+            const oslonaCelu = getCoverObstacle(px, pz, ex, ez);
+            const hitChance = calculateHitChance(dist, ey > py, oslonaCelu !== null, false,
+                                                 (e.accuracyBonus || 0) - getEnemyWoundPenalty(e) -
+                                                 (cel.isKneeling ? 15 : 0));
+            const trafi = (Math.random() * 100) <= hitChance;
+            updateUI(`BLIŹNIAKI - ${nrGlowy === 0 ? 'pierwsza' : 'druga'} głowa strzela!`);
+            if (typeof playFileSfx === 'function' && typeof AudioFiles !== 'undefined')
+                playFileSfx(AudioFiles.laserShot, 0.5);
+            createProjectile(ex, ey + BLIZNIAKI_UNOS, ez, px, py, pz, trafi, oslonaCelu, () => {
+                if (trafi) {
+                    applyDamageToUnit(cel, BLIZNIAKI_OBR, e);
+                    updateUI(cel.isNPC ? 'Cywil trafiony!' : `Trafienie! (-${BLIZNIAKI_OBR} HP, szansa ${hitChance}%)`);
+                    if (!cel.isNPC && typeof playFileSfx === 'function') playFileSfx(AudioFiles.warriorOuch, 0.6);
+                } else updateUI(`Bliźniaki pudłują (szansa ${hitChance}%).`);
+                if (cel.hp <= 0) { playDyingSfx(); killUnitWithAnim(cel); if (!cel.isNPC) refreshPlayerPositions(); }
+                checkGameOver();
+                if (gotowe) gotowe();
+            }, 'blizniaki');
+        }
+
+        // Tura bliźniaków. Osobna, bo nikt inny nie strzela dwa razy z dwóch
+        // osobnych sektorów i nie podlatuje nad przeszkodami.
+        function turaBlizniakow(e) {
+            const koniec = () => { obrocDrugaGlowe(e); e.ap = 0; currentEnemyIndex++; setTimeout(processNextEnemy, 80); };
+            const dalej = (ms) => setTimeout(processNextEnemy, ms || 250);
+            if (gameOver || !e.mesh) { koniec(); return; }
+            // Licznik strzałów zeruje się z nową turą - na głowę jeden strzał
+            if (!e.strzalyGlow || e.strzalyGlow.tura !== combatTurnCounter) {
+                e.strzalyGlow = { tura: combatTurnCounter, a: false, b: false };
+            }
+            katyGlow(e);
+
+            // 1) Strzał z głowy, która ma kogoś w swoim sektorze
+            if (e.ap >= BLIZNIAKI_STRZAL_KOSZT) {
+                const celA = e.strzalyGlow.a ? null : celGlowy(e, e.facingAngle);
+                if (celA) {
+                    e.strzalyGlow.a = true;
+                    strzalGlowy(e, 0, celA, () => { if (!gameOver) dalej(300); });
+                    return;
+                }
+                const celB = e.strzalyGlow.b ? null : celGlowy(e, e.facingAngle2);
+                if (celB) {
+                    e.strzalyGlow.b = true;
+                    strzalGlowy(e, 1, celB, () => { if (!gameOver) dalej(300); });
+                    return;
+                }
+            }
+
+            // 2) Nikt w zasięgu żadnej głowy - podlatuje w stronę najbliższego
+            const cel = celBlizniakow(e);
+            if (cel && e.ap > 0) {
+                const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
+                const px = Math.round(cel.mesh.position.x), pz = Math.round(cel.mesh.position.z);
+                const dist = Math.max(Math.abs(px - ex), Math.abs(pz - ez));
+                if (dist > BLIZNIAKI_DYSTANS) {
+                    // Lewitacja: ścieżka liczona jak dla lecącego, więc woda i
+                    // przepaść nie są przeszkodą.
+                    const sc = findPath(ex, ez, px, pz, e.level || 0, e, true);
+                    if (sc && sc.path.length > 0) {
+                        // Zatrzymuje się tak, by jeszcze strzelić w tej turze
+                        const zapas = e.ap >= BLIZNIAKI_STRZAL_KOSZT ? BLIZNIAKI_STRZAL_KOSZT : 0;
+                        const doCelu = Math.max(0, sc.path.length - BLIZNIAKI_DYSTANS);
+                        const krokow = Math.min(doCelu, Math.max(0, e.ap - zapas));
+                        if (krokow > 0) {
+                            const walk = sc.path.slice(0, krokow);
+                            e.ap -= walk.length;
+                            faceTowards(e, px, pz);
+                            ustawGlowy(e);
+                            moveAlongPath({ mesh: e.mesh, userData: e.mesh.userData }, walk, 150, () => {
+                                refreshEnemyPositions();
+                                if (typeof updateFoW === 'function') updateFoW();
+                                obrocDrugaGlowe(e);
+                                if (!gameOver) dalej(150);
+                            });
+                            return;
+                        }
+                    }
+                }
+            }
+            koniec();
+        }
+
+        function celBlizniakow(e) {
+            const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
+            let naj = null, najD = Infinity;
+            soldiers.forEach(s => {
+                if (s.isDead || !s.mesh) return;
+                const d = Math.max(Math.abs(Math.round(s.mesh.position.x) - ex),
+                                   Math.abs(Math.round(s.mesh.position.z) - ez)) + (s.isNPC ? 8 : 0);
+                if (d < najD) { najD = d; naj = s; }
+            });
+            return naj;
+        }
+
+        // Unoszenie się: cielsko kołysze się nad ziemią, strzępy pod nim drgają.
+        function animujBlizniaki(time) {
+            enemies.forEach(e => {
+                if (e.isDead || e.type !== 'blizniaki' || !e.mesh || !e.mesh.visible) return;
+                const u = e.mesh.userData;
+                const faza = time * 0.0016 + (e.fazaUnoszenia || 0);
+                e.mesh.position.y = getLevelY(Math.round(e.mesh.position.x), Math.round(e.mesh.position.z),
+                                              e.level || 0) + BLIZNIAKI_UNOS + Math.sin(faza) * 0.12;
+                e.mesh.rotation.z = Math.sin(faza * 0.7) * 0.05;
+                if (u.halo && u.halo.material) u.halo.material.opacity = 0.25 + 0.15 * (1 + Math.sin(faza * 2)) / 2;
+            });
+        }
+
+        // ===================== CZARNA MATRONA =====================
+        // Kobiece ciało wyrastające z pajęczego odwłoka: tors, głowa i długie
+        // włosy nad chitynowym cielskiem na ośmiu odnóżach. Zachowuje się jak
+        // pająk - oplątuje z dystansu i dopada wręcz - ale jej prawdziwa broń to
+        // PRZYSSANIE: wczepia się w ciało i co turę wypija zdrowie, a ile wypije,
+        // tyle dostaje sama. Napojona rośnie fizycznie i rosną jej cechy, więc
+        // zostawiona na dłużej przy jednym wojowniku zamienia się w potwora,
+        // którego nie było na początku planszy.
+        const MATRONA_HP = 16;
+        const MATRONA_AP = 12;
+        const MATRONA_CIOS = 4;
+        const MATRONA_CIOS_KOSZT = 3;
+        const MATRONA_PRZYSSANIE_KOSZT = 3;
+        const MATRONA_SSANIE = 3;              // ile wypija w jednej turze (bazowo)
+        const MATRONA_SSANIE_KOSZT = 3;
+        const MATRONA_PROG_WZROSTU = 8;        // po tylu wypitych PkŻ rośnie o stopień
+        const MATRONA_MAX_STOPIEN = 3;
+        const MATRONA_SKALA_STOPNIA = 0.18;    // o tyle powiększa się bryła na stopień
+        const MATRONA_HP_ZA_STOPIEN = 5;
+        const MATRONA_CELNOSC_ZA_STOPIEN = 4;
+        const MATRONA_AP_ZA_STOPIEN = 2;
+
+        function createMatronaMesh() {
+            const g = new THREE.Group();
+            const chityna = new THREE.MeshLambertMaterial({ color: 0x16121a });
+            const chityna2 = new THREE.MeshLambertMaterial({ color: 0x2a2130 });
+            const skora = new THREE.MeshLambertMaterial({ color: 0xcdb3a6 });
+            const wlosy = new THREE.MeshLambertMaterial({ color: 0x0c0a0e });
+            const znak = new THREE.MeshBasicMaterial({ color: 0xb01e2e });
+            const oko = new THREE.MeshBasicMaterial({ color: 0xff3344 });
+
+            // --- PAJĘCZE CIELSKO ---
+            const odwlok = new THREE.Mesh(new THREE.SphereGeometry(0.5, 14, 11), chityna);
+            odwlok.scale.set(1, 0.9, 1.35);
+            odwlok.position.set(0, 0.55, -0.55);
+            g.add(odwlok);
+            // Czerwona klepsydra na odwłoku - znak czarnej wdowy
+            const plama = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), znak);
+            plama.scale.set(1, 0.3, 1.1);
+            plama.position.set(0, 0.95, -0.62);
+            g.add(plama);
+            const glowotul = new THREE.Mesh(new THREE.SphereGeometry(0.33, 12, 9), chityna2);
+            glowotul.scale.set(1, 0.8, 1.1);
+            glowotul.position.set(0, 0.52, 0.2);
+            g.add(glowotul);
+            // Osiem odnóży
+            const odnoza = [];
+            [-1, 1].forEach(strona => {
+                for (let i = 0; i < 4; i++) {
+                    const kat = 0.5 - i * 0.42;
+                    const udo = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.05, 0.72, 6), chityna);
+                    udo.position.set(strona * 0.42, 0.62, 0.22 - i * 0.26);
+                    udo.rotation.z = strona * 0.95; udo.rotation.x = kat * 0.4;
+                    g.add(udo); odnoza.push(udo);
+                    const golen = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.025, 0.8, 6), chityna);
+                    golen.position.set(strona * 0.74, 0.28, 0.26 - i * 0.3);
+                    golen.rotation.z = strona * -0.6; golen.rotation.x = kat * 0.4;
+                    g.add(golen); odnoza.push(golen);
+                }
+            });
+
+            // --- KOBIECE CIAŁO WYRASTAJĄCE Z PRZODU ---
+            const biodra = new THREE.Mesh(new THREE.SphereGeometry(0.21, 10, 8), skora);
+            biodra.scale.set(1.1, 0.8, 0.9);
+            biodra.position.set(0, 0.82, 0.3);
+            g.add(biodra);
+            const talia = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.17, 0.3, 9), skora);
+            talia.position.set(0, 1.04, 0.3);
+            g.add(talia);
+            const tors = new THREE.Mesh(new THREE.SphereGeometry(0.23, 12, 9), skora);
+            tors.scale.set(1.05, 1.1, 0.85);
+            tors.position.set(0, 1.32, 0.3);
+            g.add(tors);
+            // Ramiona wyciągnięte do przodu - tymi chwyta
+            [-1, 1].forEach(s => {
+                const ramie = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.045, 0.48, 7), skora);
+                ramie.position.set(s * 0.26, 1.3, 0.46);
+                ramie.rotation.x = 1.1; ramie.rotation.z = s * 0.3;
+                g.add(ramie);
+                const dlon = new THREE.Mesh(new THREE.SphereGeometry(0.06, 7, 6), skora);
+                dlon.position.set(s * 0.32, 1.22, 0.72);
+                g.add(dlon);
+            });
+            // Głowa z długimi włosami
+            const szyja = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.14, 7), skora);
+            szyja.position.set(0, 1.56, 0.3);
+            g.add(szyja);
+            const glowa = new THREE.Mesh(new THREE.SphereGeometry(0.17, 12, 10), skora);
+            glowa.scale.set(0.92, 1.05, 0.95);
+            glowa.position.set(0, 1.72, 0.3);
+            g.add(glowa);
+            [-1, 1].forEach(s => {
+                const o = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 5), oko);
+                o.position.set(s * 0.07, 1.74, 0.45);
+                g.add(o);
+            });
+            const czupryna = new THREE.Mesh(new THREE.SphereGeometry(0.19, 12, 10, 0, Math.PI * 2, 0, Math.PI / 1.7), wlosy);
+            czupryna.position.set(0, 1.74, 0.28);
+            g.add(czupryna);
+            // Włosy spływają po plecach aż na odwłok
+            for (let i = 0; i < 7; i++) {
+                const pasmo = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.02, 0.6 + Math.random() * 0.2, 5), wlosy);
+                const a = -0.5 + (i / 6) * 1.0;
+                pasmo.position.set(Math.sin(a) * 0.16, 1.45, 0.14 - Math.abs(Math.cos(a)) * 0.08);
+                pasmo.rotation.x = -0.25;
+                g.add(pasmo);
+            }
+
+            g.userData.yOffset = 0;
+            g.userData.unitType = 'matrona';
+            g.userData.odnoza = odnoza;
+            g.userData.skalaBazowa = 1;
+            return g;
+        }
+
+        // Czy ten wojownik jest właśnie wypijany
+        function przyssana(s) { return !!(s && s.wyssanaPrzez && !s.wyssanaPrzez.isDead); }
+
+        // Wczepienie się w ciało. Od tej chwili wojownik nie odejdzie, dopóki się
+        // nie wyrwie albo ktoś nie zabije Matrony.
+        function przyssijMatrone(e, s) {
+            if (!e || !s || s.isDead || s.isNPC || s.isAngel || s.isEscortee) return false;
+            if (e.przyssanaDo || przyssana(s) || uwiezionyPrzezGrabarza(s)) return false;
+            s.wyssanaPrzez = e;
+            e.przyssanaDo = s;
+            s.turnEnded = true; s.ap = 0;
+            showFloatingWarning(`${s.name} - MATRONA wczepiła się w ciało!`);
+            updateUI(`CZARNA MATRONA przyssała się do ${s.name}. Co turę wypija zdrowie i tyle samo ` +
+                     `dodaje sobie. Wyrwij się (walka wręcz, ${GRABARZ_SZARPNIECIE_AP} PA) albo ją zabij.`);
+            if (typeof playFileSfx === 'function' && typeof AudioFiles !== 'undefined')
+                playFileSfx(AudioFiles.swordHit, 0.6);
+            return true;
+        }
+
+        function odczepMatrone(e, powod) {
+            if (!e || !e.przyssanaDo) return;
+            const s = e.przyssanaDo;
+            s.wyssanaPrzez = null;
+            e.przyssanaDo = null;
+            if (powod) updateUI(powod);
+        }
+
+        // Ile wypija w jednej turze - napojona pije większymi haustami
+        function haustMatrony(e) {
+            return MATRONA_SSANIE + (e.stopienMatrony || 0);
+        }
+
+        // WYPICIE ZDROWIA. Ile zabierze, tyle dostaje sama - i to jest sedno
+        // tego wroga, więc liczymy jedno z drugiego, a nie dwie osobne liczby.
+        function wyssijZycie(e) {
+            const s = e && e.przyssanaDo;
+            if (!s || s.isDead) { odczepMatrone(e, null); return 0; }
+            const haust = haustMatrony(e);
+            const przed = s.hp;
+            applyDamageToUnit(s, haust, e, 'wyssanie');
+            const zabrane = Math.max(0, przed - s.hp);
+            // Dokładnie tyle, ile zabrała - ani więcej, ani mniej
+            e.hp += zabrane;
+            e.wyssane = (e.wyssane || 0) + zabrane;
+            // Pojemność rośnie razem z łupem, inaczej nadmiar przepadałby
+            if (e.hp > e.maxHp) e.maxHp = e.hp;
+            updateUI(`MATRONA wypija ${zabrane} PkŻ z ${s.name} i tyle samo dolicza sobie ` +
+                     `(${e.hp}/${e.maxHp} PkŻ).`);
+            sprawdzWzrostMatrony(e);
+            if (s.hp <= 0) {
+                odczepMatrone(e, null);
+                playDyingSfx(); killUnitWithAnim(s); refreshPlayerPositions();
+                checkGameOver();
+            }
+            return zabrane;
+        }
+
+        // Po każdym progu wypitego zdrowia Matrona rośnie - i to widać na planszy
+        function sprawdzWzrostMatrony(e) {
+            const nalezny = Math.min(MATRONA_MAX_STOPIEN,
+                                     Math.floor((e.wyssane || 0) / MATRONA_PROG_WZROSTU));
+            while ((e.stopienMatrony || 0) < nalezny) urosnijMatrone(e);
+        }
+
+        function urosnijMatrone(e) {
+            e.stopienMatrony = (e.stopienMatrony || 0) + 1;
+            const st = e.stopienMatrony;
+            // Fizycznie: cała bryła większa
+            if (e.mesh && e.mesh.scale) {
+                const sk = 1 + st * MATRONA_SKALA_STOPNIA;
+                e.mesh.scale.set(sk, sk, sk);
+            }
+            // Cechy: więcej życia, celniejsza, szybsza, mocniejszy cios
+            e.maxHp += MATRONA_HP_ZA_STOPIEN;
+            e.hp += MATRONA_HP_ZA_STOPIEN;
+            e.accuracyBonus = (e.accuracyBonus || 0) + MATRONA_CELNOSC_ZA_STOPIEN;
+            e.maxAp = (e.maxAp || MATRONA_AP) + MATRONA_AP_ZA_STOPIEN;
+            e.dmgBonus = (e.dmgBonus || 0) + 1;
+            showFloatingWarning('MATRONA ROŚNIE!');
+            updateUI(`Czarna Matrona nabrzmiewa od wypitej krwi - ${st}. stopień: ` +
+                     `${e.hp}/${e.maxHp} PkŻ, mocniejszy cios, celniejsza i szybsza.`);
+            return st;
+        }
+
+        // Tura Matrony. Pajęcza: oplątuje z dystansu, dopada wręcz, a gdy już
+        // się wczepi - pije i nie odpuszcza.
+        function turaMatrony(e) {
+            const dalej = (ms) => setTimeout(processNextEnemy, ms || 250);
+            const koniec = () => { e.ap = 0; currentEnemyIndex++; setTimeout(processNextEnemy, 80); };
+            if (gameOver || !e.mesh) { koniec(); return; }
+
+            // 1) Wczepiona - pije. Nic innego jej nie interesuje.
+            if (e.przyssanaDo) {
+                const s = e.przyssanaDo;
+                if (s.isDead || s.wyssanaPrzez !== e) { odczepMatrone(e, null); koniec(); return; }
+                if (e.ap >= MATRONA_SSANIE_KOSZT) {
+                    e.ap -= MATRONA_SSANIE_KOSZT;
+                    animWroga(e, 'atak', true);
+                    wyssijZycie(e);
+                    if (!gameOver) dalej(400); else koniec();
+                    return;
+                }
+                koniec(); return;
+            }
+
+            const cele = soldiers.filter(s => !s.isDead && s.mesh);
+            if (!cele.length) { koniec(); return; }
+            const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
+            const eLvl = e.level || 0;
+            const dyst = (s) => Math.max(Math.abs(Math.round(s.mesh.position.x) - ex),
+                                         Math.abs(Math.round(s.mesh.position.z) - ez));
+            let cel = null, najD = Infinity;
+            cele.forEach(s => {
+                const d = dyst(s) + (s.isNPC ? 8 : 0);
+                if (d < najD) { najD = d; cel = s; }
+            });
+            const px = Math.round(cel.mesh.position.x), pz = Math.round(cel.mesh.position.z);
+            const dist = Math.max(Math.abs(px - ex), Math.abs(pz - ez));
+
+            // 2) Stoi przy ciele - wczepia się. Spętany nie ma jak się wyrwać,
+            //    więc najpierw oplątuje, a potem przyssysa: tak robi pająk.
+            if (dist <= 1 && (cel.level || 0) === eLvl && !cel.isNPC &&
+                e.ap >= MATRONA_PRZYSSANIE_KOSZT && !uwiezionyPrzezGrabarza(cel)) {
+                e.ap -= MATRONA_PRZYSSANIE_KOSZT;
+                faceTowards(e, px, pz);
+                if (przyssijMatrone(e, cel)) {
+                    // Pierwszy haust bierze od razu - za to podejście wręcz
+                    if (e.ap >= MATRONA_SSANIE_KOSZT) { e.ap -= MATRONA_SSANIE_KOSZT; wyssijZycie(e); }
+                    if (!gameOver) dalej(400); else koniec();
+                    return;
+                }
+            }
+
+            // 3) Cios pazurami, gdy wczepić się nie da (cywil, ktoś już trzymany)
+            if (dist <= 1 && (cel.level || 0) === eLvl && e.ap >= MATRONA_CIOS_KOSZT) {
+                e.ap -= MATRONA_CIOS_KOSZT;
+                faceTowards(e, px, pz);
+                animWroga(e, 'atak', true);
+                const obr = MATRONA_CIOS + (e.dmgBonus || 0);
+                if (Math.random() < 0.85) {
+                    applyDamageToUnit(cel, obr, e);
+                    updateUI(`MATRONA rozrywa ${cel.name} (-${obr} PkŻ).`);
+                } else updateUI('Matrona chybia.');
+                if (cel.hp <= 0) { playDyingSfx(); killUnitWithAnim(cel); if (!cel.isNPC) refreshPlayerPositions(); }
+                checkGameOver();
+                if (!gameOver) dalej(300); else koniec();
+                return;
+            }
+
+            // 4) Z dystansu oplątuje pajęczyną - potem łatwiej dopadnie
+            if (dist > 1 && dist <= WEB_RANGE && e.ap >= MATRONA_CIOS_KOSZT) {
+                const wolny = cele.find(s => !s.isNPC && !isSoldierWebbed(s) &&
+                                             dyst(s) > 1 && dyst(s) <= WEB_RANGE);
+                if (wolny && !e.pajeczynaWTurze) {
+                    e.pajeczynaWTurze = combatTurnCounter;
+                    e.ap -= MATRONA_CIOS_KOSZT;
+                    faceTowards(e, Math.round(wolny.mesh.position.x), Math.round(wolny.mesh.position.z));
+                    tryWebSoldier(e, wolny);
+                    if (!gameOver) dalej(300); else koniec();
+                    return;
+                }
+            }
+
+            // 5) Podchodzi do najbliższego ciała
+            if (e.ap > 0 && dist > 1) {
+                const sasiednie = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1]];
+                let najkrotsza = null;
+                sasiednie.forEach(d => {
+                    const nx = px + d[0], nz = pz + d[1];
+                    if (!isWithinPlayBounds(nx, nz) || !canStandAt(nx, nz, eLvl)) return;
+                    if (isUnitAtLevel(nx, nz, eLvl, e)) return;
+                    const sc = findPath(ex, ez, nx, nz, eLvl, e);
+                    if (!sc || sc.path.length === 0) return;
+                    if (!najkrotsza || sc.path.length < najkrotsza.path.length) najkrotsza = sc;
+                });
+                if (najkrotsza) {
+                    const zapas = e.ap >= MATRONA_PRZYSSANIE_KOSZT ? MATRONA_PRZYSSANIE_KOSZT : 0;
+                    let krokow = najkrotsza.path.length + zapas <= e.ap
+                        ? najkrotsza.path.length
+                        : Math.min(najkrotsza.path.length, e.ap);
+                    if (krokow > 0) {
+                        const walk = najkrotsza.path.slice(0, krokow);
+                        e.ap -= walk.length;
+                        animWroga(e, 'walk');
+                        faceTowards(e, px, pz);
+                        moveAlongPath({ mesh: e.mesh, userData: e.mesh.userData }, walk, 150, () => {
+                            animWroga(e, 'idle');
+                            refreshEnemyPositions();
+                            if (typeof updateFoW === 'function') updateFoW();
+                            if (!gameOver) dalej(120); else koniec();
+                        });
+                        return;
+                    }
+                }
+            }
+            koniec();
+        }
+
         function createGlizdaMesh() {
             const g = new THREE.Group();
             const ciało = new THREE.MeshLambertMaterial({ color: 0xa8826e });
@@ -21481,6 +23562,19 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const mapaGlizd = currentCombatTheme &&
                     !['cyber', 'katedra', 'alcatraz', 'stacja', 'powodz', 'newyork'].includes(currentCombatTheme.id);
                 const glizdaWypadla = !robakWypadl && mapaGlizd && Math.random() < 0.18;
+                // Gargulec przysiada na gzymsach i murach - szuka go tam, gdzie
+                // jest architektura, nie na bagnie czy w szczerym polu.
+                const mapaGargulcow = currentCombatTheme &&
+                    ['katedra', 'nekropolia', 'cmentarzysko', 'alcatraz', 'newyork',
+                     'otchlan', 'dom', 'wieza', 'ostoja', 'szpital', 'parow'].includes(currentCombatTheme.id);
+                const gargulecWypadl = !robakWypadl && !glizdaWypadla && mapaGargulcow && Math.random() < 0.22;
+                // Bliźniaki lewitują, więc teren ich nie ogranicza - mogą wypaść wszędzie
+                const blizniakiWypadly = !robakWypadl && !glizdaWypadla && !gargulecWypadl &&
+                    Math.random() < 0.14;
+                // Czarna Matrona zakłada gniazda tam, gdzie wiszą pajęczyny
+                const mapaMatrony = currentCombatTheme && PAJECZYNA_MAPY.includes(currentCombatTheme.id);
+                const matronaWypadla = !robakWypadl && !glizdaWypadla && !gargulecWypadl &&
+                    !blizniakiWypadly && mapaMatrony && Math.random() < 0.16;
                 // Lustrzak potrzebuje kogoś do podrobienia - najwyżej jeden na misję,
                 // bo dwaj ci sami wojownicy to zagadka, trzej to już farsa.
                 // Bezimienny: jeden na misję. Dwóch naraz byłoby nie do upilnowania.
@@ -21555,6 +23649,19 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     type = 'lustrzak'; maxHp = 12; maxAp = 14;
                     mesh = createLustrzakMesh(kogo ? kogo.name : 'WOJOWNIK', kogo ? kogo.class : null);
                     podrobionyNaKim = kogo ? kogo.name : null;
+                } else if (matronaWypadla) {
+                    // Pajęcze zachowanie, ale wypija zdrowie i rośnie od wypitego
+                    type = 'matrona'; maxHp = MATRONA_HP; maxAp = MATRONA_AP;
+                    mesh = createMatronaMesh();
+                } else if (blizniakiWypadly) {
+                    // Dwie głowy, dwa sektory obserwacji, dwa strzały na turę.
+                    type = 'blizniaki'; maxHp = BLIZNIAKI_HP; maxAp = BLIZNIAKI_AP;
+                    mesh = createBlizniakiMesh();
+                } else if (gargulecWypadl) {
+                    // Mało życia, za to kule ognia i skrzydła. Czeka zastygły,
+                    // dopóki ktoś nie podejdzie na GARGULEC_PRZEBUDZENIE pól.
+                    type = 'gargulec'; maxHp = GARGULEC_HP; maxAp = GARGULEC_AP;
+                    mesh = createGargulecMesh();
                 } else if (glizdaWypadla) {
                     // Średnia w ataku i obronie, ale bardzo dużo punktów akcji -
                     // po wynurzeniu dogoni niemal każdego.
@@ -21684,6 +23791,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 noteEnemyEncountered(type);
                 enemies.push({ mesh: mesh, type: type, hp: maxHp, maxHp: maxHp, ap: maxAp, maxAp: maxAp, accuracyBonus: accuracyBonus, isDead: false, facingAngle: initialFacing, level: spawnLevel, gatunek: gatunekTegoWroga,
                                podZiemia: type === 'robak' || type === 'glizda', wAucie: !!autoKryjowka,
+                               zastygly: type === 'gargulec',
+                               lewituje: type === 'blizniaki',
+                               przyssanaDo: null, wyssane: 0, stopienMatrony: 0,
+                               facingAngle2: null, fazaUnoszenia: Math.random() * 6.28,
                                glizdaPoprzedniDystans: null, glizdaZZaskoczenia: false,
                                ujawniony: false, podrobionyNaKim: podrobionyNaKim,
                                lup: [], ucieka: false,
@@ -21713,6 +23824,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function findPath(startX, startZ, targetX, targetZ, level, pathIgnoreUnit, canFly) {
             level = level || 0;
+            // Kto lewituje, ten przelatuje nad wodą i przepaścią - i nie trzeba
+            // tego powtarzać w każdym miejscu, które liczy drogę.
+            if (pathIgnoreUnit && (pathIgnoreUnit.lewituje || (pathIgnoreUnit.levitateTurns || 0) > 0)) canFly = true;
             if (startX === targetX && startZ === targetZ) return { cost: 0, path: [] };
             let startH = Math.abs(startX - targetX) + Math.abs(startZ - targetZ);
             // Kolejka priorytetowa na kopcu binarnym. Wcześniej było liniowe szukanie minimum,
@@ -22058,6 +24172,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             fast:     { kolor: 0xcc00ff, poswiata: 0xe090ff, ksztalt: 'iglica' },
             summoner: { kolor: 0x66ffcc, poswiata: 0xaaffee, ksztalt: 'fala' },
             koszmar:  { kolor: 0xff5511, poswiata: 0xffaa44, ksztalt: 'ogien' },
+            gargulec: { kolor: 0xff6611, poswiata: 0xffcc55, ksztalt: 'ogien' },
+            blizniaki: { kolor: 0xffd24a, poswiata: 0xb98cff, ksztalt: 'fala' },
             vampire:  { kolor: 0x8c1020, poswiata: 0xdd4466, ksztalt: 'nietoperz' },
             wisp:     { kolor: 0xaaddff, poswiata: 0xddf0ff, ksztalt: 'iskra' },
             strzyga:  { kolor: 0xeef2f5, poswiata: 0xffffff, ksztalt: 'fala' },
@@ -22164,6 +24280,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 });
             }
             slideObject(projectile, endX, endY, endZ, 400, () => { 
+                // Pocisk, który dolatuje w okolicę lampy czy neonu, zbija szkło
+                if (typeof stluczSwiatla === 'function') stluczSwiatla(endX, endZ, SZKLO_PROMIEN, false);
                 scene.remove(projectile); 
                 // pocisk to grupa - zwalniamy wszystkie jej części
                 projectile.traverse(ch => {
@@ -22194,6 +24312,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Pełznąca ciemność dusi widok każdemu, kto znajdzie się w jej zasięgu
             if (cel && cel.mesh && gasicielBlisko(cel.mesh.position.x, cel.mesh.position.z)) {
                 return GASICIEL_DUSZENIE;
+            }
+            // CIEMNOŚĆ po zbitym świetle dusi widok wojownikowi. Warunek na 'kto'
+            // jest istotny: wrogowie pytają o zasięg BEZ argumentu, więc ciemność
+            // ich nie dotyczy - i o to w niej chodzi.
+            if (kto && kto.mesh && !kto.isNPC && czyCiemno(kto.mesh.position.x, kto.mesh.position.z)) {
+                const prog = maFobie(kto, 'nyktofobia') ? CIEMNOSC_WZROK_FOBIK : CIEMNOSC_WZROK;
+                return prog + getLampBonus();
             }
             const bonus = getLampBonus();
             // Szpital: poza kręgiem światła generatora widać tylko na wyciągnięcie ręki
@@ -22251,13 +24376,24 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function isInVisionCone(e, targetX, targetZ) {
             const dx = targetX - e.mesh.position.x, dz = targetZ - e.mesh.position.z;
             if (Math.hypot(dx, dz) < 0.1) return true;
+            // Płomień pochodni widać z każdej strony - kto ją niesie, ten nie
+            // schowa się za plecami wroga.
+            if (typeof zdradzaPochodnia === 'function' && zdradzaPochodnia(targetX, targetZ)) return true;
             // Kto stoi na wyciągnięcie ręki, tego się zauważa niezależnie od tego,
             // w którą stronę się patrzy. Bez tego wróg idący gdzie indziej mijał
             // wojownika tuż obok i nie reagował na niego wcale.
             if (Math.max(Math.abs(dx), Math.abs(dz)) <= 1.2) return true;
             const angleToTarget = Math.atan2(dx, dz);
             const facing = e.facingAngle || 0;
-            return Math.abs(angleDiff(angleToTarget, facing)) <= VISION_CONE_HALF_ANGLE;
+            if (Math.abs(angleDiff(angleToTarget, facing)) <= VISION_CONE_HALF_ANGLE) return true;
+            // BLIŹNIAKI patrzą dwiema głowami w dwa różne kawałki terenu - druga
+            // głowa ma swój własny stożek. Dlatego obejście ich bokiem nic nie daje.
+            if (e.type === 'blizniaki') {
+                const drugi = (e.facingAngle2 === undefined || e.facingAngle2 === null)
+                    ? facing + BLIZNIAKI_ROZSTAW : e.facingAngle2;
+                if (Math.abs(angleDiff(angleToTarget, drugi)) <= VISION_CONE_HALF_ANGLE) return true;
+            }
+            return false;
         }
         function faceTowards(e, targetX, targetZ) {
             const dx = targetX - e.mesh.position.x, dz = targetZ - e.mesh.position.z;
@@ -22300,6 +24436,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             bezimienny: 'BEZIMIENNY', bluznierca: 'BLUŹNIERCA', poborca: 'POBORCA',
             oltarznik: 'OŁTARZNIK', roj: 'RÓJ', wydrazony: 'WYDRĄŻONY', gasiciel: 'GASICIEL',
             zalobnica: 'ŻAŁOBNICA',
+            gargulec: 'GARGULEC',
+            blizniaki: 'BLIŹNIAKI',
+            topielec: 'TOPIELEC',
+            matrona: 'CZARNA MATRONA',
             spider_small: 'PAJĄK', spider_big: 'WIELKI PAJĄK', klaun: 'KLAUN', robak: 'ROBAK', general: 'GENERAŁ', femina: 'FEMINA',
             zakonnik: 'ZAKONNIK', inkwizytor: 'INKWIZYTOR'
         };
@@ -22744,6 +24884,28 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                  !w.mesh.userData.hiddenByLevel;
             });
 
+            // Ślady bestii - tak samo jak kopiec: widać je dopiero na miejscu,
+            // a pierwszy odczytany ślad danego rodzaju mówi oddziałowi, co tu jest.
+            sladyWrogow.forEach(sl => {
+                const widac = odkryte(sl.x, sl.z);
+                if (sl.mesh) sl.mesh.visible = widac;
+                if (widac && !sl.widziany) { sl.widziany = true; odczytajSlad(sl); }
+            });
+
+            // Kopce kreta - znak widać dopiero wtedy, gdy ktoś tam dojdzie.
+            // Pierwszy odkryty kopiec to ostrzeżenie dla oddziału.
+            kopceKrecie.forEach(k => {
+                const widac = odkryte(k.x, k.z);
+                if (k.mesh) k.mesh.visible = widac;
+                if (widac && !k.widziany) {
+                    k.widziany = true;
+                    if (!kopiecOstrzezenieDane) {
+                        kopiecOstrzezenieDane = true;
+                        showFloatingWarning('Kopiec kreta - coś wielkiego ryje tu pod ziemią!');
+                    }
+                }
+            });
+
             // Źródła blasku chowamy tak samo - neon za nieodkrytym murem nie może
             // świecić graczowi przez mgłę i zdradzać, co tam stoi.
             zrodlaBlasku.forEach(z => {
@@ -22935,7 +25097,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (typeof updateFloorVisibility === 'function') updateFloorVisibility();
 
             const seenAt = (u) => {
-                if (u.podZiemia || u.wAucie || u.wZasadzce) return false;   // ukryty wróg jest niewidoczny
+                if (u.podZiemia || u.wAucie || u.wZasadzce || u.wWodzie) return false;   // ukryty wróg jest niewidoczny
                 // Arena to wystawa - mgła wojny nie ma tam nic do ukrywania.
                 // Bez tego część okazów stojących dalej od oddziału była niewidoczna.
                 if (arenaAktywna) return true;
@@ -23215,6 +25377,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // przypisuje każdemu polu indeks w siatce instancji dla jego ówczesnego typu.
             // Gdy typ zmieni się później, indeks wskazuje inną siatkę, kolor leci w pustkę,
             // a narysowany kafel nie dostaje go nigdy - stąd czarna podłoga.
+            // Zbiorniki wodne na zwykłych planszach - PRZED budowaniem kafli,
+            // bo woda zmienia typ terenu i wysokość pola.
+            rozlejZbiorniki();
             usunSladyWspolczesnosci();
             // Alejki cmentarza przetarte PO wszystkich przebiegach generatora,
             // ale PRZED renderowaniem - wtedy usuniętych bryl nikt nawet nie rysuje
@@ -23278,6 +25443,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             rozstawPatrole();
             rozstawLuny();
             rozstawZrodlaBlasku();
+            // Kopce po patrolach: glizdy już stoją, a kopiec musi trafić obok tej,
+            // która faktycznie leży pod ziemią na tej planszy.
+            rozstawKopceKrecie();
+            // Ślady pozostałych bestii - tak samo po rozstawieniu wrogów, bo
+            // każdy ślad musi leżeć przy TEJ bestii, która tu jest.
+            rozstawSladyWrogow();
+            // Pochodnie i stan świateł - od nowa na każdej planszy
+            wyczyscCiemnosc();
+            rozstawPochodnie();
+            // Topielce czekają zanurzone - po rozstawieniu wrogów, bo muszą
+            // zająć pola wody, na których nikt inny nie stoi.
+            rozstawTopielce();
             // Cele misji (zamek, loch) dostawiają przeszkody PO renderowaniu mapy,
             // więc bez tego ich mury byłyby niewidoczne mimo blokowania przejścia.
             renderObstacles();
@@ -23438,6 +25615,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 b.innerText = `${nazwa} (${ladunkow(active, rodzaj)})`;
                 b.style.outline = (active.amunicja === rodzaj) ? '2px solid #ffdd88' : 'none';
             });
+            // Pochodnia: przycisk ma tylko ten, kto ją niesie
+            (function () {
+                const b = document.getElementById('btn-pochodnia');
+                if (!b) return;
+                const widac = !!(active && active.maPochodnie);
+                b.style.display = widac ? '' : 'none';
+                if (!widac) return;
+                b.innerText = active.pochodniaZapalona ? 'Zgaś pochodnię' : 'Zapal pochodnię';
+                b.style.outline = active.pochodniaZapalona ? '2px solid #ffdd88' : 'none';
+            })();
+
             // Ocucenie pokazujemy tylko wtedy, gdy obok faktycznie ktoś leży
             (function () {
                 const b = document.getElementById('btn-ocuc');
@@ -23535,9 +25723,21 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // --- BAŃKA OCHRONNA (Uzdrowiciel/Mentalista) ---
         // Półsfera o promieniu 5 kafli. Wrogowie muszą trafić w nią 3 razy, by ją zniszczyć.
         // Znika, gdy rzucający się poruszy.
-        let shieldBubble = null; // { x, z, hitsLeft, mesh, caster }
+        let shieldBubble = null; // { x, z, hitsLeft, maxHits, mesh, caster }
         const SHIELD_RADIUS = 3;
-        const SHIELD_MAX_HITS = 3;
+        const SHIELD_MAX_HITS = 3;      // podstawa; mocniejszy umysł utrzyma więcej
+        const SHIELD_HITS_CAP = 8;
+        // Kopuła na trzy trafienia pękała w jednej turze: zwykły zombie z pełną
+        // pulą punktów uderza cztery razy, więc wojownik STOJĄCY W ŚRODKU i tak
+        // obrywał - z boku wyglądało to, jakby strzały przechodziły przez osłonę.
+        // Wytrzymałość rośnie teraz z Mądrością rzucającego, tak samo jak liczba
+        // użyć: przy 16 Mądrości kopuła przyjmuje pięć ciosów.
+        function trafieniaOslony(caster) {
+            const idx = caster ? soldiers.indexOf(caster) : -1;
+            const madrosc = getWarriorStat(idx < 0 ? 0 : idx, 'madrosc');
+            return Math.min(SHIELD_HITS_CAP,
+                            SHIELD_MAX_HITS + Math.max(0, Math.floor((madrosc - STAT_BASE) / 3)));
+        }
 
         // Rozpostarcie bańki ochronnej - używa jej i mentalista, i Tarcza Świętej Barbary
         function createShieldBubble(caster) {
@@ -23545,9 +25745,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             clearShieldBubble(null);
             const cx = caster.mesh.position.x, cz = caster.mesh.position.z;
             const cy = getTerrainY(Math.round(cx), Math.round(cz));
+            const ile = trafieniaOslony(caster);
             const geo = new THREE.SphereGeometry(SHIELD_RADIUS, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2);
             const mat = new THREE.MeshBasicMaterial({
-                color: 0x55aaff, transparent: true, opacity: 0.10 + 0.07 * SHIELD_MAX_HITS,
+                color: 0x55aaff, transparent: true, opacity: SHIELD_KRYCIE_MAX,
                 side: THREE.DoubleSide, depthWrite: false
             });
             const mesh = new THREE.Mesh(geo, mat);
@@ -23555,7 +25756,41 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             mesh.position.set(cx, cy, cz);
             mesh.castShadow = false; mesh.receiveShadow = false;
             scene.add(mesh);
-            shieldBubble = { x: cx, z: cz, hitsLeft: SHIELD_MAX_HITS, mesh: mesh, caster: caster };
+            shieldBubble = { x: cx, z: cz, hitsLeft: ile, maxHits: ile, mesh: mesh, caster: caster };
+        }
+
+        // WYGLĄD KOPUŁY. Im mniej trafień jej zostało, tym bledsza: traci krycie
+        // i barwę, z błękitu schodząc w siną biel. Dzięki temu widać, że osłona
+        // dostaje - wcześniej krycie liczyło się od stałej liczby trafień, więc
+        // przy mocniejszej kopule zmiana po ciosie była ledwie zauważalna.
+        const SHIELD_KRYCIE_MIN = 0.06;   // tyle zostaje tuż przed pęknięciem
+        const SHIELD_KRYCIE_MAX = 0.34;   // tyle ma świeżo rozpostarta
+        function krycieOslony(hitsLeft, maxHits) {
+            const u = maxHits > 0 ? Math.max(0, Math.min(1, hitsLeft / maxHits)) : 0;
+            return SHIELD_KRYCIE_MIN + (SHIELD_KRYCIE_MAX - SHIELD_KRYCIE_MIN) * u;
+        }
+        function odswiezWygladOslony(poTrafieniu) {
+            if (!shieldBubble || !shieldBubble.mesh || !shieldBubble.mesh.material) return;
+            const mat = shieldBubble.mesh.material;
+            const u = shieldBubble.maxHits > 0
+                ? Math.max(0, Math.min(1, shieldBubble.hitsLeft / shieldBubble.maxHits)) : 0;
+            mat.opacity = krycieOslony(shieldBubble.hitsLeft, shieldBubble.maxHits);
+            // Barwa blednie razem z kryciem: pełna to błękit, resztki to siwa biel
+            if (mat.color && mat.color.setRGB) {
+                mat.color.setRGB(0.33 + (1 - u) * 0.52, 0.67 + (1 - u) * 0.26, 1.0);
+            }
+            if (!poTrafieniu) return;
+            // Krótki rozbłysk w chwili trafienia - żeby dało się go zauważyć
+            // nawet wtedy, gdy kopuła jest już ledwie widoczna.
+            const start = performance.now();
+            const docelowe = mat.opacity;
+            const szczyt = Math.min(0.75, docelowe + 0.3);
+            activeAnimations.push(function (t) {
+                if (!shieldBubble || shieldBubble.mesh.material !== mat) return true;
+                const p = Math.min(1, (t - start) / 320);
+                mat.opacity = szczyt + (docelowe - szczyt) * p;
+                return p >= 1;
+            });
         }
 
         function clearShieldBubble(reason) {
@@ -23650,7 +25885,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return Math.max(1, Math.round(base * (1 - penalty / 100)));
         }
 
-        function applyDamageToUnit(unit, amount, napastnik) {
+        // Czwarty argument mówi, SKĄD rana. Kopuła jest osłoną przed ciosem i
+        // pociskiem - ogień pod stopami ani jad we krwi nie są uderzeniem w nią
+        // i nie wolno im jej zużywać. Bez tego jeden tik pożaru zjadał całą
+        // osłonę drużyny, zanim padł choć jeden strzał.
+        const RANY_NIE_W_OSLONE = ['ogien', 'jad', 'infekcja', 'klatwa'];
+
+        function applyDamageToUnit(unit, amount, napastnik, zrodlo) {
             // Smocza Stal - przez turę żadne obrażenia nie przechodzą
             if (unit && unit.invulnTurns > 0) {
                 updateUI(`${unit.name} odbija cios smoczą stalą!`);
@@ -23667,16 +25908,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 return;
             }
             // Bańka ochronna przyjmuje całe trafienie na siebie (3 trafienia i pęka)
-            if (shieldBubble && unit && unit.mesh && !unit.isNPC) {
+            if (shieldBubble && unit && unit.mesh && !unit.isNPC &&
+                RANY_NIE_W_OSLONE.indexOf(zrodlo) === -1) {
                 if (isInsideShield(unit.mesh.position.x, unit.mesh.position.z)) {
                     shieldBubble.hitsLeft--;
                     if (shieldBubble.hitsLeft <= 0) {
                         clearShieldBubble("Osłona drużyny pękła pod ostrzałem!");
                     } else {
-                        if (shieldBubble.mesh && shieldBubble.mesh.material) {
-                            shieldBubble.mesh.material.opacity = 0.10 + 0.07 * shieldBubble.hitsLeft;
-                        }
-                        updateUI(`Osłona przyjęła trafienie! (pozostało ${shieldBubble.hitsLeft} z ${SHIELD_MAX_HITS})`);
+                        odswiezWygladOslony(true);
+                        updateUI(`Osłona przyjęła trafienie i blednie! ` +
+                                 `(pozostało ${shieldBubble.hitsLeft} z ${shieldBubble.maxHits})`);
                     }
                     return;
                 }
@@ -24318,7 +26559,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const wx = (u) => Math.round(u.mesh.position.x) + offsetX;
             const wz = (u) => Math.round(u.mesh.position.z) + offsetZ;
             [...soldiers, ...enemies, ...npcs].forEach(u => {
-                if (u.isDead || (u.levitateTurns || 0) > 0) return;   // lewitujący unosi się nad wodą
+                if (u.isDead || (u.levitateTurns || 0) > 0 || u.lewituje) return;   // lewitujący unosi się nad wodą
                 const mx = wx(u), mz = wz(u);
                 if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return;
                 if (riverGrid[mx][mz] !== 1) return;
@@ -24905,7 +27146,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function czyWojownikWidzi(s, e) {
             if (!s || s.isDead || !s.mesh || !e || e.isDead || !e.mesh) return false;
-            if (e.podZiemia || e.wZasadzce || e.wAucie) return false;   // ukryci nie liczą się
+            if (e.podZiemia || e.wZasadzce || e.wAucie || e.wWodzie) return false;   // ukryci nie liczą się
             if (e.mesh.visible === false) return false;
             const sx = Math.round(s.mesh.position.x), sz = Math.round(s.mesh.position.z);
             const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
@@ -25335,7 +27576,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             const cx = active.mesh.position.x, cz = active.mesh.position.z;
             const covered = soldiers.filter(s => !s.isDead && isInsideShield(s.mesh.position.x, s.mesh.position.z)).length;
-            updateUI(`${active.name} rozpościera osłonę! Chroni ${covered} wojowników, wytrzyma ${SHIELD_MAX_HITS} trafienia. Znika, gdy się ruszysz. [${active.shieldsUsed}/${shieldLimit}]`);
+            updateUI(`${active.name} rozpościera osłonę! Chroni ${covered} ${covered === 1 ? 'wojownika' : 'wojowników'}, ` +
+                     `wytrzyma ${shieldBubble ? shieldBubble.maxHits : SHIELD_MAX_HITS} trafień. ` +
+                     `Znika, gdy się ruszysz. [${active.shieldsUsed}/${shieldLimit}]`);
             updateUI();
         }
 
@@ -25421,6 +27664,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         (function () {
             const b = document.getElementById('btn-zadanie');
             if (b) b.addEventListener('click', (e) => { e.stopPropagation(); zadanieAction(); });
+        })();
+        (function () {
+            const b = document.getElementById('btn-pochodnia');
+            if (b) b.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                if (gameOver || !isPlayerTurn) return;
+                const a2 = getActiveSoldier();
+                if (!a2) return;
+                przelaczPochodnie(a2);
+                updateUI();
+                if (typeof updateAPBar === 'function') updateAPBar();
+            });
         })();
         // Amunicja specjalna - przełącznik przed strzałem
         ['zapalajacy', 'mrozacy'].forEach(rodzaj => {
@@ -25714,6 +27969,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (active && active.isPrisoner) return callback ? callback() : undefined; // więźnia nikt nie ostrzeliwuje
             let overwatchEnemy = enemies.find(e => {
                 if (e.isDead || e.ap < shootCost) return false;
+                // Gargulec, dopóki jest kamieniem, nie reaguje na nic
+                if (e.zastygly) return false;
                 // JEDNA reakcja na jeden ruch wojownika. Funkcja woła samą siebie
                 // po każdym strzale, więc wróg z pełną pulą punktów strzelał dwa
                 // razy pod rząd, zanim w ogóle doszło do jego tury.
@@ -26661,7 +28918,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (uwiezionyPrzezGrabarza(active)) {
                     updateUI(wKrypcie(active)
                         ? 'Płyta krypty trzyma - napieraj na nią (walka wręcz) albo czekaj na pomoc.'
-                        : 'Zombie trzyma mocno - najpierw trzeba się wyrwać (walka wręcz).');
+                        : (topiony(active)
+                            ? 'Topielec trzyma za nogi - najpierw trzeba się wyrwać (walka wręcz).'
+                        : (przyssana(active)
+                            ? 'Matrona wczepiła się w ciało - najpierw trzeba ją oderwać (walka wręcz).'
+                            : 'Zombie trzyma mocno - najpierw trzeba się wyrwać (walka wręcz).')));
                     return;
                 }
                 if (isSoldierWebbed(active)) {
@@ -26888,6 +29149,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     // Kto podszedł pod kryjówkę, ten dostaje z góry - jeszcze
                     // w swojej turze, zanim zdąży cokolwiek zrobić
                     tikZasadzek();
+                    // Kto podszedł pod kamienną figurę, ten ją budzi
+                    tikGargulcow();
+                    // Kto podszedł pod brzeg, ten wywabia topielca
+                    tikTopielcow();
+                    // Pochodnia leżąca na drodze sama wpada w rękę
+                    podniesPochodnie(active);
                     checkPrisonerRescue();
                     sprawdzKryptyOddzialu();
                     checkSarcophagi();
@@ -26949,6 +29216,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             zawalMost();
             tikPozaru();
             tikZasadzek();
+            tikGargulcow();
+            tikTopielcow();
+            tikOgluszenia();
+            tikCiemnosci();
             tikPobojowiska();
             tikLodu();
             tikGeneratorow();
@@ -28595,7 +30866,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // się na większości plansz rzadziej niż raz na trzy misje, bo brakowało
         // po prostu kandydata - a to nie jest dobry powód, żeby jej nie było.
         const ZASADZKA_TYPY = ['spider_small', 'spider_big', 'vampire', 'strzyga',
-                               'stalker', 'wisp'];
+                               'stalker', 'wisp', 'matrona'];
         const ZASADZKA_KRYJOWKI = ['tree', 'kloda', 'house-roof', 'column', 'regal'];
 
         function czyMapaZDrzewami() {
@@ -29365,6 +31636,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 zniszczone++;
             }
 
+            // Ogień wypala klosze i oprawy - po pożarze zostaje ciemność
+            if (typeof stluczSwiatla === 'function') {
+                for (let i = 0; i < noweOgniska.length; i++) {
+                    stluczSwiatla(noweOgniska[i][0] - offsetX, noweOgniska[i][1] - offsetZ, 1.2, true);
+                }
+            }
+
             // Kto stoi w ogniu, ten się pali
             let poparzeni = 0;
             soldiers.forEach(s => {
@@ -29374,7 +31652,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (ogienGrid[mx][mz] !== 1) return;
                 const bazowe = planszowy ? POZAR_OBRAZENIA : ZAPAL_OBRAZENIA;
                 const obr = obrazeniaOgnia(s, bazowe);
-                applyDamageToUnit(s, obr);
+                applyDamageToUnit(s, obr, null, 'ogien');
                 poparzeni++;
                 const ileOdporny = stopienOdpornosci(soldiers.indexOf(s));
                 updateUI(`${s.name} stoi w ogniu! (-${obr} HP` +
@@ -29383,6 +31661,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
             [...enemies, ...npcs].forEach(u => {
                 if (u.isDead || !u.mesh) return;
+                // Lewitujący unosi się nad płomieniem - ogień go nie dotyka
+                if (u.lewituje) return;
                 const mx = Math.round(u.mesh.position.x) + offsetX, mz = Math.round(u.mesh.position.z) + offsetZ;
                 if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return;
                 if (ogienGrid[mx][mz] !== 1) return;
@@ -30948,7 +33228,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             tanatofobia: { nazwa: 'Tanatofobia', co: 'Lęk przed śmiercią i zjawami',
                 objaw: 'Przy Śmierci i Bezimiennym traci odporność na panikę; twarzą w twarz zamyka oczy na turę.' },
             agorafobia: { nazwa: 'Agorafobia', co: 'Strach przed otwartą przestrzenią',
-                objaw: 'Bez ściany za plecami celuje o 15% gorzej.' }
+                objaw: 'Bez ściany za plecami celuje o 15% gorzej.' },
+            nyktofobia: { nazwa: 'Nyktofobia', co: 'Lęk przed ciemnością',
+                objaw: 'W ciemności widzi jeszcze mniej niż inni i traci 1 PA na turę.' }
         };
         const FOBIA_TRAUMA_PROG = 100;      // ile trzeba przeżyć, żeby coś zostało na stałe
         const FOBIA_KARA_CELNOSC = 15;      // agorafobia, w punktach celności
@@ -30959,10 +33241,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Rytuał Oczyszczenia w Kaplicy
         const FOBIA_RYTUAL_LASKA = 25, FOBIA_RYTUAL_DNI = 3, FOBIA_RYTUAL_KAPLICA = 2;
         // Skąd bierze się trauma. Nazwa źródła decyduje potem, JAKA fobia zostanie.
-        const TR = { piorun: 34, roj: 26, krew: 20, zjawa: 30, ciasno: 12, otwarte: 10,
+        const TR = { piorun: 34, roj: 26, krew: 20, zjawa: 30, ciasno: 12, otwarte: 10, ciemnosc: 18,
                      panika: 16, rana: 14 };
         const TRAUMA_FOBIA = { piorun: 'keraunofobia', roj: 'entomofobia', krew: 'hematofobia',
-                               zjawa: 'tanatofobia', ciasno: 'klaustrofobia', otwarte: 'agorafobia' };
+                               zjawa: 'tanatofobia', ciasno: 'klaustrofobia', otwarte: 'agorafobia',
+                               ciemnosc: 'nyktofobia' };
 
         function fobiaOf(s) { return (s && s.fobia) || null; }
         function maFobie(s, id) { return fobiaOf(s) === id; }
@@ -33317,6 +35600,23 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Skuty lodem nie zrobi nic, dopóki lód nie puści
             if (czyZamrozony(e)) { e.ap = 0; currentEnemyIndex++; setTimeout(processNextEnemy, 15); return; }
 
+            // GARGULEC: zastygły w kamieniu stoi bezczynnie, obudzony ma własną
+            // turę - lata i ciska ogniem, więc nie przechodzi zwykłą ścieżką AI.
+            // TOPIELEC: nie strzela - ogłusza, wlecze i topi
+            if (e.type === 'topielec') { turaTopielca(e); return; }
+
+            // CZARNA MATRONA: pajęcza tura, a po wczepieniu się tylko picie
+            if (e.type === 'matrona') { turaMatrony(e); return; }
+
+            // BLIŹNIAKI: dwie głowy, dwa sektory, dwa strzały na turę - i lewitacja
+            if (e.type === 'blizniaki') { turaBlizniakow(e); return; }
+
+            if (e.type === 'gargulec') {
+                if (e.zastygly) { e.ap = 0; currentEnemyIndex++; setTimeout(processNextEnemy, 15); return; }
+                turaGargulca(e);
+                return;
+            }
+
             // DRZWI: potwór, który natrafi na zamknięte skrzydło obok siebie,
             // otwiera je za 1 punkt ruchu - tak samo jak wojownik.
             if (e.ap >= 1 && domyInstancje.length > 0) {
@@ -34138,6 +36438,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
                 // Tryb łowów: bez cywilów na planszy wrogowie idą prosto na wojowników,
                 // nawet jeśli ich nie widzą - koniec czekania w ukryciu.
+                // PATROL idzie PRZED trybem łowów. Łowy włączają się, gdy na planszy
+                // nie ma już cywilów do pilnowania - a `every` na pustej liście jest
+                // prawdziwe, więc na większości plansz były aktywne od pierwszej tury
+                // i patrolujący zamiast chodzić swoją trasą od razu ruszał w stronę
+                // oddziału. Kto ma trasę, ten najpierw ją obchodzi.
+                if (e.patrol && e.ap > 0 && ruchPatrolu(e, () => {
+                        currentEnemyIndex++; setTimeout(processNextEnemy, 120);
+                    })) return;
+
                 if (huntingModeActive() && e.ap > 0) {
                     let prey = null, bestD = Infinity;
                     soldiers.forEach(s => {
@@ -34179,11 +36488,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         }
                     }
                 }
-
-                // PATROL: nikogo nie widzi, więc wraca na swoją trasę
-                if (e.patrol && e.ap > 0 && ruchPatrolu(e, () => {
-                        currentEnemyIndex++; setTimeout(processNextEnemy, 120);
-                    })) return;
 
                 currentEnemyIndex++; setTimeout(processNextEnemy, 100);
                 return;
@@ -35638,6 +37942,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             animujPortale(time);
             animujLuny(time);
             animujZrodlaBlasku(time);
+            animujBlizniaki(time);
             animujRuchMurow(dt);
             animujZjazdyZasadzki(dt);
             przezroczysteDachyWagonow();
@@ -36074,6 +38379,52 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                       'i uderza raz, po czym rozwiewa się bez śladu.\n\n' +
                       'Ginie od jednego trafienia i zadaje niewiele obrażeń. Problem w tym, że rzadko przychodzi sam.',
                 stats: [['Punkty życia', '1'], ['Punkty ruchu', '10'], ['Premia do celności', 'brak'], ['Styl walki', 'jeden cios, potem znika']]
+            },
+            {
+                id: 'topielec', title: 'Topielec',
+                text: 'Człekokształtny, sino-niebieski, obrzmiały od wody. Krótkie nogi, ramiona zwisające niemal do ziemi, ' +
+                      'na barkach wodorosty przyniesione z dna. Czeka zanurzony i niewidoczny - zdradza go tylko to, że woda się burzy.\n\n' +
+                      'Nie strzela w ogóle. Kto podejdzie blisko brzegu, ten go wywabia: topielec OGŁUSZA - ogłuszony traci całą turę, ' +
+                      'ani kroku - a potem wlecze go do wody i trzyma pod powierzchnią, aż się utopi. Z uścisku da się wyrwać ' +
+                      '(walka wręcz) albo ktoś musi topielca zabić.\n\n' +
+                      'Nie odejdzie dalej niż kilka pól od wody, więc odwrót od brzegu zawsze działa. Trzymaj się dalej od lustra wody - ' +
+                      'albo podchodź tam w dwójkę, żeby miał kto wyrwać towarzysza.',
+                stats: [['Punkty życia', '12'], ['Punkty ruchu', '10'], ['Premia do celności', 'nie strzela'],
+                        ['Styl walki', 'ogłuszenie, wleczenie do wody, topienie']]
+            },
+            {
+                id: 'matrona', title: 'Czarna Matrona',
+                text: 'Kobiece ciało - tors, ramiona, głowa w długich włosach - wyrasta z chitynowego cielska na ośmiu odnóżach, ' +
+                      'z nabrzmiałym odwłokiem i czerwoną klepsydrą na grzbiecie.\n\n' +
+                      'Zachowuje się jak pająk: oplątuje z dystansu, a potem dopada. Jej prawdziwa broń to przyssanie - ' +
+                      'wczepia się w ciało, a wojownik nie odejdzie, dopóki się nie wyrwie (walka wręcz) albo ktoś jej nie zabije. ' +
+                      'Co turę wypija zdrowie i DOKŁADNIE tyle samo dodaje sobie. Napojona nabrzmiewa: rośnie fizycznie, ' +
+                      'a z nią jej życie, celność, szybkość i siła ciosu. Zostawiona przy jednym wojowniku na kilka tur ' +
+                      'przestaje być tym wrogiem, który stanął na początku planszy.',
+                stats: [['Punkty życia', '16 - i rośnie od wypitej krwi'], ['Punkty ruchu', '12'],
+                        ['Premia do celności', 'rośnie z każdym stopniem'],
+                        ['Styl walki', 'pajęczyna, przyssanie, wysysanie zdrowia']]
+            },
+            {
+                id: 'blizniaki', title: 'Bliźniaki',
+                text: 'Jedno barczyste cielsko, dwie głowy wyrastające z barków na dwie strony i ani jednej nogi - ' +
+                      'zamiast nich zwisający strzęp ciała. Unosi się nad ziemią, więc woda, przepaść i ogień pod stopami nic dla niego nie znaczą.\n\n' +
+                      'Każda głowa lustruje INNY kawałek terenu i ma własne pole widzenia. Obejście bokiem nic nie daje - jedna z głów ' +
+                      'już tam patrzy. W turze strzela dwa razy, po jednym strzale na głowę, każda w swój własny cel. ' +
+                      'Jedyna szczelina w tej obserwacji to martwe pole między sektorami: kto tam wejdzie, ten podejdzie niezauważony.',
+                stats: [['Punkty życia', '14'], ['Punkty ruchu', '12'], ['Premia do celności', 'brak'],
+                        ['Styl walki', 'dwa strzały na turę z dwóch sektorów, lewituje']]
+            },
+            {
+                id: 'gargulec', title: 'Gargulec',
+                text: 'Skrzydlata bestia z szarego kamienia, przykucnięta na postumencie. Mija się ją bez namysłu - ' +
+                      'na murach katedr i w nekropoliach takich figur stoją dziesiątki.\n\n' +
+                      'Ożywa, gdy ktoś podejdzie na kilka pól albo w nią strzeli: kamień pęka, oczy zapalają się czerwienią, ' +
+                      'a skrzydła rozkładają się z trzaskiem. Od tej chwili ciska kulami ognia, które podpalają pole pod celem, ' +
+                      'i wzlatuje na dachy oraz piętra, gdzie wojownik nie dojdzie. Pancerza nie ma żadnego - kilka trafień ' +
+                      'rozsypuje go w gruz. Sztuka polega na tym, żeby strzelić pierwszym.',
+                stats: [['Punkty życia', '9'], ['Punkty ruchu', '14'], ['Premia do celności', 'strzał z góry'],
+                        ['Styl walki', 'kule ognia z powietrza, pazury w zwarciu']]
             },
             {
                 id: 'stalker', title: 'Pełzacz',
