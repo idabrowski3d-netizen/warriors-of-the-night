@@ -1113,6 +1113,16 @@
     }
     .widziani-kwadrat:hover { background: rgba(170, 32, 24, 0.95); transform: scale(1.18); }
     .widziani-kwadrat.wskazany { background: rgba(200, 140, 20, 0.95); border-color: #ffd36a; }
+    /* Celownik na wrogu wybranym z kwadracika - drugi klik w kwadracik strzela */
+    .widziani-celownik { position: absolute; width: 46px; height: 46px; transform: translate(-50%, -50%);
+        border: 2px solid #ffd36a; border-radius: 50%; box-shadow: 0 0 8px rgba(255, 200, 80, 0.7);
+        pointer-events: none; }
+    .widziani-celownik::before, .widziani-celownik::after { content: ''; position: absolute; background: #ffd36a; }
+    .widziani-celownik::before { left: 50%; top: -8px; bottom: -8px; width: 2px; margin-left: -1px; }
+    .widziani-celownik::after { top: 50%; left: -8px; right: -8px; height: 2px; margin-top: -1px; }
+    .widziani-celownik span { position: absolute; left: 50%; top: 100%; transform: translate(-50%, 10px);
+        font: bold 13px 'Courier New', monospace; color: #ffd36a; white-space: nowrap;
+        text-shadow: 0 0 3px #000, 0 0 3px #000; }
     </style>
 
     <div id="minimap-container">
@@ -27438,6 +27448,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         let widzianiOdswiezenie = 0;          // ostatnie przeliczenie (ms)
         const WIDZIANI_CO_MS = 180;           // rzadziej niż klatka - to tylko HUD
         let widzianiStan = [];                // [{ s, lista: [wrogowie] }]
+        let wskazanyCel = null;               // { s, e, szansa } - po pierwszym kliku w kwadracik
+        let celZPaska = null;                 // pole wroga podstawiane zamiast kursora w obsluzRozkaz
 
         function czyWojownikWidzi(s, e) {
             if (!s || s.isDead || !s.mesh || !e || e.isDead || !e.mesh) return false;
@@ -27477,6 +27489,25 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return true;
         }
 
+        // Ta sama szansa, którą policzy strzał w obsluzRozkaz
+        function szansaZPaska(s, e) {
+            const sx = Math.round(s.mesh.position.x), sz = Math.round(s.mesh.position.z);
+            const tx = Math.round(e.mesh.position.x), tz = Math.round(e.mesh.position.z);
+            const sY = getLevelY(sx, sz, s.level || 0), tY = getLevelY(tx, tz, e.level || 0);
+            return calculateHitChance(Math.abs(tx - sx) + Math.abs(tz - sz), sY > tY,
+                getCoverObstacle(tx, tz, sx, sz) !== null, getCoverObstacle(sx, sz, tx, tz) !== null,
+                getPlayerAccuracyBonus(s, e) + (isCornfield(tx, tz) ? -20 : 0),
+                isCornfield(sx, sz) && s.isKneeling);
+        }
+
+        // Strzał zwykłą drogą kliknięcia, tylko z polem wroga zamiast kursora -
+        // celowanie nie zależy od wysokości, na której stoi wróg.
+        function strzelZPaska(e) {
+            celZPaska = { x: Math.round(e.mesh.position.x), z: Math.round(e.mesh.position.z) };
+            try { obsluzRozkaz({ clientX: 0, clientY: 0, button: 0, pointerType: 'mouse', target: document.body }); }
+            finally { celZPaska = null; }
+        }
+
         function rysujWidzianych() {
             const warstwa = document.getElementById('widziani-warstwa');
             if (!warstwa) return;
@@ -27504,8 +27535,26 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     // reagował na 'click', czyli później - wojownik zdążył już ruszyć
                     // na pole zasłonięte przez kwadracik.
                     kw.__hudWidziani = true;
+                    if (wskazanyCel && wskazanyCel.e === e && wskazanyCel.s === s) kw.classList.add('wskazany');
                     const wskaz = (ev) => {
                         if (ev && ev.stopPropagation) ev.stopPropagation();
+                        // Drugi klik w ten sam kwadracik - strzał
+                        if (wskazanyCel && wskazanyCel.e === e && wskazanyCel.s === s && getActiveSoldier() === s) {
+                            wskazanyCel = null;
+                            strzelZPaska(e);
+                            return;
+                        }
+                        // Strzela ten, nad kim jest kwadracik - przejmujemy go, jeśli można
+                        const idx = soldiers.indexOf(s);
+                        if (idx !== activeSoldierIndex && czyMoznaPrzejac(idx)) {
+                            activeSoldierIndex = idx;
+                            renderMinimap();
+                        }
+                        if (getActiveSoldier() === s) {
+                            wskazanyCel = { s: s, e: e, szansa: szansaZPaska(s, e) };
+                            updateUI(`${s.name} celuje: ${nazwaWroga(e)} - szansa ${wskazanyCel.szansa}%. ` +
+                                     'Kliknij numer jeszcze raz, by strzelić.');
+                        }
                         pokazWroga(e);
                         warstwa.children.forEach ? warstwa.children.forEach(g =>
                             (g.children || []).forEach(k => k.classList && k.classList.remove('wskazany')))
@@ -27521,13 +27570,27 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 });
                 warstwa.appendChild(grupa);
             });
+            if (wskazanyCel) {
+                const { s, e } = wskazanyCel;
+                const nadal = getActiveSoldier() === s && widzianiStan.some(w => w.s === s && w.lista.includes(e));
+                if (!nadal) { wskazanyCel = null; return; }
+                poz.set(e.mesh.position.x, e.mesh.position.y + 1.0, e.mesh.position.z);
+                poz.project(camera);
+                if (poz.z > 1) return;
+                const c = document.createElement('div');
+                c.className = 'widziani-celownik';
+                c.style.left = Math.round((poz.x * 0.5 + 0.5) * window.innerWidth) + 'px';
+                c.style.top = Math.round((-poz.y * 0.5 + 0.5) * window.innerHeight) + 'px';
+                c.innerHTML = `<span>${wskazanyCel.szansa}%</span>`;
+                warstwa.appendChild(c);
+            }
         }
 
         function tikWidzianych(czas) {
             const warstwa = document.getElementById('widziani-warstwa');
             if (!warstwa) return;
             // Poza turą gracza chowamy - w turze wroga i tak nic się nie klika
-            if (gameOver || !isPlayerTurn) { warstwa.innerHTML = ''; widzianiStan = []; return; }
+            if (gameOver || !isPlayerTurn) { warstwa.innerHTML = ''; widzianiStan = []; wskazanyCel = null; return; }
             if (czas - widzianiOdswiezenie > WIDZIANI_CO_MS) {
                 widzianiOdswiezenie = czas;
                 przeliczWidzianych();
@@ -29127,7 +29190,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             // Kliknięcie bezpośrednio na wojownika -> natychmiastowy wybór/przejęcie kontroli
             const livingSoldierMeshes = soldiers.filter(s => !s.isDead).map(s => s.mesh);
-            const soldierHits = raycaster.intersectObjects(livingSoldierMeshes, true);
+            const soldierHits = celZPaska ? [] : raycaster.intersectObjects(livingSoldierMeshes, true);
             if (soldierHits.length > 0) {
                 let root = soldierHits[0].object;
                 while (root && !livingSoldierMeshes.includes(root)) root = root.parent;
@@ -29144,11 +29207,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Klikanie liczone na wysokości kondygnacji aktywnego wojownika
             flatGround.constant = -(viewLevel * FLOOR_HEIGHT);
             raycaster.ray.intersectPlane(flatGround, intersectPoint);
-            if (sprobujRuszycWrota(intersectPoint, event)) return;
-            if (sprobujOtworzycDrzwi(intersectPoint, event)) return;
+            if (celZPaska) intersectPoint.set(celZPaska.x, 0, celZPaska.z);
+            else {
+                if (sprobujRuszycWrota(intersectPoint, event)) return;
+                if (sprobujOtworzycDrzwi(intersectPoint, event)) return;
+            }
 
             // CTRL + klik w ścianę = ostrzał muru
-            if (ctrlWcisniety && intersectPoint && gameMode === 'dream' && isPlayerTurn && !gameOver) {
+            if (!celZPaska && ctrlWcisniety && intersectPoint && gameMode === 'dream' && isPlayerTurn && !gameOver) {
                 const wx = Math.round(intersectPoint.x), wz = Math.round(intersectPoint.z);
                 const mur = scianaDoZburzenia(wx, wz);
                 const strz = getActiveSoldier();
