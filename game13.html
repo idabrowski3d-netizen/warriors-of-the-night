@@ -1146,6 +1146,23 @@
     </div>
 
     <script>
+        // Lokalny serwer (python -m http.server) potrafi zerwać część z ~30 równoległych
+        // pobrań .glb - model zostawał wtedy bryłą do końca gry. Każde wczytanie
+        // modelu, w całej grze, dostaje więc trzy powtórki, zanim zgłosi błąd.
+        if (THREE.GLTFLoader) {
+            const wczytajRaz = THREE.GLTFLoader.prototype.load;
+            THREE.GLTFLoader.prototype.load = function (url, onLoad, onProgress, onError) {
+                let proba = 0;
+                const sprobuj = () => wczytajRaz.call(this, url, onLoad, onProgress, err => {
+                    // Tylko zerwane połączenie (status 0) - brak pliku (404) i zły plik nie wrócą same
+                    const zerwane = err && err.target && err.target.status === 0;
+                    if (!zerwane || ++proba > 3) { if (onError) onError(err); return; }
+                    console.info(`[model] Ponawiam ${url} (${proba}/3) - zerwane połączenie`);
+                    setTimeout(sprobuj, 700 * proba);
+                });
+                sprobuj();
+            };
+        }
         // ========================================================
         // --- 0. SILNIK DŹWIĘKOWY (WEB AUDIO API) ---
         // ========================================================
