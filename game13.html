@@ -27508,6 +27508,28 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             finally { celZPaska = null; }
         }
 
+        // Pierwszy wybór celu: kamera, celownik, szansa. Ponowny wybór tego samego - strzał.
+        function wskazCelZPaska(s, e) {
+            if (wskazanyCel && wskazanyCel.e === e && wskazanyCel.s === s && getActiveSoldier() === s) {
+                wskazanyCel = null;
+                strzelZPaska(e);
+                return 'strzal';
+            }
+            // Strzela ten, nad kim jest kwadracik - przejmujemy go, jeśli można
+            const idx = soldiers.indexOf(s);
+            if (idx !== activeSoldierIndex && czyMoznaPrzejac(idx)) {
+                activeSoldierIndex = idx;
+                renderMinimap();
+            }
+            if (getActiveSoldier() === s) {
+                wskazanyCel = { s: s, e: e, szansa: szansaZPaska(s, e) };
+                updateUI(`${s.name} celuje: ${nazwaWroga(e)} - szansa ${wskazanyCel.szansa}%. ` +
+                         'Kliknij numer albo wciśnij jego cyfrę jeszcze raz, by strzelić.');
+            }
+            pokazWroga(e);
+            return 'cel';
+        }
+
         function rysujWidzianych() {
             const warstwa = document.getElementById('widziani-warstwa');
             if (!warstwa) return;
@@ -27538,24 +27560,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (wskazanyCel && wskazanyCel.e === e && wskazanyCel.s === s) kw.classList.add('wskazany');
                     const wskaz = (ev) => {
                         if (ev && ev.stopPropagation) ev.stopPropagation();
-                        // Drugi klik w ten sam kwadracik - strzał
-                        if (wskazanyCel && wskazanyCel.e === e && wskazanyCel.s === s && getActiveSoldier() === s) {
-                            wskazanyCel = null;
-                            strzelZPaska(e);
-                            return;
-                        }
-                        // Strzela ten, nad kim jest kwadracik - przejmujemy go, jeśli można
-                        const idx = soldiers.indexOf(s);
-                        if (idx !== activeSoldierIndex && czyMoznaPrzejac(idx)) {
-                            activeSoldierIndex = idx;
-                            renderMinimap();
-                        }
-                        if (getActiveSoldier() === s) {
-                            wskazanyCel = { s: s, e: e, szansa: szansaZPaska(s, e) };
-                            updateUI(`${s.name} celuje: ${nazwaWroga(e)} - szansa ${wskazanyCel.szansa}%. ` +
-                                     'Kliknij numer jeszcze raz, by strzelić.');
-                        }
-                        pokazWroga(e);
+                        if (wskazCelZPaska(s, e) === 'strzal') return;
                         warstwa.children.forEach ? warstwa.children.forEach(g =>
                             (g.children || []).forEach(k => k.classList && k.classList.remove('wskazany')))
                             : null;
@@ -28207,6 +28212,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // [G] zapal kapliczkę albo zamknij przejście, przy którym stoisz
             if (k === 'g' && gameMode === 'dream' && !dialogueOpen && !nameScreenOpen) {
                 e.preventDefault(); zadanieAction();
+            }
+            // [1]-[9] cel o tym numerze z kwadracików aktywnego wojownika; ta sama cyfra drugi raz - strzał
+            if (/^[1-9]$/.test(e.key) && gameMode === 'dream' && isPlayerTurn && !dialogueOpen && !nameScreenOpen) {
+                const a = getActiveSoldier();
+                const wpis = widzianiStan.find(w => w.s === a);
+                const cel = wpis && wpis.lista[+e.key - 1];
+                if (cel) { e.preventDefault(); wskazCelZPaska(a, cel); }
             }
             if (e.key === 'Escape' && trybTelekinezy) {
                 e.preventDefault(); przerwijTelekineze('Telekineza odwołana.');
@@ -39216,6 +39228,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 <div class="help-row"><span class="help-key">H</span>Kronika Wojownika (wiedza o wrogach)</div>
                 <h4>W trakcie misji</h4>
                 <div class="help-row"><span class="help-key">Tab</span>przełącz na kolejnego wojownika</div>
+                <div class="help-row"><span class="help-key">1–9</span>wyceluj we wroga o tym numerze (cyferki nad wojownikiem), ta sama cyfra drugi raz – strzał</div>
                 <div class="help-row"><span class="help-key">LPM</span>ruch, strzał, rozmowa - zależnie od celu</div>
                 <div class="help-row"><span class="help-key">Rolka</span>na planszy z piętrami: pokazuje kolejne kondygnacje</div>
                 <p style="color:#9ab;font-size:13px;margin-top:12px;">Kronikę można otworzyć tylko poza walką.</p>
