@@ -27524,7 +27524,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (getActiveSoldier() === s) {
                 wskazanyCel = { s: s, e: e, szansa: szansaZPaska(s, e) };
                 updateUI(`${s.name} celuje: ${nazwaWroga(e)} - szansa ${wskazanyCel.szansa}%. ` +
-                         'Kliknij numer albo wciśnij jego cyfrę jeszcze raz, by strzelić.');
+                         'Enter albo ponowny wybór numeru - strzał.');
             }
             pokazWroga(e);
             return 'cel';
@@ -28219,6 +28219,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const wpis = widzianiStan.find(w => w.s === a);
                 const cel = wpis && wpis.lista[+e.key - 1];
                 if (cel) { e.preventDefault(); wskazCelZPaska(a, cel); }
+            }
+            // [Enter] strzał do wybranego celu. preventDefault także dlatego, że Enter
+            // "kliknąłby" przycisk paska walki, który został zaznaczony po kliknięciu.
+            if (e.key === 'Enter' && wskazanyCel && gameMode === 'dream' && isPlayerTurn && !dialogueOpen && !nameScreenOpen) {
+                e.preventDefault();
+                wskazCelZPaska(wskazanyCel.s, wskazanyCel.e);
             }
             if (e.key === 'Escape' && trybTelekinezy) {
                 e.preventDefault(); przerwijTelekineze('Telekineza odwołana.');
@@ -39229,6 +39235,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 <h4>W trakcie misji</h4>
                 <div class="help-row"><span class="help-key">Tab</span>przełącz na kolejnego wojownika</div>
                 <div class="help-row"><span class="help-key">1–9</span>wyceluj we wroga o tym numerze (cyferki nad wojownikiem), ta sama cyfra drugi raz – strzał</div>
+                <div class="help-row"><span class="help-key">Enter</span>strzał do wybranego celu</div>
                 <div class="help-row"><span class="help-key">LPM</span>ruch, strzał, rozmowa - zależnie od celu</div>
                 <div class="help-row"><span class="help-key">Rolka</span>na planszy z piętrami: pokazuje kolejne kondygnacje</div>
                 <p style="color:#9ab;font-size:13px;margin-top:12px;">Kronikę można otworzyć tylko poza walką.</p>
