@@ -11404,8 +11404,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 case 'bagno':        return ['trzcina','trzcina','trzcina','paproc','kloda','grzyby','pniak','beczka','skrzynia'];
                 // Pustynia miała SAME kamienie i ani jednego kaktusa
                 case 'sahara':       return ['kaktus','kaktus','kepa','kepa','rock','rock','kosciotrup','skrzynia'];
-                case 'wioska':       return ['rock','krzak','beczka','kloda','zywoplot','kepa','skrzynia','stos_beczek'];
-                case 'alabama':      return ['zywoplot','zywoplot','lawka','kosz','kloda','krzak','kepa'];
+                case 'wioska':       return ['rock','krzak','beczka','kloda','zywoplot','kepa','skrzynia','stos_beczek','slup'];
+                case 'alabama':      return ['zywoplot','zywoplot','lawka','kosz','kloda','krzak','kepa','slup'];
                 case 'kremlin':
                 case 'whitehouse':
                 case 'zhongnanhai':  return ['lawka','lawka','kosz','kosz','zywoplot','zywoplot','beczka','rock'];
@@ -11415,7 +11415,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 case 'cmentarzysko': return ['nagrobek','nagrobek','rock','kloda','krzak','grzyby','krzyz'];
                 case 'wulkan':       return ['rock','rock','rock','rock'];
                 case 'zamiec':       return ['rock','kloda','pniak','krzak'];
-                case 'powodz':       return ['kloda','trzcina','trzcina','beczka','rock'];
+                case 'powodz':       return ['kloda','trzcina','trzcina','beczka','rock','slup'];
                 case 'wyspy':        return ['rock','trzcina','kloda','krzak','kepa'];
                 // Otchłań: tylko kamień, kości i czarny monolit - nic żywego
                 case 'otchlan':      return ['rock','rock','kosciotrup','obelisk','kosciotrup'];
@@ -11423,7 +11423,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 case 'alcatraz':     return ['regal','regal','skrzynia','beczka','lawka','skrzynia_metal','stos_beczek'];
                 case 'dom':          return ['regal','skrzynia','lawka','skrzynia'];
                 case 'most':         return ['skrzynia','beczka','skrzynia','skrzynia_metal'];
-                case 'pozar':        return ['beczka','lawka','kosz','skrzynia','pniak','skrzynia_metal','rusztowanie','stos_beczek'];
+                case 'pozar':        return ['beczka','lawka','kosz','skrzynia','pniak','skrzynia_metal','rusztowanie','stos_beczek','slup'];
                 case 'pobojowisko':  return ['kosciotrup','wlocznie','sztandar','nagrobek','pniak','kepa','skrzynia','krzyz'];
                 case 'jezioro':      return ['kra','kra','rock','trzcina','trzcina'];
                 case 'studnia':      return ['kosciotrup','beczka','skrzynia','rock'];
@@ -11433,7 +11433,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 case 'wieza':        return ['regal','skrzynia','lawka','skrzynia_metal','rusztowanie'];
                 // W labiryncie poza blokami leżą tylko rzeczy po tych, co nie wyszli
                 case 'klaustrofobia': return ['kosciotrup','skrzynia','beczka','kosciotrup'];
-                case 'stacja':       return ['regal','skrzynia','skrzynia','beczka','lawka','skrzynia_metal','skrzynia_metal','rusztowanie','stos_beczek'];
+                case 'stacja':       return ['regal','skrzynia','skrzynia','beczka','lawka','skrzynia_metal','skrzynia_metal','rusztowanie','stos_beczek','slup'];
                 default:             return ['rock','kloda','zywoplot','krzak','kepa'];
             }
         }
@@ -12992,6 +12992,23 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     });
                     g.position.set(pos.x, ty, pos.z);
                     g.rotation.y = Math.random() * Math.PI;
+                    scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'slup') {
+                    // Drewniany słup z poprzeczką i izolatorami (PRZEWRACALNE, pada na 3 pola)
+                    const g = new THREE.Group();
+                    const drewno = new THREE.MeshLambertMaterial({ color: 0x4e3b28 });
+                    const pal = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.15, 3.6, 8), drewno);
+                    pal.position.y = 1.8; g.add(pal);
+                    const poprzeczka = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.1, 0.1), drewno);
+                    poprzeczka.position.y = 3.25; g.add(poprzeczka);
+                    const szklo = new THREE.MeshLambertMaterial({ color: 0x9fc4b8 });
+                    [-0.45, 0, 0.45].forEach(ix => {
+                        const iz = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.12, 6), szklo);
+                        iz.position.set(ix, 3.36, 0); g.add(iz);
+                    });
+                    g.position.set(pos.x, ty, pos.z);
+                    g.rotation.y = (Math.random() < 0.5) ? 0 : Math.PI / 2;
                     scene.add(g); obstacleMeshes.push(g);
                 }
                 else if (pos.type === 'rumowisko') {
@@ -14596,8 +14613,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // w losową stronę. Przygniatają tego, kto tam stoi, a leżące zostają na
         // stałe: przewrócony regał może zamknąć wrogowi przejście albo oddziałowi
         // drogę odwrotu. Rusza je też ciężki wróg przechodzący tuż obok.
-        const PRZEWRACALNE = ['regal', 'rusztowanie', 'krzyz', 'stos_beczek'];
-        const PRZEWROT_NAZWY = { regal: 'Regał', rusztowanie: 'Rusztowanie', krzyz: 'Krzyż', stos_beczek: 'Stos beczek' };
+        const PRZEWRACALNE = ['regal', 'rusztowanie', 'krzyz', 'stos_beczek', 'slup'];
+        const PRZEWROT_NAZWY = { regal: 'Regał', rusztowanie: 'Rusztowanie', krzyz: 'Krzyż', stos_beczek: 'Stos beczek', slup: 'Słup' };
+        const PRZEWROT_DLUGOSC = { slup: 3 };   // na ile pól w linii pada (domyślnie 1)
         const PRZEWROT_OBRAZENIA = 6;
         const PRZEWROT_CIEZKI_SZANSA = 0.35;   // na krok ciężkiego wroga obok konstrukcji
 
@@ -14608,7 +14626,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
             if (!kierunki.length) return false;
             const [dx, dz] = kierunki[Math.floor(Math.random() * kierunki.length)];
-            const tx = obs.x + dx, tz = obs.z + dz;
+            // Wysoka konstrukcja kładzie się na kilku polach - aż do pierwszej przeszkody
+            const pola = [];
+            for (let k = 1; k <= (PRZEWROT_DLUGOSC[obs.type] || 1); k++) {
+                const px = obs.x + dx * k, pz = obs.z + dz * k, mx = px + offsetX, mz = pz + offsetZ;
+                if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth || obstacleGrid[mx][mz]) break;
+                pola.push([px, pz]);
+            }
             const nazwa = PRZEWROT_NAZWY[obs.type] || 'Konstrukcja';
             obs.type = 'rumowisko';
 
@@ -14626,10 +14650,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
             playFileSfx(AudioFiles.wallHit, 0.9);
 
-            const ocalaly = przygniec(tx, tz, nazwa);
-            // Leży na dwóch polach - tam, gdzie stała, i tam, gdzie upadła.
+            // Leży tam, gdzie stała, i tam, gdzie upadła.
             // Na żywym, przygniecionym nie stawiamy przeszkody: nie mógłby się wygrzebać.
-            if (!ocalaly) postawGruz(tx, tz);
+            pola.forEach(([px, pz]) => { if (!przygniec(px, pz, nazwa)) postawGruz(px, pz); });
             showFloatingWarning(`${nazwa} się przewraca!`);
             refreshPlayerPositions(); refreshEnemyPositions(); updateFoW();
             checkGameOver();
@@ -31818,7 +31841,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // co naprawdę łatwopalne. Inaczej jeden strzał zapalający
                 // kasowałby osłony na pół mapy.
                 if (!planszowy && ['kloda','zywoplot','tree','beczka','skrzynia','lawka',
-                                   'regal','kosz','namiot','wysciolka','rusztowanie','krzyz','stos_beczek'].indexOf(p.type) === -1) continue;
+                                   'regal','kosz','namiot','wysciolka','rusztowanie','krzyz','stos_beczek','slup'].indexOf(p.type) === -1) continue;
                 usunBryleOslony(p);
                 obstaclePositions.splice(i, 1);
                 obstacleMap.delete(`${p.x},${p.z}`);
