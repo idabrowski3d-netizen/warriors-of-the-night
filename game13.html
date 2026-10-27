@@ -11401,15 +11401,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 case 'bagno':        return ['trzcina','trzcina','trzcina','paproc','kloda','grzyby','pniak','beczka','skrzynia'];
                 // Pustynia miała SAME kamienie i ani jednego kaktusa
                 case 'sahara':       return ['kaktus','kaktus','kepa','kepa','rock','rock','kosciotrup','skrzynia'];
-                case 'wioska':       return ['rock','krzak','beczka','kloda','zywoplot','kepa','skrzynia'];
+                case 'wioska':       return ['rock','krzak','beczka','kloda','zywoplot','kepa','skrzynia','stos_beczek'];
                 case 'alabama':      return ['zywoplot','zywoplot','lawka','kosz','kloda','krzak','kepa'];
                 case 'kremlin':
                 case 'whitehouse':
                 case 'zhongnanhai':  return ['lawka','lawka','kosz','kosz','zywoplot','zywoplot','beczka','rock'];
-                case 'pentagon':     return ['beczka','beczka','kosz','rock','rock','skrzynia_metal','skrzynia_metal'];
+                case 'pentagon':     return ['beczka','beczka','kosz','rock','rock','skrzynia_metal','skrzynia_metal','stos_beczek'];
                 case 'wesole':       return ['beczka','kosz','kosz','lawka','lawka','beczka','zywoplot'];
                 case 'nekropolia':
-                case 'cmentarzysko': return ['nagrobek','nagrobek','rock','kloda','krzak','grzyby'];
+                case 'cmentarzysko': return ['nagrobek','nagrobek','rock','kloda','krzak','grzyby','krzyz'];
                 case 'wulkan':       return ['rock','rock','rock','rock'];
                 case 'zamiec':       return ['rock','kloda','pniak','krzak'];
                 case 'powodz':       return ['kloda','trzcina','trzcina','beczka','rock'];
@@ -11417,20 +11417,20 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // Otchłań: tylko kamień, kości i czarny monolit - nic żywego
                 case 'otchlan':      return ['rock','rock','kosciotrup','obelisk','kosciotrup'];
                 // Wnętrza: żadnych kamieni ani kłód - sprzęty, które tu pasują
-                case 'alcatraz':     return ['regal','regal','skrzynia','beczka','lawka','skrzynia_metal'];
+                case 'alcatraz':     return ['regal','regal','skrzynia','beczka','lawka','skrzynia_metal','stos_beczek'];
                 case 'dom':          return ['regal','skrzynia','lawka','skrzynia'];
                 case 'most':         return ['skrzynia','beczka','skrzynia','skrzynia_metal'];
-                case 'pozar':        return ['beczka','lawka','kosz','skrzynia','pniak','skrzynia_metal'];
-                case 'pobojowisko':  return ['kosciotrup','wlocznie','sztandar','nagrobek','pniak','kepa','skrzynia'];
+                case 'pozar':        return ['beczka','lawka','kosz','skrzynia','pniak','skrzynia_metal','rusztowanie','stos_beczek'];
+                case 'pobojowisko':  return ['kosciotrup','wlocznie','sztandar','nagrobek','pniak','kepa','skrzynia','krzyz'];
                 case 'jezioro':      return ['kra','kra','rock','trzcina','trzcina'];
                 case 'studnia':      return ['kosciotrup','beczka','skrzynia','rock'];
                 case 'szpital':      return ['lozko','wozek','kroplowka','regal'];
                 // Las wreszcie wygląda jak las: podszyt, próchno i grzyby
                 case 'las':          return ['kloda','paproc','paproc','krzak','krzak','grzyby','pniak','rock'];
-                case 'wieza':        return ['regal','skrzynia','lawka','skrzynia_metal'];
+                case 'wieza':        return ['regal','skrzynia','lawka','skrzynia_metal','rusztowanie'];
                 // W labiryncie poza blokami leżą tylko rzeczy po tych, co nie wyszli
                 case 'klaustrofobia': return ['kosciotrup','skrzynia','beczka','kosciotrup'];
-                case 'stacja':       return ['regal','skrzynia','skrzynia','beczka','lawka','skrzynia_metal','skrzynia_metal'];
+                case 'stacja':       return ['regal','skrzynia','skrzynia','beczka','lawka','skrzynia_metal','skrzynia_metal','rusztowanie','stos_beczek'];
                 default:             return ['rock','kloda','zywoplot','krzak','kepa'];
             }
         }
@@ -12942,6 +12942,65 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     }
                     g.position.set(pos.x, ty, pos.z);
                     g.rotation.y = Math.random() * Math.PI;
+                    scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'rusztowanie') {
+                    // Stalowe rury i dwa pomosty z desek - wysokie i chwiejne (PRZEWRACALNE)
+                    const g = new THREE.Group();
+                    const rura = new THREE.MeshLambertMaterial({ color: 0x6a6f73 });
+                    const deska = new THREE.MeshLambertMaterial({ color: 0x8a7350 });
+                    [[-0.4, -0.4], [0.4, -0.4], [-0.4, 0.4], [0.4, 0.4]].forEach(([nx, nz]) => {
+                        const r = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.6, 0.06), rura);
+                        r.position.set(nx, 1.3, nz); g.add(r);
+                    });
+                    [1.2, 2.4].forEach(h => {
+                        const pomost = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.06, 0.92), deska);
+                        pomost.position.y = h; g.add(pomost);
+                    });
+                    const zastrzal = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.6, 0.05), rura);
+                    zastrzal.position.set(0, 0.6, -0.4); zastrzal.rotation.z = 0.6; g.add(zastrzal);
+                    g.position.set(pos.x, ty, pos.z);
+                    g.rotation.y = (Math.random() < 0.5) ? 0 : Math.PI / 2;
+                    scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'krzyz') {
+                    // Drewniany albo kamienny krzyż na kopczyku (PRZEWRACALNE)
+                    const g = new THREE.Group();
+                    const mat = new THREE.MeshLambertMaterial({ color: Math.random() < 0.6 ? 0x5c4632 : 0x8a8a84 });
+                    const pion = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.7, 0.12), mat);
+                    pion.position.y = 0.85; g.add(pion);
+                    const poziom = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.12, 0.12), mat);
+                    poziom.position.y = 1.3; g.add(poziom);
+                    const kopiec = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 0.15, 8),
+                        new THREE.MeshLambertMaterial({ color: 0x4a3d2e }));
+                    kopiec.position.y = 0.07; g.add(kopiec);
+                    g.position.set(pos.x, ty, pos.z);
+                    g.rotation.y = Math.random() * Math.PI;
+                    scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'stos_beczek') {
+                    // Dwie beczki w dole, trzecia na nich (PRZEWRACALNE)
+                    const g = new THREE.Group();
+                    const mat = new THREE.MeshLambertMaterial({ color: [0x6b4626, 0x53402c, 0x3f4a52][Math.floor(Math.random() * 3)] });
+                    const geo = new THREE.CylinderGeometry(0.28, 0.28, 0.82, 10);
+                    [[-0.29, 0.41], [0.29, 0.41], [0, 1.23]].forEach(([bx, by]) => {
+                        const b = new THREE.Mesh(geo, mat);
+                        b.position.set(bx, by, 0); g.add(b);
+                    });
+                    g.position.set(pos.x, ty, pos.z);
+                    g.rotation.y = Math.random() * Math.PI;
+                    scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'rumowisko') {
+                    // Po przewróconej konstrukcji: połamane deski (widać je po wczytaniu zapisu)
+                    const g = new THREE.Group();
+                    const mat = new THREE.MeshLambertMaterial({ color: 0x5a4b38 });
+                    for (let k = 0; k < 4; k++) {
+                        const d = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.08, 0.16), mat);
+                        d.position.set((Math.random() - 0.5) * 0.3, 0.06 + k * 0.07, (Math.random() - 0.5) * 0.5);
+                        d.rotation.y = Math.random() * Math.PI; g.add(d);
+                    }
+                    g.position.set(pos.x, ty, pos.z);
                     scene.add(g); obstacleMeshes.push(g);
                 }
                 else if (pos.type === 'skrzynia_metal') {
@@ -14502,8 +14561,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // obstacleMeshes nie jest idealnie równoległe do obstaclePositions, bo część
         // gałęzi rysowania dokłada bryły poza główną pętlą. Indeks mylił bryły
         // i usuwał nie tę przeszkodę, w którą się strzelało.
-        function usunBryleOslony(obs) {
-            if (!obs) return;
+        function indeksBrylyOslony(obs) {
             let naj = -1, najD = 0.8;
             for (let i = 0; i < obstacleMeshes.length; i++) {
                 const m = obstacleMeshes[i];
@@ -14511,6 +14569,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const d = Math.hypot(m.position.x - obs.x, m.position.z - obs.z);
                 if (d < najD) { najD = d; naj = i; }
             }
+            return naj;
+        }
+
+        function usunBryleOslony(obs) {
+            if (!obs) return;
+            const naj = indeksBrylyOslony(obs);
             if (naj === -1) return;
             const m = obstacleMeshes[naj];
             scene.remove(m);
@@ -14522,9 +14586,92 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         // Osłony, których pudło nie niszczy
-        const NIEZNISZCZALNE_OSLONY = ['wall-resistant', 'skrzynia_metal'];
+        const NIEZNISZCZALNE_OSLONY = ['wall-resistant', 'skrzynia_metal', 'rumowisko'];
+
+        // ===================== CO SIĘ PRZEWRACA =====================
+        // Wysokie konstrukcje nie znikają po pudle - walą się na sąsiednie pole
+        // w losową stronę. Przygniatają tego, kto tam stoi, a leżące zostają na
+        // stałe: przewrócony regał może zamknąć wrogowi przejście albo oddziałowi
+        // drogę odwrotu. Rusza je też ciężki wróg przechodzący tuż obok.
+        const PRZEWRACALNE = ['regal', 'rusztowanie', 'krzyz', 'stos_beczek'];
+        const PRZEWROT_NAZWY = { regal: 'Regał', rusztowanie: 'Rusztowanie', krzyz: 'Krzyż', stos_beczek: 'Stos beczek' };
+        const PRZEWROT_OBRAZENIA = 6;
+        const PRZEWROT_CIEZKI_SZANSA = 0.35;   // na krok ciężkiego wroga obok konstrukcji
+
+        function przewrocKonstrukcje(obs) {
+            const kierunki = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dz]) => {
+                const mx = obs.x + dx + offsetX, mz = obs.z + dz + offsetZ;
+                return mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth && !obstacleGrid[mx][mz];
+            });
+            if (!kierunki.length) return false;
+            const [dx, dz] = kierunki[Math.floor(Math.random() * kierunki.length)];
+            const tx = obs.x + dx, tz = obs.z + dz;
+            const nazwa = PRZEWROT_NAZWY[obs.type] || 'Konstrukcja';
+            obs.type = 'rumowisko';
+
+            // Bryła kładzie się w stronę upadku (obrót wokół podstawy)
+            const i = indeksBrylyOslony(obs);
+            if (i !== -1) {
+                const m = obstacleMeshes[i], start = performance.now();
+                m.rotation.set(0, 0, 0);
+                (function krok(t) {
+                    const k = Math.min(1, (t - start) / 450);
+                    m.rotation.z = -dx * Math.PI / 2 * k * k;
+                    m.rotation.x = dz * Math.PI / 2 * k * k;
+                    if (k < 1) requestAnimationFrame(krok);
+                })(start);
+            }
+            playFileSfx(AudioFiles.wallHit, 0.9);
+
+            // Kto stał na polu upadku, obrywa i zostaje przygnieciony na turę
+            let ocalaly = false;
+            [...soldiers, ...enemies, ...npcs].forEach(u => {
+                if (u.isDead || !u.mesh || (u.level || 0) !== 0) return;
+                if (Math.round(u.mesh.position.x) !== tx || Math.round(u.mesh.position.z) !== tz) return;
+                const kto = enemies.includes(u) ? nazwaWroga(u) : u.name;
+                if (soldiers.includes(u)) {
+                    applyDamageToUnit(u, PRZEWROT_OBRAZENIA, null, 'przewrot');
+                    if (u.hp <= 0) { playDyingSfx(); killUnitWithAnim(u); }
+                } else {
+                    u.hp -= PRZEWROT_OBRAZENIA;
+                    if (u.hp <= 0) {
+                        u.isDead = true;
+                        if (enemies.includes(u)) { playEnemyDeathSfx(u); zabijWroga(u); } else scene.remove(u.mesh);
+                    }
+                }
+                if (!u.isDead) { u.przygnieciony = 1; ocalaly = true; }
+                updateUI(`${nazwa} przygniata: ${kto} (-${PRZEWROT_OBRAZENIA} HP)` + (u.isDead ? ' i ginie!' : '!'));
+            });
+            // Leży na dwóch polach - tam, gdzie stała, i tam, gdzie upadła.
+            // Na żywym, przygniecionym nie stawiamy przeszkody: nie mógłby się wygrzebać.
+            if (!ocalaly) {
+                const gruz = { x: tx, z: tz, type: 'rumowisko' };
+                obstaclePositions.push(gruz);
+                obstacleGrid[tx + offsetX][tz + offsetZ] = gruz;
+                obstacleMap.set(`${tx},${tz}`, gruz);
+            }
+            showFloatingWarning(`${nazwa} się przewraca!`);
+            refreshPlayerPositions(); refreshEnemyPositions(); updateFoW();
+            checkGameOver();
+            return true;
+        }
+
+        // Krok ciężkiego wroga (od TK_MASA_PROG HP) może ruszyć konstrukcję obok
+        function ciezkiKrok(mesh, x, z) {
+            const w = enemies.find(e => e.mesh === mesh);
+            if (!w || w.isDead || (w.maxHp || w.hp) < TK_MASA_PROG || (w.level || 0) !== 0) return;
+            for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+                const o = obstacleMap.get(`${Math.round(x) + dx},${Math.round(z) + dz}`);
+                if (o && PRZEWRACALNE.includes(o.type) && Math.random() < PRZEWROT_CIEZKI_SZANSA) {
+                    przewrocKonstrukcje(o);
+                    return;
+                }
+            }
+        }
+
         function destroyObstacle(obstacle) {
             if (!obstacle || NIEZNISZCZALNE_OSLONY.includes(obstacle.type)) return;
+            if (PRZEWRACALNE.includes(obstacle.type) && przewrocKonstrukcje(obstacle)) return;
             if (obstacle.type.startsWith('house') && !(obstacle.type === 'house-wall' && obstacle.destructible)) return;
             let key = `${obstacle.x},${obstacle.z}`;
             if (obstacleMap.has(key)) {
@@ -24137,6 +24284,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             slideObject(meshData.mesh, nextStep.x, targetY, nextStep.z, durationPerTile, () => {
                 meshData.__krokow = (meshData.__krokow || 0) + 1;   // liczymy pola faktycznie przebyte
                 const czyGracz = meshData.mesh.userData.unitType === 'player';
+                if (!czyGracz) ciezkiKrok(meshData.mesh, nextStep.x, nextStep.z);
                 if (czyGracz || meshData.mesh.userData.unitType === 'npc') updateFoW();
 
                 // Marsz przerywamy, gdy w polu widzenia pojawi się nowy wróg.
@@ -24453,7 +24601,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return przedrostek + (NAZWY_WROGOW[e.type] || (e.type || '').toUpperCase());
         }
 
-        const NISKIE_PRZESZKODY = ['lozko', 'wozek', 'kroplowka', 'kra', 'wlocznie', 'balustrada', 'skrzynia', 'skrzynia_metal', 'tor', 'krata', 'prycza', 'kibel', 'ruina', 'zachod-weranda', 'koniowiaz', 'woz',
+        const NISKIE_PRZESZKODY = ['lozko', 'wozek', 'kroplowka', 'kra', 'wlocznie', 'balustrada', 'skrzynia', 'skrzynia_metal', 'rumowisko', 'tor', 'krata', 'prycza', 'kibel', 'ruina', 'zachod-weranda', 'koniowiaz', 'woz',
                                    'rock', 'kloda', 'lawka', 'kosz', 'zywoplot', 'beczka',
                                    'nagrobek', 'crate', 'barrel', 'bush', 'grave', 'tombstone'];
 
@@ -25240,6 +25388,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             wyczyscTrupy();
             wyczyscLod();
             studniaZamkniete = [];
+            peknieteStropy.forEach(p => scene.remove(p.mesh)); peknieteStropy = [];
             generatory = [];
             if (znacznikDotyku) { scene.remove(znacznikDotyku); znacznikDotyku = null; }
             if (znacznikWroga) { scene.remove(znacznikWroga); znacznikWroga = null; }
@@ -29260,6 +29409,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             tikZadanPlanszy();
             tikKryzysuWiary();
             tikFobii();
+            tikStropow();
             tickAngels();
             tickLevitation();
             tickSummonedObedience();
@@ -31623,12 +31773,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const mx = p.x + offsetX, mz = p.z + offsetZ;
                 if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
                 if (ogienGrid[mx][mz] !== 1) continue;
-                if (p.type === 'wall-resistant') continue;      // kamień zostaje
+                if (NIEZNISZCZALNE_OSLONY.includes(p.type)) continue;   // kamień, stal i gruz zostają
                 // Punktowe ognisko nie rozbiera planszy - trawi tylko to,
                 // co naprawdę łatwopalne. Inaczej jeden strzał zapalający
                 // kasowałby osłony na pół mapy.
                 if (!planszowy && ['kloda','zywoplot','tree','beczka','skrzynia','lawka',
-                                   'regal','kosz','namiot','wysciolka'].indexOf(p.type) === -1) continue;
+                                   'regal','kosz','namiot','wysciolka','rusztowanie','krzyz','stos_beczek'].indexOf(p.type) === -1) continue;
                 usunBryleOslony(p);
                 obstaclePositions.splice(i, 1);
                 obstacleMap.delete(`${p.x},${p.z}`);
@@ -37691,6 +37841,82 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 floorMeshes.push(inst);
             }
             updateFloorVisibility();
+        }
+
+        // ===================== ZAPADAJĄCE SIĘ STROPY =====================
+        // Na piętrze strop pod wojownikiem może pęknąć. Turę wcześniej widać rysę
+        // i sypie się tynk - ale nie zawsze dokładnie pod nim, czasem na polu obok.
+        // Po turze płyta spada: kto na niej stoi, leci kondygnację (albo więcej) w dół,
+        // obrywa i ląduje na innym poziomie niż reszta oddziału.
+        const STROP_PEKA_SZANSA = 0.06;        // na wojownika na piętrze, na turę
+        const STROP_SPADEK_OBRAZENIA = 4;      // za każdą kondygnację upadku
+        let peknieteStropy = [];               // { L, x, z, mesh }
+
+        function stropCaly(x, z, L) {
+            return hasFloorAt(x, z, L) && !hasHoleAt(x, z, L - 1);
+        }
+
+        function tikStropow() {
+            if (!floorGrid || gameOver) return;
+            const doZawalenia = peknieteStropy;
+            peknieteStropy = [];
+            doZawalenia.forEach(zawalStrop);
+            soldiers.forEach(s => {
+                const L = s.level || 0;
+                if (s.isDead || !s.mesh || L < 1 || Math.random() >= STROP_PEKA_SZANSA) return;
+                const sx = Math.round(s.mesh.position.x), sz = Math.round(s.mesh.position.z);
+                // Wiesz, że coś trzeszczy - nie wiesz dokładnie, pod kim
+                const [dx, dz] = Math.random() < 0.5 ? [0, 0]
+                    : [[1, 0], [-1, 0], [0, 1], [0, -1]][Math.floor(Math.random() * 4)];
+                const x = sx + dx, z = sz + dz;
+                if (!stropCaly(x, z, L) || peknieteStropy.some(p => p.L === L && p.x === x && p.z === z)) return;
+                const mesh = new THREE.Group();
+                const mat = new THREE.MeshBasicMaterial({ color: 0x1a1410 });
+                for (let k = 0; k < 3; k++) {
+                    const r = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.02, 0.04), mat);
+                    r.rotation.y = k * 1.1 + Math.random() * 0.4;
+                    mesh.add(r);
+                }
+                mesh.position.set(x, getLevelY(x, z, L) + 0.02, z);
+                scene.add(mesh);
+                peknieteStropy.push({ L, x, z, mesh });
+                showFloatingWarning('Strop trzeszczy - sypie się tynk!');
+                updateUI(`Pod nogami ${s.name} pęka strop. W następnej turze może się zawalić.`);
+            });
+        }
+
+        function zawalStrop(p) {
+            scene.remove(p.mesh);
+            if (!stropCaly(p.x, p.z, p.L)) return;
+            floorGrid[p.L][p.x + offsetX][p.z + offsetZ] = 0;
+            renderFloors();
+            [...soldiers, ...enemies, ...npcs].forEach(u => {
+                if (u.isDead || !u.mesh || (u.level || 0) !== p.L) return;
+                if (Math.round(u.mesh.position.x) !== p.x || Math.round(u.mesh.position.z) !== p.z) return;
+                let nizej = p.L - 1;
+                while (nizej >= 1 && !stropCaly(p.x, p.z, nizej)) nizej--;
+                const obr = STROP_SPADEK_OBRAZENIA * (p.L - nizej);
+                u.level = nizej;
+                u.mesh.position.y = getLevelY(p.x, p.z, nizej) + (u.mesh.userData.yOffset || 0);
+                const kto = enemies.includes(u) ? nazwaWroga(u) : u.name;
+                if (soldiers.includes(u)) {
+                    applyDamageToUnit(u, obr, null, 'upadek');
+                    if (u.hp <= 0) { playDyingSfx(); killUnitWithAnim(u); }
+                } else {
+                    u.hp -= obr;
+                    if (u.hp <= 0) {
+                        u.isDead = true;
+                        if (enemies.includes(u)) { playEnemyDeathSfx(u); zabijWroga(u); } else scene.remove(u.mesh);
+                    }
+                }
+                updateUI(`Strop się zawala! ${kto} spada ${nizej === 0 ? 'na parter' : 'piętro niżej'} (-${obr} HP)` +
+                         (u.isDead ? ' i ginie.' : '.'));
+            });
+            playFileSfx(AudioFiles.wallHit, 1);
+            showFloatingWarning('Strop się zawalił!');
+            refreshPlayerPositions(); refreshEnemyPositions();
+            updateFloorVisibility(); updateFoW();
+            checkGameOver();
         }
 
         // Strop pole po polu: niewidziane pola gasimy do czerni, zbadane
