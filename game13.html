@@ -11273,7 +11273,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // głazy i drzewa - przez co nie dało się nawet wystartować.
         function oczyscMost() {
             if (!currentCombatTheme || currentCombatTheme.id !== 'most') return 0;
-            const DOZWOLONE = ['skrzynia', 'skrzynia_metal', 'beczka', 'balustrada', 'przepasc'];
+            const DOZWOLONE = ['skrzynia', 'skrzynia_metal', 'beczka', 'beczka_prochu', 'balustrada', 'przepasc'];
             let usuniete = 0;
             for (let i = obstaclePositions.length - 1; i >= 0; i--) {
                 const p = obstaclePositions[i];
@@ -11404,12 +11404,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 case 'bagno':        return ['trzcina','trzcina','trzcina','paproc','kloda','grzyby','pniak','beczka','skrzynia'];
                 // Pustynia miała SAME kamienie i ani jednego kaktusa
                 case 'sahara':       return ['kaktus','kaktus','kepa','kepa','rock','rock','kosciotrup','skrzynia'];
-                case 'wioska':       return ['rock','krzak','beczka','kloda','zywoplot','kepa','skrzynia','stos_beczek','slup'];
+                case 'wioska':       return ['rock','krzak','beczka','kloda','zywoplot','kepa','skrzynia','stos_beczek','slup','beczka_prochu'];
                 case 'alabama':      return ['zywoplot','zywoplot','lawka','kosz','kloda','krzak','kepa','slup'];
                 case 'kremlin':
                 case 'whitehouse':
                 case 'zhongnanhai':  return ['lawka','lawka','kosz','kosz','zywoplot','zywoplot','beczka','rock'];
-                case 'pentagon':     return ['beczka','beczka','kosz','rock','rock','skrzynia_metal','skrzynia_metal','stos_beczek'];
+                case 'pentagon':     return ['beczka','beczka','kosz','rock','rock','skrzynia_metal','skrzynia_metal','stos_beczek','beczka_prochu'];
                 case 'wesole':       return ['beczka','kosz','kosz','lawka','lawka','beczka','zywoplot'];
                 case 'nekropolia':
                 case 'cmentarzysko': return ['nagrobek','nagrobek','rock','kloda','krzak','grzyby','krzyz'];
@@ -11420,11 +11420,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // Otchłań: tylko kamień, kości i czarny monolit - nic żywego
                 case 'otchlan':      return ['rock','rock','kosciotrup','obelisk','kosciotrup'];
                 // Wnętrza: żadnych kamieni ani kłód - sprzęty, które tu pasują
-                case 'alcatraz':     return ['regal','regal','skrzynia','beczka','lawka','skrzynia_metal','stos_beczek'];
+                case 'alcatraz':     return ['regal','regal','skrzynia','beczka','lawka','skrzynia_metal','stos_beczek','beczka_prochu'];
                 case 'dom':          return ['regal','skrzynia','lawka','skrzynia'];
-                case 'most':         return ['skrzynia','beczka','skrzynia','skrzynia_metal'];
-                case 'pozar':        return ['beczka','lawka','kosz','skrzynia','pniak','skrzynia_metal','rusztowanie','stos_beczek','slup'];
-                case 'pobojowisko':  return ['kosciotrup','wlocznie','sztandar','nagrobek','pniak','kepa','skrzynia','krzyz'];
+                case 'most':         return ['skrzynia','beczka','skrzynia','skrzynia_metal','beczka_prochu'];
+                case 'pozar':        return ['beczka','lawka','kosz','skrzynia','pniak','skrzynia_metal','rusztowanie','stos_beczek','slup','beczka_prochu'];
+                case 'pobojowisko':  return ['kosciotrup','wlocznie','sztandar','nagrobek','pniak','kepa','skrzynia','krzyz','beczka_prochu'];
                 case 'jezioro':      return ['kra','kra','rock','trzcina','trzcina'];
                 case 'studnia':      return ['kosciotrup','beczka','skrzynia','rock'];
                 case 'szpital':      return ['lozko','wozek','kroplowka','regal'];
@@ -11433,7 +11433,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 case 'wieza':        return ['regal','skrzynia','lawka','skrzynia_metal','rusztowanie'];
                 // W labiryncie poza blokami leżą tylko rzeczy po tych, co nie wyszli
                 case 'klaustrofobia': return ['kosciotrup','skrzynia','beczka','kosciotrup'];
-                case 'stacja':       return ['regal','skrzynia','skrzynia','beczka','lawka','skrzynia_metal','skrzynia_metal','rusztowanie','stos_beczek','slup'];
+                case 'stacja':       return ['regal','skrzynia','skrzynia','beczka','lawka','skrzynia_metal','skrzynia_metal','rusztowanie','stos_beczek','slup','beczka_prochu'];
                 default:             return ['rock','kloda','zywoplot','krzak','kepa'];
             }
         }
@@ -13335,6 +13335,21 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     g.position.set(pos.x, ty, pos.z);
                     scene.add(g); obstacleMeshes.push(g);
                 }
+                else if (pos.type === 'beczka_prochu') {
+                    // Czerwona beczka z żółtym pasem - z daleka widać, że nie stawać obok
+                    const g = new THREE.Group();
+                    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.95, 10),
+                        new THREE.MeshLambertMaterial({ color: 0x9a1e14 }));
+                    b.position.y = 0.48; g.add(b);
+                    [0.28, 0.68].forEach(h => {
+                        const o = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.03, 5, 10), new THREE.MeshLambertMaterial({ color: 0x2b2b2b }));
+                        o.rotation.x = Math.PI / 2; o.position.y = h; g.add(o);
+                    });
+                    dodajZnakowanie(g, 0.68, 0.95, 0.68, 0xe0b020);
+                    g.position.set(pos.x, ty, pos.z);
+                    g.rotation.y = Math.random() * Math.PI;
+                    scene.add(g); obstacleMeshes.push(g);
+                }
                 else if (pos.type === 'beczka') {
                     const g = new THREE.Group();
                     const akcent = barwaAkcentu();
@@ -14667,20 +14682,24 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (u.isDead || !u.mesh || (u.level || 0) !== 0) return;
                 if (Math.round(u.mesh.position.x) !== tx || Math.round(u.mesh.position.z) !== tz) return;
                 const kto = enemies.includes(u) ? nazwaWroga(u) : u.name;
-                if (soldiers.includes(u)) {
-                    applyDamageToUnit(u, PRZEWROT_OBRAZENIA, null, 'przewrot');
-                    if (u.hp <= 0) { playDyingSfx(); killUnitWithAnim(u); }
-                } else {
-                    u.hp -= PRZEWROT_OBRAZENIA;
-                    if (u.hp <= 0) {
-                        u.isDead = true;
-                        if (enemies.includes(u)) { playEnemyDeathSfx(u); zabijWroga(u); } else scene.remove(u.mesh);
-                    }
-                }
+                zadajObrazenia(u, PRZEWROT_OBRAZENIA, 'przewrot');
                 if (!u.isDead) { u.przygnieciony = 1; ocalaly = true; }
                 updateUI(`${nazwa} przygniata: ${kto} (-${PRZEWROT_OBRAZENIA} HP)` + (u.isDead ? ' i ginie!' : '!'));
             });
             return ocalaly;
+        }
+
+        function zadajObrazenia(u, ile, zrodlo) {
+            if (soldiers.includes(u)) {
+                applyDamageToUnit(u, ile, null, zrodlo);
+                if (u.hp <= 0) { playDyingSfx(); killUnitWithAnim(u); }
+            } else {
+                u.hp -= ile;
+                if (u.hp <= 0) {
+                    u.isDead = true;
+                    if (enemies.includes(u)) { playEnemyDeathSfx(u); zabijWroga(u); } else scene.remove(u.mesh);
+                }
+            }
         }
 
         function postawGruz(tx, tz) {
@@ -14731,6 +14750,53 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
         }
 
+        // --- WYBUCHY ---
+        // Beczka z prochem wybucha od strzału w nią, od pudła w osłonę, od ognia i od
+        // innego wybuchu - zawsze przez destroyObstacle. Rani wokół, rozbija kruche
+        // osłony obok, przewraca konstrukcje, zrywa żyrandole, tłucze światła i podpala.
+        const WYBUCH_PROMIEN = 2;      // tyle pól w każdą stronę rani
+        const WYBUCH_OBRAZENIA = 8;    // w środku; na skraju mniej
+        const WYBUCH_NISZCZY = ['beczka', 'beczka_prochu', 'skrzynia', 'kosz', 'lawka', 'zywoplot',
+                                'krzak', 'kepa', 'kloda', 'wall-destructible'].concat(PRZEWRACALNE);
+        function wybuch(x, z) {
+            // Błysk: rosnąca kula ognia i światło, które gaśnie
+            const y = getTerrainY(x, z) + 0.6;
+            const kula = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 10),
+                new THREE.MeshBasicMaterial({ color: 0xffa040, transparent: true, opacity: 0.9 }));
+            const blask = new THREE.PointLight(0xff8a30, 4, 14, 1.5);
+            kula.position.set(x, y, z); blask.position.set(x, y + 0.5, z);
+            scene.add(kula); scene.add(blask);
+            const start = performance.now();
+            (function krok(t) {
+                const k = Math.min(1, (t - start) / 450);
+                kula.scale.setScalar(1 + k * WYBUCH_PROMIEN * 2);
+                kula.material.opacity = 0.9 * (1 - k);
+                blask.intensity = 4 * (1 - k);
+                if (k < 1) requestAnimationFrame(krok); else { scene.remove(kula); scene.remove(blask); }
+            })(start);
+            playFileSfx(AudioFiles.piorun, 1.0);
+            playFileSfx(AudioFiles.wallHit, 1.0);
+
+            [...soldiers, ...enemies, ...npcs].forEach(u => {
+                if (u.isDead || !u.mesh || (u.level || 0) !== 0) return;
+                const d = Math.max(Math.abs(Math.round(u.mesh.position.x) - x), Math.abs(Math.round(u.mesh.position.z) - z));
+                if (d > WYBUCH_PROMIEN) return;
+                const ile = Math.ceil(WYBUCH_OBRAZENIA * (1 - d / (WYBUCH_PROMIEN + 1)));
+                const kto = enemies.includes(u) ? nazwaWroga(u) : u.name;
+                zadajObrazenia(u, ile, 'wybuch');
+                updateUI(`Wybuch rani: ${kto} (-${ile} HP)` + (u.isDead ? ' i zabija!' : '!'));
+            });
+            // Tuż obok: kruche osłony się rozpadają, wysokie przewracają, beczki wybuchają dalej
+            obstaclePositions.filter(o => WYBUCH_NISZCZY.includes(o.type) &&
+                Math.max(Math.abs(o.x - x), Math.abs(o.z - z)) <= 1).forEach(destroyObstacle);
+            zerwijZyrandol(x, z, 1, WYBUCH_PROMIEN);
+            stluczSwiatla(x, z, WYBUCH_PROMIEN + 1, true);
+            zapalPole(x, z, 1);
+            showFloatingWarning('Wybuch!');
+            refreshPlayerPositions(); refreshEnemyPositions(); updateFoW();
+            checkGameOver();
+        }
+
         function destroyObstacle(obstacle) {
             if (!obstacle || NIEZNISZCZALNE_OSLONY.includes(obstacle.type)) return;
             if (PRZEWRACALNE.includes(obstacle.type) && przewrocKonstrukcje(obstacle)) return;
@@ -14742,7 +14808,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (index !== -1) obstaclePositions.splice(index, 1);
                 obstacleMap.delete(key);
                 obstacleGrid[obstacle.x + offsetX][obstacle.z + offsetZ] = null;
-                updateFoW(); 
+                updateFoW();
+                if (obstacle.type === 'beczka_prochu') wybuch(obstacle.x, obstacle.z);   // już zdjęta - łańcuch się nie zapętli 
             }
         }
 
@@ -24664,7 +24731,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         const NISKIE_PRZESZKODY = ['lozko', 'wozek', 'kroplowka', 'kra', 'wlocznie', 'balustrada', 'skrzynia', 'skrzynia_metal', 'rumowisko', 'tor', 'krata', 'prycza', 'kibel', 'ruina', 'zachod-weranda', 'koniowiaz', 'woz',
-                                   'rock', 'kloda', 'lawka', 'kosz', 'zywoplot', 'beczka',
+                                   'rock', 'kloda', 'lawka', 'kosz', 'zywoplot', 'beczka', 'beczka_prochu',
                                    'nagrobek', 'crate', 'barrel', 'bush', 'grave', 'tombstone'];
 
         // Drzewa i słupy nie zasłaniają widoku: pień jest wąski, a korona wisi nad
@@ -29150,7 +29217,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 
                 // Strzał w ścianę - wybija w niej wyrwę
                 const wallObs = obstacleGrid[targetX + offsetX] ? obstacleGrid[targetX + offsetX][targetZ + offsetZ] : null;
-                const isShootableWall = wallObs && (wallObs.type === 'house-wall' || wallObs.type === 'wall-destructible');
+                const isShootableWall = wallObs && (wallObs.type === 'house-wall' || wallObs.type === 'wall-destructible' || wallObs.type === 'beczka_prochu');
                 const noEnemyHere = !enemies.find(e => !e.isDead && Math.round(e.mesh.position.x) === targetX && Math.round(e.mesh.position.z) === targetZ);
                 // Blokujemy tylko PRÓBĘ ATAKU. Wcześniej ten warunek wypalał przy każdym
                 // kliknięciu, również w puste pole, przez co cywilem nie dało się chodzić.
@@ -29168,7 +29235,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     active.shotsFired = (active.shotsFired || 0) + 1;
                     isPlayerTurn = false;
                     createProjectile(startX, startY + 1, startZ, targetX, getTerrainY(targetX, targetZ) + 1, targetZ, true, null, () => {
-                        if (destroyWallAt(targetX, targetZ, active.level || 0)) {
+                        if (wallObs.type === 'beczka_prochu') {
+                            updateUI(`${active.name} strzela w beczkę z prochem!`);
+                            destroyObstacle(wallObs);
+                        } else if (destroyWallAt(targetX, targetZ, active.level || 0)) {
                             updateUI(`${active.name} wybija wyrwę w ścianie!`);
                             refreshEnemyPositions(); refreshPlayerPositions(); refreshNPCPositions();
                             updateFoW();
@@ -31831,12 +31901,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             // Ogień pożera osłony i zabudowę
             let zniszczone = 0;
+            const doWybuchu = [];
             for (let i = obstaclePositions.length - 1; i >= 0; i--) {
                 const p = obstaclePositions[i];
                 const mx = p.x + offsetX, mz = p.z + offsetZ;
                 if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
                 if (ogienGrid[mx][mz] !== 1) continue;
                 if (NIEZNISZCZALNE_OSLONY.includes(p.type)) continue;   // kamień, stal i gruz zostają
+                if (p.type === 'beczka_prochu') { doWybuchu.push(p); continue; }
                 // Punktowe ognisko nie rozbiera planszy - trawi tylko to,
                 // co naprawdę łatwopalne. Inaczej jeden strzał zapalający
                 // kasowałby osłony na pół mapy.
@@ -31848,6 +31920,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 obstacleGrid[mx][mz] = null;
                 zniszczone++;
             }
+            doWybuchu.forEach(destroyObstacle);
 
             // Ogień wypala klosze i oprawy - po pożarze zostaje ciemność
             if (typeof stluczSwiatla === 'function') {
