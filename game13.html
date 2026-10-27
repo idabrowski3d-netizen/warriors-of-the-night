@@ -27524,11 +27524,23 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (getActiveSoldier() === s) {
                 wskazanyCel = { s: s, e: e, szansa: szansaZPaska(s, e) };
                 updateUI(`${s.name} celuje: ${nazwaWroga(e)} - szansa ${wskazanyCel.szansa}%. ` +
-                         'Enter albo ponowny wybór numeru - strzał, Esc - rezygnacja.');
+                         'Enter albo ponowny wybór numeru - strzał, Esc lub prawy przycisk - rezygnacja.');
             }
             pokazWroga(e);
             return 'cel';
         }
+
+        // [Esc] i prawy przycisk myszy - porzucenie celu, widok wraca do wojownika
+        function porzucCel() {
+            wskazanyCel = null;
+            updateCameraPosition();
+            updateUI('Cel porzucony.');
+        }
+        window.addEventListener('contextmenu', (e) => {
+            if (gameMode !== 'dream' || !wskazanyCel) return;   // bez celu menu przeglądarki jak dotąd
+            e.preventDefault();
+            porzucCel();
+        });
 
         function rysujWidzianych() {
             const warstwa = document.getElementById('widziani-warstwa');
@@ -28229,11 +28241,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (e.key === 'Escape' && trybTelekinezy) {
                 e.preventDefault(); przerwijTelekineze('Telekineza odwołana.');
             } else if (e.key === 'Escape' && wskazanyCel) {
-                // [Esc] porzuca wybrany cel, widok wraca do wojownika
-                e.preventDefault();
-                wskazanyCel = null;
-                updateCameraPosition();
-                updateUI('Cel porzucony.');
+                e.preventDefault(); porzucCel();
             }
         });
         window.addEventListener('keyup', (e) => {
@@ -39242,7 +39250,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 <div class="help-row"><span class="help-key">Tab</span>przełącz na kolejnego wojownika</div>
                 <div class="help-row"><span class="help-key">1–9</span>wyceluj we wroga o tym numerze (cyferki nad wojownikiem), ta sama cyfra drugi raz – strzał</div>
                 <div class="help-row"><span class="help-key">Enter</span>strzał do wybranego celu</div>
-                <div class="help-row"><span class="help-key">Esc</span>porzuć wybrany cel</div>
+                <div class="help-row"><span class="help-key">Esc / PPM</span>porzuć wybrany cel</div>
                 <div class="help-row"><span class="help-key">LPM</span>ruch, strzał, rozmowa - zależnie od celu</div>
                 <div class="help-row"><span class="help-key">Rolka</span>na planszy z piętrami: pokazuje kolejne kondygnacje</div>
                 <p style="color:#9ab;font-size:13px;margin-top:12px;">Kronikę można otworzyć tylko poza walką.</p>
