@@ -3225,8 +3225,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             applyTimeOfDay(poraZGodziny(czasGry.getHours()));
         }
         function applyRandomCombatTimeOfDay() {
-            if (forcedTimeOfDay) { applyTimeOfDay(forcedTimeOfDay); return; }
-            const key = COMBAT_TIME_KEYS[Math.floor(Math.random() * COMBAT_TIME_KEYS.length)];
+            // Pora wymuszona w panelu testowym też przechodzi przez światło i mgłę planszy -
+            // wcześniej kończyła funkcję od razu i testowa plansza wyglądała inaczej niż w grze
+            const key = forcedTimeOfDay || COMBAT_TIME_KEYS[Math.floor(Math.random() * COMBAT_TIME_KEYS.length)];
             applyTimeOfDay(key);
             // W misjach walki wieczór/ranek/noc są 10% jaśniejsze niż w Teraźniejszości - lepsza widoczność w boju
             if (key === 'wieczor' || key === 'rano' || key === 'noc') {
@@ -3269,7 +3270,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 scene.background.set(0x1a0604);
                 ambientLight.color.set(0xff6a3a); ambientLight.intensity = Math.max(ambientLight.intensity, 0.42);
                 directionalLight.color.set(0xff3a1a); directionalLight.intensity *= 0.35;
-                scene.fog = new THREE.Fog(0x2a0a06, 10, 52);
+                scene.fog = new THREE.Fog(0x2a0a06, 12.5, 65);   // o 20% rzadsza niż dawniej - plansza była zbyt czerwona
             } else if (idMotywu === 'wesole') {
                 // Opuszczone wesołe miasteczko: wieczny zmierzch, sina mgła, chłód
                 scene.background.set(0x1a1422);
@@ -18967,8 +18968,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
                 if (!won && grid.some(r => r.some(v => v >= ZAGADKA_2048_CEL))) {
                     won = true;
-                    pokazKoniec(`Kafel ${ZAGADKA_2048_CEL}! Grzech pęka.`);
-                    setTimeout(solveSinPuzzle, 800);
+                    // Ekran wygranej musi zostać dość długo, żeby było go widać
+                    pokazKoniec(`WYGRANA! Kafel ${ZAGADKA_2048_CEL} - grzech pęka.`);
+                    setTimeout(solveSinPuzzle, 2500);
                 } else if (!canMove()) {
                     over = true;
                     pokazKoniec('Brak ruchów. Spróbuj od nowa.');
@@ -19119,6 +19121,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (zagadkaTestowa) {
                 zagadkaTestowa = false;
                 showFloatingWarning('Zagadka rozwiązana (test).');
+                updateUI('Łamigłówka rozwiązana - w prawdziwej misji grzech by teraz pękł.');
                 return;
             }
             if (!heartPrison || heartPrison.freed) return;
