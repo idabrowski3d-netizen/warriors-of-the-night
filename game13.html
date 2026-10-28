@@ -264,6 +264,105 @@
         .sin-rune:hover { border-color: #ffd970; }
         #sin-moves { color: #9a90a0; font-size: 13px; margin-bottom: 14px; }
 
+        /* ===== GRY LOGICZNE PRZY UWALNIANIU SERCA ===== */
+        /* Trzy nowe łamigłówki mają własne, zamknięte panele w okienku grzechu.
+           Reguły są przypisane do identyfikatorów paneli, więc nie mieszają się
+           ani ze sobą, ani z resztą interfejsu. */
+        .zagadka-panel { display: none; }
+        .zagadka-panel.widoczny { display: block; }
+
+        /* --- Cztery w rzędzie --- */
+        #c4 { width: 100%; max-width: 480px; margin: 0 auto; text-align: center; }
+        #c4 .status { min-height: 1.5em; margin-bottom: 10px; font-weight: 600; color: #e8d8e0; font-size: 14px; }
+        #c4 .board {
+            display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;
+            background: #2a5bd7; padding: 8px; border-radius: 12px;
+        }
+        #c4 .cell {
+            aspect-ratio: 1; border-radius: 50%; background: #1b1f2a;
+            cursor: pointer; transition: background .15s, transform .15s;
+        }
+        #c4 .cell.p1 { background: #e63946; }
+        #c4 .cell.p2 { background: #ffd166; }
+        #c4 .cell.win { outline: 4px solid #fff; outline-offset: -4px; }
+        #c4 .board.locked .cell { cursor: default; }
+
+        /* --- Matryce logiczne --- */
+        #rm { width: 100%; max-width: 520px; margin: 0 auto; text-align: center; }
+        #rm .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-weight: 600; color: #c8b8c4; font-size: 13px; }
+        #rm .matrix {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
+            background: #3a4255; padding: 4px; border-radius: 8px;
+            width: min(100%, 330px); margin: 0 auto 12px;
+        }
+        #rm .cell { background: #232838; aspect-ratio: 1; border-radius: 4px; display: flex; }
+        #rm .cell svg { width: 100%; height: 100%; }
+        #rm .q { display: flex; align-items: center; justify-content: center; font-size: 2.5em; color: #7d879c; }
+        #rm .answers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+        #rm .ans {
+            background: #232838; aspect-ratio: 1; border-radius: 6px; cursor: pointer;
+            border: 3px solid transparent; display: flex;
+        }
+        #rm .ans:hover { border-color: #4b5570; }
+        #rm .ans.good { border-color: #2ec27e; }
+        #rm .ans.bad { border-color: #e63946; }
+        #rm .ans svg { width: 100%; height: 100%; }
+        #rm .msg { min-height: 1.5em; margin: 10px 0; color: #c0b0b8; font-size: 13px; }
+        #rm .end { padding: 18px 0; }
+        #rm .end h2 { margin: 0 0 8px; color: #ff8899; font-size: 18px; }
+
+        /* --- 2048 --- */
+        #g48 { width: 100%; max-width: 380px; margin: 0 auto; text-align: center; user-select: none; }
+        #g48 .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+        #g48 .scores { display: flex; gap: 6px; }
+        #g48 .box { background: #3a4255; border-radius: 6px; padding: 4px 12px; min-width: 70px; }
+        #g48 .box small { display: block; font-size: .7em; opacity: .7; }
+        #g48 .box b { font-size: 1.2em; }
+        #g48 .board {
+            position: relative; background: #bbada0; border-radius: 8px; padding: 8px;
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+            touch-action: none; outline: none;
+        }
+        #g48 .t {
+            aspect-ratio: 1; border-radius: 5px; background: #cdc1b4;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; color: #776e65; font-size: clamp(16px, 7vw, 30px);
+        }
+        #g48 .t.new { animation: g48pop .15s ease-out; }
+        #g48 .t.merged { animation: g48bump .15s ease-out; }
+        @keyframes g48pop { from { transform: scale(0); } to { transform: scale(1); } }
+        @keyframes g48bump { 50% { transform: scale(1.15); } }
+        #g48 .over {
+            position: absolute; inset: 0; border-radius: 8px; background: rgba(238,228,218,.8);
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+            color: #776e65; font-size: 1.5em; font-weight: 700;
+        }
+        #g48 .over[hidden] { display: none; }
+        #g48 .hint { margin-top: 10px; font-size: .85em; opacity: .6; }
+
+        /* --- Matryce wycinków --- */
+        #sm { width: 100%; max-width: 520px; margin: 0 auto; text-align: center; }
+        #sm .top { display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: 600; color: #c8b8c4; font-size: 13px; }
+        #sm .matrix {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px;
+            background: #111; padding: 2px; border: 2px solid #111;
+            width: min(100%, 320px); margin: 0 auto 12px;
+        }
+        #sm .cell { background: #fff; aspect-ratio: 1; display: flex; }
+        #sm .cell svg, #sm .ans svg { width: 100%; height: 100%; }
+        #sm .q { align-items: center; justify-content: center; font-size: 2.6em; color: #111; }
+        #sm .answers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+        #sm .ans {
+            background: #fff; aspect-ratio: 1; border-radius: 6px; cursor: pointer;
+            border: 4px solid #fff; display: flex;
+        }
+        #sm .ans:hover { border-color: #9ab; }
+        #sm .ans.good { border-color: #2ec27e; }
+        #sm .ans.bad { border-color: #e63946; }
+        #sm .msg { min-height: 3em; margin: 10px 0; color: #c0b0b8; font-size: 13px; }
+        #sm .end { padding: 18px 0; }
+        #sm .end h2 { margin: 0 0 8px; color: #ff8899; font-size: 18px; }
+
         #abilities-overlay {
             display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.9); z-index: 98;
@@ -842,6 +941,8 @@
             <div id="test-squad" class="test-grid"></div>
             <div id="test-current"></div>
             <button id="btn-test-start" class="start-btn" style="border-color:#66cc66;">▶ Uruchom misję testową</button>
+            <div class="test-sub">Gry logiczne (uwalnianie serca)</div>
+            <div id="test-zagadki" class="test-grid"></div>
             <div class="test-sub">Narzędzia w trakcie walki</div>
             <div id="test-tools" class="test-grid"></div>
             <button id="btn-close-test" class="start-btn">Zamknij</button>
@@ -855,6 +956,54 @@
             <div id="sin-hint">Rozjaśnij wszystkie runy. Dotknięcie runy odwraca ją razem z sąsiadami.</div>
             <div id="sin-runes"></div>
             <div id="sin-moves"></div>
+            <div id="zagadka-c4" class="zagadka-panel">
+                <div id="c4">
+                    <div class="status" id="c4status"></div>
+                    <div class="board" id="c4board"></div>
+                </div>
+            </div>
+            <div id="zagadka-rm" class="zagadka-panel">
+                <div id="rm">
+                    <div class="top"><span id="rmProg"></span><span id="rmScore"></span></div>
+                    <div id="rmGame">
+                        <div class="matrix" id="rmMatrix"></div>
+                        <div class="msg" id="rmMsg"></div>
+                        <div class="answers" id="rmAnswers"></div>
+                    </div>
+                    <div class="end" id="rmEnd" hidden>
+                        <h2 id="rmResult"></h2>
+                        <p id="rmDetail"></p>
+                    </div>
+                </div>
+            </div>
+            <div id="zagadka-48" class="zagadka-panel">
+                <div id="g48">
+                    <div class="top">
+                        <div class="scores">
+                            <div class="box"><small>WYNIK</small><b id="g48score">0</b></div>
+                            <div class="box"><small>CEL</small><b id="g48cel">256</b></div>
+                        </div>
+                    </div>
+                    <div class="board" id="g48board" tabindex="0">
+                        <div class="over" id="g48over" hidden><span id="g48overText"></span></div>
+                    </div>
+                    <div class="hint">Strzałki albo WASD scalają kafle</div>
+                </div>
+            </div>
+            <div id="zagadka-sm" class="zagadka-panel">
+                <div id="sm">
+                    <div class="top"><span id="smProg"></span><span id="smScore"></span></div>
+                    <div id="smGame">
+                        <div class="matrix" id="smMatrix"></div>
+                        <div class="msg" id="smMsg"></div>
+                        <div class="answers" id="smAnswers"></div>
+                    </div>
+                    <div class="end" id="smEnd" hidden>
+                        <h2 id="smResult"></h2>
+                        <p id="smDetail"></p>
+                    </div>
+                </div>
+            </div>
             <button id="btn-sin-reset" class="start-btn" style="border-color:#8a7a3a;">Od nowa</button>
             <button id="btn-sin-close" class="start-btn">Odejdź</button>
         </div>
@@ -17063,6 +17212,202 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Portal, do którego trzeba doprowadzić Powierzonego:
         // owalny pierścień z pulsującym niebieskim światłem w środku
         // ========================================================
+        // --- SEN WE ŚNIE ---
+        // Na części zwykłych snów nie ma serca. Jest łóżko śpiącego: ten, w czyim
+        // śnie stoicie, sam śpi i śni dalej. Wejście w to łóżko otwiera DRUGĄ
+        // planszę - sen w śnie - i tylko jej przejście kończy misję powodzeniem.
+        // Trudność: w głębszym śnie nic się nie odnawia. Zdrowie zostaje takie,
+        // z jakim weszliście, zużyte moce i ładunki nie wracają.
+        // Zapłata: kto strzelał celnie w pierwszym śnie, w drugim ma rękę pewniejszą -
+        // premia do celności liczona z własnej skuteczności.
+        // ========================================================
+        const SEN_WE_SNIE_SZANSA = 0.2;     // tyle zwyklych snow ma druga warstwe
+        const SEN_PREMIA_MAX = 20;          // najwyzsza premia do celnosci w drugim snie
+        const SEN_PREMIA_MIN_STRZALOW = 3;  // ponizej tego nie ma z czego liczyc skutecznosci
+        let glebokoscSnu = 0;               // 0 - pierwszy sen, 1 - sen w snie
+        let wymusSenWeSnie = false;         // wymuszenie z panelu testowego
+        let lozkoSnu = null;                // { x, z, mesh, uzyte }
+        let stanPrzedSnem = null;           // zapis oddzialu z pierwszej planszy
+        let senWeSnieCzeka = false;         // czy ta misja ma druga warstwe
+
+        function createLozkoMesh() {
+            const g = new THREE.Group();
+            const drewno = new THREE.MeshLambertMaterial({ color: 0x5a4028 });
+            const posciel = new THREE.MeshLambertMaterial({ color: 0xd8d2c4 });
+            const kolder = new THREE.MeshLambertMaterial({ color: 0x4a5a7a });
+            const skora = new THREE.MeshLambertMaterial({ color: 0xcdb3a6 });
+            // Rama i cztery nogi
+            const rama = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.18, 2.1), drewno);
+            rama.position.y = 0.42; g.add(rama);
+            [[-0.45, -0.95], [0.45, -0.95], [-0.45, 0.95], [0.45, 0.95]].forEach(([x, z]) => {
+                const n = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.34, 0.12), drewno);
+                n.position.set(x, 0.17, z); g.add(n);
+            });
+            const zagłowek = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.6, 0.1), drewno);
+            zagłowek.position.set(0, 0.7, -1.05); g.add(zagłowek);
+            // Posłanie, kołdra i śpiący
+            const materac = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.16, 1.95), posciel);
+            materac.position.y = 0.58; g.add(materac);
+            const koc = new THREE.Mesh(new THREE.BoxGeometry(1.02, 0.14, 1.25), kolder);
+            koc.position.set(0, 0.7, 0.3); g.add(koc);
+            const poduszka = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.14, 0.34), posciel);
+            poduszka.position.set(0, 0.72, -0.72); g.add(poduszka);
+            const glowa = new THREE.Mesh(new THREE.SphereGeometry(0.17, 12, 10), skora);
+            glowa.position.set(0, 0.84, -0.66); g.add(glowa);
+            // Ciało pod kołdrą - wyraźny garb, żeby było widać, że ktoś tam leży
+            const ciało = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), kolder);
+            ciało.scale.set(1, 0.5, 2.1);
+            ciało.position.set(0, 0.72, 0.25); g.add(ciało);
+            // Poświata snu nad poduszką - znak, że tu da się wejść
+            const mgiełka = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 10),
+                new THREE.MeshBasicMaterial({ color: 0x88bbff, transparent: true, opacity: 0.22, depthWrite: false }));
+            mgiełka.position.set(0, 1.5, -0.5); g.add(mgiełka);
+            const swiatlo = new THREE.PointLight(0x88bbff, 1.1, 9, 1.4);
+            swiatlo.position.set(0, 1.5, -0.5); g.add(swiatlo);
+            g.userData.unitType = 'fx';
+            g.userData.mgielka = mgiełka;
+            g.userData.swiatlo = swiatlo;
+            return g;
+        }
+
+        // Łóżko staje tam, gdzie stanęłoby więzienie serca - czyli najdalej, jak
+        // oddział może dojść. Serce z tej planszy znika: tu nie ma czego uwalniać.
+        function postawLozkoSnu() {
+            if (!senWeSnieCzeka || glebokoscSnu > 0) return false;
+            if (!heartPrison) return false;
+            const x = heartPrison.x, z = heartPrison.z;
+            if (heartPrison.mesh) scene.remove(heartPrison.mesh);
+            heartPrison = null;
+            const m = createLozkoMesh();
+            m.position.set(x, getTerrainY(x, z), z);
+            scene.add(m);
+            lozkoSnu = { x: x, z: z, mesh: m, uzyte: false };
+            updateUI('W tym śnie nie ma serca. Gdzieś na planszy stoi łóżko - śpiący śni dalej.');
+            return true;
+        }
+
+        function wyczyscLozkoSnu() {
+            if (lozkoSnu && lozkoSnu.mesh) scene.remove(lozkoSnu.mesh);
+            lozkoSnu = null;
+        }
+
+        function animujLozkoSnu(time) {
+            if (!lozkoSnu || !lozkoSnu.mesh) return;
+            const u = lozkoSnu.mesh.userData;
+            const faza = time * 0.0014;
+            // Oddech śpiącego: mgiełka nad poduszką unosi się i opada
+            if (u.mgielka) {
+                u.mgielka.position.y = 1.5 + Math.sin(faza) * 0.12;
+                if (u.mgielka.material) u.mgielka.material.opacity = 0.16 + 0.12 * (1 + Math.sin(faza * 1.3)) / 2;
+            }
+            if (u.swiatlo) u.swiatlo.intensity = 0.8 + 0.5 * (1 + Math.sin(faza * 1.3)) / 2;
+        }
+
+        // Premia do celności w głębszym śnie: liczona z WŁASNEJ skuteczności z
+        // pierwszej planszy. Kto nie strzelał, nie ma z czego jej mieć.
+        function premiaCelnosciZeSnu(zapis) {
+            if (!zapis || (zapis.shotsFired || 0) < SEN_PREMIA_MIN_STRZALOW) return 0;
+            const skutecznosc = (zapis.shotsHit || 0) / zapis.shotsFired;
+            return Math.round(SEN_PREMIA_MAX * Math.max(0, Math.min(1, skutecznosc)));
+        }
+
+        // Zapis oddziału przed zejściem głębiej: zdrowie i WSZYSTKO, co zużyte.
+        function zapiszOddzialPrzedSnem() {
+            stanPrzedSnem = {
+                oddzial: soldiers.filter(s => !s.isEscortee && !s.isAngel).map(s => ({
+                    name: s.name, class: s.class, hp: s.hp, maxHp: s.maxHp, isDead: s.isDead,
+                    shotsFired: s.shotsFired || 0, shotsHit: s.shotsHit || 0, kills: s.kills || 0,
+                    healsUsed: s.healsUsed || 0, shieldsUsed: s.shieldsUsed || 0, crossUsed: s.crossUsed || 0,
+                    levitateUsed: s.levitateUsed || 0, stealthUsed: s.stealthUsed || 0,
+                    callUsed: s.callUsed || 0, angelUsed: s.angelUsed || 0,
+                    relicUses: { ...(s.relicUses || {}) },
+                    ladunkiZapalajace: s.ladunkiZapalajace || 0, ladunkiMrozace: s.ladunkiMrozace || 0,
+                    infected: !!s.infected, infectionTick: s.infectionTick || 0,
+                    fobia: s.fobia || null, trauma: s.trauma || 0,
+                    traumaZrodla: { ...(s.traumaZrodla || {}) },
+                    maPochodnie: !!s.maPochodnie
+                })),
+                plansza: currentCombatTheme ? currentCombatTheme.name : ''
+            };
+            return stanPrzedSnem;
+        }
+
+        // Odtworzenie po przejściu na drugą planszę. Wołane po rozstawieniu
+        // oddziału i po rozdaniu ładunków - inaczej świeże ładunki nadpisałyby
+        // to, co z pierwszego snu zostało.
+        function odtworzOddzialPoSnie() {
+            if (glebokoscSnu === 0 || !stanPrzedSnem) return 0;
+            const zapisy = stanPrzedSnem.oddzial;
+            let ilu = 0, premie = [];
+            soldiers.filter(s => !s.isEscortee && !s.isAngel).forEach((s, i) => {
+                const z = zapisy[i];
+                if (!z) return;
+                // NIC SIĘ NIE ODNAWIA: zdrowie i zużycie przechodzą jak stały
+                s.hp = Math.min(s.maxHp, z.hp);
+                s.healsUsed = z.healsUsed; s.shieldsUsed = z.shieldsUsed; s.crossUsed = z.crossUsed;
+                s.levitateUsed = z.levitateUsed; s.stealthUsed = z.stealthUsed;
+                s.callUsed = z.callUsed; s.angelUsed = z.angelUsed;
+                s.relicUses = { ...z.relicUses };
+                s.ladunkiZapalajace = z.ladunkiZapalajace;
+                s.ladunkiMrozace = z.ladunkiMrozace;
+                s.infected = z.infected; s.infectionTick = z.infectionTick;
+                s.fobia = z.fobia; s.trauma = z.trauma; s.traumaZrodla = { ...z.traumaZrodla };
+                s.maPochodnie = z.maPochodnie;
+                s.isDead = z.isDead;
+                if (z.isDead && s.mesh) s.mesh.visible = false;
+                // Dorobek strzelecki zostaje: z niego liczy się premia
+                s.shotsFired = z.shotsFired; s.shotsHit = z.shotsHit; s.kills = z.kills;
+                const premia = premiaCelnosciZeSnu(z);
+                s.premiaSnu = premia;
+                s.accuracyBonus = (s.accuracyBonus || 0) + premia;
+                if (premia > 0) premie.push(`${s.name} +${premia}%`);
+                ilu++;
+            });
+            refreshPlayerPositions();
+            if (premie.length) {
+                updateUI('Głębszy sen pamięta wasze ręce: ' + premie.join(', ') + ' do celności.');
+            }
+            showFloatingWarning('SEN W ŚNIE - nic się tu nie odnawia');
+            return ilu;
+        }
+
+        // Wejście do łóżka: pytanie, a potem druga plansza.
+        function wejdzDoSnu() {
+            if (!lozkoSnu || lozkoSnu.uzyte || gameOver) return false;
+            lozkoSnu.uzyte = true;
+            zapiszOddzialPrzedSnem();
+            const ilu = soldiers.filter(s => !s.isDead && !s.isEscortee && !s.isAngel).length;
+            showDialogue(
+                'Śpiący śni dalej. Pod jego powiekami jest druga plansza - jego własny sen.\n\n' +
+                'Jeśli tam wejdziecie, nie odnowicie ani zdrowia, ani zużytych mocy. ' +
+                'Ale ręka, którą wyrobiliście w tym śnie, zostaje z wami.\n\n' +
+                'Wejść głębiej?',
+                'Wchodzimy', 'Jeszcze nie',
+                () => { zacznijGlebszySen(Math.max(1, ilu)); },
+                () => { lozkoSnu.uzyte = false; }
+            );
+            return true;
+        }
+
+        function zacznijGlebszySen(ilu) {
+            glebokoscSnu = 1;
+            senWeSnieCzeka = false;      // druga warstwa nie dostaje trzeciej
+            wyczyscLozkoSnu();
+            updateUI('Zapadacie się w sen śpiącego. To już nie wasz sen.');
+            startGame(ilu);
+        }
+
+        // Kto stanie przy łóżku, dostaje pytanie - tak samo jak przy więzieniu serca
+        function sprawdzLozkoSnu() {
+            if (!lozkoSnu || lozkoSnu.uzyte || gameOver) return false;
+            const blisko = soldiers.some(s => !s.isDead && !s.isNPC && s.mesh &&
+                Math.max(Math.abs(Math.round(s.mesh.position.x) - lozkoSnu.x),
+                         Math.abs(Math.round(s.mesh.position.z) - lozkoSnu.z)) <= 1);
+            if (!blisko) return false;
+            return wejdzDoSnu();
+        }
+
+        // ========================================================
         // --- SERCE ŚPIĄCEGO ZAMKNIĘTE W GRZECHU ---
         // W misji oczyszczenia trzeba je odnaleźć i uwolnić, rozwiązując zagadkę.
         // ========================================================
@@ -17415,15 +17760,19 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Rodzaj zagadki przypisany jest do konkretnego grzechu, więc po ponownym
             // otwarciu gracz dostaje tę samą łamigłówkę, a nie nową
             if (!heartPrison.puzzleKind) {
-                const rodzaje = ['runes', 'scale', 'equation'];
-                heartPrison.puzzleKind = rodzaje[Math.floor(Math.random() * rodzaje.length)];
+                // Sześć łamigłówek do tych samych drzwi - losowana jest jedna
+                heartPrison.puzzleKind = ZAGADKI_WSZYSTKIE[Math.floor(Math.random() * ZAGADKI_WSZYSTKIE.length)];
             }
             sinPuzzleKind = heartPrison.puzzleKind;
             sinMoves = 0;
+            zagadkaTestowa = false;
+            pokazPanelZagadki(sinPuzzleKind);
             document.getElementById('sin-title').innerText = heartPrison.sin.name;
             document.getElementById('sin-desc').innerText = heartPrison.sin.desc;
 
-            if (sinPuzzleKind === 'equation') {
+            if (ZAGADKI_NOWE[sinPuzzleKind]) {
+                startNowejZagadki(sinPuzzleKind);
+            } else if (sinPuzzleKind === 'equation') {
                 const g = generateEquationPuzzle();
                 eqNumbers = g.nums;
                 eqSlots = [null, null];
@@ -17447,8 +17796,748 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             document.getElementById('sin-overlay').style.display = 'flex';
         }
 
+        // ========================================================
+        // --- GRY LOGICZNE PRZY UWALNIANIU SERCA ---
+        // Trzy kolejne łamigłówki do tych samych drzwi, co runy, waga i równanie:
+        // cztery w rzędzie przeciw komputerowi, matryce logiczne i matryce
+        // wycinków. Każda siedzi we własnej domknięciu - nazwy w środku są
+        // prywatne, więc nic się nie zderza z resztą gry - i każda kończy się
+        // wywołaniem solveSinPuzzle(), czyli skruszeniem grzechu.
+        // Serii pytań jest krócej niż w wersji samodzielnej: to jedna zagadka w
+        // środku misji, nie osobna sesja treningowa.
+        // ========================================================
+        const ZAGADKA_PYTAN = 5;     // tyle zadań w matrycach
+        const ZAGADKA_PROG = 4;      // tyle trzeba trafić, żeby grzech pękł
+
+        // --- CZTERY W RZĘDZIE (gracz czerwony kontra komputer) ---
+        const GRA_C4 = (function () {
+            const ROWS = 6, COLS = 7, AI_DEPTH = 5;
+            let boardEl, statusEl, cells = [], grid, player, over, zbudowane = false;
+
+            function zbuduj() {
+                boardEl = document.getElementById('c4board');
+                statusEl = document.getElementById('c4status');
+                if (!boardEl || zbudowane) return !!boardEl;
+                for (let r = 0; r < ROWS; r++)
+                    for (let c = 0; c < COLS; c++) {
+                        const d = document.createElement('div');
+                        d.className = 'cell';
+                        d.addEventListener('click', () => onClick(c));
+                        boardEl.appendChild(d);
+                        cells.push(d);
+                    }
+                zbudowane = true;
+                return true;
+            }
+
+            function reset() {
+                if (!zbuduj()) return;
+                grid = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+                player = 1; over = false;
+                render(); setStatus();
+            }
+
+            function render(winCells = []) {
+                for (let r = 0; r < ROWS; r++)
+                    for (let c = 0; c < COLS; c++) {
+                        const el = cells[r * COLS + c];
+                        el.className = 'cell' + (grid[r][c] ? ' p' + grid[r][c] : '');
+                    }
+                winCells.forEach(([r, c]) => cells[r * COLS + c].classList.add('win'));
+                boardEl.classList.toggle('locked', over);
+            }
+
+            function setStatus(text) {
+                if (statusEl) statusEl.textContent = text ||
+                    (player === 1 ? 'Twój ruch - czerwone krążki' : 'Grzech myśli…');
+            }
+
+            function dropRow(g, c) {
+                for (let r = ROWS - 1; r >= 0; r--) if (!g[r][c]) return r;
+                return -1;
+            }
+
+            function findWin(g, p) {
+                const dirs = [[0, 1], [1, 0], [1, 1], [1, -1]];
+                for (let r = 0; r < ROWS; r++)
+                    for (let c = 0; c < COLS; c++)
+                        for (const [dr, dc] of dirs) {
+                            const line = [];
+                            for (let k = 0; k < 4; k++) {
+                                const rr = r + dr * k, cc = c + dc * k;
+                                if (rr < 0 || rr >= ROWS || cc < 0 || cc >= COLS || g[rr][cc] !== p) break;
+                                line.push([rr, cc]);
+                            }
+                            if (line.length === 4) return line;
+                        }
+                return null;
+            }
+
+            const full = g => g[0].every(v => v);
+
+            function play(c) {
+                if (c === null || c === undefined) return false;
+                const r = dropRow(grid, c);
+                if (r < 0) return false;
+                grid[r][c] = player;
+                const win = findWin(grid, player);
+                if (win) {
+                    over = true; render(win);
+                    if (player === 1) {
+                        // Wygrana gracza kruszy grzech - tak samo jak rozwiązane runy
+                        setStatus('Cztery w rzędzie! Grzech pęka.');
+                        setTimeout(solveSinPuzzle, 700);
+                    } else {
+                        setStatus('Grzech ułożył cztery w rzędzie. Spróbuj od nowa.');
+                    }
+                } else if (full(grid)) {
+                    over = true; render(); setStatus('Remis - plansza pełna. Spróbuj od nowa.');
+                } else {
+                    player = 3 - player; render(); setStatus();
+                }
+                return true;
+            }
+
+            function onClick(c) {
+                if (over || player === 2) return;
+                if (play(c) && !over) setTimeout(aiMove, 250);
+            }
+
+            function scoreWindow(w, p) {
+                const o = 3 - p;
+                const mine = w.filter(v => v === p).length, theirs = w.filter(v => v === o).length, empty = w.filter(v => !v).length;
+                if (mine === 4) return 100;
+                if (mine === 3 && empty === 1) return 5;
+                if (mine === 2 && empty === 2) return 2;
+                if (theirs === 3 && empty === 1) return -4;
+                return 0;
+            }
+
+            function evaluate(g, p) {
+                let s = 0;
+                for (let r = 0; r < ROWS; r++) if (g[r][3] === p) s += 3;   // środek jest cenniejszy
+                for (let r = 0; r < ROWS; r++)
+                    for (let c = 0; c < COLS; c++) {
+                        if (c + 3 < COLS) s += scoreWindow([0, 1, 2, 3].map(k => g[r][c + k]), p);
+                        if (r + 3 < ROWS) s += scoreWindow([0, 1, 2, 3].map(k => g[r + k][c]), p);
+                        if (r + 3 < ROWS && c + 3 < COLS) s += scoreWindow([0, 1, 2, 3].map(k => g[r + k][c + k]), p);
+                        if (r + 3 < ROWS && c - 3 >= 0) s += scoreWindow([0, 1, 2, 3].map(k => g[r + k][c - k]), p);
+                    }
+                return s;
+            }
+
+            const ORDER = [3, 2, 4, 1, 5, 0, 6];
+
+            function minimax(g, depth, a, b, maxing) {
+                if (findWin(g, 2)) return [null, 1e6 + depth];
+                if (findWin(g, 1)) return [null, -1e6 - depth];
+                if (full(g) || depth === 0) return [null, evaluate(g, 2)];
+                let best = null, val = maxing ? -Infinity : Infinity;
+                for (const c of ORDER) {
+                    const r = dropRow(g, c);
+                    if (r < 0) continue;
+                    g[r][c] = maxing ? 2 : 1;
+                    const [, s] = minimax(g, depth - 1, a, b, !maxing);
+                    g[r][c] = 0;
+                    if (maxing ? s > val : s < val) { val = s; best = c; }
+                    if (maxing) a = Math.max(a, val); else b = Math.min(b, val);
+                    if (a >= b) break;
+                }
+                return [best, val];
+            }
+
+            function aiMove() {
+                if (over) return;
+                const [c] = minimax(grid.map(r => r.slice()), AI_DEPTH, -Infinity, Infinity, true);
+                play(c === null || c === undefined ? ORDER.find(k => dropRow(grid, k) >= 0) : c);
+            }
+
+            // Dwa zaczepy dla testow: podejrzenie stanu i wykonanie ruchu
+            // wskazanej strony. Gra ich nie uzywa - sluza do sprawdzenia, czy
+            // ulozenie czworki faktycznie kruszy grzech.
+            return { start: reset, stan: () => ({ player, over }), zagraj: (c) => play(c) };
+        })();
+
+        // --- MATRYCE LOGICZNE ---
+        const GRA_MATRYCE = (function () {
+            const $ = id => document.getElementById(id);
+            const ATTRS = {
+                shape: [0, 1, 2, 3, 4],          // koło, kwadrat, trójkąt, romb, sześciokąt
+                count: [1, 2, 3],
+                fill: [0, 1, 2],                 // pusty, szary, pełny
+                size: [0, 1, 2]                  // mały, średni, duży
+            };
+            const FILLS = ['none', '#7d879c', '#eeeeee'];
+            const SIZES = [0.6, 0.8, 1.0];
+            const BASE_R = { 1: 30, 2: 19, 3: 15 };
+            const POS = { 1: [[50, 50]], 2: [[28, 50], [72, 50]], 3: [[50, 27], [27, 71], [73, 71]] };
+
+            function shapeSvg(type, x, y, r, fill) {
+                const st = `fill="${fill}" stroke="#eeeeee" stroke-width="2.5" stroke-linejoin="round"`;
+                const poly = (n, rot) => {
+                    const pts = [];
+                    for (let i = 0; i < n; i++) {
+                        const a = rot + i * 2 * Math.PI / n;
+                        pts.push((x + r * Math.cos(a)).toFixed(1) + ',' + (y + r * Math.sin(a)).toFixed(1));
+                    }
+                    return `<polygon points="${pts.join(' ')}" ${st}/>`;
+                };
+                switch (type) {
+                    case 0: return `<circle cx="${x}" cy="${y}" r="${r}" ${st}/>`;
+                    case 1: return `<rect x="${x - r * .85}" y="${y - r * .85}" width="${r * 1.7}" height="${r * 1.7}" ${st}/>`;
+                    case 2: return poly(3, -Math.PI / 2);
+                    case 3: return poly(4, -Math.PI / 2);
+                    case 4: return poly(6, 0);
+                }
+            }
+
+            function cellSvg(f) {
+                const r = BASE_R[f.count] * SIZES[f.size];
+                const body = POS[f.count].map(([x, y]) => shapeSvg(f.shape, x, y, r, FILLS[f.fill])).join('');
+                return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
+            }
+
+            const rand = n => Math.floor(Math.random() * n);
+            const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = rand(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+            // Każda zasada zwraca indeks (0-2) wartości dla komórki (r, c)
+            const RULES = [
+                (r, c) => r,                 // stała w wierszu
+                (r, c) => c,                 // progresja w kolumnach
+                (r, c) => (r + c) % 3,       // kwadrat łaciński
+                (r, c) => (c - r + 3) % 3    // rozkład odwrotny
+            ];
+
+            function makePuzzle(level) {
+                const varying = Math.min(4, 1 + Math.floor(level / 3));
+                const names = shuffle(Object.keys(ATTRS));
+                const plan = {};
+                names.forEach((name, i) => {
+                    const vals = shuffle(ATTRS[name].slice()).slice(0, 3);
+                    if (i < varying) plan[name] = { vals, rule: RULES[rand(RULES.length)] };
+                    else plan[name] = { vals: [vals[0]], rule: () => 0 };
+                });
+                const cell = (r, c) => {
+                    const f = {};
+                    for (const n in plan) f[n] = plan[n].vals[plan[n].rule(r, c)];
+                    return f;
+                };
+                const grid = [];
+                for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) grid.push(cell(r, c));
+                const answer = grid[8];
+                const key = f => [f.shape, f.count, f.fill, f.size].join();
+                const seen = new Set([key(answer)]);
+                const options = [answer];
+                let guard = 0;
+                while (options.length < 8 && guard++ < 500) {
+                    const d = { ...answer };
+                    const changes = Math.random() < 0.7 ? 1 : 2;
+                    shuffle(Object.keys(ATTRS)).slice(0, changes).forEach(n => {
+                        const others = ATTRS[n].filter(v => v !== d[n]);
+                        d[n] = others[rand(others.length)];
+                    });
+                    if (!seen.has(key(d))) { seen.add(key(d)); options.push(d); }
+                }
+                shuffle(options);
+                return { grid, options, correct: options.indexOf(answer) };
+            }
+
+            let q, score, locked, current;
+
+            function start() {
+                q = 0; score = 0;
+                if ($('rmGame')) $('rmGame').hidden = false;
+                if ($('rmEnd')) $('rmEnd').hidden = true;
+                next();
+            }
+
+            function next() {
+                if (q >= ZAGADKA_PYTAN) return finish();
+                locked = false;
+                // Seria jest krótsza niż w wersji samodzielnej, więc poziom rośnie
+                // szybciej - inaczej wszystkie zadania byłyby z najłatwiejszej półki
+                current = makePuzzle(q * 2);
+                $('rmProg').textContent = `Zadanie ${q + 1} / ${ZAGADKA_PYTAN}`;
+                $('rmScore').textContent = `Trafione: ${score} (trzeba ${ZAGADKA_PROG})`;
+                $('rmMsg').textContent = 'Wybierz element, który pasuje w miejsce „?”';
+                $('rmMatrix').innerHTML = current.grid.map((f, i) =>
+                    i === 8 ? '<div class="cell q">?</div>' : `<div class="cell">${cellSvg(f)}</div>`
+                ).join('');
+                const ans = $('rmAnswers');
+                ans.innerHTML = '';
+                current.options.forEach((f, i) => {
+                    const d = document.createElement('div');
+                    d.className = 'ans';
+                    d.innerHTML = cellSvg(f);
+                    d.addEventListener('click', () => choose(i, d));
+                    ans.appendChild(d);
+                });
+            }
+
+            function choose(i, el) {
+                if (locked) return;
+                locked = true;
+                const ok = i === current.correct;
+                if (ok) { score++; el.classList.add('good'); $('rmMsg').textContent = 'Dobrze!'; }
+                else {
+                    el.classList.add('bad');
+                    $('rmAnswers').children[current.correct].classList.add('good');
+                    $('rmMsg').textContent = 'Niestety - poprawna odpowiedź jest zaznaczona na zielono.';
+                }
+                $('rmScore').textContent = `Trafione: ${score} (trzeba ${ZAGADKA_PROG})`;
+                q++;
+                setTimeout(next, ok ? 700 : 1600);
+            }
+
+            function finish() {
+                $('rmGame').hidden = true; $('rmEnd').hidden = false;
+                $('rmProg').textContent = ''; $('rmScore').textContent = '';
+                $('rmResult').textContent = `Wynik: ${score} / ${ZAGADKA_PYTAN}`;
+                if (score >= ZAGADKA_PROG) {
+                    $('rmDetail').textContent = 'Wzór rozpoznany - grzech pęka.';
+                    setTimeout(solveSinPuzzle, 900);
+                } else {
+                    $('rmDetail').textContent = `Za mało trafień (trzeba ${ZAGADKA_PROG}). Spróbuj od nowa.`;
+                }
+            }
+
+            // Zaczep dla testow: ktore z osmiu pol jest poprawne i jak stoi wynik
+            return { start: start, stan: () => ({ q, score, correct: current ? current.correct : -1 }) };
+        })();
+
+        // --- MATRYCE WYCINKÓW ---
+        const GRA_WYCINKI = (function () {
+            const $ = id => document.getElementById(id);
+            const rand = n => Math.floor(Math.random() * n);
+            const pick = a => a[rand(a.length)];
+            const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = rand(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+            let uid = 0;
+
+            const SHAPES = ['circle', 'square', 'hexagon', 'triangle', 'pentagon', 'octagon'];
+            function polyPts(n, rot, r) {
+                const p = [];
+                for (let i = 0; i < n; i++) {
+                    const a = rot + i * 2 * Math.PI / n;
+                    p.push((50 + r * Math.cos(a)).toFixed(1) + ',' + (50 + r * Math.sin(a)).toFixed(1));
+                }
+                return p.join(' ');
+            }
+            function outline(s, attrs) {
+                switch (s) {
+                    case 'circle':   return `<circle cx="50" cy="50" r="38" ${attrs}/>`;
+                    case 'square':   return `<polygon points="${polyPts(4, -Math.PI / 4, 48)}" ${attrs}/>`;
+                    case 'hexagon':  return `<polygon points="${polyPts(6, 0, 40)}" ${attrs}/>`;
+                    case 'triangle': return `<polygon points="${polyPts(3, -Math.PI / 2, 44)}" ${attrs}/>`;
+                    case 'pentagon': return `<polygon points="${polyPts(5, -Math.PI / 2, 40)}" ${attrs}/>`;
+                    case 'octagon':  return `<polygon points="${polyPts(8, Math.PI / 8, 40)}" ${attrs}/>`;
+                }
+            }
+
+            // Figura podzielona na n wycinków od środka; maska mówi, które są zamalowane
+            function cellSvg(f, n, off) {
+                const id = 'smc' + (uid++);
+                const P = a => (50 + 90 * Math.cos(a)).toFixed(1) + ',' + (50 + 90 * Math.sin(a)).toFixed(1);
+                let wedges = '', lines = '';
+                for (let i = 0; i < n; i++) {
+                    const a0 = off + i * 2 * Math.PI / n, a1 = a0 + 2 * Math.PI / n;
+                    if (f.mask >> i & 1) wedges += `<polygon points="50,50 ${P(a0)} ${P((a0 + a1) / 2)} ${P(a1)}" fill="#111"/>`;
+                    lines += `<line x1="50" y1="50" x2="${P(a0).replace(',', '" y2="')}" stroke="#111" stroke-width="2"/>`;
+                }
+                return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <defs><clipPath id="${id}">${outline(f.shape, '')}</clipPath></defs>
+                    <g clip-path="url(#${id})">${wedges}${lines}</g>
+                    ${outline(f.shape, 'fill="none" stroke="#111" stroke-width="3" stroke-linejoin="round"')}
+                </svg>`;
+            }
+
+            const bits = m => m.toString(2).replace(/0/g, '').length;
+            function makeOps(n) {
+                const full = (1 << n) - 1;
+                return {
+                    full,
+                    rot: (m, k) => { k = ((k % n) + n) % n; return ((m << k) | (m >> (n - k))) & full; },
+                    contig: (s, k) => { let m = 0; for (let i = 0; i < k; i++) m |= 1 << ((s + i) % n); return m; },
+                    mirror: m => { let r = 0; for (let i = 0; i < n; i++) if (m >> i & 1) r |= 1 << (n - 1 - i); return r; },
+                    randMask: () => { let m; do { m = rand(full + 1); } while (bits(m) < 1 || bits(m) > n - 1); return m; }
+                };
+            }
+
+            function makePuzzle(level) {
+                const n = level < 4 ? 4 : pick([4, 6, 8]);
+                const off = -Math.PI / 2 + rand(2) * Math.PI / n;
+                const o = makeOps(n);
+                const shapes = shuffle(SHAPES.slice()).slice(0, 3);
+                const type = level < 3 ? 'rot' : level < 6 ? pick(['rot', 'count']) : pick(['rot', 'count', 'xor']);
+                const rows = [];
+                let explain;
+
+                if (type === 'rot') {
+                    const step = n > 4 && level >= 6 ? pick([1, 2]) : 1;
+                    const dir = pick([1, -1]);
+                    for (let r = 0; r < 3; r++) {
+                        let b; do { b = o.randMask(); } while (o.rot(b, step) === b);
+                        rows.push([0, 1, 2].map(c => o.rot(b, dir * step * c)));
+                    }
+                    explain = `W każdym wierszu wzór obraca się o ${step * 360 / n}° ${dir > 0 ? 'zgodnie' : 'przeciwnie'} do ruchu wskazówek zegara.`;
+                } else if (type === 'count') {
+                    const k0 = 1 + rand(Math.max(1, n - 3));
+                    for (let r = 0; r < 3; r++) {
+                        const s = rand(n);
+                        rows.push([0, 1, 2].map(c => o.contig(s, k0 + c)));
+                    }
+                    explain = 'Z każdą kolumną zamalowany jest jeden wycinek więcej, licząc od tego samego miejsca.';
+                } else {
+                    for (let r = 0; r < 3; r++) {
+                        let a, b; do { a = o.randMask(); b = o.randMask(); } while (a === b || (a ^ b) === 0);
+                        rows.push([a, b, a ^ b]);
+                    }
+                    explain = 'Trzecia figura w wierszu ma zamalowane tylko te wycinki, które są zamalowane w dokładnie jednej z dwóch pierwszych.';
+                }
+
+                const grid = [];
+                rows.forEach((row, r) => row.forEach(mask => grid.push({ shape: shapes[r], mask })));
+                const answer = grid[8];
+
+                const key = f => f.shape + ':' + f.mask;
+                const cands = [];
+                for (let i = 0; i < n; i++) cands.push({ shape: answer.shape, mask: answer.mask ^ (1 << i) });
+                cands.push({ shape: answer.shape, mask: o.rot(answer.mask, 1) });
+                cands.push({ shape: answer.shape, mask: o.rot(answer.mask, -1) });
+                cands.push({ shape: answer.shape, mask: o.mirror(answer.mask) });
+                cands.push({ shape: answer.shape, mask: grid[7].mask });
+                cands.push({ shape: answer.shape, mask: grid[6].mask });
+                cands.push({ shape: shapes[0], mask: answer.mask });
+                cands.push({ shape: shapes[1], mask: answer.mask });
+                const seen = new Set([key(answer)]);
+                const options = [answer];
+                for (const c of shuffle(cands)) {
+                    if (options.length >= 8) break;
+                    if (c.mask === 0 || seen.has(key(c))) continue;
+                    seen.add(key(c)); options.push(c);
+                }
+                shuffle(options);
+                return { grid, options, correct: options.indexOf(answer), n, off, explain };
+            }
+
+            let q, score, locked, cur;
+
+            function start() {
+                q = 0; score = 0;
+                if ($('smGame')) $('smGame').hidden = false;
+                if ($('smEnd')) $('smEnd').hidden = true;
+                next();
+            }
+
+            function next() {
+                if (q >= ZAGADKA_PYTAN) return finish();
+                locked = false;
+                // Jak w matrycach: krótsza seria, więc poziom rośnie szybciej
+                cur = makePuzzle(q * 2);
+                $('smProg').textContent = `Zadanie ${q + 1} / ${ZAGADKA_PYTAN}`;
+                $('smScore').textContent = `Trafione: ${score} (trzeba ${ZAGADKA_PROG})`;
+                $('smMsg').textContent = 'Wybierz figurę, która pasuje w miejsce „?”';
+                $('smMatrix').innerHTML = cur.grid.map((f, i) =>
+                    i === 8 ? '<div class="cell q">?</div>' : `<div class="cell">${cellSvg(f, cur.n, cur.off)}</div>`
+                ).join('');
+                const box = $('smAnswers');
+                box.innerHTML = '';
+                cur.options.forEach((f, i) => {
+                    const d = document.createElement('div');
+                    d.className = 'ans';
+                    d.innerHTML = cellSvg(f, cur.n, cur.off);
+                    d.addEventListener('click', () => choose(i, d));
+                    box.appendChild(d);
+                });
+            }
+
+            function choose(i, el) {
+                if (locked) return;
+                locked = true;
+                const ok = i === cur.correct;
+                if (ok) { score++; el.classList.add('good'); }
+                else { el.classList.add('bad'); $('smAnswers').children[cur.correct].classList.add('good'); }
+                $('smMsg').textContent = (ok ? 'Dobrze! ' : 'Niestety. ') + cur.explain;
+                $('smScore').textContent = `Trafione: ${score} (trzeba ${ZAGADKA_PROG})`;
+                q++;
+                setTimeout(next, ok ? 1500 : 3000);
+            }
+
+            function finish() {
+                $('smGame').hidden = true; $('smEnd').hidden = false;
+                $('smProg').textContent = ''; $('smScore').textContent = '';
+                $('smResult').textContent = `Wynik: ${score} / ${ZAGADKA_PYTAN}`;
+                if (score >= ZAGADKA_PROG) {
+                    $('smDetail').textContent = 'Wzór rozpoznany - grzech pęka.';
+                    setTimeout(solveSinPuzzle, 900);
+                } else {
+                    $('smDetail').textContent = `Za mało trafień (trzeba ${ZAGADKA_PROG}). Spróbuj od nowa.`;
+                }
+            }
+
+            return { start: start, stan: () => ({ q, score, correct: cur ? cur.correct : -1 }) };
+        })();
+
+        // --- 2048: SCALANIE KAFLI ---
+        // W wersji samodzielnej celem jest 2048, co zajmuje kwadranse. W środku
+        // misji celem jest KAFEL 256: dość długo, by było o co walczyć, dość
+        // krótko, by nie zatrzymywać snu na pół godziny.
+        const ZAGADKA_2048_CEL = 256;
+        const GRA_2048 = (function () {
+            const N = 4;
+            const $ = id => document.getElementById(id);
+            const COLORS = {
+                2: ['#eee4da', '#776e65'], 4: ['#ede0c8', '#776e65'], 8: ['#f2b179', '#fff'],
+                16: ['#f59563', '#fff'], 32: ['#f67c5f', '#fff'], 64: ['#f65e3b', '#fff'],
+                128: ['#edcf72', '#fff'], 256: ['#edcc61', '#fff'], 512: ['#edc850', '#fff'],
+                1024: ['#edc53f', '#fff'], 2048: ['#edc22e', '#fff']
+            };
+            let boardEl, overEl, grid, score, won, over, tiles = [], zbudowane = false;
+
+            function zbuduj() {
+                boardEl = $('g48board'); overEl = $('g48over');
+                if (!boardEl) return false;
+                if (zbudowane) return true;
+                for (let i = 0; i < N * N; i++) {
+                    const t = document.createElement('div');
+                    t.className = 't';
+                    if (overEl && boardEl.insertBefore) boardEl.insertBefore(t, overEl);
+                    else boardEl.appendChild(t);
+                    tiles.push(t);
+                }
+                zbudowane = true;
+                return true;
+            }
+
+            function reset() {
+                if (!zbuduj()) return;
+                grid = Array.from({ length: N }, () => Array(N).fill(0));
+                score = 0; won = false; over = false;
+                if (overEl) overEl.hidden = true;
+                if ($('g48cel')) $('g48cel').textContent = ZAGADKA_2048_CEL;
+                const a = addRandom(), b = addRandom();
+                render([a, b], []);
+                if (boardEl.focus) boardEl.focus();
+            }
+
+            function addRandom() {
+                const empty = [];
+                for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (!grid[r][c]) empty.push([r, c]);
+                if (!empty.length) return null;
+                const [r, c] = empty[Math.floor(Math.random() * empty.length)];
+                grid[r][c] = Math.random() < 0.9 ? 2 : 4;
+                return r * N + c;
+            }
+
+            function render(newIdx = [], mergedIdx = []) {
+                for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+                    const i = r * N + c, v = grid[r][c], t = tiles[i];
+                    if (!t) continue;
+                    t.textContent = v || '';
+                    t.innerText = v || '';
+                    const [bg, fg] = v ? (COLORS[v] || ['#3c3a32', '#fff']) : ['#cdc1b4', '#776e65'];
+                    t.style.background = bg; t.style.color = fg;
+                    t.style.fontSize = v >= 1024 ? 'clamp(12px, 5vw, 22px)' : v >= 128 ? 'clamp(14px, 6vw, 26px)' : '';
+                    t.classList.remove('new', 'merged');
+                    if (newIdx.includes(i)) t.classList.add('new');
+                    if (mergedIdx.includes(i)) t.classList.add('merged');
+                }
+                if ($('g48score')) $('g48score').textContent = score;
+            }
+
+            // Przesuwa jeden wiersz w lewo; zwraca nowy wiersz, punkty i pozycje połączeń
+            function slideRow(row) {
+                const vals = row.filter(v => v), out = [], merged = [];
+                let pts = 0;
+                for (let i = 0; i < vals.length; i++) {
+                    if (vals[i] === vals[i + 1]) {
+                        out.push(vals[i] * 2); pts += vals[i] * 2; merged.push(out.length - 1); i++;
+                    } else out.push(vals[i]);
+                }
+                while (out.length < N) out.push(0);
+                return { out, pts, merged };
+            }
+
+            // dir: 0 lewo, 1 góra, 2 prawo, 3 dół
+            function move(dir) {
+                if (over || won) return;
+                let moved = false, mergedIdx = [];
+                for (let k = 0; k < N; k++) {
+                    const coords = [];
+                    for (let j = 0; j < N; j++) {
+                        if (dir === 0) coords.push([k, j]);
+                        if (dir === 2) coords.push([k, N - 1 - j]);
+                        if (dir === 1) coords.push([j, k]);
+                        if (dir === 3) coords.push([N - 1 - j, k]);
+                    }
+                    const row = coords.map(([r, c]) => grid[r][c]);
+                    const { out, pts, merged } = slideRow(row);
+                    score += pts;
+                    coords.forEach(([r, c], j) => {
+                        if (grid[r][c] !== out[j]) moved = true;
+                        grid[r][c] = out[j];
+                    });
+                    merged.forEach(j => mergedIdx.push(coords[j][0] * N + coords[j][1]));
+                }
+                if (!moved) return;
+                const n = addRandom();
+                render(n !== null ? [n] : [], mergedIdx);
+
+                if (!won && grid.some(r => r.some(v => v >= ZAGADKA_2048_CEL))) {
+                    won = true;
+                    pokazKoniec(`Kafel ${ZAGADKA_2048_CEL}! Grzech pęka.`);
+                    setTimeout(solveSinPuzzle, 800);
+                } else if (!canMove()) {
+                    over = true;
+                    pokazKoniec('Brak ruchów. Spróbuj od nowa.');
+                }
+            }
+
+            function canMove() {
+                for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+                    const v = grid[r][c];
+                    if (!v) return true;
+                    if (c + 1 < N && grid[r][c + 1] === v) return true;
+                    if (r + 1 < N && grid[r + 1][c] === v) return true;
+                }
+                return false;
+            }
+
+            function pokazKoniec(text) {
+                if ($('g48overText')) { $('g48overText').textContent = text; $('g48overText').innerText = text; }
+                if (overEl) overEl.hidden = false;
+            }
+
+            // Klawiatura działa TYLKO przy otwartej łamigłówce i nie przechodzi
+            // dalej - inaczej strzałki jednocześnie przesuwałyby kafle i kamerę.
+            const KEYS = {
+                ArrowLeft: 0, ArrowUp: 1, ArrowRight: 2, ArrowDown: 3,
+                a: 0, w: 1, d: 2, s: 3, A: 0, W: 1, D: 2, S: 3
+            };
+            function klawisz(e) {
+                if (sinPuzzleKind !== 'g2048') return;
+                const ov = document.getElementById('sin-overlay');
+                if (!ov || ov.style.display !== 'flex') return;
+                if (!(e.key in KEYS)) return;
+                if (e.preventDefault) e.preventDefault();
+                if (e.stopPropagation) e.stopPropagation();
+                move(KEYS[e.key]);
+            }
+            document.addEventListener('keydown', klawisz);
+
+            // Gesty na planszy - dla myszy i dotyku
+            function podlaczGesty() {
+                const b = $('g48board');
+                if (!b || b.__gesty) return;
+                b.__gesty = true;
+                let sx = null, sy = null;
+                b.addEventListener('pointerdown', e => { sx = e.clientX; sy = e.clientY; });
+                b.addEventListener('pointerup', e => {
+                    if (sx === null) return;
+                    const dx = e.clientX - sx, dy = e.clientY - sy;
+                    sx = null;
+                    if (Math.max(Math.abs(dx), Math.abs(dy)) < 25) return;
+                    if (Math.abs(dx) > Math.abs(dy)) move(dx > 0 ? 2 : 0);
+                    else move(dy > 0 ? 3 : 1);
+                });
+            }
+
+            return {
+                start: () => { reset(); podlaczGesty(); },
+                // Zaczepy dla testów: stan planszy i ruch w zadaną stronę
+                stan: () => ({ score, won, over, max: grid ? Math.max.apply(null, grid.flat()) : 0,
+                               grid: grid ? grid.map(r => r.slice()) : null }),
+                ruch: (dir) => move(dir),
+                ustaw: (g) => { grid = g.map(r => r.slice()); render([], []); }
+            };
+        })();
+
+        // Które panele pokazać przy danej łamigłówce. Jedno miejsce, bo inaczej
+        // runy zostawałyby na ekranie pod planszą czterech w rzędzie.
+        const ZAGADKI_NOWE = { connect4: 'zagadka-c4', matryce: 'zagadka-rm', wycinki: 'zagadka-sm', g2048: 'zagadka-48' };
+        const ZAGADKI_WSZYSTKIE = ['runes', 'scale', 'equation', 'connect4', 'matryce', 'wycinki', 'g2048'];
+        const ZAGADKI_NAZWY = {
+            runes: 'Runy', scale: 'Wieża kręgów', equation: 'Równanie',
+            connect4: 'Cztery w rzędzie', matryce: 'Matryce logiczne', wycinki: 'Matryce wycinków',
+            g2048: 'Scalanie kafli (2048)'
+        };
+
+        function pokazPanelZagadki(rodzaj) {
+            const nowa = ZAGADKI_NOWE[rodzaj] || null;
+            Object.values(ZAGADKI_NOWE).forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.toggle('widoczny', id === nowa);
+            });
+            // Stare łamigłówki rysują się w runach i mają licznik ruchów
+            const runy = document.getElementById('sin-runes');
+            const ruchy = document.getElementById('sin-moves');
+            if (runy) runy.style.display = nowa ? 'none' : 'flex';
+            if (ruchy) ruchy.style.display = nowa ? 'none' : 'block';
+        }
+
+        // Uruchomienie nowej łamigłówki razem z podpowiedzią
+        function startNowejZagadki(rodzaj) {
+            const hint = document.getElementById('sin-hint');
+            if (rodzaj === 'connect4') {
+                if (hint) hint.innerText = 'Ułóż cztery czerwone krążki w rzędzie - w poziomie, pionie albo skosie. Grzech gra żółtymi.';
+                GRA_C4.start();
+            } else if (rodzaj === 'g2048') {
+                if (hint) hint.innerText = `Scalaj kafle strzałkami, aż zbudujesz ${ZAGADKA_2048_CEL}. Grzech pęka razem z tym kaflem.`;
+                GRA_2048.start();
+            } else if (rodzaj === 'matryce') {
+                if (hint) hint.innerText = `Dopasuj brakujący element w ${ZAGADKA_PYTAN} matrycach. Trafione ${ZAGADKA_PROG} i grzech pęka.`;
+                GRA_MATRYCE.start();
+            } else {
+                if (hint) hint.innerText = `Dopasuj brakującą figurę w ${ZAGADKA_PYTAN} matrycach wycinków. Trafione ${ZAGADKA_PROG} i grzech pęka.`;
+                GRA_WYCINKI.start();
+            }
+        }
+
+        // --- TESTOWANIE ŁAMIGŁÓWEK Z PANELU TESTOWEGO ---
+        // Zagadkę trzeba dać się obejrzeć bez szukania serca na planszy. W tym
+        // trybie nie ma czego uwalniać, więc rozwiązanie kończy się komunikatem,
+        // a nie kruszeniem więzienia.
+        let zagadkaTestowa = false;
+
+        function testujZagadke(rodzaj) {
+            zagadkaTestowa = true;
+            sinPuzzleKind = rodzaj;
+            sinMoves = 0;
+            const sin = SINS[Math.floor(Math.random() * SINS.length)];
+            document.getElementById('sin-title').innerText = sin.name + ' (test)';
+            document.getElementById('sin-desc').innerText = sin.desc;
+            pokazPanelZagadki(rodzaj);
+            if (ZAGADKI_NOWE[rodzaj]) {
+                startNowejZagadki(rodzaj);
+            } else if (rodzaj === 'equation') {
+                const g = generateEquationPuzzle();
+                eqNumbers = g.nums; eqSlots = [null, null];
+                document.getElementById('sin-hint').innerText =
+                    'Wstaw znaki tak, by zapis był prawdziwy. Kliknięcie zmienia znak: + - : * =';
+                renderEquationPuzzle();
+            } else if (rodzaj === 'scale') {
+                initHanoi();
+                document.getElementById('sin-hint').innerText =
+                    `Przenieś wszystkie ${HANOI_DISCS} kręgi na prawą kolumnę. Wolno brać tylko wierzchni krąg i nigdy kłaść większego na mniejszym.`;
+                renderHanoi();
+            } else {
+                sinRunes = generateSinPuzzle();
+                sinStartState = sinRunes.slice();
+                document.getElementById('sin-hint').innerText =
+                    'Rozjaśnij wszystkie runy. Dotknięcie runy odwraca ją razem z sąsiadami.';
+                document.getElementById('sin-runes').style.alignItems = 'center';
+                renderSinPuzzle();
+            }
+            document.getElementById('sin-overlay').style.display = 'flex';
+        }
+
         function solveSinPuzzle() {
             document.getElementById('sin-overlay').style.display = 'none';
+            // W teście nie ma serca do uwolnienia - liczy się samo rozwiązanie
+            if (zagadkaTestowa) {
+                zagadkaTestowa = false;
+                showFloatingWarning('Zagadka rozwiązana (test).');
+                return;
+            }
             if (!heartPrison || heartPrison.freed) return;
             heartPrison.freed = true;
             // więzienie pęka, zostaje samo serce
@@ -18819,6 +19908,37 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     showFloatingWarning('Wszystkie groby otwarte.');
                 }}
             ];
+            // Łamigłówki serca da się odpalić wprost z panelu, bez szukania
+            // więzienia na planszy - każda w osobnym przycisku.
+            // Sen we śnie: wymuszenie drugiej warstwy na najbliższej misji testowej
+            const senBtn = document.createElement('button');
+            senBtn.className = 'test-btn';
+            senBtn.innerText = (wymusSenWeSnie ? '✓ ' : '') + '🛏 Sen we śnie (druga plansza)';
+            senBtn.addEventListener('click', () => {
+                wymusSenWeSnie = !wymusSenWeSnie;
+                renderTestPanel();
+                showFloatingWarning(wymusSenWeSnie
+                    ? 'Najbliższa misja testowa będzie miała drugą planszę.'
+                    : 'Sen we śnie wyłączony.');
+            });
+            const missSen = document.getElementById('test-missions');
+            if (missSen) missSen.appendChild(senBtn);
+
+            const zag = document.getElementById('test-zagadki');
+            if (zag) {
+                zag.innerHTML = '';
+                ZAGADKI_WSZYSTKIE.forEach(rodzaj => {
+                    const b = document.createElement('button');
+                    b.className = 'test-btn';
+                    b.innerText = '🧩 ' + (ZAGADKI_NAZWY[rodzaj] || rodzaj);
+                    b.addEventListener('click', () => {
+                        document.getElementById('test-overlay').style.display = 'none';
+                        testujZagadke(rodzaj);
+                    });
+                    zag.appendChild(b);
+                });
+            }
+
             TOOLS.forEach(t => {
                 const b = document.createElement('button');
                 b.className = 'test-btn';
@@ -18836,6 +19956,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         function runTestMission() {
+            // Każda misja odpalona z panelu zaczyna się od PIERWSZEJ warstwy snu
+            glebokoscSnu = 0; stanPrzedSnem = null;
             misjaTestowa = true;
             arenaAktywna = false;
             document.getElementById('test-overlay').style.display = 'none';
@@ -25996,6 +27118,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             currentMissionType = forcedMissionType || (pendingDream ? pendingDream.mission : decideMissionType());
             // Skryptorium wskazało relikwię - ten sen prowadzi po nią
             if (tropArtefaktu && !forcedMissionType) { currentMissionType = 'artifact'; tropArtefaktu = false; }
+            // SEN WE ŚNIE: tylko zwykłe sny, tylko pierwsza warstwa i nie wtedy,
+            // gdy gracz sam wymusił inny typ misji w panelu testowym.
+            if (glebokoscSnu === 0) {
+                senWeSnieCzeka = (currentMissionType === 'standard') &&
+                    (wymusSenWeSnie || Math.random() < SEN_WE_SNIE_SZANSA);
+                wymusSenWeSnie = false;
+                stanPrzedSnem = null;
+            }
             // Cmentarzysko - wiatr o 40% ciszej, żeby nie zagłuszał własnej muzyki planszy
             SoundEngine.windVolScale = (currentCombatTheme && currentCombatTheme.id === 'cmentarzysko') ? 0.6 : 1;
             if (SoundEngine.windGain) SoundEngine.windGain.gain.value =
@@ -26132,6 +27262,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             laskaNaStarcieMisji = playerStats.grace || 0;
             kryzysAktywny = null;
             setupMissionObjectives();
+            // Sen we śnie: zamiast serca zostaje łóżko śpiącego
+            wyczyscLozkoSnu();
+            postawLozkoSnu();
             posadzWZasadzce();
             // Zadania poboczne po celu głównym - mają leżeć z dala od trasy,
             // więc muszą wiedzieć, gdzie ta trasa się kończy.
@@ -26158,6 +27291,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Topielce czekają zanurzone - po rozstawieniu wrogów, bo muszą
             // zająć pola wody, na których nikt inny nie stoi.
             rozstawTopielce();
+            // Głębszy sen: oddział wchodzi z tym, co mu zostało z pierwszej planszy
+            odtworzOddzialPoSnie();
             // Cele misji (zamek, loch) dostawiają przeszkody PO renderowaniu mapy,
             // więc bez tego ich mury byłyby niewidoczne mimo blokowania przejścia.
             renderObstacles();
@@ -27166,6 +28301,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Bez tego misja kończyła się w chwili, gdy ostatni wróg padał - a on
             // przecież miał za trzy tury wstać.
             if (currentCombatTheme && currentCombatTheme.id === 'pobojowisko' && trupy.length > 0) return false;
+            // SEN WE ŚNIE: pierwsza plansza nie kończy misji. Trzeba wejść w łóżko
+            // i przejść drugą - dopiero tam liczy się zwycięstwo.
+            if (lozkoSnu && glebokoscSnu === 0) return false;
             // Oczyszczenie: liczy się uwolnienie serca, nie wybicie wszystkich
             if (currentMissionType === 'standard' && heartPrison) return !!heartPrison.freed;
             return enemies.filter(e => !e.isDead).length === 0;
@@ -28422,7 +29560,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         document.getElementById('btn-sin-close').addEventListener('click', () => { document.getElementById('sin-overlay').style.display = 'none'; });
         document.getElementById('btn-sin-reset').addEventListener('click', () => {
             sinMoves = 0;
-            if (sinPuzzleKind === 'equation') { eqSlots = [null, null]; renderEquationPuzzle(); }
+            if (ZAGADKI_NOWE[sinPuzzleKind]) { startNowejZagadki(sinPuzzleKind); }
+            else if (sinPuzzleKind === 'equation') { eqSlots = [null, null]; renderEquationPuzzle(); }
             else if (sinPuzzleKind === 'scale') { initHanoi(); renderHanoi(); }
             else { sinRunes = sinStartState.slice(); renderSinPuzzle(); }
         });
@@ -29949,6 +31088,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     tikGargulcow();
                     // Kto podszedł pod brzeg, ten wywabia topielca
                     tikTopielcow();
+                    // Kto stanie przy łóżku śpiącego, dostaje pytanie o zejście głębiej
+                    sprawdzLozkoSnu();
                     // Pochodnia leżąca na drodze sama wpada w rękę
                     podniesPochodnie(active);
                     checkPrisonerRescue();
@@ -38855,6 +39996,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             animujLuny(time);
             animujZrodlaBlasku(time);
             animujBlizniaki(time);
+            animujLozkoSnu(time);
             animujRuchMurow(dt);
             animujZjazdyZasadzki(dt);
             przezroczysteDachyWagonow();
