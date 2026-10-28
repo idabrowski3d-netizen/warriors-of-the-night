@@ -3680,8 +3680,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const gleb = ZBIORNIK_BRZEG_GLEB[0] +
                 Math.floor(Math.random() * (ZBIORNIK_BRZEG_GLEB[1] - ZBIORNIK_BRZEG_GLEB[0] + 1));
             const pola = [];
+            let srodek;
             if (krawedz === 'polnoc' || krawedz === 'poludnie') {
                 const start = 2 + Math.floor(Math.random() * Math.max(1, mapWidth - szer - 4));
+                srodek = start + Math.floor(szer / 2);
                 for (let i = 0; i < szer; i++) {
                     // Zatoka jest głębsza w środku - brzeg ma być nieregularny
                     const g = Math.max(1, Math.round(gleb * Math.sin((i / (szer - 1)) * Math.PI)));
@@ -3692,6 +3694,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
             } else {
                 const start = 2 + Math.floor(Math.random() * Math.max(1, mapDepth - szer - 4));
+                srodek = start + Math.floor(szer / 2);
                 for (let i = 0; i < szer; i++) {
                     const g = Math.max(1, Math.round(gleb * Math.sin((i / (szer - 1)) * Math.PI)));
                     for (let j = 0; j < g; j++) {
@@ -3700,7 +3703,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     }
                 }
             }
-            sprobuj(pola);
+            // Czasem krawędź za rozlewiskiem jest skalna i spada z niej wodospad
+            if (sprobuj(pola) > 0 && Math.random() < 0.4) skalnaKrawedz = { krawedz: krawedz, srodek: srodek };
 
             // 2. SADZAWKA W GŁĘBI - mała, żeby dało się ją obejść
             if (Math.random() < 0.7) {
@@ -5447,7 +5451,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             for(let i=0; i<mapWidth; i++) terrainTypeMap[i].fill(0);
             for(let i=0; i<mapWidth; i++) cornfieldGrid[i].fill(0);
             for(let i=0; i<mapWidth; i++) riverGrid[i].fill(0);
-            hasRiver = false; bridgePositions = []; islandBridgeTiles = [];
+            hasRiver = false; bridgePositions = []; islandBridgeTiles = []; skalnaKrawedz = null;
 
             let mainRoadX = Math.floor(mapWidth / 2);
             // Plansze o własnym klimacie nie znają współczesności: żadnego asfaltu,
@@ -9261,6 +9265,176 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
         }
 
+        // ========================================================
+        // --- PŁYNĄCA WODA I WODOSPADY ---
+        // Rzeka dostaje teksturę ze smugami piany przesuwaną wzdłuż koryta (rzeka
+        // płynie po osi X). Wodospady to pionowe tafle z tą samą sztuczką, tylko
+        // w dół, z kłębem piany u stóp. Stoją tam, gdzie woda ma skąd spaść:
+        // na ścianach parowu, na krawędziach latających wysp i na skalnej
+        // krawędzi planszy nad rozlewiskiem. Czysty wygląd - nic nie blokują.
+        // ========================================================
+        let teksturaNurtu = null, teksturaSpadu = null;
+        let wodospadyMeshes = [];
+        let pianyWodospadow = [];
+        let skalnaKrawedz = null;   // { krawedz, srodek } - ustawia rozlejZbiorniki
+
+        function zrobTeksture(w, h, rysuj) {
+            const c = document.createElement('canvas');
+            c.width = w; c.height = h;
+            rysuj(c.getContext('2d'), w, h);
+            const t = new THREE.CanvasTexture(c);
+            t.wrapS = t.wrapT = THREE.RepeatWrapping;
+            return t;
+        }
+
+        function pobierzTeksturyWody() {
+            if (teksturaNurtu) return;
+            // Nurt: jasne tło z podłużnymi smugami - mnożone przez kolor materiału
+            teksturaNurtu = zrobTeksture(64, 64, (g, w, h) => {
+                g.fillStyle = '#b8b8b8'; g.fillRect(0, 0, w, h);
+                for (let i = 0; i < 22; i++) {
+                    const x = Math.random() * w, y = Math.random() * h, d = 8 + Math.random() * 20;
+                    g.fillStyle = `rgba(255,255,255,${0.25 + Math.random() * 0.5})`;
+                    // rysujemy też przesunięte o szerokość, żeby smuga przechodziła przez szew
+                    [x, x - w].forEach(px => g.fillRect(px, y, d, 1 + Math.random() * 2));
+                }
+            });
+            // Spad: pionowe pasma o różnej przejrzystości, u dołu biała piana
+            teksturaSpadu = zrobTeksture(64, 128, (g, w, h) => {
+                for (let x = 0; x < w; x += 2) {
+                    g.fillStyle = `rgba(255,255,255,${0.35 + Math.random() * 0.6})`;
+                    g.fillRect(x, 0, 2, h);
+                }
+                for (let i = 0; i < 40; i++) {
+                    g.fillStyle = 'rgba(40,90,150,0.5)';
+                    g.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 2, 6 + Math.random() * 20);
+                }
+            });
+        }
+
+        function clearWodospady() {
+            wodospadyMeshes.forEach(m => { scene.remove(m); if (m.geometry) m.geometry.dispose(); zwolnijMaterial(m); });
+            wodospadyMeshes = [];
+            pianyWodospadow = [];
+        }
+
+        // Jeden wodospad: tafla od yGora do yDol na krawędzi pola, zwrócona w stronę
+        // (dx, dz), w którą woda spada. Piana tylko, gdy stopa jest widoczna.
+        function postawWodospad(x, z, dx, dz, yGora, yDol, szer, zPiana) {
+            const wys = yGora - yDol;
+            const mat = new THREE.MeshBasicMaterial({ map: teksturaSpadu, color: 0xcfe6ff, transparent: true,
+                opacity: 0.85, side: THREE.DoubleSide, depthWrite: false });
+            const tafla = new THREE.Mesh(new THREE.PlaneGeometry(szer, wys), mat);
+            tafla.position.set(x, yDol + wys / 2, z);
+            tafla.rotation.y = Math.atan2(dx, dz);
+            tafla.userData.unitType = 'fx';
+            scene.add(tafla); wodospadyMeshes.push(tafla);
+            if (!zPiana) return;
+            const pianaMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false });
+            for (let i = 0; i < 4; i++) {
+                const p = new THREE.Mesh(new THREE.SphereGeometry(0.35, 7, 5), pianaMat);
+                p.position.set(x + dx * 0.4 + (Math.random() - 0.5) * szer * 0.8, yDol + 0.1,
+                               z + dz * 0.4 + (Math.random() - 0.5) * szer * 0.8);
+                p.userData.unitType = 'fx';
+                p.userData.faza = Math.random() * 6.28;
+                scene.add(p); wodospadyMeshes.push(p); pianyWodospadow.push(p);
+            }
+        }
+
+        function buildWodospady() {
+            clearWodospady();
+            if (gameMode !== 'dream' || !currentCombatTheme) return;
+            pobierzTeksturyWody();
+            const id = currentCombatTheme.id;
+
+            // 1. PARÓW: woda spływa z półki po ścianie na suche dno i zbiera się w kałużę
+            if (id === 'parow' && parowOs.length) {
+                for (let n = 0; n < 2 + Math.floor(Math.random() * 2); n++) {
+                    const p = parowOs[6 + Math.floor(Math.random() * Math.max(1, parowOs.length - 12))];
+                    if (((p.z + 1000) % 26) < 5) continue;   // nie na podjeździe
+                    const s = Math.random() < 0.5 ? -1 : 1;
+                    const wx = p.x + s * (p.polSzer + 0.5);
+                    postawWodospad(wx, p.z, -s, 0, 4.05, 0, 1.4, true);
+                    const kaluza = new THREE.Mesh(new THREE.CircleGeometry(1.3, 16),
+                        new THREE.MeshBasicMaterial({ map: teksturaNurtu, color: 0x3a7fc0, transparent: true, opacity: 0.8 }));
+                    kaluza.rotation.x = -Math.PI / 2;
+                    kaluza.position.set(wx - s * 1.1, 0.04, p.z);
+                    kaluza.userData.unitType = 'fx';
+                    scene.add(kaluza); wodospadyMeshes.push(kaluza);
+                }
+            }
+
+            // 2. LATAJĄCE WYSPY: woda z brzegu wyspy spada w morze chmur
+            if (id === 'wyspy') {
+                const brzegi = [];
+                const blisko = (mx, mz) => islandBridgeTiles.some(([bx, bz]) => Math.abs(bx - mx) <= 3 && Math.abs(bz - mz) <= 3);
+                for (let mx = 1; mx < mapWidth - 1; mx++)
+                    for (let mz = 1; mz < mapDepth - 1; mz++) {
+                        if (riverGrid[mx][mz] === 1) continue;
+                        for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]])
+                            if (riverGrid[mx + dx][mz + dz] === 1 && !blisko(mx, mz)) brzegi.push([mx, mz, dx, dz]);
+                    }
+                const postawione = [];
+                for (let t = 0; t < 200 && postawione.length < 5 && brzegi.length; t++) {
+                    const b = brzegi[Math.floor(Math.random() * brzegi.length)];
+                    if (postawione.some(q => Math.hypot(q[0] - b[0], q[1] - b[1]) < 10)) continue;
+                    postawione.push(b);
+                    const wx = b[0] - offsetX + b[2] * 0.55, wz = b[1] - offsetZ + b[3] * 0.55;
+                    postawWodospad(wx, wz, b[2], b[3], getTerrainY(b[0] - offsetX, b[1] - offsetZ) + 0.05, -7, 1.2, false);
+                }
+            }
+
+            // 3. SKALNA KRAWĘDŹ: grzbiet z głazów tuż za brzegiem planszy, z niego
+            // wodospad do rozlewiska, które rozlejZbiorniki wylał przy tej krawędzi
+            if (skalnaKrawedz) {
+                const { krawedz, srodek } = skalnaKrawedz;
+                const wzdluzX = (krawedz === 'polnoc' || krawedz === 'poludnie');
+                const dl = wzdluzX ? mapWidth : mapDepth;
+                // linia krawędzi i kierunek NA ZEWNĄTRZ planszy
+                const [ox, oz] = { polnoc: [0, -1], poludnie: [0, 1], zachod: [-1, 0], wschod: [1, 0] }[krawedz];
+                const linia = { polnoc: -offsetZ - 0.5, poludnie: mapDepth - 1 - offsetZ + 0.5,
+                                zachod: -offsetX - 0.5, wschod: mapWidth - 1 - offsetX + 0.5 }[krawedz];
+                const ksztalt = ksztaltGlazu(0);
+                const mat = new THREE.MeshPhongMaterial({ color: 0x6e675c, flatShading: true, shininess: 0 });
+                const rzedy = [[0.4, 4.5, 5.5], [1.6, 5.5, 7]];   // odsunięcie, wys. od-do
+                const ile = (Math.ceil(dl / 0.8) + 1) * rzedy.length;
+                const glazy = new THREE.InstancedMesh(ksztalt, mat, ile);
+                const d = new THREE.Object3D();
+                let i = 0;
+                rzedy.forEach(([ods, hMin, hMax]) => {
+                    for (let t = 0; t < dl; t += 0.8) {
+                        const wzd = t - (wzdluzX ? offsetX : offsetZ) + (Math.random() - 0.5) * 0.4;
+                        const pop = linia + (wzdluzX ? oz : ox) * (ods + Math.random() * 0.4);
+                        d.position.set(wzdluzX ? wzd : pop, 0, wzdluzX ? pop : wzd);
+                        const s = 1.5 + Math.random() * 0.7;
+                        d.scale.set(s, 2 * (hMin + Math.random() * (hMax - hMin)), s);
+                        d.rotation.set((Math.random() - 0.5) * 0.3, Math.random() * 6.28, (Math.random() - 0.5) * 0.3);
+                        d.updateMatrix();
+                        glazy.setMatrixAt(i++, d.matrix);
+                    }
+                });
+                glazy.count = i;
+                glazy.instanceMatrix.needsUpdate = true;
+                glazy.userData.unitType = 'fx';
+                scene.add(glazy); wodospadyMeshes.push(glazy);
+                const wzd = srodek - (wzdluzX ? offsetX : offsetZ);
+                const pop = linia - (wzdluzX ? oz : ox) * 0.3;
+                postawWodospad(wzdluzX ? wzd : pop, wzdluzX ? pop : wzd, -ox, -oz, 4.8, 0, 2.6, true);
+            }
+        }
+
+        function updateWodaPlynie(dt) {
+            if (!teksturaNurtu) return;
+            const t = performance.now() / 1000;
+            teksturaNurtu.offset.x -= dt * (riverIsLava ? 0.06 : (rzekaKrwi ? 0.12 : 0.3));
+            teksturaNurtu.offset.y = Math.sin(t * 0.7) * 0.04;
+            teksturaSpadu.offset.y += dt * 1.6;
+            pianyWodospadow.forEach(p => {
+                const s = 1 + 0.35 * Math.sin(t * 5 + p.userData.faza);
+                p.scale.set(s, 0.6 * s, s);
+            });
+        }
+
         function renderRiver() {
             if (riverMesh) { scene.remove(riverMesh); riverMesh.geometry.dispose(); riverMesh.material.dispose(); riverMesh = null; }
             bridgeMeshes.forEach(m => scene.remove(m));
@@ -9278,14 +9452,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (tiles.length > 0) {
                 const streamGeo = new THREE.BoxGeometry(1, 0.15, 1);
                 const isChasm = currentCombatTheme && currentCombatTheme.id === 'wyspy';
+                pobierzTeksturyWody();
                 const streamMat = riverIsLava
-                    ? new THREE.MeshBasicMaterial({ color: 0xff6a1a })
+                    ? new THREE.MeshBasicMaterial({ color: 0xff8a3a, map: teksturaNurtu })
                     : isChasm
                         ? new THREE.MeshBasicMaterial({ color: 0x090b14 }) // otchłań pod wyspami
                         : (rzekaKrwi
                             // Otchłań: gęsta, ciemna krew zamiast wody
-                            ? new THREE.MeshLambertMaterial({ color: 0x6e0a12, transparent: true, opacity: 0.97 })
-                            : new THREE.MeshLambertMaterial({ color: 0x2266aa, transparent: true, opacity: 0.95 }));
+                            ? new THREE.MeshLambertMaterial({ color: 0x8a0e18, map: teksturaNurtu, transparent: true, opacity: 0.97 })
+                            : new THREE.MeshLambertMaterial({ color: 0x2a78c4, map: teksturaNurtu, transparent: true, opacity: 0.95 }));
                 riverMesh = new THREE.InstancedMesh(streamGeo, streamMat, tiles.length);
                 const dummy = new THREE.Object3D();
                 tiles.forEach(([wx, wz], idx) => {
@@ -20353,6 +20528,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 riverIsLava: riverIsLava,
                 rzekaKrwi: rzekaKrwi,
                 bridgePositions: bridgePositions,
+                skalnaKrawedz: skalnaKrawedz,
                 riverGrid: hasRiver ? riverGrid.map(row => Array.from(row)) : null,
                 parkingBays: parkingBays,
                 combatLandmarkPos: combatLandmarkPos,
@@ -20409,6 +20585,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             sleepingNPCs.forEach(n => scene.remove(n.mesh)); sleepingNPCs = [];
             nightEnemies.forEach(e => scene.remove(e.mesh)); nightEnemies = [];
             clearCloudSea();
+            clearWodospady();
             if (nightWatchman) { scene.remove(nightWatchman.mesh); nightWatchman = null; }
             pets.forEach(p => scene.remove(p.mesh)); pets = [];
             roadCars.forEach(rc => scene.remove(rc.mesh)); roadCars = [];
@@ -20468,6 +20645,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             riverIsLava = data.riverIsLava;
             rzekaKrwi = !!data.rzekaKrwi;
             bridgePositions = data.bridgePositions || [];
+            skalnaKrawedz = data.skalnaKrawedz || null;
             if (data.riverGrid) {
                 for (let x = 0; x < mapWidth; x++) for (let z = 0; z < mapDepth; z++) riverGrid[x][z] = data.riverGrid[x][z];
             } else {
@@ -20490,6 +20668,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             clearCampfires();
             renderRiver();
             buildCloudSea();
+            buildWodospady();
             renderStreetLamps();
             rebuildWaterSources();
 
@@ -20956,6 +21135,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             sleepingNPCs.forEach(n => scene.remove(n.mesh)); sleepingNPCs = [];
             nightEnemies.forEach(e => scene.remove(e.mesh)); nightEnemies = [];
             clearCloudSea();
+            clearWodospady();
             if (nightWatchman) { scene.remove(nightWatchman.mesh); nightWatchman = null; }
             pets.forEach(p => scene.remove(p.mesh)); pets = [];
             if (ambulance) { scene.remove(ambulance.mesh); ambulance = null; }
@@ -27224,6 +27404,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             renderCornfields();
             renderRiver();
             buildCloudSea();
+            buildWodospady();
             // Alejki cmentarza przetarte PO wszystkich przebiegach generatora,
             // ale PRZED renderowaniem - inaczej usunięte bryły zostałyby na scenie
             renderStreetLamps();
@@ -40023,6 +40204,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (soldiers.length > 0 || isExploreMode()) renderMinimap();
             updateShadowFollow();
             updateCloudSea(dt);
+            updateWodaPlynie(dt);
             updateCampfires(time);
             updateWarriorMixers(dt * spowolnienieCzasu);
             updateThemeMusic();
