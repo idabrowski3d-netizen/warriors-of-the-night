@@ -9610,6 +9610,23 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 riverMesh.instanceMatrix.needsUpdate = true;
                 scene.add(riverMesh);
 
+                // Płycizna (bród) jaśnieje - widać, którędy da się przejść
+                const brod = tiles.filter(([wx, wz]) => !isChasm && !isObstacle(wx, wz));
+                if (brod.length && !riverIsLava) {
+                    const tafla = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1),
+                        new THREE.MeshBasicMaterial({ color: rzekaKrwi ? 0xc04050 : 0x9fd8f4, map: teksturaNurtu,
+                            transparent: true, opacity: 0.4, depthWrite: false }), brod.length);
+                    brod.forEach(([wx, wz], i) => {
+                        dummy.position.set(wx, getTerrainY(wx, wz) + 0.135, wz);
+                        dummy.rotation.set(-Math.PI / 2, 0, 0); dummy.scale.set(1, 1, 1);
+                        dummy.updateMatrix();
+                        tafla.setMatrixAt(i, dummy.matrix);
+                    });
+                    tafla.userData.unitType = 'fx';
+                    scene.add(tafla); bridgeMeshes.push(tafla);
+                    dummy.rotation.set(0, 0, 0);
+                }
+
                 if (riverIsLava) {
                     // Kilka pomarańczowych świateł wzdłuż strumienia lawy dla efektu żaru (nie po jednym na kafelek - zbyt kosztowne)
                     for (let i = 0; i < tiles.length; i += 8) {
@@ -12372,17 +12389,83 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Wspólne dla brył przeszkód parowu - ściany są niezniszczalne, więc nikt ich nie zwolni
         let glazyParowu = null;
 
+        // Gładki kopiec (wydma, zaspa, darń): ten sam pomysł co głaz, ale łagodnie i bez kantów
+        function ksztaltKopca(k) {
+            // Rzadka siatka - kopców są tysiące, gładkość daje cieniowanie, nie trójkąty
+            const g = new THREE.IcosahedronGeometry(0.5, 1);
+            const p = g.attributes.position;
+            for (let i = 0; i < p.count; i++) {
+                const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+                const f = 0.9 + 0.2 * ziarnoGlazu(Math.round(x * 50) * 1.31 + Math.round(y * 50) * 7.17 + Math.round(z * 50) * 3.73 + k * 51.3);
+                p.setXYZ(i, x * f, y * f, z * f);
+            }
+            g.computeVertexNormals();
+            return g;
+        }
+
+        // Każda plansza ma swoje zbocza. ksztalt: glaz (poszarpany), kopiec (gładki),
+        // plyta (bloki murku). warstwa - wysokość jednej warstwy, krzywo - przechył brył.
+        const MIASTO_SKARPA = { ksztalt: 'plyta', barwy: [0x8a8884, 0x7a7672, 0x96928c], warstwa: 0.5, krzywo: 0.05 };
+        const SNIEG_SKARPA = { ksztalt: 'kopiec', barwy: [0xe8eef5, 0xd6e0ea, 0xf4f8fc], polysk: 40 };
+        const CMENTARZ_SKARPA = { ksztalt: 'plyta', barwy: [0x6a6c66, 0x5a5d56, 0x6f7a62], warstwa: 0.5, krzywo: 0.18 };
+        const STYL_SKARP = {
+            parow:   { ksztalt: 'glaz', barwy: [0x6b5f4a, 0x5a4f3d, 0x786a52] },
+            wulkan:  { ksztalt: 'glaz', barwy: [0x2a2624, 0x1e1b1a, 0x3a332e], zar: 0x5a1800 },
+            otchlan: { ksztalt: 'glaz', barwy: [0x3a2422, 0x2a1817, 0x4a2c28], zar: 0x300800 },
+            las:     { ksztalt: 'glaz', barwy: [0x5a4632, 0x3f5a2e, 0x4a3a2a] },
+            amazonia:{ ksztalt: 'glaz', barwy: [0x4f3b2a, 0x2f5a26, 0x3e6a2e] },
+            bagno:   { ksztalt: 'kopiec', barwy: [0x3e4a32, 0x4a4a36, 0x33402c] },
+            sahara:  { ksztalt: 'kopiec', barwy: [0xd8bd84, 0xcdb077, 0xe2c992] },
+            sicario: { ksztalt: 'kopiec', barwy: [0xc8a070, 0xb89060, 0xd4ac7c] },
+            ambush:  { ksztalt: 'kopiec', barwy: [0xc8a070, 0xb89060, 0xd4ac7c] },
+            zamiec: SNIEG_SKARPA, jezioro: SNIEG_SKARPA,
+            cmentarzysko: CMENTARZ_SKARPA, nekropolia: CMENTARZ_SKARPA,
+            pobojowisko: { ksztalt: 'kopiec', barwy: [0x8a7a52, 0x7a6c48, 0x968660], warstwa: 0.5, krzywo: 0.1 },   // worki z piaskiem
+            cyber:   { ksztalt: 'plyta', barwy: [0x1a2436, 0x142030, 0x22304a], warstwa: 0.5, krzywo: 0.02, zar: 0x0a3a5a },
+            newyork: MIASTO_SKARPA, pozar: MIASTO_SKARPA, whitehouse: MIASTO_SKARPA, pentagon: MIASTO_SKARPA,
+            kremlin: MIASTO_SKARPA, zhongnanhai: MIASTO_SKARPA, stacja: MIASTO_SKARPA, szpital: MIASTO_SKARPA,
+            alcatraz: MIASTO_SKARPA
+        };
+        // Reszta plansz: łagodna darń w barwie ich trawy
+        function stylSkarpy() {
+            const id = currentCombatTheme ? currentCombatTheme.id : '';
+            if (STYL_SKARP[id]) return STYL_SKARP[id];
+            const pal = currentCombatTheme && currentCombatTheme.palette;
+            const trawa = pal && pal.grass ? parseInt(pal.grass.slice(1), 16) : 0x5a7a3a;
+            return { ksztalt: 'kopiec', barwy: [przyciemnij(trawa, 0.8), przyciemnij(trawa, 0.65), trawa] };
+        }
+
+        // Wspólne dla wszystkich nakładek z kopii: mgła wojny chowa je pole po polu
+        // i przyciemnia jak teren pod nimi (patrz nakladkiPodlog w updateFoW).
+        function dodajNakladke(geo, mat, kopie, cien) {
+            if (!kopie.length) { geo.dispose(); return 0; }
+            const im = new THREE.InstancedMesh(geo, mat, kopie.length);
+            kopie.forEach((c, i) => { im.setMatrixAt(i, c.m); im.setColorAt(i, new THREE.Color(1, 1, 1)); });
+            im.instanceMatrix.needsUpdate = true;
+            im.castShadow = !!cien; im.receiveShadow = true;
+            im.userData.unitType = 'fx';
+            im.userData.polaKopii = kopie.map(c => c.pole);
+            im.userData.macierze = kopie.map(c => c.m);
+            im.userData.stanKopii = [];
+            scene.add(im);
+            nakladkiPodlog.push(im);
+            return kopie.length;
+        }
+
         function postawSkalyZboczy() {
-            if (!currentCombatTheme || SKALY_ZBOCZY.indexOf(currentCombatTheme.id) === -1) return 0;
+            if (!currentCombatTheme) return 0;
+            const st = stylSkarpy();
             const ziarno = ziarnoGlazu;
-            const ksztalty = [0, 1, 2].map(ksztaltGlazu);
+            const ksztalty = [0, 1, 2].map(st.ksztalt === 'kopiec' ? ksztaltKopca
+                : st.ksztalt === 'plyta' ? () => new THREE.BoxGeometry(1, 1, 1) : ksztaltGlazu);
+            const krzywo = st.krzywo !== undefined ? st.krzywo : 0.7;
             const kopie = [[], [], []];
             const dummy = new THREE.Object3D();
             let n = 0;
             const dodaj = (pole, px, py, pz, szer, wys) => {
                 n += 7;
                 dummy.position.set(px, py, pz);
-                dummy.rotation.set((ziarno(n + 1) - 0.5) * 0.7, ziarno(n + 2) * 6.28, (ziarno(n + 3) - 0.5) * 0.7);
+                dummy.rotation.set((ziarno(n + 1) - 0.5) * krzywo, st.ksztalt === 'plyta' ? (ziarno(n + 2) - 0.5) * krzywo : ziarno(n + 2) * 6.28, (ziarno(n + 3) - 0.5) * krzywo);
                 dummy.scale.set(szer, wys, szer);
                 dummy.updateMatrix();
                 kopie[Math.floor(ziarno(n + 4) * 3)].push({ pole: pole, m: dummy.matrix.clone() });
@@ -12390,7 +12473,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             for (let mx = 0; mx < mapWidth; mx++) {
                 for (let mz = 0; mz < mapDepth; mz++) {
                     const h = heightMap[mx][mz];
-                    if (!(h > 0)) continue;
                     const x = mx - offsetX, z = mz - offsetZ, pole = { x: x, z: z };
                     for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
                         const nx = mx + dx, nz = mz + dz;
@@ -12398,7 +12480,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         const spad = h - heightMap[nx][nz];
                         if (spad <= 0) continue;
                         // Ściana: dwa głazy obok siebie na każdą warstwę, warstwa co ~1.3
-                        const warstw = Math.max(1, Math.ceil(spad / 1.3));
+                        const warstw = Math.max(1, Math.ceil(spad / (st.warstwa || 1.3)));
                         for (let w = 0; w < warstw; w++) {
                             for (const k of [-1, 1]) {
                                 const wzdluz = k * 0.25 + (ziarno(n + 5) - 0.5) * 0.16;
@@ -12413,24 +12495,162 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     }
                 }
             }
-            const barwy = [0x6b5f4a, 0x5a4f3d, 0x786a52];
             let ile = 0;
             kopie.forEach((lista, k) => {
-                if (!lista.length) { ksztalty[k].dispose(); return; }
-                const im = new THREE.InstancedMesh(ksztalty[k],
-                    new THREE.MeshPhongMaterial({ color: barwy[k], flatShading: true, shininess: 0 }), lista.length);
-                lista.forEach((c, i) => { im.setMatrixAt(i, c.m); im.setColorAt(i, new THREE.Color(1, 1, 1)); });
-                im.instanceMatrix.needsUpdate = true;
-                im.castShadow = true; im.receiveShadow = true;
-                im.userData.unitType = 'fx';
-                im.userData.polaKopii = lista.map(c => c.pole);
-                im.userData.macierze = lista.map(c => c.m);
-                im.userData.stanKopii = [];
-                scene.add(im);
-                nakladkiPodlog.push(im);
-                ile += lista.length;
+                // Środkowy wariant żarzy się (lawa w szczelinach, neon w płytach)
+                const mat = new THREE.MeshPhongMaterial({ color: st.barwy[k], flatShading: st.ksztalt !== 'kopiec',
+                    shininess: st.polysk || 0, emissive: (k === 1 && st.zar) ? st.zar : 0x000000 });
+                ile += dodajNakladke(ksztalty[k], mat, lista, true);
             });
             return ile;
+        }
+
+        // ================= PRZEJŚCIA GRUNTU =================
+        // Trawa, ziemia i droga stykały się ostrymi kwadratami. Na granicy kładziemy
+        // kępki trawy po stronie trawy i drobne kamyki po stronie ziemi.
+        const BEZ_TRAWY = ['cyber', 'wyspy', 'katedra', 'dom', 'wieza', 'studnia', 'klaustrofobia', 'alcatraz', 'szpital', 'stacja', 'otchlan', 'wulkan'];
+        function postawPrzejsciaGruntu() {
+            if (gameMode !== 'dream' || !currentCombatTheme || BEZ_TRAWY.includes(currentCombatTheme.id)) return 0;
+            const pal = currentCombatTheme.palette;
+            const trawa = pal && pal.grassDetail1 ? parseInt(pal.grassDetail1.slice(1), 16) : 0x6a8a44;
+            const kepki = [], kamyki = [];
+            const d = new THREE.Object3D();
+            for (let mx = 1; mx < mapWidth - 1; mx++) {
+                for (let mz = 1; mz < mapDepth - 1; mz++) {
+                    const t = terrainTypeMap[mx][mz];
+                    if (riverGrid[mx][mz] === 1 || obstacleGrid[mx][mz]) continue;
+                    const x = mx - offsetX, z = mz - offsetZ, y = heightMap[mx][mz];
+                    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+                        const t2 = terrainTypeMap[mx + dx][mz + dz];
+                        if (t === t2 || Math.random() < 0.45) continue;
+                        const px = x + dx * 0.38 + (Math.random() - 0.5) * 0.7 * Math.abs(dz);
+                        const pz = z + dz * 0.38 + (Math.random() - 0.5) * 0.7 * Math.abs(dx);
+                        if (t === 0) {
+                            for (let i = 0; i < 3; i++) {
+                                d.position.set(px + (Math.random() - 0.5) * 0.2, y + 0.1, pz + (Math.random() - 0.5) * 0.2);
+                                d.rotation.set((Math.random() - 0.5) * 0.6, Math.random() * 6.28, (Math.random() - 0.5) * 0.6);
+                                d.scale.set(1, 0.7 + Math.random() * 0.8, 1);
+                                d.updateMatrix();
+                                kepki.push({ pole: { x: x, z: z }, m: d.matrix.clone() });
+                            }
+                        } else if (t === 1 || t === 5) {
+                            d.position.set(px, y + 0.02, pz);
+                            d.rotation.set(0, Math.random() * 6.28, 0);
+                            const s = 0.12 + Math.random() * 0.12;
+                            d.scale.set(s, s * 0.5, s);
+                            d.updateMatrix();
+                            kamyki.push({ pole: { x: x, z: z }, m: d.matrix.clone() });
+                        }
+                    }
+                }
+            }
+            return dodajNakladke(new THREE.ConeGeometry(0.05, 0.28, 4), new THREE.MeshLambertMaterial({ color: trawa }), kepki) +
+                   dodajNakladke(ksztaltGlazu(1), new THREE.MeshPhongMaterial({ color: 0x8a8378, flatShading: true }), kamyki);
+        }
+
+        // ================= BRZEGI WODY =================
+        // Kamyki na linii brzegu i trzcina na lądzie. Lawa ma przy brzegu zastygłą
+        // skorupę, krew - ciemny, zaschnięty osad.
+        function postawBrzegi() {
+            if (gameMode !== 'dream' || !hasRiver || !currentCombatTheme) return 0;
+            const id = currentCombatTheme.id;
+            if (id === 'wyspy' || id === 'powodz') return 0;   // przepaść i ruchoma woda
+            const brzeg = [], trzcina = [];
+            const d = new THREE.Object3D();
+            const bezTrzciny = riverIsLava || rzekaKrwi || ['cyber', 'zamiec', 'jezioro', 'sahara'].includes(id);
+            for (let mx = 1; mx < mapWidth - 1; mx++) {
+                for (let mz = 1; mz < mapDepth - 1; mz++) {
+                    if (riverGrid[mx][mz] !== 1) continue;
+                    const x = mx - offsetX, z = mz - offsetZ, y = heightMap[mx][mz];
+                    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+                        if (riverGrid[mx + dx][mz + dz] === 1) continue;
+                        const ile = 1 + (Math.random() < 0.5 ? 1 : 0);
+                        for (let i = 0; i < ile; i++) {
+                            const w = (Math.random() - 0.5) * 0.8;
+                            d.position.set(x + dx * 0.45 + dz * w, y + 0.1, z + dz * 0.45 + dx * w);
+                            d.rotation.set(0, Math.random() * 6.28, 0);
+                            const s = (riverIsLava || rzekaKrwi) ? 0.35 + Math.random() * 0.2 : 0.16 + Math.random() * 0.14;
+                            d.scale.set(s, s * 0.45, s);
+                            d.updateMatrix();
+                            brzeg.push({ pole: { x: x, z: z }, m: d.matrix.clone() });
+                        }
+                        if (!bezTrzciny && Math.random() < 0.3) {
+                            const lx = x + dx * 0.75, lz = z + dz * 0.75, ly = heightMap[mx + dx][mz + dz];
+                            for (let i = 0; i < 4; i++) {
+                                d.position.set(lx + (Math.random() - 0.5) * 0.35, ly + 0.3, lz + (Math.random() - 0.5) * 0.35);
+                                d.rotation.set((Math.random() - 0.5) * 0.3, 0, (Math.random() - 0.5) * 0.3);
+                                d.scale.set(1, 0.8 + Math.random() * 0.6, 1);
+                                d.updateMatrix();
+                                trzcina.push({ pole: { x: x + dx, z: z + dz }, m: d.matrix.clone() });
+                            }
+                        }
+                    }
+                }
+            }
+            const barwaBrzegu = riverIsLava ? 0x221a16 : (rzekaKrwi ? 0x3a0c0e : 0x8a8a80);
+            return dodajNakladke(ksztaltGlazu(2), new THREE.MeshPhongMaterial({ color: barwaBrzegu, flatShading: true,
+                       emissive: riverIsLava ? 0x3a0e00 : 0x000000 }), brzeg) +
+                   dodajNakladke(new THREE.CylinderGeometry(0.015, 0.025, 0.6, 4), new THREE.MeshLambertMaterial({ color: 0x6a7a3a }), trzcina);
+        }
+
+        // ================= DROBIAZGI =================
+        // Rozrzucone hurtem, bez wpływu na rozgrywkę - to one mówią, gdzie jesteśmy.
+        const DROBIAZGI = {
+            kosc:   { geo: () => new THREE.CylinderGeometry(0.03, 0.025, 0.42, 5), barwa: 0xe6dcc6, lezy: true },
+            krzak:  { geo: () => new THREE.IcosahedronGeometry(0.22, 0), barwa: 0x7a5a32, druty: true },
+            galaz:  { geo: () => new THREE.CylinderGeometry(0.02, 0.035, 0.8, 4), barwa: 0x3a2e24, lezy: true },
+            ogniwo: { geo: () => new THREE.TorusGeometry(0.07, 0.018, 4, 8), barwa: 0x3a3a3e, lezy: true, polysk: 60 },
+            kabel:  { geo: () => new THREE.CylinderGeometry(0.025, 0.025, 1.4, 5), barwa: 0x101820, lezy: true, zar: 0x0a4a6a },
+            kamyk:  { geo: () => ksztaltGlazu(0), barwa: 0x8a8580, skala: 0.22 },
+            kwiat:  { geo: () => new THREE.SphereGeometry(0.05, 5, 4), barwa: 0xf0e6a0, wys: 0.12, barwy: [0xf0e6a0, 0xffffff, 0xc89ae0, 0xe07a7a] },
+            lisc:   { geo: () => new THREE.CircleGeometry(0.08, 5), barwa: 0x8a5a2a, plasko: true },
+            luska:  { geo: () => new THREE.CylinderGeometry(0.025, 0.025, 0.1, 6), barwa: 0xb08a40, lezy: true, polysk: 80 }
+        };
+        const DROBIAZGI_PLANSZ = {
+            sahara: ['kosc', 'krzak'], sicario: ['krzak', 'kosc'], ambush: ['krzak', 'kosc'],
+            otchlan: ['kosc', 'ogniwo'], wulkan: ['kosc', 'kamyk'],
+            zamiec: ['galaz'], jezioro: ['galaz'],
+            cyber: ['kabel'], pobojowisko: ['luska', 'kosc', 'galaz'],
+            cmentarzysko: ['lisc', 'galaz'], nekropolia: ['lisc', 'kosc'],
+            las: ['galaz', 'lisc', 'kamyk'], amazonia: ['lisc', 'galaz'], bagno: ['galaz', 'lisc'],
+            newyork: ['kamyk'], pozar: ['kamyk', 'galaz'], stacja: ['kamyk']
+        };
+        function postawDrobiazgi() {
+            if (gameMode !== 'dream' || !currentCombatTheme) return 0;
+            const id = currentCombatTheme.id;
+            if (['katedra', 'dom', 'wieza', 'studnia', 'klaustrofobia', 'wyspy'].includes(id)) return 0;
+            const rodzaje = DROBIAZGI_PLANSZ[id] || ['kamyk', 'kwiat'];
+            const kopie = {};
+            const d = new THREE.Object3D();
+            const ile = Math.round(mapWidth * mapDepth / 45);
+            for (let i = 0; i < ile; i++) {
+                const mx = 2 + Math.floor(Math.random() * (mapWidth - 4)), mz = 2 + Math.floor(Math.random() * (mapDepth - 4));
+                if (obstacleGrid[mx][mz] || riverGrid[mx][mz] === 1 || terrainTypeMap[mx][mz] === 2) continue;
+                const r = rodzaje[Math.floor(Math.random() * rodzaje.length)], def = DROBIAZGI[r];
+                const x = mx - offsetX + (Math.random() - 0.5) * 0.8, z = mz - offsetZ + (Math.random() - 0.5) * 0.8;
+                const ileTu = r === 'ogniwo' ? 4 : 1;   // łańcuch to kilka ogniw w rzędzie
+                const kat = Math.random() * 6.28;
+                for (let k = 0; k < ileTu; k++) {
+                    d.position.set(x + Math.cos(kat) * k * 0.12, heightMap[mx][mz] + (def.wys || 0.03), z + Math.sin(kat) * k * 0.12);
+                    if (def.lezy) d.rotation.set(Math.PI / 2, kat + (k % 2) * 1.57, 0);
+                    else if (def.plasko) d.rotation.set(-Math.PI / 2, 0, kat);
+                    else d.rotation.set(0, kat, 0);
+                    const sk = (def.skala || 1) * (0.7 + Math.random() * 0.6);
+                    d.scale.set(sk, def.skala ? sk * 0.5 : sk, sk);
+                    d.updateMatrix();
+                    const klucz = def.barwy ? r + (i % def.barwy.length) : r;
+                    (kopie[klucz] = kopie[klucz] || []).push({ pole: { x: mx - offsetX, z: mz - offsetZ }, m: d.matrix.clone() });
+                }
+            }
+            let razem = 0;
+            Object.keys(kopie).forEach(klucz => {
+                const r = klucz.replace(/[0-9]+$/, ''), def = DROBIAZGI[r];
+                const barwa = def.barwy ? def.barwy[+klucz.slice(r.length)] : def.barwa;
+                const mat = new THREE.MeshPhongMaterial({ color: barwa, wireframe: !!def.druty, shininess: def.polysk || 0,
+                    emissive: def.zar || 0x000000, side: def.plasko ? THREE.DoubleSide : THREE.FrontSide });
+                razem += dodajNakladke(def.geo(), mat, kopie[klucz]);
+            });
+            return razem;
         }
 
         function wyczyscNakladkiPodlog() {
@@ -15082,8 +15302,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
                 else if (pos.type === 'house-wall') {
                     const floors = pos.floors || 1;
+                    const barwaSciany = pos.wallColor !== undefined ? pos.wallColor : 0xaa5555;
                     for (let f = 0; f < floors; f++) {
-                        const wallMat = new THREE.MeshLambertMaterial({ color: pos.wallColor !== undefined ? pos.wallColor : 0xaa5555, transparent: true, opacity: 1.0 });
+                        // Faktura muru (cegły/bloki) w barwie ściany - zamiast gładkiej płyty
+                        const wallMat = new THREE.MeshLambertMaterial({ map: teksturaScianyBud(barwaSciany), transparent: true, opacity: 1.0 });
                         if (pos.destroyedLevels && pos.destroyedLevels.indexOf(f) !== -1) continue; // ten kwadrat już wybity
                         const wallThickness = pos.thinWall ? 0.35 : 1; // cienkie ściany pagody
                         const wall = new THREE.Mesh(new THREE.BoxGeometry(1, 2, wallThickness), wallMat); 
@@ -15091,6 +15313,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         // Cienka płyta na bocznej ścianie musi biec wzdłuż Z, inaczej sterczy w poprzek jak grzebień
                         const hW = pos.thinWall && houses.find(h => h.id === pos.houseId);
                         if (hW && (pos.x === hW.minX || pos.x === hW.maxX) && pos.z !== hW.minZ && pos.z !== hW.maxZ) wall.rotation.y = Math.PI / 2;
+                        // Cokół przy ziemi i gzyms pod dachem - ściana przestaje być pudełkiem
+                        if (f === 0) wall.add(detalSciany(wallThickness, barwaSciany, 0.32, -0.84, 0.62));
+                        if (f === floors - 1) wall.add(detalSciany(wallThickness, barwaSciany, 0.16, 0.92, 1.15));
                         // wallLevel pozwala zburzyć pojedynczy kwadrat, a nie cały pion ściany
                         wall.userData = { type: 'house-wall', x: pos.x, z: pos.z, houseId: pos.houseId, wallLevel: f };
                         scene.add(wall); obstacleMeshes.push(wall); 
@@ -15180,6 +15405,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             ozdobPodlogiWnetrz();
             zbudujPlatyPodlog();   // dopiero teraz bryły - z gotowej listy pól
             postawSkalyZboczy();
+            postawPrzejsciaGruntu();
+            postawBrzegi();
+            postawDrobiazgi();
             postawWrotaIzb();
             // Drzewa z modeli stawiamy RAZEM, na końcu - jednym wywołaniem na siatkę
             postawZebraneDrzewa();
@@ -21264,6 +21492,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
             terrainMeshes.forEach(m => { if (m.instanceColor) m.instanceColor.needsUpdate = true; });
             obstacleMeshes.forEach(m => { m.visible = true; });
+            // Nakładki (zbocza, kępki, drobiazgi) chowają się pole po polu - odsłaniamy wszystkie
+            nakladkiPodlog.forEach(im => {
+                const mac = im.userData && im.userData.macierze;
+                if (!mac) return;
+                mac.forEach((m, q) => { im.setMatrixAt(q, m); im.setColorAt(q, colorVisible); im.userData.stanKopii[q] = true; });
+                im.instanceMatrix.needsUpdate = true;
+                if (im.instanceColor) im.instanceColor.needsUpdate = true;
+            });
             updateMinimapTerrain();
         }
 
@@ -34593,8 +34829,97 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     mglaSnuKlebki.push(klab);
                 }
             }
+            dodajHoryzont(mglaSnuGrupa, offsetX - marginX, offsetZ - marginZ);
             scene.add(mglaSnuGrupa);
             return mglaSnuKlebki.length;
+        }
+
+        // ================= HORYZONT =================
+        // Za mgłą była czerń. Teraz każda plansza ma w oddali swoją sylwetkę: ścianę
+        // drzew, góry, panoramę miasta, dalekie wyspy. Bez mgły sceny (stoi dalej, niż
+        // sięga mgła), za to w barwach zmieszanych z mgłą - ma wyglądać na daleką.
+        const HORYZONT_BEZ = ['katedra', 'dom', 'wieza', 'studnia', 'klaustrofobia', 'alcatraz'];
+        const HORYZONT = {
+            las:      [{ f: 'stozek', barwa: 0x16301c, h: [8, 16], r: [2, 3.5], ile: 140 }],
+            amazonia: [{ f: 'kula', barwa: 0x1e4a22, h: [6, 12], r: [3, 5], ile: 110 }, { f: 'stozek', barwa: 0x16361a, h: [10, 18], r: [1.5, 2.5], ile: 40 }],
+            bagno:    [{ f: 'stozek', barwa: 0x26301e, h: [5, 10], r: [1.5, 3], ile: 90 }],
+            alabama:  [{ f: 'kula', barwa: 0x2e4426, h: [4, 8], r: [3, 5], ile: 70 }],
+            wulkan:   [{ f: 'gora', barwa: 0x1e1614, h: [25, 45], r: [14, 24], ile: 22 }, { f: 'kolec', barwa: 0x5a1a08, h: [6, 12], r: [1, 2], ile: 30, swieci: true }],
+            otchlan:  [{ f: 'kolec', barwa: 0x3a0c0c, h: [12, 30], r: [1.5, 3], ile: 70 }, { f: 'gora', barwa: 0x1a0606, h: [20, 35], r: [12, 20], ile: 14 }],
+            zamiec:   [{ f: 'gora', barwa: 0x8a98a8, h: [25, 45], r: [14, 22], ile: 22, czapa: 0xf4f8ff }],
+            jezioro:  [{ f: 'gora', barwa: 0x6a7a8c, h: [20, 40], r: [12, 20], ile: 22, czapa: 0xf4f8ff }, { f: 'stozek', barwa: 0x22303a, h: [6, 10], r: [1.5, 2.5], ile: 60 }],
+            sahara:   [{ f: 'kula', barwa: 0xb89060, h: [3, 6], r: [10, 18], ile: 40 }, { f: 'walec', barwa: 0x9a6a40, h: [8, 14], r: [6, 10], ile: 8 }],
+            sicario:  [{ f: 'walec', barwa: 0x8a5a38, h: [8, 16], r: [6, 12], ile: 14 }, { f: 'kula', barwa: 0xa8805a, h: [3, 6], r: [10, 16], ile: 24 }],
+            ambush:   [{ f: 'walec', barwa: 0x8a5a38, h: [8, 16], r: [6, 12], ile: 14 }],
+            cyber:    [{ f: 'blok', barwa: 0x0a3a5a, h: [15, 45], r: [3, 7], ile: 60, siatka: true }],
+            wyspy:    [{ f: 'wyspa', barwa: 0x7a8a6a, h: [3, 6], r: [6, 14], ile: 26 }],
+            cmentarzysko: [{ f: 'krzyz', barwa: 0x2a2a30, h: [3, 6], r: [0.4, 0.6], ile: 60 }, { f: 'stozek', barwa: 0x1a1c20, h: [8, 14], r: [1, 2], ile: 50 }],
+            nekropolia:   [{ f: 'krzyz', barwa: 0x22222a, h: [3, 6], r: [0.4, 0.6], ile: 60 }, { f: 'blok', barwa: 0x2a2a34, h: [6, 12], r: [3, 5], ile: 20 }],
+            newyork:  [{ f: 'blok', barwa: 0x1e2430, h: [20, 60], r: [3, 7], ile: 90, okna: true }],
+            pozar:    [{ f: 'blok', barwa: 0x1a1412, h: [10, 30], r: [3, 6], ile: 60, okna: true, swieci: true }],
+            whitehouse: [{ f: 'blok', barwa: 0x3a3e46, h: [8, 20], r: [3, 6], ile: 50, okna: true }],
+            pentagon: [{ f: 'blok', barwa: 0x3a3e46, h: [8, 20], r: [3, 6], ile: 50, okna: true }],
+            kremlin:  [{ f: 'blok', barwa: 0x3a2a28, h: [8, 18], r: [3, 6], ile: 40 }, { f: 'kolec', barwa: 0x2e4a34, h: [10, 16], r: [1, 1.6], ile: 14 }],
+            zhongnanhai: [{ f: 'blok', barwa: 0x3a2a28, h: [6, 14], r: [3, 6], ile: 40 }, { f: 'gora', barwa: 0x34404a, h: [20, 35], r: [12, 18], ile: 12 }],
+            stacja:   [{ f: 'blok', barwa: 0x2a2c30, h: [6, 16], r: [3, 6], ile: 40 }],
+            szpital:  [{ f: 'stozek', barwa: 0x1a2420, h: [8, 14], r: [1.5, 3], ile: 80 }],
+            parow:    [{ f: 'gora', barwa: 0x4a4236, h: [18, 32], r: [12, 20], ile: 22 }]
+        };
+        const HORYZONT_DOMYSLNY = [{ f: 'kula', barwa: 0x2a3a28, h: [4, 9], r: [8, 14], ile: 40 }, { f: 'stozek', barwa: 0x1a2a1c, h: [6, 12], r: [1.5, 3], ile: 60 }];
+        const _geoHoryzontu = {
+            stozek: () => new THREE.ConeGeometry(1, 1, 7), kolec: () => new THREE.ConeGeometry(1, 1, 4),
+            gora: () => new THREE.ConeGeometry(1, 1, 9), kula: () => new THREE.SphereGeometry(1, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2),
+            walec: () => new THREE.CylinderGeometry(0.85, 1, 1, 8), blok: () => new THREE.BoxGeometry(1, 1, 1),
+            wyspa: () => new THREE.SphereGeometry(1, 10, 6), krzyz: () => new THREE.BoxGeometry(1, 1, 1)
+        };
+        function dodajHoryzont(grupa, polX, polZ) {
+            if (!currentCombatTheme || HORYZONT_BEZ.includes(currentCombatTheme.id)) return 0;
+            const warstwy = HORYZONT[currentCombatTheme.id] || HORYZONT_DOMYSLNY;
+            const mgla = new THREE.Color(barwaMglySnu());
+            const d = new THREE.Object3D();
+            let razem = 0;
+            warstwy.forEach(w => {
+                const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(w.barwa).lerp(mgla, 0.3), fog: false, wireframe: !!w.siatka });
+                const im = new THREE.InstancedMesh(_geoHoryzontu[w.f](), mat, w.ile * (w.f === 'krzyz' ? 2 : 1));
+                const okna = [], czapy = [];
+                let n = 0;
+                for (let i = 0; i < w.ile; i++) {
+                    const dal = 12 + Math.random() * 30;
+                    const poz = obwodProstokata(Math.random(), polX + dal, polZ + dal);
+                    const h = w.h[0] + Math.random() * (w.h[1] - w.h[0]);
+                    const r = w.r[0] + Math.random() * (w.r[1] - w.r[0]);
+                    const y0 = w.f === 'wyspa' ? -8 + Math.random() * 14 : -1;
+                    d.rotation.set(0, Math.random() * 6.28, 0);
+                    if (w.f === 'krzyz') {
+                        d.position.set(poz.x, y0 + h / 2, poz.z); d.scale.set(r, h, r); d.updateMatrix(); im.setMatrixAt(n++, d.matrix);
+                        d.position.set(poz.x, y0 + h * 0.75, poz.z); d.scale.set(h * 0.55, r, r); d.updateMatrix(); im.setMatrixAt(n++, d.matrix);
+                        continue;
+                    }
+                    d.position.set(poz.x, y0 + (w.f === 'kula' ? 0 : h / 2), poz.z);
+                    d.scale.set(r, w.f === 'kula' ? h : (w.f === 'wyspa' ? h * 0.5 : h), r);
+                    d.updateMatrix(); im.setMatrixAt(n++, d.matrix);
+                    if (w.czapa) czapy.push([poz.x, y0 + h * 0.82, poz.z, r * 0.36, h * 0.36]);
+                    if (w.okna) for (let k = 0; k < 5; k++) if (Math.random() < 0.6)
+                        okna.push([poz.x + (Math.random() - 0.5) * r, y0 + 2 + Math.random() * (h - 3), poz.z + (Math.random() - 0.5) * r]);
+                }
+                im.count = n;
+                im.userData.unitType = 'fx';
+                grupa.add(im);
+                razem += n;
+                // Śnieżne czapy na szczytach i światła w oknach - z bliska, pojedyncze kropki
+                if (czapy.length) {
+                    const ic = new THREE.InstancedMesh(_geoHoryzontu.gora(), new THREE.MeshBasicMaterial({ color: new THREE.Color(w.czapa).lerp(mgla, 0.25), fog: false }), czapy.length);
+                    czapy.forEach(([x, y, z, r, h], i) => { d.position.set(x, y, z); d.scale.set(r, h, r); d.updateMatrix(); ic.setMatrixAt(i, d.matrix); });
+                    grupa.add(ic);
+                }
+                if (okna.length) {
+                    const io = new THREE.InstancedMesh(new THREE.BoxGeometry(0.5, 0.7, 0.5),
+                        new THREE.MeshBasicMaterial({ color: w.swieci ? 0xff7a30 : 0xffd98a, fog: false }), okna.length);
+                    okna.forEach(([x, y, z], i) => { d.position.set(x, y, z); d.rotation.set(0, 0, 0); d.scale.set(1, 1, 1); d.updateMatrix(); io.setMatrixAt(i, d.matrix); });
+                    grupa.add(io);
+                }
+            });
+            return razem;
         }
 
         // Punkt na obwodzie prostokąta dla t w zakresie 0..1
@@ -34858,6 +35183,23 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return t;
         }
         // Materiały z powtarzaniem dobranym do wielkości bryły
+        // Jedna tekstura muru na barwę - ścian są setki, każda z osobną teksturą zapchałaby kartę
+        const _teksturyScian = {};
+        function teksturaScianyBud(barwa) {
+            return _teksturyScian[barwa] || (_teksturyScian[barwa] = teksturaZPlotna(plotnoMuru(barwa), 1, 2));
+        }
+        // Listwa wzdłuż ściany (cokół, gzyms): nieco szersza i grubsza od muru
+        const _detaleScian = {};
+        function detalSciany(grubosc, barwa, wys, y, jasnosc) {
+            const klucz = grubosc + '|' + barwa + '|' + wys + '|' + jasnosc;
+            const d = _detaleScian[klucz] || (_detaleScian[klucz] = {
+                geo: new THREE.BoxGeometry(1.0, wys, grubosc + 0.12),
+                mat: new THREE.MeshLambertMaterial({ color: jasnosc < 1 ? przyciemnij(barwa, jasnosc) : rozjasnij(barwa, jasnosc) })
+            });
+            const m = new THREE.Mesh(d.geo, d.mat);
+            m.position.y = y;
+            return m;
+        }
         function materialMuru(barwa, powtX, powtY, dodatki) {
             return new THREE.MeshLambertMaterial(Object.assign(
                 { map: teksturaZPlotna(plotnoMuru(barwa), powtX, powtY) }, dodatki || {}));
