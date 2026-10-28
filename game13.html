@@ -3918,6 +3918,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function wyrzucNaBrzeg(s) {
             if (!s || !s.mesh) return false;
+            zniesNurtem(s);
             const sx = Math.round(s.mesh.position.x), sz = Math.round(s.mesh.position.z);
             for (let r = 1; r <= 8; r++) {
                 for (let dx = -r; dx <= r; dx++) {
@@ -5451,7 +5452,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             for(let i=0; i<mapWidth; i++) terrainTypeMap[i].fill(0);
             for(let i=0; i<mapWidth; i++) cornfieldGrid[i].fill(0);
             for(let i=0; i<mapWidth; i++) riverGrid[i].fill(0);
-            hasRiver = false; bridgePositions = []; islandBridgeTiles = []; skalnaKrawedz = null;
+            hasRiver = false; bridgePositions = []; islandBridgeTiles = []; skalnaKrawedz = null; posagiBozkow = []; nurtRzeki = false;
 
             let mainRoadX = Math.floor(mapWidth / 2);
             // Plansze o własnym klimacie nie znają współczesności: żadnego asfaltu,
@@ -5758,6 +5759,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                        Math.random() < 0.45)) {
                 hasRiver = true;
                 riverIsLava = isVolcanoTheme;
+                nurtRzeki = true;
                 rzekaKrwi = currentCombatTheme && currentCombatTheme.id === 'otchlan';   // Otchłań: rzeka krwi
                 const riverHalfWidth = 2; // rzeka ma ok. 5 kafelków szerokości
                 const riverCenterZ = 40 + Math.floor(Math.random() * (mapDepth - 80));
@@ -8732,7 +8734,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         for (let z = hData.minZ + 3; z <= hData.maxZ - 4; z += 3)
                             [hData.minX + 2, hData.maxX - 2].forEach(x => addObstacle(x, z, 'column', { wysokosc: 2 * FLOOR_HEIGHT, kolor: styl.kolumny }));
                         addObstacle(b.x, hData.maxZ - 3, 'altar', { poganski: true, ogien: styl.ogien });
-                        addObstacle(b.x, hData.maxZ - 1, 'statue', { kolor: styl.kolumny });
+                        // Posąg bożka nie jest przeszkodą - to uśpiony wróg, rozstawiany razem z resztą (rozstawBozki)
+                        posagiBozkow.push({ x: b.x, z: hData.maxZ - 1, kolor: styl.kolumny });
                         [b.x - 2, b.x + 2].forEach(x => addObstacle(x, hData.maxZ - 3, 'swieca'));
                     }
                 }
@@ -9349,6 +9352,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         let wodospadyMeshes = [];
         let pianyWodospadow = [];
         let skalnaKrawedz = null;   // { krawedz, srodek } - ustawia rozlejZbiorniki
+        let nurtRzeki = false;      // rzeka przez planszę ma prąd w stronę +X (rozlewiska i sadzawki nie)
+        let wodospadyPola = [];     // stopy wodospadów na planszy - tam szum zagłusza
+        let grotaWodospadu = null;  // { x, z, mesh, zebrana } - wnęka ze źródłem przy wodospadzie
+        const SZUM_WODOSPADU_ZASIEG = 5;
+        const GROTA_SZANSA = 0.5;
+        const GROTA_LASKA = 2;
 
         function zrobTeksture(w, h, rysuj) {
             const c = document.createElement('canvas');
@@ -9388,12 +9397,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             wodospadyMeshes.forEach(m => { scene.remove(m); if (m.geometry) m.geometry.dispose(); zwolnijMaterial(m); });
             wodospadyMeshes = [];
             pianyWodospadow = [];
+            wodospadyPola = [];
+            grotaWodospadu = null;
         }
 
         // Jeden wodospad: tafla od yGora do yDol na krawędzi pola, zwrócona w stronę
         // (dx, dz), w którą woda spada. Piana tylko, gdy stopa jest widoczna.
         function postawWodospad(x, z, dx, dz, yGora, yDol, szer, zPiana) {
             const wys = yGora - yDol;
+            if (yDol >= 0) wodospadyPola.push({ x: x, z: z });   // spadające w chmury nie hałasują nikomu
             const mat = new THREE.MeshBasicMaterial({ map: teksturaSpadu, color: 0xcfe6ff, transparent: true,
                 opacity: 0.85, side: THREE.DoubleSide, depthWrite: false });
             const tafla = new THREE.Mesh(new THREE.PlaneGeometry(szer, wys), mat);
@@ -9493,6 +9505,50 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const pop = linia - (wzdluzX ? oz : ox) * 0.3;
                 postawWodospad(wzdluzX ? wzd : pop, wzdluzX ? pop : wzd, -ox, -oz, 4.8, 0, 2.6, true);
             }
+
+            // GROTA: przy jednym z wodospadów, na najbliższym wolnym polu, czeka wnęka
+            // ze źródłem. Widać ją dopiero z bliska.
+            if (wodospadyPola.length && Math.random() < GROTA_SZANSA) {
+                const w = wodospadyPola[Math.floor(Math.random() * wodospadyPola.length)];
+                let pole = null;
+                for (let r = 0; r <= 6 && !pole; r++)
+                    for (let dx = -r; dx <= r && !pole; dx++)
+                        for (let dz = -r; dz <= r && !pole; dz++) {
+                            const gx = Math.round(w.x) + dx, gz = Math.round(w.z) + dz;
+                            if (isWithinPlayBounds(gx, gz) && !isObstacle(gx, gz)) pole = [gx, gz];
+                        }
+                if (pole) {
+                    const g = new THREE.Group();
+                    const skrzynka = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.4, 0.4), new THREE.MeshLambertMaterial({ color: 0x5a3f28 }));
+                    skrzynka.position.y = 0.2; g.add(skrzynka);
+                    const okucie = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.08, 0.42), new THREE.MeshLambertMaterial({ color: 0xd4a838 }));
+                    okucie.position.y = 0.3; g.add(okucie);
+                    const blask = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), new THREE.MeshBasicMaterial({ color: 0x9fe8ff }));
+                    blask.position.y = 0.55; g.add(blask);
+                    g.position.set(pole[0], getTerrainY(pole[0], pole[1]), pole[1]);
+                    g.visible = false;
+                    g.userData.unitType = 'fx';
+                    scene.add(g); wodospadyMeshes.push(g);
+                    grotaWodospadu = { x: pole[0], z: pole[1], mesh: g, zebrana: false };
+                }
+            }
+        }
+
+        function szumWodospadu(x, z) {
+            return wodospadyPola.some(w => Math.hypot(w.x - x, w.z - z) <= SZUM_WODOSPADU_ZASIEG);
+        }
+
+        // Nurt znosi: kto ląduje w rzece z prądem, płynie z nią do 3 pól, zanim złapie brzeg
+        function zniesNurtem(s) {
+            if (!nurtRzeki || !s || !s.mesh || !czyWoda(s.mesh.position.x, s.mesh.position.z)) return 0;
+            let x = Math.round(s.mesh.position.x);
+            const z = Math.round(s.mesh.position.z);
+            let n = 0;
+            while (n < 3 && czyWoda(x + 1, z)) { x++; n++; }
+            if (!n) return 0;
+            s.mesh.position.x = x;
+            updateUI(`Nurt porywa ${s.name} i znosi o ${n} ${n === 1 ? 'pole' : 'pola'} z prądem.`);
+            return n;
         }
 
         function updateWodaPlynie(dt) {
@@ -14245,15 +14301,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     // na czterech kondygnacjach wzór byłby rozciągnięty na smugi
                     const stoneMat = materialKamienia(pos.kolor || 0xbdb3a4, 2, 6);
                     const stoneMatKrotki = materialKamienia(pos.kolor || 0xbdb3a4, 2, 1);
+                    // Jedna grupa z osią u podstawy - przewrócona kładzie się w całości
+                    const g = new THREE.Group();
                     const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.48, H, 12), stoneMat);
-                    shaft.position.set(pos.x, ty + H / 2, pos.z);
-                    scene.add(shaft); obstacleMeshes.push(shaft);
+                    shaft.position.y = H / 2; g.add(shaft);
                     const base = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.68, 0.35, 12), stoneMatKrotki);
-                    base.position.set(pos.x, ty + 0.17, pos.z);
-                    scene.add(base); obstacleMeshes.push(base);
+                    base.position.y = 0.17; g.add(base);
                     const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.44, 0.4, 12), stoneMatKrotki);
-                    cap.position.set(pos.x, ty + H - 0.2, pos.z);
-                    scene.add(cap); obstacleMeshes.push(cap);
+                    cap.position.y = H - 0.2; g.add(cap);
+                    g.position.set(pos.x, ty, pos.z);
+                    scene.add(g); obstacleMeshes.push(g);
                 }
                 else if (pos.type === 'altar') {
                     const stoneMat = materialPlyty(0xd6cbb8, 2);
@@ -14265,9 +14322,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     scene.add(leg); obstacleMeshes.push(leg);
                     // obrus i krzyż - ołtarz zapomnianego bóstwa ich nie ma, płonie na nim tylko ogień
                     if (pos.poganski) {
-                        const ogien = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), new THREE.MeshBasicMaterial({ color: pos.ogien || 0xff8833 }));
-                        ogien.position.set(pos.x, ty + 1.32, pos.z);
-                        scene.add(ogien); obstacleMeshes.push(ogien);
+                        if (!pos.zgaszony) {
+                            const ogien = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), new THREE.MeshBasicMaterial({ color: pos.ogien || 0xff8833 }));
+                            ogien.position.set(pos.x, ty + 1.32, pos.z);
+                            scene.add(ogien); obstacleMeshes.push(ogien);
+                            // Łuna ognia na wnętrzu - nocą świątynię widać z daleka
+                            const noc = (currentTimeOfDay === 'noc' || currentTimeOfDay === 'wieczor');
+                            const swiatlo = new THREE.PointLight(pos.ogien || 0xff8833, noc ? 2.4 : 1.0, noc ? 16 : 9, 1.5);
+                            swiatlo.position.set(pos.x, ty + 1.9, pos.z);
+                            scene.add(swiatlo); obstacleMeshes.push(swiatlo);
+                            ognieOltarzy.push({ pos: pos, ogien: ogien, swiatlo: swiatlo, moc: swiatlo.intensity });
+                        }
                     } else {
                     const cloth = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.06, 0.95),
                         new THREE.MeshLambertMaterial({ color: 0xf0e6d0 }));
@@ -15296,9 +15361,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 obstacleMeshes.splice(i, 1);
             }
 
+            // Gruz spada na ziemię (kwadrat z piętra nie zostaje w powietrzu), nad wyrwą wzbija się kurz
             const rubble = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.22, 0.8), new THREE.MeshLambertMaterial({ color: 0x6b6b6b }));
-            rubble.position.set(Math.round(x), getTerrainY(x, z) + level * FLOOR_HEIGHT + 0.11, Math.round(z));
+            rubble.position.set(Math.round(x), getTerrainY(x, z) + 0.11, Math.round(z));
             scene.add(rubble); obstacleMeshes.push(rubble);
+            kurzIGruz(Math.round(x), Math.round(z), getTerrainY(x, z) + level * FLOOR_HEIGHT + 1, obs.wallColor);
             SoundEngine.playHit();
             return true;
         }
@@ -15455,10 +15522,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // w losową stronę. Przygniatają tego, kto tam stoi, a leżące zostają na
         // stałe: przewrócony regał może zamknąć wrogowi przejście albo oddziałowi
         // drogę odwrotu. Rusza je też ciężki wróg przechodzący tuż obok.
-        const PRZEWRACALNE = ['regal', 'rusztowanie', 'krzyz', 'stos_beczek', 'slup', 'slup_energetyczny', 'znak_drogowy', 'budka_telefoniczna'];
+        const PRZEWRACALNE = ['regal', 'rusztowanie', 'krzyz', 'stos_beczek', 'slup', 'slup_energetyczny', 'znak_drogowy', 'budka_telefoniczna', 'column'];
         const PRZEWROT_NAZWY = { regal: 'Regał', rusztowanie: 'Rusztowanie', krzyz: 'Krzyż', stos_beczek: 'Stos beczek', slup: 'Słup telefoniczny',
-                                 slup_energetyczny: 'Słup energetyczny', znak_drogowy: 'Znak drogowy', budka_telefoniczna: 'Budka telefoniczna' };
-        const PRZEWROT_DLUGOSC = { slup: 3, slup_energetyczny: 4 };   // na ile pól w linii pada (domyślnie 1)
+                                 slup_energetyczny: 'Słup energetyczny', znak_drogowy: 'Znak drogowy', budka_telefoniczna: 'Budka telefoniczna',
+                                 column: 'Kolumna' };
+        const PRZEWROT_DLUGOSC = { slup: 3, slup_energetyczny: 4, column: 3 };   // na ile pól w linii pada (domyślnie 1)
         const PRZEWROT_OBRAZENIA = 6;
         const PRZEWROT_CIEZKI_SZANSA = 0.35;   // na krok ciężkiego wroga obok konstrukcji
 
@@ -16743,6 +16811,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (!wrog || wrog.isDead) return;
             // Kto wali w kamienną figurę, ten ją budzi - i to natychmiast
             if (wrog.type === 'gargulec' && wrog.zastygly) ozyjGargulec(wrog, 'postrzal');
+            // Bożek: trafienie go budzi, a kamień oddaje część obrażeń
+            if (wrog.type === 'bozek') {
+                if (wrog.uspiony) ozyjBozka(wrog);
+                wrog.hp = Math.min(wrog.maxHp, wrog.hp + BOZEK_KAMIEN_TLUMI);
+                updateUI('Kamień tłumi kulę - bożka lepiej przygnieść albo wysadzić.');
+            }
             animWroga(wrog, 'cios', true);
         }
 
@@ -19343,6 +19417,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (s.levitateTurns <= 0) {
                     s.levitateTurns = 0;
                     detachLevitateAura(s);
+                    // Nad rzeką z prądem woda najpierw znosi, dopiero potem wojownik wychodzi na brzeg
+                    if (!riverIsLava) zniesNurtem(s);
                     // Koniec lewitacji nad przepaścią lub lawą oznacza śmierć - nie ma dokąd opaść
                     const sx = Math.round(s.mesh.position.x), sz = Math.round(s.mesh.position.z);
                     const mx = sx + offsetX, mz = sz + offsetZ;
@@ -19926,6 +20002,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 { typ: 'skorpion_duzy', hp: 20, ap: 7,  opis: 'Skorpion pancerny', odmiana: 'duzy' },
                 { typ: 'glizda',    hp: 13, ap: 24, opis: 'Glizda' },
                 { typ: 'gargulec', hp: GARGULEC_HP, ap: GARGULEC_AP, opis: 'Gargulec' },
+                { typ: 'bozek', hp: BOZEK_HP, ap: BOZEK_AP, opis: 'Kamienny bożek' },
                 { typ: 'blizniaki', hp: BLIZNIAKI_HP, ap: BLIZNIAKI_AP, opis: 'Bliźniaki' },
                 { typ: 'matrona', hp: MATRONA_HP, ap: MATRONA_AP, opis: 'Czarna Matrona' },
                 { typ: 'topielec', hp: TOPIELEC_HP, ap: TOPIELEC_AP, opis: 'Topielec' },
@@ -19958,6 +20035,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 robot: createRobotMesh, droid: createDroidMesh, ogar: createHellhoundMesh, klaun: createClownMesh, robak: createWormMesh,
                 glizda: createGlizdaMesh,
                 gargulec: createGargulecMesh,
+                bozek: createBozekMesh,
                 blizniaki: createBlizniakiMesh,
                 matrona: createMatronaMesh,
                 topielec: createTopielecMesh,
@@ -20633,7 +20711,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // jako nieruchome "powidoki", w które nie dało się strzelić.
                 enemies: enemies.filter(e => !e.isDead).map(e => ({
                     x: e.mesh.position.x, z: e.mesh.position.z, type: e.type, hp: e.hp, maxHp: e.maxHp,
-                    ap: e.ap, maxAp: e.maxAp, accuracyBonus: e.accuracyBonus, isDead: e.isDead, facingAngle: e.facingAngle, level: e.level || 0,
+                    ap: e.ap, maxAp: e.maxAp, accuracyBonus: e.accuracyBonus, isDead: e.isDead, facingAngle: e.facingAngle, level: e.level || 0, uspiony: !!e.uspiony, premiaOltarza: e.premiaOltarza || 0,
                     isBoss: !!e.isBoss, bossTurn: e.bossTurn || 0, hasOpened: !!e.hasOpened,
                     blindedTurns: e.blindedTurns || 0, blindedFrom: e.blindedFrom || null,
                     gatunek: (e.gatunek === undefined ? null : e.gatunek), elita: !!e.elita, podZiemia: !!e.podZiemia, wAucie: !!e.wAucie,
@@ -20777,7 +20855,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Nowe rasy mają własne bryły, nie budujemy ich z createCharacter
             const CUSTOM_ENEMY_MESH = { summoner: createSummonerMesh, stalker: createStalkerMesh, wisp: createWispMesh, koszmar: createBossMesh, zombie: createZombieMesh, vampire: createVampireMesh, strzyga: createStrzygaMesh,
                                         spider_small: () => createSpiderMesh(false), spider_big: () => createSpiderMesh(true),
-                                        robot: createRobotMesh, droid: createDroidMesh, klaun: createClownMesh, robak: createWormMesh, general: createGeneralMesh, femina: createFeminaMesh };
+                                        robot: createRobotMesh, droid: createDroidMesh, klaun: createClownMesh, robak: createWormMesh, general: createGeneralMesh, femina: createFeminaMesh, bozek: createBozekMesh };
             enemies = (data.enemies || []).filter(ed => !ed.isDead).map(ed => {
                 const look = ENEMY_LOOKS[ed.type] || ENEMY_LOOKS.standard;
                 // Jeśli dla tego typu wgrano model 3D, po wczytaniu zapisu też z niego korzystamy
@@ -20798,7 +20876,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 scene.add(mesh);
                 const fa = ed.facingAngle || 0;
                 mesh.lookAt(mesh.position.x + Math.sin(fa), mesh.position.y, mesh.position.z + Math.cos(fa));
-                return { mesh: mesh, type: ed.type, hp: ed.hp, maxHp: ed.maxHp, ap: ed.ap, maxAp: ed.maxAp, accuracyBonus: ed.accuracyBonus, isDead: ed.isDead, facingAngle: fa, level: ed.level || 0, isBoss: !!ed.isBoss, bossTurn: ed.bossTurn || 0, hasOpened: !!ed.hasOpened, blindedTurns: ed.blindedTurns || 0, blindedFrom: ed.blindedFrom || null, gatunek: (ed.gatunek === undefined ? null : ed.gatunek), elita: !!ed.elita, podZiemia: !!ed.podZiemia, wAucie: !!ed.wAucie, glizdaPoprzedniDystans: (ed.glizdaPoprzedniDystans === undefined ? null : ed.glizdaPoprzedniDystans), glizdaZZaskoczenia: !!ed.glizdaZZaskoczenia, ujawniony: !!ed.ujawniony, podrobionyNaKim: ed.podrobionyNaKim || null, lup: ed.lup || [], ucieka: !!ed.ucieka, maZakladnika: !!ed.maZakladnika, zakladnikHp: ed.zakladnikHp || 0, przebrany: !!ed.przebrany, dmgBonus: ed.elita ? 1 : 0 };
+                return { mesh: mesh, type: ed.type, hp: ed.hp, maxHp: ed.maxHp, ap: ed.ap, maxAp: ed.maxAp, accuracyBonus: ed.accuracyBonus, isDead: ed.isDead, facingAngle: fa, level: ed.level || 0, isBoss: !!ed.isBoss, bossTurn: ed.bossTurn || 0, hasOpened: !!ed.hasOpened, blindedTurns: ed.blindedTurns || 0, blindedFrom: ed.blindedFrom || null, gatunek: (ed.gatunek === undefined ? null : ed.gatunek), elita: !!ed.elita, podZiemia: !!ed.podZiemia, wAucie: !!ed.wAucie, glizdaPoprzedniDystans: (ed.glizdaPoprzedniDystans === undefined ? null : ed.glizdaPoprzedniDystans), glizdaZZaskoczenia: !!ed.glizdaZZaskoczenia, ujawniony: !!ed.ujawniony, podrobionyNaKim: ed.podrobionyNaKim || null, lup: ed.lup || [], ucieka: !!ed.ucieka, maZakladnika: !!ed.maZakladnika, zakladnikHp: ed.zakladnikHp || 0, przebrany: !!ed.przebrany, dmgBonus: ed.elita ? 1 : 0, uspiony: !!ed.uspiony, premiaOltarza: ed.premiaOltarza || 0 };
             });
 
             enemies.forEach(e => { if ((e.podZiemia || e.wAucie || e.wZasadzce || e.wWodzie) && e.mesh) e.mesh.visible = false; });
@@ -23645,6 +23723,184 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (blisko && ozyjGargulec(e, 'blisko')) obudzonych++;
             });
             return obudzonych;
+        }
+
+        // ========================================================
+        // --- ŚWIĄTYNIE W ROZGRYWCE ---
+        // OŁTARZ BOŻKA: póki płonie, wrogowie w pobliżu celują pewniej. Wojownik,
+        // który stanie przy nim, przewraca misę z ogniem - za to Łaska.
+        // POSĄG BOŻKA: stoi na cokole jak kamień, aż ktoś podejdzie albo w niego
+        // strzeli. Wtedy schodzi i idzie wręcz. Kamień tłumi kule - lepiej zwalić
+        // na niego kolumnę albo wysadzić beczkę (te obrażenia wchodzą w całości).
+        // ========================================================
+        const OLTARZ_ZASIEG = 6;
+        const OLTARZ_PREMIA = 15;         // do celności wrogów przy płonącym ołtarzu
+        const OLTARZ_LASKA = 3;
+        const BOZEK_HP = 16, BOZEK_AP = 8, BOZEK_CIOS = 6;
+        const BOZEK_PRZEBUDZENIE = 4;     // z tylu pól wyczuwa intruza
+        const BOZEK_KAMIEN_TLUMI = 3;     // tyle HP oddaje kamień z każdego trafienia
+        let posagiBozkow = [];            // { x, z, kolor } - ustawia generator świątyń
+        let ognieOltarzy = [];            // { pos, ogien, swiatlo, moc }
+
+        function createBozekMesh(kolor) {
+            const g = new THREE.Group();
+            const kamien = new THREE.MeshLambertMaterial({ color: kolor || 0xa9a196 });
+            const cokol = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.5, 1.0), materialKamienia(0x8a8578, 2, 1));
+            cokol.position.y = 0.25; g.add(cokol);
+            const szata = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.9, 10), kamien);
+            szata.position.y = 1.45; g.add(szata);
+            const glowa = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), kamien);
+            glowa.position.y = 2.55; g.add(glowa);
+            // Korona z kamiennych promieni - bóstwo, nie człowiek
+            for (let i = 0; i < 7; i++) {
+                const a = (i / 7) * Math.PI * 2;
+                const promien = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.4, 5), kamien);
+                promien.position.set(Math.cos(a) * 0.22, 2.85, Math.sin(a) * 0.22);
+                promien.rotation.set(Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5);
+                g.add(promien);
+            }
+            [-1, 1].forEach(st => {
+                const ramie = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.09, 1.0, 6), kamien);
+                ramie.position.set(st * 0.42, 1.95, 0);
+                ramie.rotation.z = st * 0.6;
+                g.add(ramie);
+            });
+            const oko = new THREE.MeshBasicMaterial({ color: 0x3a3630 });
+            [-0.1, 0.1].forEach(dx => {
+                const o = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5), oko);
+                o.position.set(dx, 2.6, 0.24); g.add(o);
+            });
+            g.userData.yOffset = 0;
+            g.userData.unitType = 'bozek';
+            g.userData.materialOczu = oko;
+            return g;
+        }
+
+        function rozstawBozki() {
+            if (gameMode !== 'dream') return 0;
+            posagiBozkow.forEach(p => {
+                const mesh = createBozekMesh(p.kolor);
+                mesh.position.set(p.x, getTerrainY(p.x, p.z), p.z);
+                mesh.rotation.y = Math.PI;   // twarzą do wejścia
+                scene.add(mesh);
+                enemies.push({ mesh: mesh, type: 'bozek', hp: BOZEK_HP, maxHp: BOZEK_HP, ap: BOZEK_AP, maxAp: BOZEK_AP,
+                               accuracyBonus: 0, isDead: false, facingAngle: Math.PI, level: 0, uspiony: true });
+            });
+            const ilu = posagiBozkow.length;
+            posagiBozkow = [];
+            if (ilu) refreshEnemyPositions();
+            return ilu;
+        }
+
+        function ozyjBozka(e) {
+            if (!e || e.isDead || !e.uspiony) return false;
+            e.uspiony = false;
+            e.zaalarmowany = true;
+            const u = e.mesh && e.mesh.userData;
+            if (u && u.materialOczu) u.materialOczu.color.setHex(0xff5522);
+            if (e.mesh && e.mesh.children[0]) e.mesh.children[0].visible = false;   // schodzi z cokołu
+            showFloatingWarning('Posąg schodzi z cokołu - KAMIENNY BOŻEK!');
+            updateUI('Zapomniane bóstwo otwiera oczy. Kule odbijają się od kamienia - zwalcie na niego kolumnę!');
+            if (typeof playFileSfx === 'function' && typeof AudioFiles !== 'undefined') playFileSfx(AudioFiles.wallHit, 0.8);
+            return true;
+        }
+
+        // Co turę: wrogowie przy płonącym ołtarzu celują pewniej
+        function tikOltarzy() {
+            const oltarze = obstaclePositions.filter(o => o.type === 'altar' && o.poganski && !o.zgaszony);
+            enemies.forEach(e => {
+                if (e.isDead || !e.mesh) return;
+                const nowa = oltarze.some(o => Math.hypot(o.x - e.mesh.position.x, o.z - e.mesh.position.z) <= OLTARZ_ZASIEG) ? OLTARZ_PREMIA : 0;
+                e.accuracyBonus = (e.accuracyBonus || 0) + nowa - (e.premiaOltarza || 0);
+                e.premiaOltarza = nowa;
+            });
+        }
+
+        // Po każdym kroku wojownika: ołtarz obok, bożek w pobliżu, grota pod nogami
+        function tikSwiatyni(s) {
+            if (!s || s.isDead || !s.mesh || s.isNPC) return;
+            const x = Math.round(s.mesh.position.x), z = Math.round(s.mesh.position.z);
+            obstaclePositions.forEach(o => {
+                if (o.type !== 'altar' || !o.poganski || o.zgaszony) return;
+                if (Math.max(Math.abs(o.x - x), Math.abs(o.z - z)) > 1) return;
+                o.zgaszony = true;
+                ognieOltarzy.forEach(f => { if (f.pos === o) { f.ogien.visible = false; f.swiatlo.intensity = 0; f.moc = 0; } });
+                playerStats.grace += OLTARZ_LASKA;
+                showFloatingWarning(`Ogień bożka gaśnie! +${OLTARZ_LASKA} Łaski`);
+                updateUI(`${s.name} przewraca misę z ogniem. "Nie będziesz miał bogów cudzych obok Mnie." (Wj 20,3)`);
+                tikOltarzy();
+            });
+            enemies.forEach(e => {
+                if (e.type !== 'bozek' || !e.uspiony || e.isDead || !e.mesh) return;
+                if (Math.max(Math.abs(Math.round(e.mesh.position.x) - x), Math.abs(Math.round(e.mesh.position.z) - z)) <= BOZEK_PRZEBUDZENIE) ozyjBozka(e);
+            });
+            const g = grotaWodospadu;
+            if (g && !g.zebrana) {
+                const d = Math.max(Math.abs(g.x - x), Math.abs(g.z - z));
+                if (d <= 2 && !g.mesh.visible) { g.mesh.visible = true; updateUI('Za kurtyną wody coś błyszczy...'); }
+                if (d === 0) {
+                    g.zebrana = true;
+                    g.mesh.visible = false;
+                    s.hp = s.maxHp;
+                    playerStats.grace += GROTA_LASKA;
+                    showFloatingWarning(`Źródło za wodospadem! +${GROTA_LASKA} Łaski`);
+                    updateUI(`${s.name} obmywa rany w źródle ukrytym za wodospadem - wraca do pełni sił. ` +
+                             '"Kto pije wodę, którą Ja mu dam, nie będzie pragnął na wieki." (J 4,14)');
+                    if (typeof updateSoldierUI === 'function') updateSoldierUI();
+                }
+            }
+        }
+
+        function animujOgnieOltarzy(time) {
+            ognieOltarzy = ognieOltarzy.filter(f => f.swiatlo.parent);
+            ognieOltarzy.forEach(f => {
+                if (!f.moc) return;
+                const t = time * 0.001;
+                f.swiatlo.intensity = f.moc * (0.8 + 0.2 * Math.sin(t * 9 + f.pos.x) * Math.sin(t * 5.3 + f.pos.z));
+                f.ogien.scale.setScalar(1 + 0.15 * Math.sin(t * 11 + f.pos.z));
+            });
+        }
+
+        // Kurz nad wyrwą i kilka odłamków spadających z muru
+        function kurzIGruz(x, z, y, barwa) {
+            const bryly = [];
+            for (let i = 0; i < 6; i++) {
+                const k = new THREE.Mesh(new THREE.SphereGeometry(0.3, 7, 5),
+                    new THREE.MeshBasicMaterial({ color: 0xb8ad9a, transparent: true, opacity: 0.55, depthWrite: false }));
+                k.position.set(x + (Math.random() - 0.5) * 0.6, y + (Math.random() - 0.5) * 0.8, z + (Math.random() - 0.5) * 0.6);
+                k.userData.v = new THREE.Vector3((Math.random() - 0.5) * 1.2, 0.4 + Math.random() * 0.6, (Math.random() - 0.5) * 1.2);
+                scene.add(k); bryly.push(k);
+            }
+            const odlamki = [];
+            const kamien = new THREE.MeshLambertMaterial({ color: barwa !== undefined ? barwa : 0x8a8578 });
+            for (let i = 0; i < 4; i++) {
+                const o = new THREE.Mesh(new THREE.BoxGeometry(0.18 + Math.random() * 0.15, 0.14, 0.18 + Math.random() * 0.15), kamien);
+                o.position.set(x + (Math.random() - 0.5) * 0.5, y, z + (Math.random() - 0.5) * 0.5);
+                o.userData.v = new THREE.Vector3((Math.random() - 0.5) * 2, 1 + Math.random(), (Math.random() - 0.5) * 2);
+                scene.add(o); odlamki.push(o);
+            }
+            const ziemia = getTerrainY(x, z) + 0.08, start = performance.now();
+            let poprz = start;
+            (function krok(t) {
+                const dt = Math.min(0.05, (t - poprz) / 1000); poprz = t;
+                const k = Math.min(1, (t - start) / 1400);
+                bryly.forEach(b => {
+                    b.position.addScaledVector(b.userData.v, dt);
+                    b.scale.setScalar(1 + k * 2.2);
+                    b.material.opacity = 0.55 * (1 - k);
+                });
+                odlamki.forEach(o => {
+                    if (o.position.y <= ziemia) return;
+                    o.userData.v.y -= 9.8 * dt;
+                    o.position.addScaledVector(o.userData.v, dt);
+                    o.rotation.x += dt * 6;
+                    if (o.position.y < ziemia) o.position.y = ziemia;
+                });
+                if (k < 1) { requestAnimationFrame(krok); return; }
+                bryly.forEach(b => { scene.remove(b); b.geometry.dispose(); b.material.dispose(); });
+                // Odłamki zostają na ziemi jak gruz - sprzątane razem z resztą planszy
+                odlamki.forEach(o => obstacleMeshes.push(o));
+            })(start);
         }
 
         // Cel gargulca: najbliższy żywy wojownik. Cywile też, jeśli nie ma nikogo innego.
@@ -26521,6 +26777,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             oltarznik: 'OŁTARZNIK', roj: 'RÓJ', wydrazony: 'WYDRĄŻONY', gasiciel: 'GASICIEL',
             zalobnica: 'ŻAŁOBNICA',
             gargulec: 'GARGULEC',
+            bozek: 'KAMIENNY BOŻEK',
             blizniaki: 'BLIŹNIAKI',
             topielec: 'TOPIELEC',
             matrona: 'CZARNA MATRONA',
@@ -27553,6 +27810,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Topielce czekają zanurzone - po rozstawieniu wrogów, bo muszą
             // zająć pola wody, na których nikt inny nie stoi.
             rozstawTopielce();
+            // Bożki ze świątyń - uśpione, na swoich cokołach
+            rozstawBozki();
             // Głębszy sen: oddział wchodzi z tym, co mu zostało z pierwszej planszy
             odtworzOddzialPoSnie();
             // Cele misji (zamek, loch) dostawiają przeszkody PO renderowaniu mapy,
@@ -30158,8 +30417,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (active && active.isPrisoner) return callback ? callback() : undefined; // więźnia nikt nie ostrzeliwuje
             let overwatchEnemy = enemies.find(e => {
                 if (e.isDead || e.ap < shootCost) return false;
-                // Gargulec, dopóki jest kamieniem, nie reaguje na nic
-                if (e.zastygly) return false;
+                // Gargulec, dopóki jest kamieniem, nie reaguje na nic - bożek też
+                if (e.zastygly || e.uspiony) return false;
                 // JEDNA reakcja na jeden ruch wojownika. Funkcja woła samą siebie
                 // po każdym strzale, więc wróg z pełną pulą punktów strzelał dwa
                 // razy pod rząd, zanim w ogóle doszło do jego tury.
@@ -31131,7 +31390,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 
                 // Strzał w ścianę - wybija w niej wyrwę
                 const wallObs = obstacleGrid[targetX + offsetX] ? obstacleGrid[targetX + offsetX][targetZ + offsetZ] : null;
-                const isShootableWall = wallObs && (wallObs.type === 'house-wall' || wallObs.type === 'wall-destructible' || wallObs.type === 'beczka_prochu');
+                const isShootableWall = wallObs && (wallObs.type === 'house-wall' || wallObs.type === 'wall-destructible' || wallObs.type === 'beczka_prochu' || wallObs.type === 'column');
                 const noEnemyHere = !enemies.find(e => !e.isDead && Math.round(e.mesh.position.x) === targetX && Math.round(e.mesh.position.z) === targetZ);
                 // Blokujemy tylko PRÓBĘ ATAKU. Wcześniej ten warunek wypalał przy każdym
                 // kliknięciu, również w puste pole, przez co cywilem nie dało się chodzić.
@@ -31149,8 +31408,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     active.shotsFired = (active.shotsFired || 0) + 1;
                     isPlayerTurn = false;
                     createProjectile(startX, startY + 1, startZ, targetX, getTerrainY(targetX, targetZ) + 1, targetZ, true, null, () => {
-                        if (wallObs.type === 'beczka_prochu') {
-                            updateUI(`${active.name} strzela w beczkę z prochem!`);
+                        if (wallObs.type === 'beczka_prochu' || wallObs.type === 'column') {
+                            updateUI(wallObs.type === 'column' ? `${active.name} strzela w kolumnę!` : `${active.name} strzela w beczkę z prochem!`);
                             destroyObstacle(wallObs);
                         } else if (destroyWallAt(targetX, targetZ, active.level || 0)) {
                             updateUI(`${active.name} wybija wyrwę w ścianie!`);
@@ -31354,6 +31613,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     sprawdzLozkoSnu();
                     // Pochodnia leżąca na drodze sama wpada w rękę
                     podniesPochodnie(active);
+                    // Ołtarz bożka, posąg w nawie, grota za wodospadem
+                    tikSwiatyni(active);
                     checkPrisonerRescue();
                     sprawdzKryptyOddzialu();
                     checkSarcophagi();
@@ -31417,6 +31678,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             tikZasadzek();
             tikGargulcow();
             tikTopielcow();
+            tikOltarzy();
             tikOgluszenia();
             tikCiemnosci();
             tikPobojowiska();
@@ -37838,6 +38100,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // BLIŹNIAKI: dwie głowy, dwa sektory, dwa strzały na turę - i lewitacja
             if (e.type === 'blizniaki') { turaBlizniakow(e); return; }
 
+            // BOŻEK: dopóki śpi na cokole, nie robi nic
+            if (e.type === 'bozek' && e.uspiony) { e.ap = 0; currentEnemyIndex++; setTimeout(processNextEnemy, 15); return; }
+
             if (e.type === 'gargulec') {
                 if (e.zastygly) { e.ap = 0; currentEnemyIndex++; setTimeout(processNextEnemy, 15); return; }
                 turaGargulca(e);
@@ -38493,7 +38758,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (e.podZiemia) {
                 const rx = Math.round(e.mesh.position.x), rz = Math.round(e.mesh.position.z);
                 const slyszy = soldiers.some(s => !s.isDead && !s.isNPC &&
-                    Math.hypot(Math.round(s.mesh.position.x) - rx, Math.round(s.mesh.position.z) - rz) <= 10);
+                    Math.hypot(Math.round(s.mesh.position.x) - rx, Math.round(s.mesh.position.z) - rz) <= 10 &&
+                    !szumWodospadu(s.mesh.position.x, s.mesh.position.z));
                 const ostatni = !enemies.some(o => o !== e && !o.isDead && !o.podZiemia);
                 if (slyszy || ostatni) {
                     e.podZiemia = false;
@@ -38639,7 +38905,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     }
                 }
                 // Jeśli słyszał niedawno strzał w zasięgu słuchu, idzie sprawdzić co się stało
-                if (lastShotEvent && e.ap > 0) {
+                if (lastShotEvent && e.ap > 0 && !szumWodospadu(e.mesh.position.x, e.mesh.position.z) &&
+                    !szumWodospadu(lastShotEvent.x, lastShotEvent.z)) {
                     const shotDist = Math.hypot(lastShotEvent.x - e.mesh.position.x, lastShotEvent.z - e.mesh.position.z);
                     if (shotDist <= SHOT_HEARING_RADIUS) {
                         const investigateX = Math.round(lastShotEvent.x), investigateZ = Math.round(lastShotEvent.z);
@@ -39517,7 +39784,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
             }
 
-            if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'zombie' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big' || e.type === 'smierc' || e.type === 'ogar' || e.type === 'robak' || e.type === 'glizda' || e.type === 'lustrzak' || e.type === 'bezimienny' || e.type === 'oltarznik' || e.type === 'wydrazony' || e.type === 'gasiciel' || e.type === 'zalobnica') {
+            if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'zombie' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big' || e.type === 'smierc' || e.type === 'ogar' || e.type === 'robak' || e.type === 'glizda' || e.type === 'lustrzak' || e.type === 'bezimienny' || e.type === 'oltarznik' || e.type === 'wydrazony' || e.type === 'gasiciel' || e.type === 'zalobnica' || e.type === 'bozek') {
                 const meleeCostE = (e.type === 'brute') ? shootCost : 3; // szybsze rasy uderzają taniej
                 const chebDystans = Math.max(Math.abs(px - ex), Math.abs(pz - ez));
                 if (e.ap >= meleeCostE && tLvl === eLvl && chebDystans === 1 && Math.abs(ey - py) <= 1) {
@@ -39540,6 +39807,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     updateUI(e.type === 'brute' ? "DUŻY OBCY: Cios wręcz!"
                         : (e.type === 'stalker' ? "PEŁZACZ rzuca się na cel!"
                         : (e.type === 'zombie' ? "ZOMBIE wczepia się pazurami!"
+                        : (e.type === 'bozek') ? "KAMIENNY BOŻEK miażdży kamienną pięścią!"
                         : (e.type === 'robot' ? "ROBOT uderza stalową pięścią!" : "DUSZEK uderza i gaśnie!"))));
                     animWroga(e, 'atak', true);
                     if (e.type === 'zombie') playFileSfx(AudioFiles.zombieAttack, 0.7);
@@ -39565,6 +39833,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         else if (e.type === 'wydrazony') meleeDmgBaza = WYDRAZONY_CIOS;
                         else if (e.type === 'gasiciel') meleeDmgBaza = GASICIEL_CIOS;
                         else if (e.type === 'zalobnica') meleeDmgBaza = ZALOBNICA_CIOS;
+                        else if (e.type === 'bozek') meleeDmgBaza = BOZEK_CIOS;
                         let meleeDmg = meleeDmgBaza + (e.dmgBonus || 0);   // elita uderza mocniej
                         // GLIZDA: pierwszy cios po wynurzeniu to atak z zaskoczenia -
                         // podwójne obrażenia i nie da się go uprzedzić.
@@ -40286,6 +40555,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             updateShadowFollow();
             updateCloudSea(dt);
             updateWodaPlynie(dt);
+            animujOgnieOltarzy(time);
             updateCampfires(time);
             updateWarriorMixers(dt * spowolnienieCzasu);
             updateThemeMusic();
