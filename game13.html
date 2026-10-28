@@ -3820,7 +3820,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const wodne = [];
             for (let mx = 0; mx < mapWidth; mx++)
                 for (let mz = 0; mz < mapDepth; mz++)
-                    if (riverGrid[mx][mz] === 1) wodne.push([mx - offsetX, mz - offsetZ]);
+                    if (riverGrid[mx][mz] === 1 && obstacleGrid[mx][mz]) wodne.push([mx - offsetX, mz - offsetZ]);   // topielec tylko w głębinie
             if (!wodne.length) return 0;
             let ilu = 0;
             for (let i = 0; i < TOPIELCE_NA_PLANSZE; i++) {
@@ -5787,6 +5787,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         heightMap[x][mz] = 0;
                         if (onBridge) { terrainTypeMap[x][mz] = (isVolcanoMap || isSaharaMap || isKatedraMap) ? 1 : 2; continue; } // mostek - zarezerwowany, nic tu nie stanie (na wulkanie ziemia, nie asfalt)
                         riverGrid[x][mz] = 1;
+                        // Skraje koryta to płycizna: da się brodzić (jak przez błoto - podwójnie), ale nurt może znieść
+                        if (!isVolcanoTheme && Math.abs(dz) === riverHalfWidth) { terrainTypeMap[x][mz] = 5; continue; }
                         if (obstacleGrid[x][mz] === null) obstacleGrid[x][mz] = { type: 'river' };
                     }
                 }
@@ -8733,7 +8735,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         // Wnętrze: nawa między dwoma rzędami kolumn
                         for (let z = hData.minZ + 3; z <= hData.maxZ - 4; z += 3)
                             [hData.minX + 2, hData.maxX - 2].forEach(x => addObstacle(x, z, 'column', { wysokosc: 2 * FLOOR_HEIGHT, kolor: styl.kolumny }));
-                        addObstacle(b.x, hData.maxZ - 3, 'altar', { poganski: true, ogien: styl.ogien });
+                        const kolumnWnetrza = obstaclePositions.filter(p => p.type === 'column' && p.x > hData.minX && p.x < hData.maxX && p.z > hData.minZ && p.z < hData.maxZ).length;
+                        addObstacle(b.x, hData.maxZ - 3, 'altar', { poganski: true, ogien: styl.ogien,
+                            swiatynia: { minX: hData.minX, maxX: hData.maxX, minZ: hData.minZ, maxZ: hData.maxZ, houseId: hData.id, kolumn: kolumnWnetrza } });
                         // Posąg bożka nie jest przeszkodą - to uśpiony wróg, rozstawiany razem z resztą (rozstawBozki)
                         posagiBozkow.push({ x: b.x, z: hData.maxZ - 1, kolor: styl.kolumny });
                         [b.x - 2, b.x + 2].forEach(x => addObstacle(x, hData.maxZ - 3, 'swieca'));
@@ -9543,10 +9547,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (!nurtRzeki || !s || !s.mesh || !czyWoda(s.mesh.position.x, s.mesh.position.z)) return 0;
             let x = Math.round(s.mesh.position.x);
             const z = Math.round(s.mesh.position.z);
+            // Brodzący (na płyciźnie) zostaje na płyciźnie - nurt nie wciągnie go w głębinę ani na kogoś
+            const wBrodzie = !isObstacle(x, z);
+            const zasieg = weatherType === 'rain' ? 4 : 3;   // po deszczu rzeka niesie dalej
             let n = 0;
-            while (n < 3 && czyWoda(x + 1, z)) { x++; n++; }
+            while (n < zasieg && czyWoda(x + 1, z) &&
+                   !(wBrodzie && (isObstacle(x + 1, z) || isUnitAtLevel(x + 1, z, 0, s)))) { x++; n++; }
             if (!n) return 0;
             s.mesh.position.x = x;
+            refreshPlayerPositions();
             updateUI(`Nurt porywa ${s.name} i znosi o ${n} ${n === 1 ? 'pole' : 'pola'} z prądem.`);
             return n;
         }
@@ -9554,7 +9563,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function updateWodaPlynie(dt) {
             if (!teksturaNurtu) return;
             const t = performance.now() / 1000;
-            teksturaNurtu.offset.x -= dt * (riverIsLava ? 0.06 : (rzekaKrwi ? 0.12 : 0.3));
+            teksturaNurtu.offset.x -= dt * (riverIsLava ? 0.06 : (rzekaKrwi ? 0.12 : 0.3)) * (weatherType === 'rain' ? 1.8 : 1);
             teksturaNurtu.offset.y = Math.sin(t * 0.7) * 0.04;
             teksturaSpadu.offset.y += dt * 1.6;
             pianyWodospadow.forEach(p => {
@@ -14322,17 +14331,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     scene.add(leg); obstacleMeshes.push(leg);
                     // obrus i krzyż - ołtarz zapomnianego bóstwa ich nie ma, płonie na nim tylko ogień
                     if (pos.poganski) {
-                        if (!pos.zgaszony) {
-                            const ogien = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), new THREE.MeshBasicMaterial({ color: pos.ogien || 0xff8833 }));
-                            ogien.position.set(pos.x, ty + 1.32, pos.z);
-                            scene.add(ogien); obstacleMeshes.push(ogien);
-                            // Łuna ognia na wnętrzu - nocą świątynię widać z daleka
-                            const noc = (currentTimeOfDay === 'noc' || currentTimeOfDay === 'wieczor');
-                            const swiatlo = new THREE.PointLight(pos.ogien || 0xff8833, noc ? 2.4 : 1.0, noc ? 16 : 9, 1.5);
-                            swiatlo.position.set(pos.x, ty + 1.9, pos.z);
-                            scene.add(swiatlo); obstacleMeshes.push(swiatlo);
-                            ognieOltarzy.push({ pos: pos, ogien: ogien, swiatlo: swiatlo, moc: swiatlo.intensity });
-                        }
+                        const ogien = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), new THREE.MeshBasicMaterial({ color: pos.ogien || 0xff8833 }));
+                        ogien.position.set(pos.x, ty + 1.32, pos.z);
+                        scene.add(ogien); obstacleMeshes.push(ogien);
+                        // Łuna ognia na wnętrzu - nocą świątynię widać z daleka
+                        const noc = (currentTimeOfDay === 'noc' || currentTimeOfDay === 'wieczor');
+                        const swiatlo = new THREE.PointLight(pos.ogien || 0xff8833, noc ? 2.4 : 1.0, noc ? 16 : 9, 1.5);
+                        swiatlo.position.set(pos.x, ty + 1.9, pos.z);
+                        scene.add(swiatlo); obstacleMeshes.push(swiatlo);
+                        const f = { pos: pos, ogien: ogien, swiatlo: swiatlo, moc: swiatlo.intensity, mocBaz: swiatlo.intensity };
+                        ognieOltarzy.push(f);
+                        if (pos.zgaszony) ustawOgienOltarza(pos, false);
                     } else {
                     const cloth = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.06, 0.95),
                         new THREE.MeshLambertMaterial({ color: 0xf0e6d0 }));
@@ -15125,6 +15134,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     }
                 }
                 else if (pos.type === 'house-roof') {
+                    if (pos.zawalony) return;   // strop świątyni runął
                     const floors = pos.floors || 1;
                     const roofGeo = pos.domeRoof
                         ? new THREE.SphereGeometry(3.4, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2)
@@ -15280,11 +15290,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return null;
         }
 
+        function scianaNadWyrwa(x, z) {
+            const o = obstacleMap.get(`${Math.round(x)},${Math.round(z)}`);
+            return (o && o.type === 'house-wall' && (o.destroyedLevels || []).length < (o.floors || 1)) ? o : null;
+        }
+
         function destroyWallAt(x, z, level) {
             level = level || 0;
             const mx = Math.round(x) + offsetX, mz = Math.round(z) + offsetZ;
             if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return false;
-            const obs = obstacleGrid[mx][mz];
+            const obs = obstacleGrid[mx][mz] || scianaNadWyrwa(x, z);
             if (!obs) return false;
             if (obs.type === 'wall-resistant') return false;
             if (obs.type !== 'house-wall' && obs.type !== 'wall-destructible' &&
@@ -15316,8 +15331,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 obstacleMap.delete(`${obs.x},${obs.z}`);
             } else {
                 const floors = obs.floors || 1;
-                if (level < 0 || level >= floors) return false;
                 if (!obs.destroyedLevels) obs.destroyedLevels = [];
+                // Kwadrat już wybity - pocisk przelatuje i trafia w ten nad nim
+                while (obs.destroyedLevels.indexOf(level) !== -1 && level + 1 < floors) level++;
+                if (level < 0 || level >= floors) return false;
                 if (obs.destroyedLevels.indexOf(level) !== -1) return false;
                 obs.destroyedLevels.push(level);
                 // Przejście pieszo otwiera się tylko po wybiciu kwadratu na parterze
@@ -15366,6 +15383,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             rubble.position.set(Math.round(x), getTerrainY(x, z) + 0.11, Math.round(z));
             scene.add(rubble); obstacleMeshes.push(rubble);
             kurzIGruz(Math.round(x), Math.round(z), getTerrainY(x, z) + level * FLOOR_HEIGHT + 1, obs.wallColor);
+            sprawdzZawalenieSwiatyn();
             SoundEngine.playHit();
             return true;
         }
@@ -15565,6 +15583,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Na żywym, przygniecionym nie stawiamy przeszkody: nie mógłby się wygrzebać.
             pola.forEach(([px, pz]) => { if (!przygniec(px, pz, nazwa)) postawGruz(px, pz); });
             showFloatingWarning(`${nazwa} się przewraca!`);
+            sprawdzZawalenieSwiatyn();
             refreshPlayerPositions(); refreshEnemyPositions(); updateFoW();
             checkGameOver();
             return true;
@@ -16857,6 +16876,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     }
                 }
             }
+            if (wrog.type === 'bozek') otworzKrypte(wrog);
             // Pokonany wróg trafia do Kroniki bez względu na to, skąd przyszedł -
             // wcześniej liczyło się tylko rozstawienie na starcie misji
             noteEnemyEncountered(wrog.type);
@@ -20711,7 +20731,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // jako nieruchome "powidoki", w które nie dało się strzelić.
                 enemies: enemies.filter(e => !e.isDead).map(e => ({
                     x: e.mesh.position.x, z: e.mesh.position.z, type: e.type, hp: e.hp, maxHp: e.maxHp,
-                    ap: e.ap, maxAp: e.maxAp, accuracyBonus: e.accuracyBonus, isDead: e.isDead, facingAngle: e.facingAngle, level: e.level || 0, uspiony: !!e.uspiony, premiaOltarza: e.premiaOltarza || 0,
+                    ap: e.ap, maxAp: e.maxAp, accuracyBonus: e.accuracyBonus, isDead: e.isDead, facingAngle: e.facingAngle, level: e.level || 0, uspiony: !!e.uspiony, premiaOltarza: e.premiaOltarza || 0, zastygly: !!e.zastygly, wWodzie: !!e.wWodzie, gniazdoWody: e.gniazdoWody || null, kaplan: !!e.kaplan,
                     isBoss: !!e.isBoss, bossTurn: e.bossTurn || 0, hasOpened: !!e.hasOpened,
                     blindedTurns: e.blindedTurns || 0, blindedFrom: e.blindedFrom || null,
                     gatunek: (e.gatunek === undefined ? null : e.gatunek), elita: !!e.elita, podZiemia: !!e.podZiemia, wAucie: !!e.wAucie,
@@ -20807,6 +20827,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             skalnaKrawedz = data.skalnaKrawedz || null;
             if (data.riverGrid) {
                 for (let x = 0; x < mapWidth; x++) for (let z = 0; z < mapDepth; z++) riverGrid[x][z] = data.riverGrid[x][z];
+                // Woda nie siedzi w liście przeszkód - bez tego po wczytaniu dało się chodzić po rzece
+                for (let x = 0; x < mapWidth; x++) for (let z = 0; z < mapDepth; z++)
+                    if (riverGrid[x][z] === 1 && terrainTypeMap[x][z] !== 5 && !obstacleGrid[x][z]) obstacleGrid[x][z] = { type: 'river' };
             } else {
                 for (let x = 0; x < mapWidth; x++) riverGrid[x].fill(0);
             }
@@ -20855,7 +20878,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Nowe rasy mają własne bryły, nie budujemy ich z createCharacter
             const CUSTOM_ENEMY_MESH = { summoner: createSummonerMesh, stalker: createStalkerMesh, wisp: createWispMesh, koszmar: createBossMesh, zombie: createZombieMesh, vampire: createVampireMesh, strzyga: createStrzygaMesh,
                                         spider_small: () => createSpiderMesh(false), spider_big: () => createSpiderMesh(true),
-                                        robot: createRobotMesh, droid: createDroidMesh, klaun: createClownMesh, robak: createWormMesh, general: createGeneralMesh, femina: createFeminaMesh, bozek: createBozekMesh };
+                                        robot: createRobotMesh, droid: createDroidMesh, klaun: createClownMesh, robak: createWormMesh, general: createGeneralMesh, femina: createFeminaMesh, bozek: createBozekMesh,
+                                        // Nowsi wrogowie - bez tych wpisów po wczytaniu wracali jako zwykła postać
+                                        ogar: createHellhoundMesh, glizda: createGlizdaMesh, gargulec: createGargulecMesh,
+                                        blizniaki: createBlizniakiMesh, matrona: createMatronaMesh, topielec: createTopielecMesh,
+                                        lustrzak: () => createLustrzakMesh(soldiers[0] ? soldiers[0].name : 'WOJOWNIK', soldiers[0] ? soldiers[0].class : null),
+                                        bezimienny: createBezimiennyMesh, bluznierca: createBluzniercaMesh, poborca: createPoborcaMesh,
+                                        oltarznik: createOltarznikMesh, roj: createRojMesh, wydrazony: createWydrazonyMesh,
+                                        gasiciel: createGasicielMesh, zalobnica: createZalobnicaMesh, smierc: createDeathMesh,
+                                        skorpion_maly: () => createScorpionMesh('maly'), skorpion: () => createScorpionMesh('sredni'),
+                                        skorpion_duzy: () => createScorpionMesh('duzy') };
             enemies = (data.enemies || []).filter(ed => !ed.isDead).map(ed => {
                 const look = ENEMY_LOOKS[ed.type] || ENEMY_LOOKS.standard;
                 // Jeśli dla tego typu wgrano model 3D, po wczytaniu zapisu też z niego korzystamy
@@ -20876,7 +20908,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 scene.add(mesh);
                 const fa = ed.facingAngle || 0;
                 mesh.lookAt(mesh.position.x + Math.sin(fa), mesh.position.y, mesh.position.z + Math.cos(fa));
-                return { mesh: mesh, type: ed.type, hp: ed.hp, maxHp: ed.maxHp, ap: ed.ap, maxAp: ed.maxAp, accuracyBonus: ed.accuracyBonus, isDead: ed.isDead, facingAngle: fa, level: ed.level || 0, isBoss: !!ed.isBoss, bossTurn: ed.bossTurn || 0, hasOpened: !!ed.hasOpened, blindedTurns: ed.blindedTurns || 0, blindedFrom: ed.blindedFrom || null, gatunek: (ed.gatunek === undefined ? null : ed.gatunek), elita: !!ed.elita, podZiemia: !!ed.podZiemia, wAucie: !!ed.wAucie, glizdaPoprzedniDystans: (ed.glizdaPoprzedniDystans === undefined ? null : ed.glizdaPoprzedniDystans), glizdaZZaskoczenia: !!ed.glizdaZZaskoczenia, ujawniony: !!ed.ujawniony, podrobionyNaKim: ed.podrobionyNaKim || null, lup: ed.lup || [], ucieka: !!ed.ucieka, maZakladnika: !!ed.maZakladnika, zakladnikHp: ed.zakladnikHp || 0, przebrany: !!ed.przebrany, dmgBonus: ed.elita ? 1 : 0, uspiony: !!ed.uspiony, premiaOltarza: ed.premiaOltarza || 0 };
+                return { mesh: mesh, type: ed.type, hp: ed.hp, maxHp: ed.maxHp, ap: ed.ap, maxAp: ed.maxAp, accuracyBonus: ed.accuracyBonus, isDead: ed.isDead, facingAngle: fa, level: ed.level || 0, isBoss: !!ed.isBoss, bossTurn: ed.bossTurn || 0, hasOpened: !!ed.hasOpened, blindedTurns: ed.blindedTurns || 0, blindedFrom: ed.blindedFrom || null, gatunek: (ed.gatunek === undefined ? null : ed.gatunek), elita: !!ed.elita, podZiemia: !!ed.podZiemia, wAucie: !!ed.wAucie, glizdaPoprzedniDystans: (ed.glizdaPoprzedniDystans === undefined ? null : ed.glizdaPoprzedniDystans), glizdaZZaskoczenia: !!ed.glizdaZZaskoczenia, ujawniony: !!ed.ujawniony, podrobionyNaKim: ed.podrobionyNaKim || null, lup: ed.lup || [], ucieka: !!ed.ucieka, maZakladnika: !!ed.maZakladnika, zakladnikHp: ed.zakladnikHp || 0, przebrany: !!ed.przebrany, dmgBonus: ed.elita ? 1 : 0, uspiony: !!ed.uspiony, premiaOltarza: ed.premiaOltarza || 0, zastygly: !!ed.zastygly, wWodzie: !!ed.wWodzie, gniazdoWody: ed.gniazdoWody || null, kaplan: !!ed.kaplan };
             });
 
             enemies.forEach(e => { if ((e.podZiemia || e.wAucie || e.wZasadzce || e.wWodzie) && e.mesh) e.mesh.visible = false; });
@@ -21045,7 +21077,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function scianaDoZburzenia(x, z) {
             const mx = x + offsetX, mz = z + offsetZ;
             if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return null;
-            const o = obstacleGrid[mx][mz];
+            // Nad wyrwą na parterze może stać jeszcze kwadrat piętra - siatka już go nie pamięta
+            const o = obstacleGrid[mx][mz] || scianaNadWyrwa(x, z);
             if (!o) return null;
             if (o.type === 'wall-destructible') return o;
             if (o.type === 'wagon-sciana') return o;   // blacha wagonu ustępuje pod ostrzałem
@@ -23784,7 +23817,23 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 mesh.rotation.y = Math.PI;   // twarzą do wejścia
                 scene.add(mesh);
                 enemies.push({ mesh: mesh, type: 'bozek', hp: BOZEK_HP, maxHp: BOZEK_HP, ap: BOZEK_AP, maxAp: BOZEK_AP,
-                               accuracyBonus: 0, isDead: false, facingAngle: Math.PI, level: 0, uspiony: true });
+                               accuracyBonus: 0, isDead: false, facingAngle: Math.PI, level: 0, uspiony: true,
+                               cokol: { x: p.x, z: p.z } });
+            });
+            kryptaBozka = null;
+            // KAPŁAN: stoi przy ołtarzu. Rozpala zgaszony ogień i budzi bożka, gdy oddział się zbliża.
+            obstaclePositions.forEach(o => {
+                if (o.type !== 'altar' || !o.swiatynia) return;
+                const wolne = [[-1, -1], [1, -1], [-1, 0], [1, 0], [0, -1]].map(([dx, dz]) => [o.x + dx, o.z + dz])
+                    .find(([x, z]) => !isObstacle(x, z) && !isUnitAtLevel(x, z, 0, null));
+                if (!wolne) return;
+                const m = createCharacter(0x5a1f1f, 0xd8c8a8, 0x111111, 1, 'standard');
+                const kostur = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), new THREE.MeshBasicMaterial({ color: o.ogien || 0xff8833 }));
+                kostur.position.set(0.35, 1.7, 0); m.add(kostur);
+                m.position.set(wolne[0], getTerrainY(wolne[0], wolne[1]) + m.userData.yOffset, wolne[1]);
+                scene.add(m);
+                enemies.push({ mesh: m, type: 'standard', kaplan: true, hp: KAPLAN_HP, maxHp: KAPLAN_HP, ap: 10, maxAp: 10,
+                               accuracyBonus: 0, isDead: false, facingAngle: Math.PI, level: 0 });
             });
             const ilu = posagiBozkow.length;
             posagiBozkow = [];
@@ -23807,6 +23856,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         // Co turę: wrogowie przy płonącym ołtarzu celują pewniej
         function tikOltarzy() {
+            obstaclePositions.forEach(o => {
+                if (o.type === 'altar' && o.swiatynia && o.swiatynia.zawalona && !o.zgaszony && weatherType === 'rain') {
+                    ustawOgienOltarza(o, false);
+                    updateUI('Deszcz leje się przez zawalony strop - ogień bożka gaśnie z sykiem.');
+                }
+            });
             const oltarze = obstaclePositions.filter(o => o.type === 'altar' && o.poganski && !o.zgaszony);
             enemies.forEach(e => {
                 if (e.isDead || !e.mesh) return;
@@ -23823,8 +23878,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             obstaclePositions.forEach(o => {
                 if (o.type !== 'altar' || !o.poganski || o.zgaszony) return;
                 if (Math.max(Math.abs(o.x - x), Math.abs(o.z - z)) > 1) return;
-                o.zgaszony = true;
-                ognieOltarzy.forEach(f => { if (f.pos === o) { f.ogien.visible = false; f.swiatlo.intensity = 0; f.moc = 0; } });
+                ustawOgienOltarza(o, false);
                 playerStats.grace += OLTARZ_LASKA;
                 showFloatingWarning(`Ogień bożka gaśnie! +${OLTARZ_LASKA} Łaski`);
                 updateUI(`${s.name} przewraca misę z ogniem. "Nie będziesz miał bogów cudzych obok Mnie." (Wj 20,3)`);
@@ -23832,8 +23886,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
             enemies.forEach(e => {
                 if (e.type !== 'bozek' || !e.uspiony || e.isDead || !e.mesh) return;
-                if (Math.max(Math.abs(Math.round(e.mesh.position.x) - x), Math.abs(Math.round(e.mesh.position.z) - z)) <= BOZEK_PRZEBUDZENIE) ozyjBozka(e);
+                if (Math.max(Math.abs(Math.round(e.mesh.position.x) - x), Math.abs(Math.round(e.mesh.position.z) - z)) <= zasiegBozka()) ozyjBozka(e);
             });
+            if (kryptaBozka && kryptaBozka.otwarta && kryptaBozka.x === x && kryptaBozka.z === z) zejdzDoKrypty(s);
             const g = grotaWodospadu;
             if (g && !g.zebrana) {
                 const d = Math.max(Math.abs(g.x - x), Math.abs(g.z - z));
@@ -23858,6 +23913,122 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const t = time * 0.001;
                 f.swiatlo.intensity = f.moc * (0.8 + 0.2 * Math.sin(t * 9 + f.pos.x) * Math.sin(t * 5.3 + f.pos.z));
                 f.ogien.scale.setScalar(1 + 0.15 * Math.sin(t * 11 + f.pos.z));
+            });
+        }
+
+        const KAPLAN_HP = 8;
+        const KAPLAN_WOLA = 8;            // z tylu pól kapłan widzi oddział i woła bożka
+        const ZAWALENIE_OBRAZENIA = 6;
+        const BROD_NURT_SZANSA = 0.25;    // na każdy ruch zakończony w płyciźnie
+        let kryptaBozka = null;           // { x, z, mesh, otwarta } - zejście pod cokołem
+
+        // Nocą bożek czuwa czujniej, w pełnym słońcu śpi twardo
+        function zasiegBozka() {
+            return { noc: 6, wieczor: 5, rano: 3, poludnie: 3 }[currentTimeOfDay] || BOZEK_PRZEBUDZENIE;
+        }
+
+        function ustawOgienOltarza(o, plonie) {
+            o.zgaszony = !plonie;
+            ognieOltarzy.forEach(f => {
+                if (f.pos !== o) return;
+                f.ogien.visible = plonie;
+                f.moc = plonie ? f.mocBaz : 0;
+                f.swiatlo.intensity = f.moc;
+            });
+        }
+
+        // Tura kapłana. true - zajął się obrzędem; false - walczy jak zwykły wróg.
+        function obrzedKaplana(e) {
+            const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
+            const o = obstaclePositions.find(p => p.type === 'altar' && p.swiatynia &&
+                Math.max(Math.abs(p.x - ex), Math.abs(p.z - ez)) <= 1);
+            if (!o) return false;
+            if (o.zgaszony && !(o.swiatynia.zawalona && weatherType === 'rain')) {
+                ustawOgienOltarza(o, true);
+                showFloatingWarning('Kapłan rozpala ogień bożka!');
+                updateUI('KAPŁAN BOŻKA dmucha w żar - ołtarz znów płonie, a wrogowie wokół celują pewniej.');
+                tikOltarzy();
+                return true;
+            }
+            const bozek = enemies.find(b => b.type === 'bozek' && b.uspiony && !b.isDead);
+            const widzi = soldiers.some(s => !s.isDead && s.mesh &&
+                Math.max(Math.abs(Math.round(s.mesh.position.x) - ex), Math.abs(Math.round(s.mesh.position.z) - ez)) <= KAPLAN_WOLA);
+            if (bozek && widzi) {
+                updateUI('KAPŁAN BOŻKA wznosi ręce i woła swego pana...');
+                ozyjBozka(bozek);
+                return true;
+            }
+            return false;
+        }
+
+        // Pod cokołem pokonanego bożka otwiera się zejście do krypty
+        function otworzKrypte(e) {
+            const p = e.cokol || { x: Math.round(e.mesh.position.x), z: Math.round(e.mesh.position.z) };
+            const g = new THREE.Group();
+            const otwor = new THREE.Mesh(new THREE.CircleGeometry(0.42, 16), new THREE.MeshBasicMaterial({ color: 0x050403 }));
+            otwor.rotation.x = -Math.PI / 2; otwor.position.y = 0.03; g.add(otwor);
+            const obrzeze = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.55, 16), new THREE.MeshLambertMaterial({ color: 0x6e675c, side: THREE.DoubleSide }));
+            obrzeze.rotation.x = -Math.PI / 2; obrzeze.position.y = 0.04; g.add(obrzeze);
+            g.position.set(p.x, getTerrainY(p.x, p.z), p.z);
+            scene.add(g); obstacleMeshes.push(g);
+            kryptaBozka = { x: p.x, z: p.z, mesh: g, otwarta: true };
+            updateUI('Cokół pęka i osuwa się - pod nim ciemnieje zejście do krypty.');
+        }
+
+        function zejdzDoKrypty(s) {
+            const k = kryptaBozka;
+            k.otwarta = false;
+            const owned = playerInventory.map(it => it.name);
+            const avail = (typeof HOLY_RELICS !== 'undefined') ? HOLY_RELICS.filter(r => !owned.includes(r.name)) : [];
+            if (avail.length && Math.random() < 0.5) {
+                const relic = avail[Math.floor(Math.random() * avail.length)];
+                const it = { name: relic.name, slot: relic.slot, icon: relic.icon, image: relic.image,
+                             description: relic.description + ' (dar: ' + relic.saint + ')',
+                             statBonuses: { ...relic.statBonuses }, assignedTo: -1 };
+                playerInventory.push(it);
+                if (typeof przeliczBonusyEkwipunku === 'function') przeliczBonusyEkwipunku();
+                showFloatingWarning(`Relikwia w krypcie: ${relic.name}`);
+                updateUI(`${s.name} schodzi do krypty. Pod stopami bożka leżała relikwia: ${relic.name} (${relic.saint}) - ukryta przed nim, nie dla niego.`);
+            } else {
+                playerStats.grace += 5;
+                showFloatingWarning('Jeniec z krypty uwolniony! +5 Łaski');
+                updateUI(`${s.name} schodzi do krypty i wyprowadza na światło człowieka, którego kapłani trzymali na ofiarę. ` +
+                         '"Wyprowadził ich z ciemności i mroku, i pokruszył ich kajdany." (Ps 107,14)');
+            }
+        }
+
+        // Za dużo zwalonych kolumn albo wybitych ścian - strop świątyni runie
+        function sprawdzZawalenieSwiatyn() {
+            obstaclePositions.forEach(o => {
+                const sw = o.type === 'altar' && o.swiatynia;
+                if (!sw || sw.zawalona) return;
+                const wnetrze = (x, z) => x > sw.minX && x < sw.maxX && z > sw.minZ && z < sw.maxZ;
+                const stoi = obstaclePositions.filter(p => p.type === 'column' && wnetrze(p.x, p.z)).length;
+                const sciany = obstaclePositions.filter(p => p.houseId === sw.houseId && p.type === 'house-wall');
+                const wybite = sciany.filter(p => (p.destroyedLevels || []).length).length;
+                if (stoi > sw.kolumn / 2 && wybite < sciany.length * 0.4) return;
+                sw.zawalona = true;
+                obstaclePositions.forEach(p => { if (p.type === 'house-roof' && p.houseId === sw.houseId) p.zawalony = true; });
+                for (let i = obstacleMeshes.length - 1; i >= 0; i--) {
+                    const m = obstacleMeshes[i];
+                    if (!m.userData || m.userData.type !== 'house-roof' || m.userData.houseId !== sw.houseId) continue;
+                    scene.remove(m); obstacleMeshes.splice(i, 1);
+                }
+                [...soldiers, ...enemies, ...npcs].forEach(u => {
+                    if (u.isDead || !u.mesh || (u.level || 0) !== 0) return;
+                    if (!wnetrze(Math.round(u.mesh.position.x), Math.round(u.mesh.position.z))) return;
+                    zadajObrazenia(u, ZAWALENIE_OBRAZENIA, 'zawalenie');
+                });
+                for (let i = 0; i < 6; i++) {
+                    const x = sw.minX + 1 + Math.floor(Math.random() * (sw.maxX - sw.minX - 1));
+                    const z = sw.minZ + 1 + Math.floor(Math.random() * (sw.maxZ - sw.minZ - 1));
+                    kurzIGruz(x, z, getTerrainY(x, z) + 2 * FLOOR_HEIGHT, 0x8a8578);
+                }
+                playFileSfx(AudioFiles.wallHit, 1.0);
+                showFloatingWarning('Strop świątyni się wali!');
+                updateUI(`Sklepienie świątyni runęło do środka! Każdy w nawie obrywa (-${ZAWALENIE_OBRAZENIA} HP).`);
+                refreshPlayerPositions(); refreshEnemyPositions(); updateFoW();
+                checkGameOver();
             });
         }
 
@@ -26791,6 +26962,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (e.gatunek !== null && e.gatunek !== undefined && PAJAKI_GATUNKI[e.gatunek]) {
                 return przedrostek + PAJAKI_GATUNKI[e.gatunek].nazwa.toUpperCase();
             }
+            if (e.kaplan) return przedrostek + 'KAPŁAN BOŻKA';
             return przedrostek + (NAZWY_WROGOW[e.type] || (e.type || '').toUpperCase());
         }
 
@@ -31615,6 +31787,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     podniesPochodnie(active);
                     // Ołtarz bożka, posąg w nawie, grota za wodospadem
                     tikSwiatyni(active);
+                    // Brodzącego przez płyciznę nurt może znieść
+                    if (czyWoda(active.mesh.position.x, active.mesh.position.z) && Math.random() < BROD_NURT_SZANSA) zniesNurtem(active);
                     checkPrisonerRescue();
                     sprawdzKryptyOddzialu();
                     checkSarcophagi();
@@ -34078,11 +34252,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 for (let mz = 0; mz < mapDepth; mz++) {
                     if (ogienGrid[mx][mz] !== 1) continue;
                     ogienWiek[mx][mz]++;
+                    if (weatherType === 'rain') ogienWiek[mx][mz]++;   // deszcz gasi - ogień dogasa dwa razy szybciej
                     // Rozprzestrzenianie: chętniej w stronę frontu niż na boki
                     for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
                         const nx = mx + dx, nz = mz + dz;
                         if (nx < 0 || nx >= mapWidth || nz < 0 || nz >= mapDepth) continue;
                         if (ogienGrid[nx][nz] !== 0) continue;
+                        if (weatherType === 'rain' && Math.random() < 0.5) continue;   // mokre nie łapie
                         // Pożar planszowy idzie frontem; ognisko po ładunku ledwie pełza
                         if (planszowy) {
                             const zgodny = (dx === ogienKierunek.x && dz === ogienKierunek.z);
@@ -34260,6 +34436,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const t = i / ile;
                     // Chodzimy po prostokącie, a nie po okręgu - plansza jest prostokątna
                     const poz = obwodProstokata(t, polX, polZ);
+                    // Za rozlewiskiem stoi skalna ściana - ona jest tam granicą snu, mgła by ją zasłoniła
+                    if (skalnaKrawedz && { polnoc: poz.z <= -polZ + 0.01, poludnie: poz.z >= polZ - 0.01,
+                                           zachod: poz.x <= -polX + 0.01, wschod: poz.x >= polX - 0.01 }[skalnaKrawedz.krawedz]) continue;
                     const klab = new THREE.Mesh(
                         new THREE.SphereGeometry(1.6 + Math.random() * 2.2, 7, 5), materialy[w]);
                     klab.position.set(
@@ -38102,6 +38281,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             // BOŻEK: dopóki śpi na cokole, nie robi nic
             if (e.type === 'bozek' && e.uspiony) { e.ap = 0; currentEnemyIndex++; setTimeout(processNextEnemy, 15); return; }
+            // KAPŁAN BOŻKA: obrzęd przy ołtarzu zajmuje mu całą turę
+            if (e.kaplan && obrzedKaplana(e)) { e.ap = 0; currentEnemyIndex++; setTimeout(processNextEnemy, 400); return; }
 
             if (e.type === 'gargulec') {
                 if (e.zastygly) { e.ap = 0; currentEnemyIndex++; setTimeout(processNextEnemy, 15); return; }
@@ -38908,7 +39089,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (lastShotEvent && e.ap > 0 && !szumWodospadu(e.mesh.position.x, e.mesh.position.z) &&
                     !szumWodospadu(lastShotEvent.x, lastShotEvent.z)) {
                     const shotDist = Math.hypot(lastShotEvent.x - e.mesh.position.x, lastShotEvent.z - e.mesh.position.z);
-                    if (shotDist <= SHOT_HEARING_RADIUS) {
+                    // Szum deszczu niesie się po całej planszy - strzał słychać o połowę bliżej
+                    if (shotDist <= SHOT_HEARING_RADIUS * (weatherType === 'rain' ? 0.5 : 1)) {
                         const investigateX = Math.round(lastShotEvent.x), investigateZ = Math.round(lastShotEvent.z);
                         if (!(investigateX === ex && investigateZ === ez)) {
                             refreshEnemyPositions(); refreshPlayerPositions(); refreshNPCPositions();
@@ -41001,6 +41183,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                       'Jedyna szczelina w tej obserwacji to martwe pole między sektorami: kto tam wejdzie, ten podejdzie niezauważony.',
                 stats: [['Punkty życia', '14'], ['Punkty ruchu', '12'], ['Premia do celności', 'brak'],
                         ['Styl walki', 'dwa strzały na turę z dwóch sektorów, lewituje']]
+            },
+            {
+                id: 'bozek', title: 'Kamienny bożek',
+                text: 'Posąg zapomnianego bóstwa w kamiennej koronie. Stoi na cokole pod tylną ścianą świątyni, ' +
+                      'za ołtarzem, na którym wciąż ktoś pali ogień.\n\n' +
+                      'Budzi się, gdy ktoś podejdzie albo w niego strzeli - nocą czuje intruzów z daleka, w południe śpi twardo. ' +
+                      'Kamień tłumi kule: każde trafienie zabiera mu ledwie część tego, co powinno. Dużo pewniej jest zwalić na niego ' +
+                      'kolumnę albo wysadzić obok beczkę. Gdy padnie, cokół pęka i odsłania zejście do krypty.',
+                stats: [['Punkty życia', '16'], ['Punkty ruchu', '8'], ['Odporność', 'kamień oddaje 3 HP z trafienia'],
+                        ['Styl walki', 'kamienna pięść w zwarciu']]
             },
             {
                 id: 'gargulec', title: 'Gargulec',
