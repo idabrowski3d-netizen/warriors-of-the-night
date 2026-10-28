@@ -6252,43 +6252,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     combatLandmarkPos = { x: cx, z: cz };
                 }
 
-                // ŚWIĄTYNIA ZAPOMNIANEGO BÓSTWA: kamienna hala z portykiem kolumn i
-                // tympanonem, wysoka na dwie kondygnacje. Ściany cienkie i kruche -
-                // każdy kwadrat da się wybić. W środku dwa rzędy kolumn (osłony),
-                // ołtarz bez krzyża i posąg bóstwa pod tylną ścianą.
-                const SWIATYNIE_NA = ['las', 'pobojowisko', 'amazonia', 'sahara', 'bagno', 'zamiec', 'otchlan',
-                                      'cmentarzysko', 'nekropolia', 'alabama', 'wesole', 'pozar', 'ambush', 'sicario'];
-                if (SWIATYNIE_NA.includes(currentCombatTheme.id) && Math.random() < 0.5) {
-                    const W = 9 + 2 * Math.floor(Math.random() * 3), D = 11 + 2 * Math.floor(Math.random() * 3);
-                    const c = Math.floor(W / 2);
-                    const kamien = { sahara: 0xc2ad85, las: 0x76806a, amazonia: 0x6f7d5e, bagno: 0x6f7d5e,
-                                     otchlan: 0x4e3b3b, zamiec: 0xb4b8bc }[currentCombatTheme.id] || 0x9a958a;
-                    const b = placeSpecialBuilding(W, D, 0x4f4740, null, 2, [[c, 0], [c - 1, 0], [c + 1, 0], [0, Math.floor(D / 2)]], []);
-                    const hData = b && houses.find(h => h.centerX === b.x && h.centerZ === b.z);
-                    if (hData) {
-                        obstaclePositions.forEach(p => {
-                            if (p.houseId !== hData.id || (p.type !== 'house-wall' && p.type !== 'house-door')) return;
-                            p.thinWall = true; p.destructible = true; p.wallColor = kamien;
-                        });
-                        // Portyk: kolumny przed fasadą (nie przed wejściem) i tympanon nad nimi
-                        const jasny = new THREE.Color(kamien).lerp(new THREE.Color(0xffffff), 0.25).getHex();
-                        for (let x = hData.minX; x <= hData.maxX; x += 2) {
-                            if (Math.abs(x - (hData.minX + c)) <= 1) continue;
-                            themedLandmarkDecor.push({ type: 'column', x: x, z: hData.minZ - 0.8, height: 3.2, color: jasny });
-                        }
-                        themedLandmarkDecor.push({ type: 'pediment', x: b.x, z: hData.minZ - 0.8, width: W + 1, color: jasny });
-                        // Narożne kolumny z tyłu - świątynia ma być widać z każdej strony
-                        [[hData.minX - 0.7, hData.maxZ + 0.7], [hData.maxX + 0.7, hData.maxZ + 0.7]].forEach(([x, z]) =>
-                            themedLandmarkDecor.push({ type: 'column', x: x, z: z, height: 3.6, color: jasny }));
-                        // Wnętrze: nawa między dwoma rzędami kolumn
-                        for (let z = hData.minZ + 3; z <= hData.maxZ - 4; z += 3)
-                            [hData.minX + 2, hData.maxX - 2].forEach(x => addObstacle(x, z, 'column', { wysokosc: 2 * FLOOR_HEIGHT }));
-                        addObstacle(b.x, hData.maxZ - 3, 'altar', { poganski: true });
-                        addObstacle(b.x, hData.maxZ - 1, 'statue');
-                        [b.x - 2, b.x + 2].forEach(x => addObstacle(x, hData.maxZ - 3, 'swieca'));
-                    }
-                }
-
                 if (currentCombatTheme.id === 'whitehouse') {
                     const W = 19, D = 13;
                     const doorZ = 0;
@@ -8701,6 +8664,77 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             }
                         }
                     });
+                }
+                // ŚWIĄTYNIA ZAPOMNIANEGO BÓSTWA: kamienna hala wysoka na dwie kondygnacje.
+                // Ściany cienkie i kruche - każdy kwadrat da się wybić. W środku dwa rzędy
+                // kolumn (osłony), ołtarz z ogniem i posąg bóstwa pod tylną ścianą.
+                // Każda plansza ma swoją świątynię: kamień, dach, kolumny i ogień w barwach
+                // planszy, a fasada i dach w jej duchu. Stawiana po głównych budowlach
+                // planszy, żeby nie zabrała im miejsca.
+                // fasada: portyk (kolumny + tympanon), wieze (narożne wieżyczki), brama (pagodowa)
+                const STYL_SWIATYNI = {
+                    las:          { kamien: 0x6f7a62, kolumny: 0x8f9a80, dach: 0x3d4a33, ogien: 0xffaa44 },
+                    amazonia:     { kamien: 0x5f7d55, kolumny: 0x88a070, dach: 0x2f4a2a, ogien: 0x66ff99, fasada: 'wieze' },
+                    bagno:        { kamien: 0x5a6150, kolumny: 0x737a66, dach: 0x33392c, ogien: 0x99ffcc },
+                    sahara:       { kamien: 0xc8a774, kolumny: 0xe0c896, dach: 0x9c7a4a, ogien: 0xffcc55, plaski: true },
+                    zamiec:       { kamien: 0xb9c8d4, kolumny: 0xdde8f0, dach: 0x8aa0b4, ogien: 0x88ccff },
+                    jezioro:      { kamien: 0xa9bccb, kolumny: 0xd4e2ec, dach: 0x6f88a0, ogien: 0x88ccff, fasada: 'wieze' },
+                    otchlan:      { kamien: 0x4a2a2a, kolumny: 0x6a3434, dach: 0x2a1414, ogien: 0xff2a10, fasada: 'wieze' },
+                    wulkan:       { kamien: 0x2e2a2a, kolumny: 0x4a3a34, dach: 0x1a1414, ogien: 0xff6a00, plaski: true },
+                    cmentarzysko: { kamien: 0x7a7a7e, kolumny: 0xa0a0a6, dach: 0x3a3a40, ogien: 0xa0ff80 },
+                    nekropolia:   { kamien: 0x6c6a72, kolumny: 0x93909c, dach: 0x2e2c34, ogien: 0xb48cff, fasada: 'wieze' },
+                    pobojowisko:  { kamien: 0x6a6058, kolumny: 0x8a7e70, dach: 0x3a3028, ogien: 0xff8833 },
+                    pozar:        { kamien: 0x5a4a42, kolumny: 0x7a6658, dach: 0x2a201c, ogien: 0xff5522 },
+                    ambush:       { kamien: 0xb07a55, kolumny: 0xc89a70, dach: 0x7a4a30, ogien: 0xffaa44, plaski: true },
+                    sicario:      { kamien: 0xa8714c, kolumny: 0xc49268, dach: 0x6e4028, ogien: 0xffaa44, plaski: true },
+                    alabama:      { kamien: 0xbab2a0, kolumny: 0xd8d0be, dach: 0x5a4a3a, ogien: 0xffbb55 },
+                    wesole:       { kamien: 0xc49aa8, kolumny: 0xe0c0cc, dach: 0x6a4a6a, ogien: 0xff66cc, fasada: 'wieze' },
+                    cyber:        { kamien: 0x22324a, kolumny: 0x3a6a9a, dach: 0x101820, ogien: 0x33ffff, plaski: true },
+                    wyspy:        { kamien: 0xd8dce8, kolumny: 0xf0f2fa, dach: 0x7a8aa8, ogien: 0xaaddff },
+                    whitehouse:   { kamien: 0xe6e2d8, kolumny: 0xf4f2ea, dach: 0x6a6a70, ogien: 0xffcc66 },
+                    pentagon:     { kamien: 0xa8a49a, kolumny: 0xc8c4ba, dach: 0x55524c, ogien: 0xffcc66, plaski: true },
+                    kremlin:      { kamien: 0x8a3a30, kolumny: 0xc8b89a, dach: 0x2e6b3e, ogien: 0xffaa44, fasada: 'wieze' },
+                    zhongnanhai:  { kamien: 0x9c2b2b, kolumny: 0xd4a838, dach: 0x2e5a3e, ogien: 0xffaa44, fasada: 'brama' },
+                    newyork:      { kamien: 0x6b5040, kolumny: 0x9a8070, dach: 0x3a2a20, ogien: 0xffaa44, plaski: true }
+                };
+                const styl = STYL_SWIATYNI[currentCombatTheme.id];
+                if (styl && Math.random() < 0.5) {
+                    const W = 9 + 2 * Math.floor(Math.random() * 3), D = 11 + 2 * Math.floor(Math.random() * 3);
+                    const c = Math.floor(W / 2);
+                    const b = placeSpecialBuilding(W, D, styl.dach, null, 2, [[c, 0], [c - 1, 0], [c + 1, 0], [0, Math.floor(D / 2)]], []);
+                    const hData = b && houses.find(h => h.centerX === b.x && h.centerZ === b.z);
+                    if (hData) {
+                        obstaclePositions.forEach(p => {
+                            if (p.houseId !== hData.id) return;
+                            if (p.type === 'house-roof') p.flatRoof = !!styl.plaski;
+                            if (p.type !== 'house-wall' && p.type !== 'house-door') return;
+                            p.thinWall = true; p.destructible = true; p.wallColor = styl.kamien;
+                        });
+                        const fasada = styl.fasada || 'portyk';
+                        if (fasada === 'portyk') {
+                            // Kolumny przed fasadą (nie przed wejściem) i tympanon nad nimi
+                            for (let x = hData.minX; x <= hData.maxX; x += 2) {
+                                if (Math.abs(x - (hData.minX + c)) <= 1) continue;
+                                themedLandmarkDecor.push({ type: 'column', x: x, z: hData.minZ - 0.8, height: 3.2, color: styl.kolumny });
+                            }
+                            themedLandmarkDecor.push({ type: 'pediment', x: b.x, z: hData.minZ - 0.8, width: W + 1, color: styl.kolumny });
+                        } else if (fasada === 'wieze') {
+                            [[hData.minX, hData.minZ], [hData.maxX, hData.minZ], [hData.minX, hData.maxZ], [hData.maxX, hData.maxZ]].forEach(([tx, tz]) =>
+                                themedLandmarkDecor.push({ type: 'tower', x: tx, z: tz, height: 5, color: styl.kolumny, roofColor: styl.dach }));
+                        } else {
+                            themedLandmarkDecor.push({ type: 'pagodaGate', x: b.x, z: hData.minZ - 1.5, width: W + 2 });
+                        }
+                        // Narożne kolumny z tyłu - świątynię ma być widać z każdej strony
+                        if (fasada !== 'wieze')
+                            [[hData.minX - 0.7, hData.maxZ + 0.7], [hData.maxX + 0.7, hData.maxZ + 0.7]].forEach(([x, z]) =>
+                                themedLandmarkDecor.push({ type: 'column', x: x, z: z, height: 3.6, color: styl.kolumny }));
+                        // Wnętrze: nawa między dwoma rzędami kolumn
+                        for (let z = hData.minZ + 3; z <= hData.maxZ - 4; z += 3)
+                            [hData.minX + 2, hData.maxX - 2].forEach(x => addObstacle(x, z, 'column', { wysokosc: 2 * FLOOR_HEIGHT, kolor: styl.kolumny }));
+                        addObstacle(b.x, hData.maxZ - 3, 'altar', { poganski: true, ogien: styl.ogien });
+                        addObstacle(b.x, hData.maxZ - 1, 'statue', { kolor: styl.kolumny });
+                        [b.x - 2, b.x + 2].forEach(x => addObstacle(x, hData.maxZ - 3, 'swieca'));
+                    }
                 }
             } else {
                 specialBuildingSpawns.school = null; specialBuildingSpawns.church = null; specialBuildingSpawns.pharmacy = null; specialBuildingSpawns.heroHouse = null; specialBuildingSpawns.cemetery = null; specialBuildingSpawns.soupKitchen = null; specialBuildingSpawns.fountain = null; specialBuildingSpawns.hospital = null; specialBuildingSpawns.seniorHome = null;
@@ -14209,8 +14243,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const H = pos.wysokosc || 4 * FLOOR_HEIGHT;
                     // Trzon dostaje gęstsze powtórzenie niż głowica - inaczej
                     // na czterech kondygnacjach wzór byłby rozciągnięty na smugi
-                    const stoneMat = materialKamienia(0xbdb3a4, 2, 6);
-                    const stoneMatKrotki = materialKamienia(0xbdb3a4, 2, 1);
+                    const stoneMat = materialKamienia(pos.kolor || 0xbdb3a4, 2, 6);
+                    const stoneMatKrotki = materialKamienia(pos.kolor || 0xbdb3a4, 2, 1);
                     const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.48, H, 12), stoneMat);
                     shaft.position.set(pos.x, ty + H / 2, pos.z);
                     scene.add(shaft); obstacleMeshes.push(shaft);
@@ -14231,7 +14265,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     scene.add(leg); obstacleMeshes.push(leg);
                     // obrus i krzyż - ołtarz zapomnianego bóstwa ich nie ma, płonie na nim tylko ogień
                     if (pos.poganski) {
-                        const ogien = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff8833 }));
+                        const ogien = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), new THREE.MeshBasicMaterial({ color: pos.ogien || 0xff8833 }));
                         ogien.position.set(pos.x, ty + 1.32, pos.z);
                         scene.add(ogien); obstacleMeshes.push(ogien);
                     } else {
@@ -14264,7 +14298,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const plinth = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.9, 1.0), stoneMat);
                     plinth.position.set(pos.x, ty + 0.45, pos.z);
                     scene.add(plinth); obstacleMeshes.push(plinth);
-                    const figMat = new THREE.MeshLambertMaterial({ color: 0xc3bcb0 });
+                    const figMat = new THREE.MeshLambertMaterial({ color: pos.kolor || 0xc3bcb0 });
                     const robe = new THREE.Mesh(new THREE.ConeGeometry(0.42, 1.7, 10), figMat);
                     robe.position.set(pos.x, ty + 1.75, pos.z);
                     scene.add(robe); obstacleMeshes.push(robe);
