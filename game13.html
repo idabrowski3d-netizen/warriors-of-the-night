@@ -8698,7 +8698,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     newyork:      { kamien: 0x6b5040, kolumny: 0x9a8070, dach: 0x3a2a20, ogien: 0xffaa44, plaski: true }
                 };
                 const styl = STYL_SWIATYNI[currentCombatTheme.id];
-                if (styl && Math.random() < 0.5) {
+                if (styl && Math.random() < 0.7) {
                     const W = 9 + 2 * Math.floor(Math.random() * 3), D = 11 + 2 * Math.floor(Math.random() * 3);
                     const c = Math.floor(W / 2);
                     const b = placeSpecialBuilding(W, D, styl.dach, null, 2, [[c, 0], [c - 1, 0], [c + 1, 0], [0, Math.floor(D / 2)]], []);
