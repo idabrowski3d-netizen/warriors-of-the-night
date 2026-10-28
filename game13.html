@@ -14367,6 +14367,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         scene.add(fl); obstacleMeshes.push(fl);
                     });
                 }
+                else if (pos.type === 'pal') {
+                    const g = brylaPala(pos);
+                    g.position.set(pos.x, ty, pos.z);
+                    scene.add(g); obstacleMeshes.push(g);
+                }
                 else if (pos.type === 'statue') {
                     const stoneMat = materialKamienia(0xa9a196, 2, 2);
                     const plinth = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.9, 1.0), stoneMat);
@@ -15533,7 +15538,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         // Osłony, których pudło nie niszczy
-        const NIEZNISZCZALNE_OSLONY = ['wall-resistant', 'skrzynia_metal', 'rumowisko', 'wrak_osobowy', 'wrak_ciezarowy', 'wrak-czesc', 'kontener'];
+        const NIEZNISZCZALNE_OSLONY = ['wall-resistant', 'skrzynia_metal', 'rumowisko', 'wrak_osobowy', 'wrak_ciezarowy', 'wrak-czesc', 'kontener', 'pal'];
 
         // ===================== CO SIĘ PRZEWRACA =====================
         // Wysokie konstrukcje nie znikają po pudle - walą się na sąsiednie pole
@@ -24032,6 +24037,137 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
         }
 
+        // ========================================================
+        // --- OFIARY PRZY PALACH ---
+        // Przy cięższych grzechach (pycha, gniew, chciwość) śpiący ma na sumieniu
+        // ludzi, których dla nich poświęcił. We śnie stoją przywiązani do pali
+        // wokół jego serca - jedni jeszcze żywi, inni już nie. Żywego można
+        // odwiązać: śpiącemu lżej na sumieniu (wraca segment życia witalnego).
+        // Martwego można zdjąć i się za niego pomodlić. Pal jest twardą osłoną.
+        // ========================================================
+        const PALE_GRZECHY = ['pycha', 'gniew', 'chciwosc'];
+        const PALE_SZANSA = 0.6;
+        const PAL_ZYWY_SZANSA = 0.4;
+        const PAL_LASKA_ZYWY = 4, PAL_LASKA_MARTWY = 1;
+        // Co mówią wojownicy na widok ofiar - najpierw o śpiącym i jego grzechu,
+        // potem już krócej. Ktoś z oddziału czasem odpowiada.
+        const PALE_SUMIENIE = {
+            pycha:    ['Poświęcił ich dla własnej chwały...', 'Pycha zawsze żąda ofiar. Tu je widać.',
+                       'Wspinał się po nich jak po stopniach.'],
+            gniew:    ['W gniewie nie patrzył, kto stoi na drodze.', 'Tyle krzywdy z jednego wybuchu złości...',
+                       'Gniew minął. Oni zostali.'],
+            chciwosc: ['Sprzedał ich za pieniądze. Teraz płaci snem.', 'Za ile ich wycenił?',
+                       'Złoto się wydało. Twarze zostały.']
+        };
+        const PALE_MARTWY = ['Ten, który tu śpi, ma sporo na sumieniu...', 'Boże, ilu ich poświęcił?',
+                             'To nie sen. To jego sumienie.', 'Nie zapomniał o nich. Dlatego tu wiszą.'];
+        const PALE_ZYWY = ['Ten jeszcze oddycha! Szybko!', 'Żyje! Jeszcze można coś naprawić.',
+                           'Nie wszystko stracone - ten żyje.'];
+        const PALE_ODPOWIEDZ = ['Módlmy się, żeby zdążył się nawrócić.', 'Dlatego tu jesteśmy - żeby coś z tego ocalić.',
+                                'Nie nam go sądzić. Róbmy swoje.', 'Każdy z nich ma imię. On je pamięta.'];
+        let paleSkomentowane = false;   // pierwszy widok mówi o śpiącym, kolejne krócej
+        const losuj = (t) => t[Math.floor(Math.random() * t.length)];
+
+        function rozstawPale() {
+            if (gameMode !== 'dream' || !heartPrison || !heartPrison.sin) return 0;
+            if (!PALE_GRZECHY.includes(heartPrison.sin.id) || Math.random() > PALE_SZANSA) return 0;
+            const ile = 2 + Math.floor(Math.random() * 3);
+            paleSkomentowane = false;
+            let postawione = 0;
+            for (let t = 0; t < 80 && postawione < ile; t++) {
+                const a = Math.random() * Math.PI * 2, r = 4 + Math.random() * 6;
+                const x = Math.round(heartPrison.x + Math.cos(a) * r), z = Math.round(heartPrison.z + Math.sin(a) * r);
+                if (!isWithinPlayBounds(x, z) || isObstacle(x, z) || isUnitAtLevel(x, z, 0, null)) continue;
+                const pal = { x: x, z: z, type: 'pal', zywy: Math.random() < PAL_ZYWY_SZANSA, sin: heartPrison.sin.id };
+                obstaclePositions.push(pal);
+                obstacleGrid[x + offsetX][z + offsetZ] = pal;
+                obstacleMap.set(`${x},${z}`, pal);
+                postawione++;
+            }
+            return postawione;
+        }
+
+        // Słup z przywiązanym człowiekiem. Żywy trzyma głowę, martwemu opadła na pierś.
+        // Po uwolnieniu zostaje sam słup i przecięte więzy na ziemi.
+        function brylaPala(p) {
+            const g = new THREE.Group();
+            g.rotation.y = (p.x * 7 + p.z * 13) % 6.28;
+            const slup = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 2.8, 7), new THREE.MeshLambertMaterial({ color: 0x4a3626 }));
+            slup.position.y = 1.4; g.add(slup);
+            const sznur = new THREE.MeshLambertMaterial({ color: 0x9a8560 });
+            if (p.uwolniony) {
+                const zw = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.03, 5, 10), sznur);
+                zw.rotation.x = Math.PI / 2; zw.position.set(0.25, 0.04, 0.15); g.add(zw);
+                return g;
+            }
+            const skora = new THREE.MeshLambertMaterial({ color: p.zywy ? 0xc9a88a : 0x7f8476 });
+            const szata = new THREE.MeshLambertMaterial({ color: p.zywy ? 0x6e5a48 : 0x4a4740 });
+            const cialo = new THREE.Group();
+            const tulow = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.17, 0.8, 8), szata);
+            tulow.position.y = 1.35; cialo.add(tulow);
+            const nogi = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.12, 0.8, 8), szata);
+            nogi.position.y = 0.55; cialo.add(nogi);
+            const glowa = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 6), skora);
+            if (p.zywy) glowa.position.set(0, 1.95, 0.03);
+            else glowa.position.set(0.08, 1.8, 0.15);
+            cialo.add(glowa);
+            // Ręce wykręcone do tyłu, za słup
+            [-1, 1].forEach(st => {
+                const r = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.6, 5), skora);
+                r.position.set(st * 0.21, 1.4, -0.12); r.rotation.set(0.5, 0, st * 0.25);
+                cialo.add(r);
+            });
+            cialo.position.z = 0.2;
+            if (!p.zywy) cialo.rotation.z = 0.08;
+            g.add(cialo);
+            [0.7, 1.25, 1.6].forEach(y => {
+                const w = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.035, 5, 12), sznur);
+                w.rotation.x = Math.PI / 2; w.position.set(0, y, 0.1); g.add(w);
+            });
+            return g;
+        }
+
+        function tikPali(s) {
+            if (!s || s.isDead || !s.mesh || s.isNPC) return;
+            const x = Math.round(s.mesh.position.x), z = Math.round(s.mesh.position.z);
+            obstaclePositions.forEach(p => {
+                if (p.type !== 'pal' || p.uwolniony) return;
+                const d = Math.max(Math.abs(p.x - x), Math.abs(p.z - z));
+                if (d <= 3 && !p.zauwazony) {
+                    p.zauwazony = true;
+                    updateUI(p.zywy ? 'Ktoś przywiązany do pala unosi głowę i jęczy - jeszcze żyje!'
+                                    : 'Przy palu wisi ciało. Śpiący poświęcił tego człowieka - i we śnie wciąż go widzi.');
+                    const pierwszy = !paleSkomentowane;
+                    paleSkomentowane = true;
+                    speakAt(s, p.zywy ? losuj(PALE_ZYWY)
+                                      : (pierwszy && PALE_SUMIENIE[p.sin] ? losuj(PALE_SUMIENIE[p.sin]) : losuj(PALE_MARTWY)));
+                    const drugi = soldiers.find(q => q !== s && !q.isDead && !q.isNPC && q.mesh);
+                    if (drugi && !p.zywy && (pierwszy || Math.random() < 0.4))
+                        setTimeout(() => speakAt(drugi, losuj(PALE_ODPOWIEDZ)), 1800);
+                }
+                if (d > 1) return;
+                p.uwolniony = true;
+                if (p.zywy) {
+                    playerStats.grace += PAL_LASKA_ZYWY;
+                    if (sleepingVitalSegments < sleepingVitalMax) { sleepingVitalSegments++; updateSleepingVitalBar(); }
+                    showFloatingWarning(`Uwolniony! +${PAL_LASKA_ZYWY} Łaski`);
+                    speakAt(s, losuj(['Już dobrze. Jesteś wolny.', 'Idź. Nikt cię już nie zwiąże.', 'Trzymaj się mnie - wychodzimy.']));
+                    updateUI(`${s.name} przecina więzy. Śpiący porusza się przez sen - sumienie odrobinę mu zelżało. ` +
+                             '"Rozerwać kajdany zła, rozwiązać więzy niewoli, wypuścić wolno uciśnionych." (Iz 58,6)');
+                } else {
+                    playerStats.grace += PAL_LASKA_MARTWY;
+                    showFloatingWarning(`Modlitwa za zmarłego +${PAL_LASKA_MARTWY} Łaski`);
+                    speakAt(s, losuj(['Spoczywaj w pokoju.', 'Wieczny odpoczynek racz mu dać, Panie.', 'Już nikt cię nie skrzywdzi.']));
+                    updateUI(`${s.name} zdejmuje ciało z pala i odmawia modlitwę. "Wieczny odpoczynek racz mu dać, Panie."`);
+                }
+                // Zostaje sam słup - nadal twarda osłona
+                usunBryleOslony(p);
+                const g = brylaPala(p);
+                g.position.set(p.x, getTerrainY(p.x, p.z), p.z);
+                scene.add(g); obstacleMeshes.push(g);
+            });
+        }
+
         // Kurz nad wyrwą i kilka odłamków spadających z muru
         function kurzIGruz(x, z, y, barwa) {
             const bryly = [];
@@ -27984,6 +28120,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             rozstawTopielce();
             // Bożki ze świątyń - uśpione, na swoich cokołach
             rozstawBozki();
+            // Ofiary cięższych grzechów przywiązane do pali wokół serca
+            rozstawPale();
             // Głębszy sen: oddział wchodzi z tym, co mu zostało z pierwszej planszy
             odtworzOddzialPoSnie();
             // Cele misji (zamek, loch) dostawiają przeszkody PO renderowaniu mapy,
@@ -31787,6 +31925,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     podniesPochodnie(active);
                     // Ołtarz bożka, posąg w nawie, grota za wodospadem
                     tikSwiatyni(active);
+                    // Ofiara przy palu: żywego odwiązać, za martwego się pomodlić
+                    tikPali(active);
                     // Brodzącego przez płyciznę nurt może znieść
                     if (czyWoda(active.mesh.position.x, active.mesh.position.z) && Math.random() < BROD_NURT_SZANSA) zniesNurtem(active);
                     checkPrisonerRescue();
