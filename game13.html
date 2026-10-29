@@ -5151,7 +5151,27 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             posAttr.needsUpdate = true;
         }
 
+        // Mgła pogodowa i wiatr - tylko na otwartych planszach snu
+        const POGODA_POD_DACHEM = ['katedra', 'dom', 'wieza', 'studnia', 'klaustrofobia', 'alcatraz', 'szpital', 'cyber', 'wulkan', 'wyspy'];
+        const MGLA_POGODOWA_WZROK = 9;    // w gęstej mgle dalej nie widać ani nie trafisz
+        const WIATR_KARA = 10;            // do trafienia przy strzale dalej niż 5 pól
+        let wiatrMisji = null;            // nazwa kierunku, gdy wieje
+
         function maybeStartWeather() {
+            wiatrMisji = null;
+            if (gameMode === 'dream' && currentCombatTheme && !POGODA_POD_DACHEM.includes(currentCombatTheme.id)) {
+                if (Math.random() < 0.25) {
+                    wiatrMisji = ['północy', 'południa', 'wschodu', 'zachodu'][Math.floor(Math.random() * 4)];
+                    setTimeout(() => updateUI(`Wieje silny wiatr od ${wiatrMisji}. Pociski na dalekie odległości zbaczają (-${WIATR_KARA}% powyżej 5 pól).`), 1500);
+                }
+                if (currentSeason !== 'zima' && Math.random() < 0.15) {
+                    clearWeatherParticles();
+                    weatherType = 'mgla';
+                    scene.fog = new THREE.Fog(0x9aa2a8, 4, 24);
+                    setTimeout(() => updateUI(`Gęsta mgła - widać i trafia się najwyżej na ${MGLA_POGODOWA_WZROK} pól.`), 1800);
+                    return;
+                }
+            }
             const themeId = currentCombatTheme ? currentCombatTheme.id : null;
             // Sahara: nigdy nie pada - zamiast tego trąby powietrzne (patrz dustDevils)
             if (themeId === 'sahara') { clearWeatherParticles(); return; }
@@ -5453,7 +5473,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             for(let i=0; i<mapWidth; i++) terrainTypeMap[i].fill(0);
             for(let i=0; i<mapWidth; i++) cornfieldGrid[i].fill(0);
             for(let i=0; i<mapWidth; i++) riverGrid[i].fill(0);
-            hasRiver = false; bridgePositions = []; islandBridgeTiles = []; skalnaKrawedz = null; posagiBozkow = []; nurtRzeki = false;
+            hasRiver = false; bridgePositions = []; islandBridgeTiles = []; skalnaKrawedz = null; posagiBozkow = []; nurtRzeki = false; lodNaRzece = new Set(); tratwa = null;
 
             let mainRoadX = Math.floor(mapWidth / 2);
             // Plansze o własnym klimacie nie znają współczesności: żadnego asfaltu,
@@ -5795,6 +5815,24 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
                 // Mostek musi trafić w rzekę także tam, gdzie ta skręca
                 bridgeGridXs.forEach(bx => bridgePositions.push({ x: bx - offsetX, z: riverCenterZ + zakole(bx) - offsetZ, halfWidth: bridgeHalfWidth, depth: riverHalfWidth * 2 + 3 }));
+                const zwyklaWoda = !isVolcanoTheme && !rzekaKrwi;
+                if (zwyklaWoda && currentSeason === 'zima' && Math.random() < 0.6) {
+                    // ZIMA: rzeka skuta lodem - da się po niej przejść, ale wybuch kruszy lód
+                    for (let x = 0; x < mapWidth; x++) for (let mz = 0; mz < mapDepth; mz++) {
+                        if (riverGrid[x][mz] !== 1) continue;
+                        lodNaRzece.add(x + ',' + mz);
+                        if (obstacleGrid[x][mz] && obstacleGrid[x][mz].type === 'river') obstacleGrid[x][mz] = null;
+                    }
+                } else if (zwyklaWoda) {
+                    // TRATWA przy brzegu, w pierwszej ćwiartce rzeki - spływa z nurtem
+                    for (let t = 0; t < 60 && !tratwa; t++) {
+                        const x = 6 + Math.floor(Math.random() * Math.max(1, mapWidth * 0.3));
+                        const mz = riverCenterZ + zakole(x) + (Math.random() < 0.5 ? -1 : 1) * (riverHalfWidth - 1);
+                        if (mz < 0 || mz >= mapDepth || !obstacleGrid[x][mz] || obstacleGrid[x][mz].type !== 'river') continue;
+                        obstacleGrid[x][mz] = null;
+                        tratwa = { x: x - offsetX, z: mz - offsetZ };
+                    }
+                }
             } else {
                 riverIsLava = false; rzekaKrwi = false;
             }
@@ -8737,11 +8775,19 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         for (let z = hData.minZ + 3; z <= hData.maxZ - 4; z += 3)
                             [hData.minX + 2, hData.maxX - 2].forEach(x => addObstacle(x, z, 'column', { wysokosc: 2 * FLOOR_HEIGHT, kolor: styl.kolumny }));
                         const kolumnWnetrza = obstaclePositions.filter(p => p.type === 'column' && p.x > hData.minX && p.x < hData.maxX && p.z > hData.minZ && p.z < hData.maxZ).length;
-                        addObstacle(b.x, hData.maxZ - 3, 'altar', { poganski: true, ogien: styl.ogien,
-                            swiatynia: { minX: hData.minX, maxX: hData.maxX, minZ: hData.minZ, maxZ: hData.maxZ, houseId: hData.id, kolumn: kolumnWnetrza } });
+                        const sw = { minX: hData.minX, maxX: hData.maxX, minZ: hData.minZ, maxZ: hData.maxZ, houseId: hData.id, kolumn: kolumnWnetrza, pulapki: [] };
+                        addObstacle(b.x, hData.maxZ - 3, 'altar', { poganski: true, ogien: styl.ogien, swiatynia: sw });
                         // Posąg bożka nie jest przeszkodą - to uśpiony wróg, rozstawiany razem z resztą (rozstawBozki)
                         posagiBozkow.push({ x: b.x, z: hData.maxZ - 1, kolor: styl.kolumny });
                         [b.x - 2, b.x + 2].forEach(x => addObstacle(x, hData.maxZ - 3, 'swieca'));
+                        // PUŁAPKI w nawie - najchętniej na osi, którą idzie się do ołtarza
+                        for (let t = 0; t < 40 && sw.pulapki.length < 3; t++) {
+                            const px = Math.random() < 0.6 ? b.x + Math.round((Math.random() - 0.5) * 2) : hData.minX + 1 + Math.floor(Math.random() * (W - 2));
+                            const pz = hData.minZ + 2 + Math.floor(Math.random() * (D - 6));
+                            const mx = px + offsetX, mz = pz + offsetZ;
+                            if (obstacleGrid[mx][mz] || sw.pulapki.some(q => Math.abs(q.x - px) + Math.abs(q.z - pz) < 2)) continue;
+                            sw.pulapki.push({ x: px, z: pz, rodzaj: Math.random() < 0.5 ? 'strzaly' : 'zapadnia' });
+                        }
                     }
                 }
             } else {
@@ -9539,6 +9585,64 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
         }
 
+        // ---- LÓD I TRATWA ----
+        let lodNaRzece = new Set();          // 'mx,mz' pól rzeki skutych lodem
+        let tratwa = null;                // { x, z } - pole wody, na którym stoi tratwa
+        let tratwaMesh = null;
+        const TRATWA_ZASIEG = 6;
+
+        function naLodzie(x, z) {
+            return lodNaRzece.has((Math.round(x) + offsetX) + ',' + (Math.round(z) + offsetZ));
+        }
+
+        // Wybuch kruszy lód: kto na nim stał, ląduje w wodzie
+        function pekniecieLodu(x, z, promien) {
+            if (!lodNaRzece.size) return 0;
+            let ile = 0;
+            for (let dx = -promien; dx <= promien; dx++) for (let dz = -promien; dz <= promien; dz++) {
+                const px = Math.round(x) + dx, pz = Math.round(z) + dz, klucz = (px + offsetX) + ',' + (pz + offsetZ);
+                if (!lodNaRzece.has(klucz)) continue;
+                lodNaRzece.delete(klucz);
+                ile++;
+                [...soldiers, ...enemies].forEach(u => {
+                    if (u.isDead || !u.mesh || Math.round(u.mesh.position.x) !== px || Math.round(u.mesh.position.z) !== pz) return;
+                    if (soldiers.includes(u)) { zadajObrazenia(u, 3, 'lod'); if (!u.isDead) wyrzucNaBrzeg(u); }
+                    else zadajObrazenia(u, 99, 'lod');   // wróg idzie pod lód
+                });
+                obstacleGrid[px + offsetX][pz + offsetZ] = { type: 'river' };
+            }
+            if (ile) {
+                showFloatingWarning('Lód pęka!');
+                updateUI('Lód na rzece pęka z hukiem - w przeręblu kotłuje się czarna woda.');
+                renderRiver();
+                refreshPlayerPositions(); refreshEnemyPositions();
+            }
+            return ile;
+        }
+
+        // Tratwa niesie z nurtem do 6 pól - szybko, ale bez żadnej osłony na wodzie
+        function splynTratwa(s) {
+            let x = tratwa.x, z = tratwa.z;
+            let n = 0;
+            const glebia = (px, pz) => { const o = obstacleGrid[px + offsetX] && obstacleGrid[px + offsetX][pz + offsetZ]; return o && o.type === 'river'; };
+            // Nurt płynie w stronę +X i skręca razem z korytem - prosto, a jak się nie da, to ukosem
+            while (n < TRATWA_ZASIEG) {
+                const dalej = [z, z - 1, z + 1].find(pz => glebia(x + 1, pz));
+                if (dalej === undefined) break;
+                x++; z = dalej; n++;
+            }
+            if (!n) { updateUI('Tratwa utknęła - dalej nurt jej nie poniesie.'); return 0; }
+            obstacleGrid[tratwa.x + offsetX][tratwa.z + offsetZ] = { type: 'river' };
+            obstacleGrid[x + offsetX][z + offsetZ] = null;
+            tratwa.x = x; tratwa.z = z;
+            s.mesh.position.x = x; s.mesh.position.z = z;
+            if (tratwaMesh) tratwaMesh.position.set(x, tratwaMesh.position.y, z);
+            refreshPlayerPositions();
+            updateFoW();
+            updateUI(`${s.name} odbija od brzegu - tratwa płynie z nurtem ${n} pól. Na wodzie nie ma się za czym schować.`);
+            return n;
+        }
+
         function szumWodospadu(x, z) {
             return wodospadyPola.some(w => Math.hypot(w.x - x, w.z - z) <= SZUM_WODOSPADU_ZASIEG);
         }
@@ -9546,6 +9650,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Nurt znosi: kto ląduje w rzece z prądem, płynie z nią do 3 pól, zanim złapie brzeg
         function zniesNurtem(s) {
             if (!nurtRzeki || !s || !s.mesh || !czyWoda(s.mesh.position.x, s.mesh.position.z)) return 0;
+            if (naLodzie(s.mesh.position.x, s.mesh.position.z)) return 0;
             let x = Math.round(s.mesh.position.x);
             const z = Math.round(s.mesh.position.z);
             // Brodzący (na płyciźnie) zostaje na płyciźnie - nurt nie wciągnie go w głębinę ani na kogoś
@@ -9581,7 +9686,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             lavaLights = [];
             if (!hasRiver) return;
 
-            const tiles = [];
+            let tiles = [];
             for (let mx = 0; mx < mapWidth; mx++) {
                 for (let mz = 0; mz < mapDepth; mz++) {
                     if (riverGrid[mx][mz] === 1) tiles.push([mx - offsetX, mz - offsetZ]);
@@ -9599,7 +9704,27 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             // Otchłań: gęsta, ciemna krew zamiast wody
                             ? new THREE.MeshLambertMaterial({ color: 0x8a0e18, map: teksturaNurtu, transparent: true, opacity: 0.97 })
                             : new THREE.MeshLambertMaterial({ color: 0x2a78c4, map: teksturaNurtu, transparent: true, opacity: 0.95 }));
-                riverMesh = new THREE.InstancedMesh(streamGeo, streamMat, tiles.length);
+                // Lód rysujemy osobno - nie płynie i jest jasny
+                const zLodem = tiles.filter(([wx, wz]) => lodNaRzece.has((wx + offsetX) + ',' + (wz + offsetZ)));
+                if (zLodem.length) {
+                    tiles = tiles.filter(([wx, wz]) => !lodNaRzece.has((wx + offsetX) + ',' + (wz + offsetZ)));
+                    const lod = new THREE.InstancedMesh(streamGeo, new THREE.MeshPhongMaterial({ color: 0xd4e8f4, shininess: 90, specular: 0xffffff }), zLodem.length);
+                    const dl = new THREE.Object3D();
+                    zLodem.forEach(([wx, wz], i) => { dl.position.set(wx, getTerrainY(wx, wz) + 0.06, wz); dl.updateMatrix(); lod.setMatrixAt(i, dl.matrix); });
+                    lod.userData.unitType = 'fx';
+                    scene.add(lod); bridgeMeshes.push(lod);
+                }
+                if (tratwa) {
+                    tratwaMesh = new THREE.Group();
+                    const deska = new THREE.MeshLambertMaterial({ color: 0x7a5a38 });
+                    for (let i = -2; i <= 2; i++) {
+                        const k = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.95, 6), deska);
+                        k.rotation.x = Math.PI / 2; k.position.set(i * 0.19, 0.08, 0); tratwaMesh.add(k);
+                    }
+                    tratwaMesh.position.set(tratwa.x, getTerrainY(tratwa.x, tratwa.z) + 0.1, tratwa.z);
+                    scene.add(tratwaMesh); bridgeMeshes.push(tratwaMesh);
+                }
+                riverMesh = new THREE.InstancedMesh(streamGeo, streamMat, Math.max(1, tiles.length));
                 const dummy = new THREE.Object3D();
                 tiles.forEach(([wx, wz], idx) => {
                     const ty = getTerrainY(wx, wz);
@@ -9608,6 +9733,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     dummy.updateMatrix();
                     riverMesh.setMatrixAt(idx, dummy.matrix);
                 });
+                riverMesh.count = tiles.length;   // cała rzeka skuta lodem - bez wody
                 riverMesh.instanceMatrix.needsUpdate = true;
                 scene.add(riverMesh);
 
@@ -11015,7 +11141,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Niektóre pliki mają uszkodzone ścieżki animacji ("outputAccessor is null") -
         // wczytywanie przerywa się na nich, choć siatki są w porządku. Pobieramy więc
         // plik sami, wycinamy z niego animacje i dopiero wtedy oddajemy go silnikowi.
-        function wczytajGlbBezAnimacji(sciezka, loader, gotowe, blad) {
+        function wczytajGlbBezAnimacji(sciezka, loader, gotowe, blad, bladJakWLoad) {
+            // Domy wołają to jak loader.load (postęp, potem błąd) - błąd bywa na piątym miejscu.
+            // Bez tego brakujący plik kończył się nieobsłużonym wyjątkiem w konsoli.
+            blad = blad || bladJakWLoad || (e => console.warn(`[modele] Nie wczytano ${sciezka}: ${e && e.message}`));
             fetch(sciezka).then(r => {
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 return r.arrayBuffer();
@@ -14551,7 +14680,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     leg.position.set(pos.x, ty + 0.45, pos.z);
                     scene.add(leg); obstacleMeshes.push(leg);
                     // obrus i krzyż - ołtarz zapomnianego bóstwa ich nie ma, płonie na nim tylko ogień
-                    if (pos.poganski) {
+                    if (pos.poganski && pos.oczyszczona) {
+                        krzyzNaOltarzu(pos, ty);
+                    } else if (pos.poganski) {
                         const ogien = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), new THREE.MeshBasicMaterial({ color: pos.ogien || 0xff8833 }));
                         ogien.position.set(pos.x, ty + 1.32, pos.z);
                         scene.add(ogien); obstacleMeshes.push(ogien);
@@ -15713,9 +15844,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return false;
         }
 
+        let ostrzezenieNaN = false;
         function getTerrainY(x, z) {
             let mx = Math.round(x) + offsetX, mz = Math.round(z) + offsetZ;
-            if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return 0;
+            // Zapis odwrócony łapie też NaN - wcześniej rzadki NaN w turze wrogów (parów)
+            // wywracał całą turę. Ostrzeżenie ze stosem raz na sesję, żeby dało się znaleźć źródło.
+            if (!(mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth)) {
+                if ((isNaN(mx) || isNaN(mz)) && !ostrzezenieNaN) { ostrzezenieNaN = true; console.warn('[teren] getTerrainY z NaN', x, z, new Error().stack); }
+                return 0;
+            }
             return heightMap[mx][mz];
         }
 
@@ -15940,6 +16077,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             obstaclePositions.filter(o => WYBUCH_NISZCZY.includes(o.type) &&
                 Math.max(Math.abs(o.x - x), Math.abs(o.z - z)) <= 1).forEach(destroyObstacle);
             zerwijZyrandol(x, z, 1, WYBUCH_PROMIEN);
+            pekniecieLodu(x, z, 1);
             stluczSwiatla(x, z, WYBUCH_PROMIEN + 1, true);
             zapalPole(x, z, 1);
             showFloatingWarning('Wybuch!');
@@ -15973,6 +16111,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (heightAdvantage) { baseChance += 20; dodaj('Przewaga wysokości', 20); }
             if (targetInCover) { baseChance -= 30; dodaj('Cel za osłoną', -30); }
             if (shooterInCover) { baseChance -= 15; dodaj('Strzelasz zza osłony', -15); }
+            if (wiatrMisji && dist > 5) { baseChance -= WIATR_KARA; dodaj(`Wiatr od ${wiatrMisji}`, -WIATR_KARA); }
             if (extraBonus) dodaj('Wojownik, stan i teren', extraBonus);
             return Math.max(5, Math.min(100, baseChance + extraBonus));
         }
@@ -20944,6 +21083,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 rzekaKrwi: rzekaKrwi,
                 bridgePositions: bridgePositions,
                 skalnaKrawedz: skalnaKrawedz,
+                lodRzeki: [...lodNaRzece], tratwa: tratwa,
                 riverGrid: hasRiver ? riverGrid.map(row => Array.from(row)) : null,
                 parkingBays: parkingBays,
                 combatLandmarkPos: combatLandmarkPos,
@@ -21061,11 +21201,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             rzekaKrwi = !!data.rzekaKrwi;
             bridgePositions = data.bridgePositions || [];
             skalnaKrawedz = data.skalnaKrawedz || null;
+            lodNaRzece = new Set(data.lodRzeki || []);
+            tratwa = data.tratwa || null;
             if (data.riverGrid) {
                 for (let x = 0; x < mapWidth; x++) for (let z = 0; z < mapDepth; z++) riverGrid[x][z] = data.riverGrid[x][z];
                 // Woda nie siedzi w liście przeszkód - bez tego po wczytaniu dało się chodzić po rzece
                 for (let x = 0; x < mapWidth; x++) for (let z = 0; z < mapDepth; z++)
-                    if (riverGrid[x][z] === 1 && terrainTypeMap[x][z] !== 5 && !obstacleGrid[x][z]) obstacleGrid[x][z] = { type: 'river' };
+                    if (riverGrid[x][z] === 1 && terrainTypeMap[x][z] !== 5 && !obstacleGrid[x][z] && !lodNaRzece.has(x + ',' + z) &&
+                        !(tratwa && tratwa.x === x - offsetX && tratwa.z === z - offsetZ)) obstacleGrid[x][z] = { type: 'river' };
             } else {
                 for (let x = 0; x < mapWidth; x++) riverGrid[x].fill(0);
             }
@@ -24120,6 +24263,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (!s || s.isDead || !s.mesh || s.isNPC) return;
             const x = Math.round(s.mesh.position.x), z = Math.round(s.mesh.position.z);
             obstaclePositions.forEach(o => {
+                if (o.type !== 'altar' || !o.swiatynia) return;
+                sprawdzPulapki(s, o.swiatynia, x, z);
+                if (Math.max(Math.abs(o.x - x), Math.abs(o.z - z)) <= 1) oczyscSwiatynie(s, o);
+            });
+            obstaclePositions.forEach(o => {
                 if (o.type !== 'altar' || !o.poganski || o.zgaszony) return;
                 if (Math.max(Math.abs(o.x - x), Math.abs(o.z - z)) > 1) return;
                 ustawOgienOltarza(o, false);
@@ -24151,6 +24299,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         function animujOgnieOltarzy(time) {
+            upiory.forEach((g, p) => { g.position.y = getTerrainY(p.x, p.z) + 0.4 + Math.sin(time * 0.002 + g.userData.faza) * 0.15; });
             ognieOltarzy = ognieOltarzy.filter(f => f.swiatlo.parent);
             ognieOltarzy.forEach(f => {
                 if (!f.moc) return;
@@ -24187,7 +24336,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const o = obstaclePositions.find(p => p.type === 'altar' && p.swiatynia &&
                 Math.max(Math.abs(p.x - ex), Math.abs(p.z - ez)) <= 1);
             if (!o) return false;
-            if (o.zgaszony && !(o.swiatynia.zawalona && weatherType === 'rain')) {
+            if (o.zgaszony && !o.oczyszczona && !(o.swiatynia.zawalona && weatherType === 'rain')) {
                 ustawOgienOltarza(o, true);
                 showFloatingWarning('Kapłan rozpala ogień bożka!');
                 updateUI('KAPŁAN BOŻKA dmucha w żar - ołtarz znów płonie, a wrogowie wokół celują pewniej.');
@@ -24306,8 +24455,48 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                 'Nie nam go sądzić. Róbmy swoje.', 'Każdy z nich ma imię. On je pamięta.'];
         let paleSkomentowane = false;   // pierwszy widok mówi o śpiącym, kolejne krócej
         const losuj = (t) => t[Math.floor(Math.random() * t.length)];
+        // Każda klasa mówi po swojemu - częściej własnymi słowami niż ogólnymi
+        const KWESTIE_KLAS = {
+            wojownik: {
+                martwy: ['Wolałbym stanąć z nim do walki niż oglądać to.', 'Tego nie zrobił wróg. Zrobił to on.'],
+                zywy: ['Trzymaj się! Zaraz przetnę te sznury.', 'Wytrzymaj jeszcze chwilę, bracie.'],
+                uwolnienie: ['Wolny. Idź i nie oglądaj się.', 'Sznur był słabszy niż on.'],
+                modlitwa: ['Odpoczywaj. Twoja walka skończona.'],
+                odpowiedz: ['Zemsta nie jest nasza. Idziemy dalej.'],
+                wspomnienie: ['Nawet twardzi ludzie coś po sobie zostawiają.'],
+                oczyszczenie: ['Ten ołtarz już nikogo nie zniewoli.']
+            },
+            uzdrowiciel: {
+                martwy: ['Za późno, żeby go opatrzyć. Nie za późno, żeby się pomodlić.', 'Tyle ran... i żadna nie była opatrzona.'],
+                zywy: ['Puls jest! Słaby, ale jest.', 'Spokojnie, zajmę się tobą.'],
+                uwolnienie: ['Odwodniony, ale wyjdzie z tego.', 'Oddychaj powoli. Już po wszystkim.'],
+                modlitwa: ['Niech Pan uleczy to, czego my nie zdołaliśmy.'],
+                odpowiedz: ['Rany na ciele goją się szybciej niż te na sumieniu.'],
+                wspomnienie: ['Tu go boli najbardziej. Nie w ciele.'],
+                oczyszczenie: ['To miejsce wreszcie może się zagoić.']
+            },
+            snajper: {
+                martwy: ['Widziałem ich z daleka. Myślałem, że to strachy na wróble.', 'Liczę cztery pale. Za dużo.'],
+                zywy: ['Ruszył się! Ten żyje, kryję cię.', 'Ten przy palu oddycha. Biegnij, osłaniam.'],
+                uwolnienie: ['Czysto. Wyprowadzaj go.'],
+                modlitwa: ['Cichy. Jak to, co robię na co dzień.'],
+                odpowiedz: ['Z daleka wszystko wygląda prościej. Z bliska - nie.'],
+                wspomnienie: ['Drobiazg, a mówi więcej niż raport.'],
+                oczyszczenie: ['Krzyż widać stąd z każdej strony.']
+            },
+            uniwersalna: {
+                martwy: ['Nie wiem, co powiedzieć. Po prostu... nie.'],
+                zywy: ['Żyje! Pomóżcie mi!'],
+                odpowiedz: ['Róbmy, co trzeba. Pomodlimy się później.']
+            }
+        };
+        function kwestia(s, sytuacja, ogolne) {
+            const wlasne = s && KWESTIE_KLAS[s.class] && KWESTIE_KLAS[s.class][sytuacja];
+            return losuj(wlasne && Math.random() < 0.65 ? wlasne : ogolne);
+        }
 
         function rozstawPale() {
+            upiory.forEach(g => scene.remove(g)); upiory.clear();
             if (gameMode !== 'dream' || !heartPrison || !heartPrison.sin) return 0;
             if (!PALE_GRZECHY.includes(heartPrison.sin.id) || Math.random() > PALE_SZANSA) return 0;
             const ile = 2 + Math.floor(Math.random() * 3);
@@ -24374,15 +24563,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const d = Math.max(Math.abs(p.x - x), Math.abs(p.z - z));
                 if (d <= 3 && !p.zauwazony) {
                     p.zauwazony = true;
+                    p.widzianyTura = combatTurnCounter;
                     updateUI(p.zywy ? 'Ktoś przywiązany do pala unosi głowę i jęczy - jeszcze żyje!'
                                     : 'Przy palu wisi ciało. Śpiący poświęcił tego człowieka - i we śnie wciąż go widzi.');
                     const pierwszy = !paleSkomentowane;
                     paleSkomentowane = true;
-                    speakAt(s, p.zywy ? losuj(PALE_ZYWY)
-                                      : (pierwszy && PALE_SUMIENIE[p.sin] ? losuj(PALE_SUMIENIE[p.sin]) : losuj(PALE_MARTWY)));
+                    speakAt(s, p.zywy ? kwestia(s, 'zywy', PALE_ZYWY)
+                                      : (pierwszy && PALE_SUMIENIE[p.sin] ? losuj(PALE_SUMIENIE[p.sin]) : kwestia(s, 'martwy', PALE_MARTWY)));
                     const drugi = soldiers.find(q => q !== s && !q.isDead && !q.isNPC && q.mesh);
                     if (drugi && !p.zywy && (pierwszy || Math.random() < 0.4))
-                        setTimeout(() => speakAt(drugi, losuj(PALE_ODPOWIEDZ)), 1800);
+                        setTimeout(() => speakAt(drugi, kwestia(drugi, 'odpowiedz', PALE_ODPOWIEDZ)), 1800);
                 }
                 if (d > 1) return;
                 p.uwolniony = true;
@@ -24390,14 +24580,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     playerStats.grace += PAL_LASKA_ZYWY;
                     if (sleepingVitalSegments < sleepingVitalMax) { sleepingVitalSegments++; updateSleepingVitalBar(); }
                     showFloatingWarning(`Uwolniony! +${PAL_LASKA_ZYWY} Łaski`);
-                    speakAt(s, losuj(['Już dobrze. Jesteś wolny.', 'Idź. Nikt cię już nie zwiąże.', 'Trzymaj się mnie - wychodzimy.']));
+                    speakAt(s, kwestia(s, 'uwolnienie', ['Już dobrze. Jesteś wolny.', 'Idź. Nikt cię już nie zwiąże.', 'Trzymaj się mnie - wychodzimy.']));
                     updateUI(`${s.name} przecina więzy. Śpiący porusza się przez sen - sumienie odrobinę mu zelżało. ` +
                              '"Rozerwać kajdany zła, rozwiązać więzy niewoli, wypuścić wolno uciśnionych." (Iz 58,6)');
                 } else {
                     playerStats.grace += PAL_LASKA_MARTWY;
                     showFloatingWarning(`Modlitwa za zmarłego +${PAL_LASKA_MARTWY} Łaski`);
-                    speakAt(s, losuj(['Spoczywaj w pokoju.', 'Wieczny odpoczynek racz mu dać, Panie.', 'Już nikt cię nie skrzywdzi.']));
+                    speakAt(s, kwestia(s, 'modlitwa', ['Spoczywaj w pokoju.', 'Wieczny odpoczynek racz mu dać, Panie.', 'Już nikt cię nie skrzywdzi.']));
                     updateUI(`${s.name} zdejmuje ciało z pala i odmawia modlitwę. "Wieczny odpoczynek racz mu dać, Panie."`);
+                }
+                if (upiory.has(p)) {
+                    scene.remove(upiory.get(p)); upiory.delete(p);
+                    updateUI('Blady cień nad palem rozwiewa się jak mgła o świcie.');
                 }
                 // Zostaje sam słup - nadal twarda osłona
                 usunBryleOslony(p);
@@ -24518,7 +24712,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             playerStats.grace += WSPOMNIENIE_LASKA;
             showFloatingWarning(`Wspomnienie śpiącego (${wspomnieniaZebrane}/${WSPOMNIENIA_ILE})`);
             updateUI(teksty[w.nr]);
-            speakAt(s, WSPOMNIENIA_REAKCJE[Math.floor(Math.random() * WSPOMNIENIA_REAKCJE.length)]);
+            speakAt(s, kwestia(s, 'wspomnienie', WSPOMNIENIA_REAKCJE));
             if (wspomnieniaZebrane === WSPOMNIENIA_ILE) {
                 playerStats.grace += WSPOMNIENIA_KOMPLET_LASKA;
                 setTimeout(() => {
@@ -24559,6 +24753,133 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (wspomnieniaZebrane === WSPOMNIENIA_ILE)
                 zakonczenie += '\n' + WSPOMNIENIA[grzechWspomnien()][3];
             return 'SUMIENIE ŚPIĄCEGO\n' + linie.join('\n') + '\n' + zakonczenie;
+        }
+
+        // ---- UPIÓR WYRZUTU ----
+        // Ciało przy palu, przy którym nikt się nie zatrzymał, nie daje spokoju: po dwóch
+        // turach wstaje nad nim blady cień. Nie zadaje ran - podgryza wiarę oddziału.
+        // Modlitwa przy palu rozwiewa go.
+        const UPIOR_PO_TURACH = 2, UPIOR_ZASIEG = 4, UPIOR_ZWATPIENIE = 8;
+        const upiory = new Map();   // pal -> bryła cienia (poza przeszkodami, bo te idą do zapisu)
+        function tikUpiorow() {
+            obstaclePositions.forEach(p => {
+                if (p.type !== 'pal' || p.zywy || p.uwolniony || !p.zauwazony) return;
+                if (!upiory.has(p) && combatTurnCounter - (p.widzianyTura || 0) >= UPIOR_PO_TURACH) {
+                    const g = new THREE.Group();
+                    const mat = new THREE.MeshBasicMaterial({ color: 0xcfd8e0, transparent: true, opacity: 0.35, depthWrite: false });
+                    const cialo = new THREE.Mesh(new THREE.ConeGeometry(0.35, 1.6, 10, 1, true), mat); cialo.position.y = 0.8; g.add(cialo);
+                    const glowa = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), mat); glowa.position.y = 1.75; g.add(glowa);
+                    g.position.set(p.x + 0.6, getTerrainY(p.x, p.z) + 0.4, p.z);
+                    g.userData.unitType = 'fx'; g.userData.faza = Math.random() * 6.28;
+                    scene.add(g);
+                    upiory.set(p, g);
+                    updateUI('Nad ciałem przy palu unosi się blady cień. Wyrzut, którego nikt nie ukoił - patrzy na was.');
+                    showFloatingWarning('Upiór wyrzutu!');
+                }
+                if (!upiory.has(p)) return;
+                const blisko = soldiers.filter(s => !s.isDead && s.mesh && !s.isNPC &&
+                    Math.max(Math.abs(Math.round(s.mesh.position.x) - p.x), Math.abs(Math.round(s.mesh.position.z) - p.z)) <= UPIOR_ZASIEG);
+                blisko.forEach(s => dodajZwatpienie(s, UPIOR_ZWATPIENIE, 'upiór wyrzutu'));
+                if (blisko.length) updateUI(`Upiór szepcze: "Dlaczego mnie zostawił?" - wiara ${blisko.map(s => s.name).join(', ')} słabnie.`);
+            });
+        }
+
+        // ---- OCZYSZCZENIE ŚWIĄTYNI ----
+        // Ołtarz zgaszony, bożek i kapłan pokonani - wojownik stawia krzyż na ołtarzu.
+        // Od tej chwili kto stoi w świątyni, ten odzyskuje siły i spokój.
+        const OCZYSZCZENIE_LASKA = 5, OCZYSZCZENIE_LECZENIE = 1, OCZYSZCZENIE_UKOJENIE = 5;
+        function krzyzNaOltarzu(pos, ty) {
+            const zloto = new THREE.MeshLambertMaterial({ color: 0xd4a838, emissive: 0x3a2c08 });
+            const pion = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.75, 0.09), zloto);
+            pion.position.set(pos.x, ty + 1.55, pos.z);
+            const poziom = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.09, 0.09), zloto);
+            poziom.position.set(pos.x, ty + 1.72, pos.z);
+            [pion, poziom].forEach(m => { scene.add(m); obstacleMeshes.push(m); });
+        }
+        function oczyscSwiatynie(s, o) {
+            if (o.oczyszczona || !o.zgaszony) return false;
+            const wrogowieSwiatyni = enemies.some(e => !e.isDead && (e.type === 'bozek' || e.kaplan));
+            if (wrogowieSwiatyni) return false;
+            o.oczyszczona = true;
+            krzyzNaOltarzu(o, getTerrainY(o.x, o.z));
+            playerStats.grace += OCZYSZCZENIE_LASKA;
+            showFloatingWarning(`Świątynia oczyszczona! +${OCZYSZCZENIE_LASKA} Łaski`);
+            updateUI(`${s.name} stawia krzyż na ołtarzu zapomnianego bóstwa. Kto stanie w tych murach, odzyska siły. ` +
+                     '"Dom mój będzie nazwany domem modlitwy." (Mt 21,13)');
+            speakAt(s, kwestia(s, 'oczyszczenie', ['Teraz to miejsce należy do Pana.', 'Koniec z bożkami.']));
+            return true;
+        }
+        function tikOczyszczonychSwiatyn() {
+            obstaclePositions.forEach(o => {
+                const sw = o.type === 'altar' && o.oczyszczona && o.swiatynia;
+                if (!sw) return;
+                soldiers.forEach(s => {
+                    if (s.isDead || !s.mesh || s.isNPC) return;
+                    const x = Math.round(s.mesh.position.x), z = Math.round(s.mesh.position.z);
+                    if (x <= sw.minX || x >= sw.maxX || z <= sw.minZ || z >= sw.maxZ) return;
+                    if (s.hp < s.maxHp) s.hp = Math.min(s.maxHp, s.hp + OCZYSZCZENIE_LECZENIE);
+                    ukojZwatpienie(s, OCZYSZCZENIE_UKOJENIE);
+                });
+            });
+        }
+
+        // ---- PUŁAPKI W ŚWIĄTYNI ----
+        // Płyty naciskowe w nawie. Widać je dopiero z sąsiedniego pola (z pochodnią - z trzech).
+        // Strzały ze ścian ranią, zapadnia rani i zabiera resztę ruchu.
+        const PULAPKA_STRZALY = 4, PULAPKA_ZAPADNIA = 3;
+        function sprawdzPulapki(s, sw, x, z) {
+            (sw.pulapki || []).forEach(p => {
+                if (p.zuzyta) return;
+                const d = Math.max(Math.abs(p.x - x), Math.abs(p.z - z));
+                if (!p.ujawniona && d <= (nosiPochodnie(s) ? 3 : 1)) {
+                    p.ujawniona = true;
+                    const plyta = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.05, 0.8), new THREE.MeshLambertMaterial({ color: 0x5a4a3a }));
+                    plyta.position.set(p.x, getTerrainY(p.x, p.z) + 0.03, p.z);
+                    scene.add(plyta); obstacleMeshes.push(plyta);
+                    if (d > 0) { updateUI(`${s.name} zauważa płytę naciskową w posadzce - lepiej jej nie deptać.`); showFloatingWarning('Pułapka!'); }
+                }
+                if (d !== 0) return;
+                p.zuzyta = true;
+                if (p.rodzaj === 'strzaly') {
+                    zadajObrazenia(s, PULAPKA_STRZALY, 'pulapka');
+                    updateUI(`Płyta zapada się pod stopą - ze ścian świszczą strzały! ${s.name} -${PULAPKA_STRZALY} HP.`);
+                } else {
+                    zadajObrazenia(s, PULAPKA_ZAPADNIA, 'pulapka');
+                    if (!s.isDead) s.ap = 0;
+                    updateUI(`Zapadnia! ${s.name} wpada po pas w dół (-${PULAPKA_ZAPADNIA} HP) i traci resztę ruchu, wygrzebując się.`);
+                }
+                showFloatingWarning('Pułapka!');
+                if (typeof updateSoldierUI === 'function') updateSoldierUI();
+                checkGameOver();
+            });
+        }
+
+        // ---- ŚLADY NA ŚNIEGU ----
+        // Gdy pada śnieg, wróg zostawia odciski tam, gdzie skończył turę - na polach już
+        // odkrytych widać, którędy chodzą. Znikają po trzech turach, zasypane.
+        let sladyNaSniegu = [];
+        function tikSladowNaSniegu() {
+            sladyNaSniegu = sladyNaSniegu.filter(sl => {
+                if (combatTurnCounter - sl.tura < 3) return true;
+                scene.remove(sl.mesh); return false;
+            });
+            if (weatherType !== 'snow' || gameMode !== 'dream') return;
+            enemies.forEach(e => {
+                if (e.isDead || !e.mesh || e.podZiemia || e.wWodzie || e.wZasadzce || e.uspiony || e.zastygly) return;
+                const x = Math.round(e.mesh.position.x), z = Math.round(e.mesh.position.z), mx = x + offsetX, mz = z + offsetZ;
+                if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth || !exploredGrid[mx][mz]) return;
+                const g = new THREE.Group();
+                const mat = new THREE.MeshBasicMaterial({ color: 0x5a6470, transparent: true, opacity: 0.55, depthWrite: false });
+                [-0.12, 0.12].forEach((o, i) => {
+                    const odcisk = new THREE.Mesh(new THREE.CircleGeometry(0.09, 7), mat);
+                    odcisk.rotation.x = -Math.PI / 2; odcisk.scale.set(1, 1.7, 1);
+                    odcisk.position.set(o, 0.02, i ? 0.18 : -0.18); g.add(odcisk);
+                });
+                g.position.set(x, getTerrainY(x, z), z);
+                g.rotation.y = e.facingAngle || 0;
+                scene.add(g);
+                sladyNaSniegu.push({ mesh: g, tura: combatTurnCounter });
+            });
         }
 
         // Kurz nad wyrwą i kilka odłamków spadających z muru
@@ -27345,7 +27666,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 (it.assignedTo === undefined ? 0 : it.assignedTo) === idx) ? 3 : 0;
         }
 
+        // Mgła pogodowa ogranicza każdy zasięg - widzenia i strzału
         function getVisionRange(kto) {
+            const r = zasiegWidzeniaBezPogody(kto);
+            return weatherType === 'mgla' ? Math.min(r, MGLA_POGODOWA_WZROK) : r;
+        }
+        function zasiegWidzeniaBezPogody(kto) {
             // Wojownik oblezionyprzez rój nie widzi dalej niż na wyciągnięcie ręki
             const cel = kto || (typeof getActiveSoldier === 'function' ? getActiveSoldier() : null);
             if (cel && (cel.rojTury || 0) > 0) return ROJ_WZROK;
@@ -32328,7 +32654,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     // Wspomnienie śpiącego leżące na drodze
                     podniesWspomnienie(active);
                     // Brodzącego przez płyciznę nurt może znieść
-                    if (czyWoda(active.mesh.position.x, active.mesh.position.z) && Math.random() < BROD_NURT_SZANSA) zniesNurtem(active);
+                    if (tratwa && Math.round(active.mesh.position.x) === tratwa.x && Math.round(active.mesh.position.z) === tratwa.z) splynTratwa(active);
+                    else if (czyWoda(active.mesh.position.x, active.mesh.position.z) && Math.random() < BROD_NURT_SZANSA) zniesNurtem(active);
                     checkPrisonerRescue();
                     sprawdzKryptyOddzialu();
                     checkSarcophagi();
@@ -32393,6 +32720,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             tikGargulcow();
             tikTopielcow();
             tikOltarzy();
+            tikUpiorow();
+            tikOczyszczonychSwiatyn();
+            tikSladowNaSniegu();
             tikOgluszenia();
             tikCiemnosci();
             tikPobojowiska();
@@ -35019,7 +35349,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             wyspy:    [{ f: 'wyspa', barwa: 0x7a8a6a, h: [3, 6], r: [6, 14], ile: 26 }],
             cmentarzysko: [{ f: 'krzyz', barwa: 0x2a2a30, h: [3, 6], r: [0.4, 0.6], ile: 60 }, { f: 'stozek', barwa: 0x1a1c20, h: [8, 14], r: [1, 2], ile: 50 }],
             nekropolia:   [{ f: 'krzyz', barwa: 0x22222a, h: [3, 6], r: [0.4, 0.6], ile: 60 }, { f: 'blok', barwa: 0x2a2a34, h: [6, 12], r: [3, 5], ile: 20 }],
-            newyork:  [{ f: 'blok', barwa: 0x1e2430, h: [20, 60], r: [3, 7], ile: 90, okna: true }],
+            newyork:  [{ f: 'blok', barwa: 0x1e2430, h: [25, 70], r: [2, 4], ile: 110, okna: true }],
             pozar:    [{ f: 'blok', barwa: 0x1a1412, h: [10, 30], r: [3, 6], ile: 60, okna: true, swieci: true }],
             whitehouse: [{ f: 'blok', barwa: 0x3a3e46, h: [8, 20], r: [3, 6], ile: 50, okna: true }],
             pentagon: [{ f: 'blok', barwa: 0x3a3e46, h: [8, 20], r: [3, 6], ile: 50, okna: true }],
@@ -35048,7 +35378,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const okna = [], czapy = [];
                 let n = 0;
                 for (let i = 0; i < w.ile; i++) {
-                    const dal = 12 + Math.random() * 30;
+                    // Budynki stoją dalej - z bliska wyglądały jak ściany, nie jak panorama
+                    const dal = (w.f === 'blok' ? 30 : 12) + Math.random() * 30;
                     const poz = obwodProstokata(Math.random(), polX + dal, polZ + dal);
                     const h = w.h[0] + Math.random() * (w.h[1] - w.h[0]);
                     const r = w.r[0] + Math.random() * (w.r[1] - w.r[0]);

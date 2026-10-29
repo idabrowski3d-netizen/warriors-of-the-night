@@ -49,8 +49,11 @@ async function polacz() {
         if (m.method === 'Runtime.exceptionThrown') {
             const d = m.params.exceptionDetails;
             const opis = (d.exception && d.exception.description || d.text || '').split('\n')[0];
+            // Skąd przyszło wywołanie - najbliższe funkcje ze stosu
+            const stos = ((d.stackTrace && d.stackTrace.callFrames) || []).slice(0, 4)
+                .map(f => `${f.functionName || '(anonim.)'}:${f.lineNumber + 1}`).join(' <- ');
             // Brakujący plik (model, dźwięk) to ostrzeżenie, nie błąd kodu
-            (/HTTP 404/.test(opis) ? ostrzezenia : bledy).push(`${opis} (linia ${d.lineNumber})`);
+            (/HTTP 404/.test(opis) ? ostrzezenia : bledy).push(`${opis}${stos ? ' [' + stos + ']' : ` (linia ${d.lineNumber + 1})`}`);
         } else if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error') {
             ostrzezenia.push('console.error: ' + m.params.args.map(a => a.value || a.description).join(' '));
         }
