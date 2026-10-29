@@ -24608,41 +24608,208 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // zrozumie, kogo ratuje - a epilog misji dopowie zakończenie.
         // ========================================================
         const WSPOMNIENIA_ILE = 3;
-        const WSPOMNIENIE_LASKA = 1, WSPOMNIENIA_KOMPLET_LASKA = 5;
-        const WSPOMNIENIA = {
-            pycha: ['List z urzędu, zgnieciony w kulkę. Na marginesie jego ręką: "Ja mam rację. Zawsze miałem."',
-                    'Zdjęcie z dyplomu. Ktoś stojący obok został odcięty nożyczkami - zostało tylko ramię w tej samej todze.',
-                    'Drewniany konik z wypalonym napisem "Dla wujka". Nigdy nie został odebrany.',
-                    'Wyparł się brata, który opłacił mu studia, bo wstydził się jego prostych rąk. Konik od bratanka czekał dwadzieścia lat.'],
-            gniew: ['Dziecięcy rysunek domu. Okno, w którym stoi krzyczący człowiek, przekreślone kredką.',
-                    'Zdjęcie ślubne w ramce z pękniętą szybą. Pęknięcie biegnie dokładnie między nimi.',
-                    'Rozbity telefon. W szkicach wiadomość: "Przepraszam, wróćcie." Nigdy nie wysłana.',
-                    'Jeden wieczór gniewu zabrał mu żonę i syna. Przeprosiny wciąż czekają w szkicach.'],
-            chciwosc: ['Kwit z lombardu: obrączka matki, sprzedana za ułamek ceny.',
-                       'Zdjęcie załogi przed fabryką. Połowa twarzy zamazana długopisem - ci, których zwolnił, gdy zamknął zakład.',
-                       'Rozbita skarbonka. W środku jedna moneta i karteczka: "na lekarstwa dla dziadka".',
-                       'Liczył wszystko - oprócz ludzi. Dziadek nie doczekał lekarstw.'],
-            zazdrosc: ['Wycinek z gazety o sukcesie przyjaciela. Brzegi postrzępione od ciągłego zginania.',
-                       'Zdjęcie dwóch chłopców na rowerach. Twarz jednego wydrapana paznokciem.',
-                       'Zaproszenie na wesele przyjaciela. Nieotwarte.',
-                       'Zazdrość zjadła przyjaźń, która mogła trwać całe życie. Przyjaciel do dziś nie wie, czym zawinił.'],
-            lenistwo: ['Nieotwarta koperta ze szpitala. Na niej: "Pilne - wyniki ojca".',
-                       'Zdjęcie ogrodu zarośniętego po pas. Na ławce książka otwarta wciąż na tej samej stronie.',
-                       'Zakurzona, niedokończona kołyska. Obiecał, że ją skończy.',
-                       'Zawsze był czas na jutro. Ojciec nie doczekał jutra.'],
-            nieumiar: ['Rachunek z baru wyższy niż czynsz. Data: urodziny córki.',
-                       'Zdjęcie przy zastawionym stole. Na krześle obok pusty talerz i dziecięcy rysunek.',
-                       'Butelka z naklejką narysowaną kredkami: "Tata, wróć do nas".',
-                       'Córka wciąż rysuje kredkami - tylko już nie dla niego.'],
-            nieczystosc: ['Obrączka zdjęta z palca, schowana w kieszeni płaszcza.',
-                          'Zdjęcie rodzinne. On stoi trochę z boku, jakby już wtedy wychodził.',
-                          'Kartka urodzinowa od syna: "Dlaczego nie przychodzisz?"',
-                          'Odchodził po trochu, aż w domu nie zostało po nim nic poza pustym krzesłem.'],
-            inne: ['Stary list, czytany tyle razy, że rozpada się w zgięciach.',
-                   'Wyblakłe zdjęcie ludzi, których imion już nikt nie pamięta.',
-                   'Dziecięca zabawka, wytarta od trzymania w dłoni.',
-                   'Teraz rozumiecie, kim jest ten, którego sen ratujecie - i dlaczego warto go uratować.']
+        const WSPOMNIENIE_LASKA = 1, WSPOMNIENIA_KOMPLET_LASKA = 5, WSPOMNIENIA_HISTORIA_LASKA = 10;
+        const SPIACY_POWROT_SZANSA = 0.6;   // śpiący z urwaną historią wraca częściej niż obcy
+        // Każdy grzech ma kilku śpiących. Historia śpiącego biegnie przez rozdziały -
+        // jeden rozdział na sen: trzy przedmioty i podsumowanie. Szepty to jego własny
+        // głos przy podniesieniu przedmiotu (po jednym na przedmiot).
+        const SPIACY = {
+            pycha: [
+                { imie: 'Henryk, urzędnik',
+                  rozdzialy: [
+                    ['List z urzędu, zgnieciony w kulkę. Na marginesie jego ręką: "Ja mam rację. Zawsze miałem."',
+                     'Zdjęcie z dyplomu. Ktoś stojący obok został odcięty nożyczkami - zostało tylko ramię w tej samej todze.',
+                     'Drewniany konik z wypalonym napisem "Dla wujka". Nigdy nie został odebrany.',
+                     'Wyparł się brata, który opłacił mu studia, bo wstydził się jego prostych rąk. Konik od bratanka czekał dwadzieścia lat.'],
+                    ['List do brata, zaczynany jedenaście razy. Każda wersja urywa się po słowie "Drogi".',
+                     'Bilet kolejowy do rodzinnej wsi, skasowany - tylko w jedną stronę.',
+                     'Ten sam konik, już odebrany. Ktoś dorysował mu ołówkiem drugiego jeźdźca.',
+                     'Pojechał. Brat otworzył drzwi, nic nie powiedział - i postawił na stole drugi talerz.']],
+                  szepty: ['Miałem rację. Musiałem mieć.', 'Nie pamiętam już jego twarzy. Tylko ramię.', 'Dla wujka... to ja jestem tym wujkiem?'] },
+                { imie: 'Wiktoria, chirurg',
+                  rozdzialy: [
+                    ['Fartuch operacyjny z wyhaftowanym nazwiskiem - większymi literami niż nazwa szpitala.',
+                     'Karta pacjentki z dopiskiem asystenta: "Proszę o konsultację". Przekreślone jej podpisem.',
+                     'Kwiaty w celofanie, zwiędłe. Bilecik: "Dla pani doktor, od rodziny pani Marii".',
+                     'Nie wysłuchała młodszego lekarza. Pani Maria nie obudziła się po zabiegu, a kwiaty przyszły po pogrzebie.'],
+                    ['Rezygnacja z ordynatury, napisana równym, spokojnym pismem.',
+                     'Zeszyt asystenta. Na pierwszej stronie jej dopisek: "Miałeś rację".',
+                     'Zdjęcie grobu pani Marii. Świeże kwiaty - tym razem nie zwiędłe.',
+                     'Uczy teraz młodych lekarzy. Pierwsza rzecz, której ich uczy, to słuchać.']],
+                  szepty: ['Moje ręce się nie mylą.', 'Konsultacja? Ze mną się nie konsultuje.', 'Przyszły za późno. Jak wszystko.'] }],
+            gniew: [
+                { imie: 'Marek, ojciec',
+                  rozdzialy: [
+                    ['Dziecięcy rysunek domu. Okno, w którym stoi krzyczący człowiek, przekreślone kredką.',
+                     'Zdjęcie ślubne w ramce z pękniętą szybą. Pęknięcie biegnie dokładnie między nimi.',
+                     'Rozbity telefon. W szkicach wiadomość: "Przepraszam, wróćcie." Nigdy nie wysłana.',
+                     'Jeden wieczór gniewu zabrał mu żonę i syna. Przeprosiny wciąż czekają w szkicach.'],
+                    ['Kartka z terapii: "Policz do dziesięciu". Wyliczone do tysiąca.',
+                     'Nowy rysunek syna. Dom bez krzyczącego człowieka - w oknie tylko kwiatek.',
+                     'Wysłana wiadomość: "Przepraszam". Pod spodem odpowiedź: "Wiem, tato".',
+                     'Nie wrócili. Ale syn przyjeżdża w niedziele - i coraz rzadziej zerka na drzwi.']],
+                  szepty: ['To nie ja krzyczę. To coś we mnie.', 'Pękło. Wszystko pęka, czego dotknę.', 'Wystarczy nacisnąć "wyślij"...'] },
+                { imie: 'Teresa, nauczycielka',
+                  rozdzialy: [
+                    ['Dziennik szkolny. Oceny wpisane tak mocno, że długopis przebił kartkę.',
+                     'Zdjęcie klasy. Jedno dziecko stoi z tyłu, schowane za kolegą.',
+                     'Liścik spod ławki: "Pani się mnie boi czy ja pani?"',
+                     'Krzyczała, bo sama się bała. Chłopiec zza kolegi przestał przychodzić do szkoły.'],
+                    ['Adres chłopca, zapisany na odwrocie biletu tramwajowego.',
+                     'Nowa paczka kredek, przewiązana kokardą.',
+                     'Odpowiedź na liścik, wreszcie napisana: "Bałam się. Już nie".',
+                     'Zapukała do jego drzwi. Wrócił do szkoły i siada teraz w pierwszej ławce.']],
+                  szepty: ['Cisza! Cisza w końcu!', 'Gdzie się chowasz? Widzę cię.', 'Kto się kogo bał...?'] }],
+            chciwosc: [
+                { imie: 'Zenon, fabrykant',
+                  rozdzialy: [
+                    ['Kwit z lombardu: obrączka matki, sprzedana za ułamek ceny.',
+                     'Zdjęcie załogi przed fabryką. Połowa twarzy zamazana długopisem - ci, których zwolnił, gdy zamknął zakład.',
+                     'Rozbita skarbonka. W środku jedna moneta i karteczka: "na lekarstwa dla dziadka".',
+                     'Liczył wszystko - oprócz ludzi. Dziadek nie doczekał lekarstw.'],
+                    ['Akt notarialny: fabryka przepisana na spółdzielnię pracowników.',
+                     'Zdjęcie załogi - tym razem wszystkie twarze całe. On stoi z boku, bez krawata.',
+                     'Nowa skarbonka, pełna. Karteczka: "na lekarstwa - dla tych, którym nie zdążyłem".',
+                     'Oddał to, co liczył całe życie. Pierwszy raz od lat zasypia, nie licząc.']],
+                  szepty: ['Ile to było warte? Za mało.', 'Koszty. Tylko koszty.', 'Jedna moneta... jedna za mało.'] },
+                { imie: 'Lucyna, lichwiarka',
+                  rozdzialy: [
+                    ['Zeszyt dłużników. Imiona wypisane równo, od linijki.',
+                     'Klucz do mieszkania, które zabrała wdowie za długi.',
+                     'Dziecięca kołderka z tamtego mieszkania - zostawiona w pośpiechu.',
+                     'Zabrała dach nad głową matce z dzieckiem za trzy niezapłacone raty.'],
+                    ['Ten sam zeszyt. Długi przekreślone, strona po stronie.',
+                     'Klucz w kopercie zaadresowanej do wdowy.',
+                     'Kołderka, wyprana i złożona, z liścikiem bez podpisu.',
+                     'Wdowa nigdy się nie dowiedziała, kto oddał klucz. Lucyna nie chciała, żeby wiedziała.']],
+                  szepty: ['Dług to dług. Tak jest uczciwie.', 'Mój. Teraz to mój klucz.', 'Ktoś tu spał. Małe ktoś.'] }],
+            zazdrosc: [
+                { imie: 'Paweł, przyjaciel',
+                  rozdzialy: [
+                    ['Wycinek z gazety o sukcesie przyjaciela. Brzegi postrzępione od ciągłego zginania.',
+                     'Zdjęcie dwóch chłopców na rowerach. Twarz jednego wydrapana paznokciem.',
+                     'Zaproszenie na wesele przyjaciela. Nieotwarte.',
+                     'Zazdrość zjadła przyjaźń, która mogła trwać całe życie. Przyjaciel do dziś nie wie, czym zawinił.'],
+                    ['Bilet na pociąg do miasta, w którym mieszka przyjaciel.',
+                     'Prezent ślubny, spóźniony o pięć lat, wciąż w papierze.',
+                     'Nowe zdjęcie dwóch mężczyzn na rowerach. Obie twarze całe.',
+                     'Przyjechał przeprosić. Usłyszał: "Na co tyle czekałeś? Brakowało mi ciebie".']],
+                  szepty: ['Dlaczego on, a nie ja?', 'Jechaliśmy razem. Potem już nie.', 'Nie otworzę. Nie chcę wiedzieć.'] },
+                { imie: 'Agata, siostra',
+                  rozdzialy: [
+                    ['Sukienka siostry, przecięta nożyczkami na wysokości serca.',
+                     'Świadectwo z czerwonym paskiem - nie jej. Latami leżało na dnie szuflady.',
+                     'List od matki: "Kocham was obie tak samo". Słowo "obie" podkreślone aż do dziury.',
+                     'Całe życie ścigała się z siostrą, która nawet nie wiedziała, że jest jakiś wyścig.'],
+                    ['To samo świadectwo, oddane po latach w ramce.',
+                     'Igła z nitką. Sukienka zaszyta krzywo, ale starannie.',
+                     'Zdjęcie dwóch staruszek na ławce, ramię w ramię.',
+                     'Siostra pękła ze śmiechu nad krzywym szwem. Śmiały się do wieczora, jak w dzieciństwie.']],
+                  szepty: ['Ładniejsza. Zawsze ładniejsza.', 'Schowam. Nikt nie zobaczy.', 'Tak samo? Nigdy tak samo.'] }],
+            lenistwo: [
+                { imie: 'Stefan, syn',
+                  rozdzialy: [
+                    ['Nieotwarta koperta ze szpitala. Na niej: "Pilne - wyniki ojca".',
+                     'Zdjęcie ogrodu zarośniętego po pas. Na ławce książka otwarta wciąż na tej samej stronie.',
+                     'Zakurzona, niedokończona kołyska. Obiecał, że ją skończy.',
+                     'Zawsze był czas na jutro. Ojciec nie doczekał jutra.'],
+                    ['Kołyska dokończona. Pomalowana nierówno, ale pomalowana.',
+                     'Ogród wypielony. Na ławce ta sama książka - zamknięta, przeczytana do końca.',
+                     'Kalendarz z zakreślonymi dniami. W każdym jedna rzecz zrobiona, choćby mała.',
+                     'Wnuk śpi w kołysce, którą zaczął jeszcze ojciec. Stefan nie odkłada już niczego na jutro.']],
+                  szepty: ['Jutro otworzę. Jutro.', 'Zarosło. Samo zarosło.', 'Skończę. Obiecałem...'] },
+                { imie: 'Kamila, pianistka',
+                  rozdzialy: [
+                    ['Nuty otwarte na tym samym takcie od dziesięciu lat.',
+                     'Zaproszenie na przesłuchanie do konserwatorium. Termin dawno minął.',
+                     'List od nauczyciela muzyki: "Masz dar. Nie zakop go".',
+                     'Mogła grać na wielkich scenach - zawsze od jutra. Nauczyciel umarł, nie słysząc jej koncertu.'],
+                    ['Te same nuty, przewrócone na następną stronę. I na kolejną.',
+                     'Plakat z domu kultury. Mała sala, ale jej nazwisko na górze.',
+                     'Kwiat na grobie nauczyciela - przy nim bilet na koncert.',
+                     'Zagrała dla dwudziestu osób. Pierwszy raz od lat nie czuła, że coś przecieka jej przez palce.']],
+                  szepty: ['Ten takt... zawsze ten sam takt.', 'Następnym razem pójdę.', 'Zakopałam. Przepraszam.'] }],
+            nieumiar: [
+                { imie: 'Robert, ojciec',
+                  rozdzialy: [
+                    ['Rachunek z baru wyższy niż czynsz. Data: urodziny córki.',
+                     'Zdjęcie przy zastawionym stole. Na krześle obok pusty talerz i dziecięcy rysunek.',
+                     'Butelka z naklejką narysowaną kredkami: "Tata, wróć do nas".',
+                     'Córka wciąż rysuje kredkami - tylko już nie dla niego.'],
+                    ['Żeton za rok trzeźwości, wytarty od ściskania w dłoni.',
+                     'Paragon z cukierni: tort urodzinowy, odebrany na czas.',
+                     'Rysunek córki: tata przy stole, talerz pełny, krzesło zajęte.',
+                     'Córka narysowała go znowu. Tym razem przy stole, nie obok.']],
+                  szepty: ['Jeszcze jeden. Ostatni.', 'Czyj to talerz? Mój?', 'Wrócę. Po jeszcze jednym.'] },
+                { imie: 'Danuta, matka',
+                  rozdzialy: [
+                    ['Kupon zakładów z datą komunii syna.',
+                     'Pusta szkatułka po biżuterii babki.',
+                     'Garnitur komunijny z metką - oddany do sklepu.',
+                     'Przegrała pieniądze na komunię syna. Garnitur wrócił do sklepu, a syn szedł w swetrze po bracie.'],
+                    ['Wniosek o zakaz wstępu do kasyna, podpisany własnoręcznie.',
+                     'Kwit z lombardu: broszka babki - wykupiona.',
+                     'Zdjęcie syna na zakończeniu szkoły, w nowym garniturze.',
+                     'Garnitur kupiła z oszczędności odkładanych groszami. Syn nie wie, ile kosztował - i tak ma zostać.']],
+                  szepty: ['Tym razem wygram. Czuję to.', 'Babcia by zrozumiała...', 'Sweter też jest ładny. Prawda?'] }],
+            nieczystosc: [
+                { imie: 'Tomasz, mąż',
+                  rozdzialy: [
+                    ['Obrączka zdjęta z palca, schowana w kieszeni płaszcza.',
+                     'Zdjęcie rodzinne. On stoi trochę z boku, jakby już wtedy wychodził.',
+                     'Kartka urodzinowa od syna: "Dlaczego nie przychodzisz?"',
+                     'Odchodził po trochu, aż w domu nie zostało po nim nic poza pustym krzesłem.'],
+                    ['Obrączka z powrotem na palcu. Przyciasna - przez lata coś się zmieniło.',
+                     'Dwa bilety na mecz. Jeden dla syna.',
+                     'Kartka od syna: "Dzięki, że przyszedłeś".',
+                     'Żona nie wybaczyła od razu. Ale krzesło przy stole znów jest zajęte.']],
+                  szepty: ['Tylko na chwilę ją zdejmę.', 'Byłem tam. Prawie byłem.', 'Przyjdę. Następnym razem.'] },
+                { imie: 'Irena, żona',
+                  rozdzialy: [
+                    ['Telefon z wiadomościami kasowanymi co wieczór.',
+                     'Rachunek z hotelu w mieście, w którym miała być na szkoleniu.',
+                     'Szalik męża. Nie zauważyła, że go zgubił - szukał go cały tydzień.',
+                     'Kłamała tak długo, że zapomniała, jak się mówi prawdę. Mąż wciąż wierzy w szkolenie.'],
+                    ['Ten sam telefon - wyłączony, schowany w szufladzie.',
+                     'Szalik męża, odnaleziony i wyprany.',
+                     'Kartka z jednym zdaniem, którego nie umiała powiedzieć na głos.',
+                     'Powiedziała mu wszystko. Nie wiadomo, czy zostanie - ale pierwszy raz od lat patrzy mu w oczy.']],
+                  szepty: ['Skasować. Wszystko skasować.', 'Szkolenie. Tylko szkolenie.', 'Szukał? Nie widziałam...'] }],
+            inne: [
+                { imie: 'Nieznajomy',
+                  rozdzialy: [
+                    ['Stary list, czytany tyle razy, że rozpada się w zgięciach.',
+                     'Wyblakłe zdjęcie ludzi, których imion już nikt nie pamięta.',
+                     'Dziecięca zabawka, wytarta od trzymania w dłoni.',
+                     'Teraz rozumiecie, kim jest ten, którego sen ratujecie - i dlaczego warto go uratować.']],
+                  szepty: ['Kto to pisał? Ja?', 'Znałem was... chyba.', 'Moja. Zawsze była moja.'] }]
         };
+        const NAZWY_GRZECHOW = { pycha: 'pycha', gniew: 'gniew', chciwosc: 'chciwość', zazdrosc: 'zazdrość',
+                                 lenistwo: 'lenistwo', nieumiar: 'nieumiarkowanie', nieczystosc: 'nieczystość', inne: 'nieznany grzech' };
+
+        // Dziennik snów - trwały, poza zapisem gry: kogo oddział poznał i jak się obudził.
+        // Wpis: dziennik['grzech:nr'] = { rozdzialy: [ { znalezione: [nr przedmiotów], zakonczenie } ] }
+        const DZIENNIK_KEY = 'wotn_dziennik_snow';
+        function wczytajDziennik() {
+            try { return JSON.parse(localStorage.getItem(DZIENNIK_KEY)) || {}; } catch (e) { return {}; }
+        }
+        function zapiszDziennik(d) {
+            try { localStorage.setItem(DZIENNIK_KEY, JSON.stringify(d)); } catch (e) {}
+        }
+        function ukonczoneRozdzialy(wpis) {
+            return wpis ? wpis.rozdzialy.filter(r => r.znalezione.length === WSPOMNIENIA_ILE).length : 0;
+        }
+        // Bieżący rozdział śpiącego w dzienniku (tworzy go, jeśli trzeba)
+        function rozdzialWDzienniku(d) {
+            const klucz = spiacy.grzech + ':' + spiacy.nr;
+            const wpis = d[klucz] || (d[klucz] = { rozdzialy: [] });
+            while (wpis.rozdzialy.length <= spiacy.rozdzial) wpis.rozdzialy.push({ znalezione: [], zakonczenie: '' });
+            return wpis.rozdzialy[spiacy.rozdzial];
+        }
+
+        let spiacy = null;   // { grzech, nr, rozdzial } - czyj sen i który rozdział jego historii
+        function osobaSpiacego() { return SPIACY[spiacy.grzech][spiacy.nr]; }
+        function rozdzialSpiacego() { return osobaSpiacego().rozdzialy[spiacy.rozdzial]; }
         const WSPOMNIENIA_REAKCJE = ['Zobacz... to jego.', 'Każdy ma swoją historię.', 'Teraz wiem, czemu tu jesteśmy.',
                                      'On też kiedyś kogoś kochał.', 'Boże, ile on w sobie dźwiga...'];
         let wspomnieniaNaPlanszy = [];   // { x, z, nr, mesh }
@@ -24650,7 +24817,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function grzechWspomnien() {
             const id = heartPrison && heartPrison.sin ? heartPrison.sin.id : null;
-            return WSPOMNIENIA[id] ? id : 'inne';
+            return SPIACY[id] ? id : 'inne';
         }
 
         // List, zdjęcie w ramce, zabawka - z ciepłym blaskiem nad nimi, żeby dało się je wypatrzyć
@@ -24678,12 +24845,30 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             wspomnieniaNaPlanszy.forEach(w => scene.remove(w.mesh));
             wspomnieniaNaPlanszy = [];
             wspomnieniaZebrane = 0;
+            spiacy = null;
             if (gameMode !== 'dream') return 0;
+            // Kto śni: ktoś z urwaną historią wraca częściej niż obcy
+            const grzech = grzechWspomnien(), osoby = SPIACY[grzech], dz = wczytajDziennik();
+            const urwane = osoby.map((o, i) => i).filter(i => {
+                const u = ukonczoneRozdzialy(dz[grzech + ':' + i]);
+                return u > 0 && u < osoby[i].rozdzialy.length;
+            });
+            const nr0 = (urwane.length && Math.random() < SPIACY_POWROT_SZANSA)
+                ? urwane[Math.floor(Math.random() * urwane.length)] : Math.floor(Math.random() * osoby.length);
+            spiacy = { grzech: grzech, nr: nr0,
+                       rozdzial: Math.min(ukonczoneRozdzialy(dz[grzech + ':' + nr0]), osoby[nr0].rozdzialy.length - 1) };
             const start = soldiers.find(q => !q.isDead && q.mesh);
+            // Zabawka leży trudniej: przy ołtarzu świątyni, jeśli jest, a jeśli nie - daleko od startu
+            const oltarz = obstaclePositions.find(o => o.type === 'altar' && o.swiatynia);
             for (let nr = 0; nr < WSPOMNIENIA_ILE; nr++) {
+                const ukryte = nr === WSPOMNIENIA_ILE - 1;
                 for (let t = 0; t < 150; t++) {
-                    const x = Math.floor(Math.random() * (mapWidth - 8)) + 4 - offsetX;
-                    const z = Math.floor(Math.random() * (mapDepth - 8)) + 4 - offsetZ;
+                    let x = Math.floor(Math.random() * (mapWidth - 8)) + 4 - offsetX;
+                    let z = Math.floor(Math.random() * (mapDepth - 8)) + 4 - offsetZ;
+                    if (ukryte && oltarz && t < 100) {
+                        x = Math.round(oltarz.x) + Math.floor(Math.random() * 9) - 4;
+                        z = Math.round(oltarz.z) + Math.floor(Math.random() * 9) - 4;
+                    } else if (ukryte && start && t < 100 && Math.hypot(start.mesh.position.x - x, start.mesh.position.z - z) < 25) continue;
                     if (!isWithinPlayBounds(x, z) || isObstacle(x, z) || czyWoda(x, z)) continue;
                     if (start && Math.hypot(start.mesh.position.x - x, start.mesh.position.z - z) < 12) continue;
                     if (wspomnieniaNaPlanszy.some(w => Math.hypot(w.x - x, w.z - z) < 10)) continue;
@@ -24708,19 +24893,45 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             scene.remove(w.mesh);
             wspomnieniaNaPlanszy.splice(i, 1);
             wspomnieniaZebrane++;
-            const teksty = WSPOMNIENIA[grzechWspomnien()];
+            const osoba = osobaSpiacego(), teksty = rozdzialSpiacego();
+            const ostatni = spiacy.rozdzial === osoba.rozdzialy.length - 1;
             playerStats.grace += WSPOMNIENIE_LASKA;
+            const dz = wczytajDziennik(), rozdz = rozdzialWDzienniku(dz);
+            if (rozdz.znalezione.indexOf(w.nr) === -1) rozdz.znalezione.push(w.nr);
+            zapiszDziennik(dz);
+            const skutek = skutekWspomnienia(w.nr);
             showFloatingWarning(`Wspomnienie śpiącego (${wspomnieniaZebrane}/${WSPOMNIENIA_ILE})`);
-            updateUI(teksty[w.nr]);
+            updateUI(teksty[w.nr] + `\nSzept śpiącego: „${osoba.szepty[w.nr]}”` + (skutek ? '\n' + skutek : ''));
             speakAt(s, kwestia(s, 'wspomnienie', WSPOMNIENIA_REAKCJE));
+            // Jego własny głos, z głębi snu - od serca, które go więzi
+            if (heartPrison && heartPrison.mesh) setTimeout(() => speakAt(heartPrison, `„${osoba.szepty[w.nr]}”`), 1200);
             if (wspomnieniaZebrane === WSPOMNIENIA_ILE) {
-                playerStats.grace += WSPOMNIENIA_KOMPLET_LASKA;
+                const laska = WSPOMNIENIA_KOMPLET_LASKA + (ostatni ? WSPOMNIENIA_HISTORIA_LASKA : 0);
+                playerStats.grace += laska;
                 setTimeout(() => {
-                    showFloatingWarning(`Historia śpiącego odkryta! +${WSPOMNIENIA_KOMPLET_LASKA} Łaski`);
-                    updateUI(teksty[3]);
+                    showFloatingWarning(ostatni ? `Cała historia: ${osoba.imie}! +${laska} Łaski`
+                                                : `Rozdział ${spiacy.rozdzial + 1}/${osoba.rozdzialy.length} odkryty! +${laska} Łaski`);
+                    updateUI(teksty[3] + (ostatni ? '' : '\nTo jeszcze nie koniec jego historii - może przyśni się wam znowu.'));
                 }, 1500);
             }
             return true;
+        }
+
+        // Każdy przedmiot coś zmienia w śnie: list wzmacnia śpiącego, zdjęcie osłabia
+        // koszmar, zabawka koi oddział
+        function skutekWspomnienia(nr) {
+            if (nr === 0) {
+                if (sleepingVitalSegments >= sleepingVitalMax) return '';
+                sleepingVitalSegments++;
+                updateSleepingVitalBar();
+                return 'Śpiący przypomina sobie, kim był - jego sen odzyskuje siły.';
+            }
+            if (nr === 1) {
+                enemies.forEach(e => { if (!e.isDead && e.hp > 1) e.hp = Math.max(1, Math.ceil(e.hp * 0.75)); });
+                return 'Koszmar traci pewność - wrogowie na planszy słabną.';
+            }
+            ukojCalyOddzial(ZW_ZWYCIESTWO);
+            return 'Oddział łagodnieje - zwątpienie ustępuje.';
         }
 
         // Epilog misji: co oddział zrobił z sumieniem śpiącego i z czym on się budzi
@@ -24751,7 +24962,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             else
                 zakonczenie = 'Śpiący budzi się zlany potem. Twarze, których nikt nie zdjął z pali, zostały z nim.';
             if (wspomnieniaZebrane === WSPOMNIENIA_ILE)
-                zakonczenie += '\n' + WSPOMNIENIA[grzechWspomnien()][3];
+                zakonczenie += '\n' + rozdzialSpiacego()[3];
+            if (spiacy && wspomnieniaZebrane) {
+                const dz = wczytajDziennik();
+                rozdzialWDzienniku(dz).zakonczenie = zakonczenie.split('\n')[0];
+                zapiszDziennik(dz);
+            }
             return 'SUMIENIE ŚPIĄCEGO\n' + linie.join('\n') + '\n' + zakonczenie;
         }
 
@@ -42367,10 +42583,52 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return { razem, ktoIle: ktoIle.sort((a, b) => b[1] - a[1]), gatunki };
         }
 
+        // Dziennik snów: śpiący, których historię oddział poznał - przedmiot po przedmiocie
+        const DZIENNIK_ZAKLADKA = '__dziennik';
+        function dziennikSnowHtml() {
+            const dz = wczytajDziennik();
+            const klucze = Object.keys(dz).filter(k => { const [g, n] = k.split(':'); return SPIACY[g] && SPIACY[g][n]; });
+            if (!klucze.length)
+                return '<div class="bestiary-locked-note">Dziennik jest jeszcze pusty.<br><br>' +
+                       'Zbierajcie w snach przedmioty z życia śpiących - ich historie zapiszą się tutaj.</div>';
+            return klucze.map(k => {
+                const [g, n] = k.split(':'), osoba = SPIACY[g][n], wpis = dz[k];
+                const ile = ukonczoneRozdzialy(wpis), razem = osoba.rozdzialy.length;
+                let html = '<div style="border-bottom:1px solid #4a4238;padding-bottom:10px;margin-bottom:12px;">' +
+                    '<div style="font-size:17px;color:#ffcc66;"><b>' + osoba.imie + '</b></div>' +
+                    '<div style="color:#9a8f7a;font-size:12px;margin-bottom:6px;">Grzech: ' + NAZWY_GRZECHOW[g] +
+                    ' · rozdziały ' + ile + '/' + razem + (ile === razem ? ' · historia pełna' : '') + '</div>';
+                wpis.rozdzialy.forEach((r, i) => {
+                    const t = osoba.rozdzialy[i];
+                    if (!t) return;
+                    html += '<div style="color:#c8bfa4;margin-top:6px;">Rozdział ' + (i + 1) + '</div>';
+                    for (let p = 0; p < WSPOMNIENIA_ILE; p++)
+                        html += '<p style="margin:2px 0 2px 10px;">' + (r.znalezione.indexOf(p) !== -1 ? '• ' + t[p] : '• ???') + '</p>';
+                    if (r.znalezione.length === WSPOMNIENIA_ILE)
+                        html += '<p style="margin:4px 0 2px 10px;font-style:italic;color:#d8c99a;">' + t[3] + '</p>';
+                    if (r.zakonczenie)
+                        html += '<p style="margin:2px 0 2px 10px;color:#8fb3c9;">' + r.zakonczenie + '</p>';
+                });
+                return html + '</div>';
+            }).join('');
+        }
+
         function renderBestiary() {
             const tabs = document.getElementById('bestiary-tabs');
             const content = document.getElementById('bestiary-content');
             tabs.innerHTML = '';
+
+            const dzBtn = document.createElement('button');
+            dzBtn.className = 'bestiary-tab' + (bestiaryActiveTab === DZIENNIK_ZAKLADKA ? ' active' : '');
+            dzBtn.innerText = 'Dziennik snów';
+            dzBtn.addEventListener('click', () => { bestiaryActiveTab = DZIENNIK_ZAKLADKA; renderBestiary(); });
+            tabs.appendChild(dzBtn);
+            if (bestiaryActiveTab === DZIENNIK_ZAKLADKA) {
+                const pw = document.getElementById('bestiary-preview-wrap');
+                if (pw) pw.style.display = 'none';
+                content.innerHTML = dziennikSnowHtml();
+                return;
+            }
 
             const known = BESTIARY_ENTRIES.filter(e => bestiaryUnlocked.indexOf(e.id) !== -1);
             if (known.length === 0) {
