@@ -24407,6 +24407,160 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
         }
 
+        // ========================================================
+        // --- WSPOMNIENIA ŚPIĄCEGO ---
+        // Po planszy leżą trzy przedmioty z jego życia. Każdy odsłania kawałek
+        // historii związanej z grzechem, który go więzi. Kto zbierze wszystkie,
+        // zrozumie, kogo ratuje - a epilog misji dopowie zakończenie.
+        // ========================================================
+        const WSPOMNIENIA_ILE = 3;
+        const WSPOMNIENIE_LASKA = 1, WSPOMNIENIA_KOMPLET_LASKA = 5;
+        const WSPOMNIENIA = {
+            pycha: ['List z urzędu, zgnieciony w kulkę. Na marginesie jego ręką: "Ja mam rację. Zawsze miałem."',
+                    'Zdjęcie z dyplomu. Ktoś stojący obok został odcięty nożyczkami - zostało tylko ramię w tej samej todze.',
+                    'Drewniany konik z wypalonym napisem "Dla wujka". Nigdy nie został odebrany.',
+                    'Wyparł się brata, który opłacił mu studia, bo wstydził się jego prostych rąk. Konik od bratanka czekał dwadzieścia lat.'],
+            gniew: ['Dziecięcy rysunek domu. Okno, w którym stoi krzyczący człowiek, przekreślone kredką.',
+                    'Zdjęcie ślubne w ramce z pękniętą szybą. Pęknięcie biegnie dokładnie między nimi.',
+                    'Rozbity telefon. W szkicach wiadomość: "Przepraszam, wróćcie." Nigdy nie wysłana.',
+                    'Jeden wieczór gniewu zabrał mu żonę i syna. Przeprosiny wciąż czekają w szkicach.'],
+            chciwosc: ['Kwit z lombardu: obrączka matki, sprzedana za ułamek ceny.',
+                       'Zdjęcie załogi przed fabryką. Połowa twarzy zamazana długopisem - ci, których zwolnił, gdy zamknął zakład.',
+                       'Rozbita skarbonka. W środku jedna moneta i karteczka: "na lekarstwa dla dziadka".',
+                       'Liczył wszystko - oprócz ludzi. Dziadek nie doczekał lekarstw.'],
+            zazdrosc: ['Wycinek z gazety o sukcesie przyjaciela. Brzegi postrzępione od ciągłego zginania.',
+                       'Zdjęcie dwóch chłopców na rowerach. Twarz jednego wydrapana paznokciem.',
+                       'Zaproszenie na wesele przyjaciela. Nieotwarte.',
+                       'Zazdrość zjadła przyjaźń, która mogła trwać całe życie. Przyjaciel do dziś nie wie, czym zawinił.'],
+            lenistwo: ['Nieotwarta koperta ze szpitala. Na niej: "Pilne - wyniki ojca".',
+                       'Zdjęcie ogrodu zarośniętego po pas. Na ławce książka otwarta wciąż na tej samej stronie.',
+                       'Zakurzona, niedokończona kołyska. Obiecał, że ją skończy.',
+                       'Zawsze był czas na jutro. Ojciec nie doczekał jutra.'],
+            nieumiar: ['Rachunek z baru wyższy niż czynsz. Data: urodziny córki.',
+                       'Zdjęcie przy zastawionym stole. Na krześle obok pusty talerz i dziecięcy rysunek.',
+                       'Butelka z naklejką narysowaną kredkami: "Tata, wróć do nas".',
+                       'Córka wciąż rysuje kredkami - tylko już nie dla niego.'],
+            nieczystosc: ['Obrączka zdjęta z palca, schowana w kieszeni płaszcza.',
+                          'Zdjęcie rodzinne. On stoi trochę z boku, jakby już wtedy wychodził.',
+                          'Kartka urodzinowa od syna: "Dlaczego nie przychodzisz?"',
+                          'Odchodził po trochu, aż w domu nie zostało po nim nic poza pustym krzesłem.'],
+            inne: ['Stary list, czytany tyle razy, że rozpada się w zgięciach.',
+                   'Wyblakłe zdjęcie ludzi, których imion już nikt nie pamięta.',
+                   'Dziecięca zabawka, wytarta od trzymania w dłoni.',
+                   'Teraz rozumiecie, kim jest ten, którego sen ratujecie - i dlaczego warto go uratować.']
+        };
+        const WSPOMNIENIA_REAKCJE = ['Zobacz... to jego.', 'Każdy ma swoją historię.', 'Teraz wiem, czemu tu jesteśmy.',
+                                     'On też kiedyś kogoś kochał.', 'Boże, ile on w sobie dźwiga...'];
+        let wspomnieniaNaPlanszy = [];   // { x, z, nr, mesh }
+        let wspomnieniaZebrane = 0;
+
+        function grzechWspomnien() {
+            const id = heartPrison && heartPrison.sin ? heartPrison.sin.id : null;
+            return WSPOMNIENIA[id] ? id : 'inne';
+        }
+
+        // List, zdjęcie w ramce, zabawka - z ciepłym blaskiem nad nimi, żeby dało się je wypatrzyć
+        function brylaWspomnienia(nr) {
+            const g = new THREE.Group();
+            if (nr === 0) {
+                const kartka = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.02, 0.24), new THREE.MeshLambertMaterial({ color: 0xf2ead8 }));
+                kartka.position.y = 0.03; kartka.rotation.y = 0.4; g.add(kartka);
+            } else if (nr === 1) {
+                const rama = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.04, 0.24), new THREE.MeshLambertMaterial({ color: 0x4a3626 }));
+                rama.position.y = 0.03; g.add(rama);
+                const fot = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.045, 0.16), new THREE.MeshLambertMaterial({ color: 0xb8a888 }));
+                fot.position.y = 0.035; g.add(fot);
+            } else {
+                const mis = new THREE.MeshLambertMaterial({ color: 0x8a5a32 });
+                const brzuch = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), mis); brzuch.position.y = 0.12; g.add(brzuch);
+                const glowa = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), mis); glowa.position.y = 0.28; g.add(glowa);
+            }
+            const blask = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffe9a0 }));
+            blask.position.y = 0.6; g.add(blask);
+            return g;
+        }
+
+        function rozstawWspomnienia() {
+            wspomnieniaNaPlanszy.forEach(w => scene.remove(w.mesh));
+            wspomnieniaNaPlanszy = [];
+            wspomnieniaZebrane = 0;
+            if (gameMode !== 'dream') return 0;
+            const start = soldiers.find(q => !q.isDead && q.mesh);
+            for (let nr = 0; nr < WSPOMNIENIA_ILE; nr++) {
+                for (let t = 0; t < 150; t++) {
+                    const x = Math.floor(Math.random() * (mapWidth - 8)) + 4 - offsetX;
+                    const z = Math.floor(Math.random() * (mapDepth - 8)) + 4 - offsetZ;
+                    if (!isWithinPlayBounds(x, z) || isObstacle(x, z) || czyWoda(x, z)) continue;
+                    if (start && Math.hypot(start.mesh.position.x - x, start.mesh.position.z - z) < 12) continue;
+                    if (wspomnieniaNaPlanszy.some(w => Math.hypot(w.x - x, w.z - z) < 10)) continue;
+                    const mesh = brylaWspomnienia(nr);
+                    mesh.position.set(x, getTerrainY(x, z), z);
+                    mesh.userData.unitType = 'fx';
+                    scene.add(mesh);
+                    wspomnieniaNaPlanszy.push({ x: x, z: z, nr: nr, mesh: mesh });
+                    break;
+                }
+            }
+            return wspomnieniaNaPlanszy.length;
+        }
+
+        // Podnosi się jak pochodnię - wystarczy stanąć na polu
+        function podniesWspomnienie(s) {
+            if (!s || s.isDead || !s.mesh || s.isNPC) return false;
+            const x = Math.round(s.mesh.position.x), z = Math.round(s.mesh.position.z);
+            const i = wspomnieniaNaPlanszy.findIndex(w => w.x === x && w.z === z);
+            if (i === -1) return false;
+            const w = wspomnieniaNaPlanszy[i];
+            scene.remove(w.mesh);
+            wspomnieniaNaPlanszy.splice(i, 1);
+            wspomnieniaZebrane++;
+            const teksty = WSPOMNIENIA[grzechWspomnien()];
+            playerStats.grace += WSPOMNIENIE_LASKA;
+            showFloatingWarning(`Wspomnienie śpiącego (${wspomnieniaZebrane}/${WSPOMNIENIA_ILE})`);
+            updateUI(teksty[w.nr]);
+            speakAt(s, WSPOMNIENIA_REAKCJE[Math.floor(Math.random() * WSPOMNIENIA_REAKCJE.length)]);
+            if (wspomnieniaZebrane === WSPOMNIENIA_ILE) {
+                playerStats.grace += WSPOMNIENIA_KOMPLET_LASKA;
+                setTimeout(() => {
+                    showFloatingWarning(`Historia śpiącego odkryta! +${WSPOMNIENIA_KOMPLET_LASKA} Łaski`);
+                    updateUI(teksty[3]);
+                }, 1500);
+            }
+            return true;
+        }
+
+        // Epilog misji: co oddział zrobił z sumieniem śpiącego i z czym on się budzi
+        function epilogSumienia() {
+            const linie = [];
+            const pale = obstaclePositions.filter(p => p.type === 'pal');
+            const zywi = pale.filter(p => p.zywy), martwi = pale.filter(p => !p.zywy);
+            const uwolnieni = zywi.filter(p => p.uwolniony).length, pomodleni = martwi.filter(p => p.uwolniony).length;
+            if (pale.length) {
+                const czesci = [];
+                if (zywi.length) czesci.push(`uwolnieni ${uwolnieni}/${zywi.length}`);
+                if (martwi.length) czesci.push(`modlitwa za zmarłych ${pomodleni}/${martwi.length}`);
+                linie.push('Ofiary przy palach: ' + czesci.join(', ') + '.');
+            }
+            const oltarze = obstaclePositions.filter(o => o.type === 'altar' && o.swiatynia);
+            if (oltarze.length) linie.push(oltarze.every(o => o.zgaszony)
+                ? 'Ogień bożka zgasł. Nie będzie się już przed nim kłaniał.'
+                : 'Ogień bożka wciąż płonie - śpiący nadal mu służy, choć sam o tym nie wie.');
+            if (wspomnieniaZebrane) linie.push(`Odnalezione wspomnienia: ${wspomnieniaZebrane}/${WSPOMNIENIA_ILE}.`);
+            if (!linie.length) return '';
+            // Jak bardzo ulżyło jego sumieniu: każda ofiara, którą się zajęliście, i komplet wspomnień
+            const zadosc = pale.length ? (uwolnieni + pomodleni) / pale.length : 1;
+            let zakonczenie;
+            if (zadosc >= 1 && (!oltarze.length || oltarze.every(o => o.zgaszony)))
+                zakonczenie = 'Śpiący budzi się spokojnie. Po raz pierwszy od lat nie śni o nich - a rano robi to, co odkładał najdłużej.';
+            else if (zadosc >= 0.5)
+                zakonczenie = 'Śpiący budzi się z ciężarem, ale lżejszym niż wczoraj. Coś w nim drgnęło.';
+            else
+                zakonczenie = 'Śpiący budzi się zlany potem. Twarze, których nikt nie zdjął z pali, zostały z nim.';
+            if (wspomnieniaZebrane === WSPOMNIENIA_ILE)
+                zakonczenie += '\n' + WSPOMNIENIA[grzechWspomnien()][3];
+            return 'SUMIENIE ŚPIĄCEGO\n' + linie.join('\n') + '\n' + zakonczenie;
+        }
+
         // Kurz nad wyrwą i kilka odłamków spadających z muru
         function kurzIGruz(x, z, y, barwa) {
             const bryly = [];
@@ -28361,6 +28515,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             rozstawBozki();
             // Ofiary cięższych grzechów przywiązane do pali wokół serca
             rozstawPale();
+            // Przedmioty z życia śpiącego - złożone razem opowiadają jego historię
+            rozstawWspomnienia();
             // Głębszy sen: oddział wchodzi z tym, co mu zostało z pierwszej planszy
             odtworzOddzialPoSnie();
             // Cele misji (zamek, loch) dostawiają przeszkody PO renderowaniu mapy,
@@ -30009,6 +30165,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         linie.push(`Przejścia zamknięte: ${zad.zamkniete}/${zad.wszystkieWrota}`);
                     storyText += '\n\n' + linie.join('\n');
                 }
+                // Epilog: z jakim sercem budzi się śpiący
+                const epilog = epilogSumienia();
+                if (epilog) storyText += '\n\n' + epilog;
                 if (pendingRecruitSlot) {
                     const secretNpc = npcs.find(n => n.isSecretWarrior);
                     if (secretNpc && !secretNpc.isDead) {
@@ -32166,6 +32325,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     tikSwiatyni(active);
                     // Ofiara przy palu: żywego odwiązać, za martwego się pomodlić
                     tikPali(active);
+                    // Wspomnienie śpiącego leżące na drodze
+                    podniesWspomnienie(active);
                     // Brodzącego przez płyciznę nurt może znieść
                     if (czyWoda(active.mesh.position.x, active.mesh.position.z) && Math.random() < BROD_NURT_SZANSA) zniesNurtem(active);
                     checkPrisonerRescue();
