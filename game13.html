@@ -12052,14 +12052,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const id = currentCombatTheme ? currentCombatTheme.id : '';
             switch (id) {
                 // Dżungla: paprocie i pnącza niosą ją mocniej niż kłody
-                case 'amazonia':     return ['paproc','paproc','liany','liany','kloda','kloda','grzyby','krzak','drzewo_liany','drzewo_liany'];
+                case 'amazonia':     return ['paproc','paproc','liany','liany','kloda','kloda','grzyby','krzak','drzewo_liany','drzewo_liany','kamienna_glowa','mrowisko','kamien_mech'];
                 // Bagno to trzciny, próchno i grzyby. Beczka i skrzynia zostają:
                 // to rzeczy wyrzucone na brzeg, a przy okazji jedyne na tej planszy,
                 // które niosą barwny akcent - bez nich bagno robiło się jednolicie zielone.
                 case 'bagno':        return ['trzcina','trzcina','trzcina','paproc','kloda','grzyby','pniak','beczka','skrzynia','drzewo_liany'];
                 // Pustynia miała SAME kamienie i ani jednego kaktusa
-                case 'sahara':       return ['kaktus','kaktus','kepa','kepa','rock','rock','kosciotrup','skrzynia'];
-                case 'wioska':       return ['rock','krzak','beczka','kloda','zywoplot','kepa','skrzynia','stos_beczek','slup','beczka_prochu','zagajnik','stog_siana','stos_drewna'];
+                case 'sahara':       return ['kaktus','kaktus','kepa','kepa','rock','rock','kosciotrup','skrzynia','agawa','czaszka_bydla','amfora'];
+                case 'wioska':       return ['rock','krzak','beczka','kloda','zywoplot','kepa','skrzynia','stos_beczek','slup','beczka_prochu','zagajnik','stog_siana','stos_drewna','taczka'];
                 case 'alabama':      return ['zywoplot','zywoplot','lawka','kosz','kloda','krzak','kepa','slup','zagajnik','slup_energetyczny','stos_opon','stog_siana','paleta'];
                 case 'kremlin':
                 case 'whitehouse':
@@ -12067,11 +12067,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 case 'pentagon':     return ['beczka','beczka','kosz','rock','rock','skrzynia_metal','skrzynia_metal','stos_beczek','beczka_prochu','kontener','paleta','znak_drogowy'];
                 case 'wesole':       return ['beczka','kosz','kosz','lawka','lawka','beczka','zywoplot','kontener','hydrant','budka_telefoniczna'];
                 case 'nekropolia':
-                case 'cmentarzysko': return ['nagrobek','nagrobek','rock','kloda','krzak','grzyby','krzyz','drzewo_liany'];
-                case 'wulkan':       return ['rock','rock','rock','rock'];
-                case 'zamiec':       return ['rock','kloda','pniak','krzak','zagajnik','stos_drewna'];
-                case 'powodz':       return ['kloda','trzcina','trzcina','beczka','rock','slup','zagajnik','slup_energetyczny','stos_opon','paleta'];
-                case 'wyspy':        return ['rock','trzcina','kloda','krzak','kepa'];
+                case 'cmentarzysko': return ['nagrobek','nagrobek','rock','kloda','krzak','grzyby','krzyz','drzewo_liany','aniol_nagrobny','znicz_latarnia','znicz_latarnia'];
+                case 'wulkan':       return ['rock','rock','zastygla_lawa','zastygla_lawa','komin_wulkaniczny','obsydian','obsydian'];
+                case 'zamiec':       return ['rock','kloda','pniak','krzak','zagajnik','stos_drewna','lodowy_glaz','lodowy_glaz','sanie'];
+                case 'powodz':       return ['kloda','trzcina','trzcina','beczka','rock','slup','zagajnik','slup_energetyczny','stos_opon','paleta','wrak_lodzi'];
+                case 'wyspy':        return ['rock','trzcina','kloda','krzak','kepa','wrak_lodzi','kamien_mech'];
                 // Otchłań: tylko kamień, kości i czarny monolit - nic żywego
                 case 'otchlan':      return ['rock','rock','kosciotrup','obelisk','kosciotrup'];
                 // Wnętrza: żadnych kamieni ani kłód - sprzęty, które tu pasują
@@ -12080,15 +12080,19 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 case 'most':         return ['skrzynia','beczka','skrzynia','skrzynia_metal','beczka_prochu'];
                 case 'pozar':        return ['beczka','lawka','kosz','skrzynia','pniak','skrzynia_metal','rusztowanie','stos_beczek','slup','beczka_prochu','kontener','hydrant','stos_opon','znak_drogowy','budka_telefoniczna','slup_energetyczny','paleta'];
                 case 'pobojowisko':  return ['kosciotrup','wlocznie','sztandar','nagrobek','pniak','kepa','skrzynia','krzyz','beczka_prochu'];
-                case 'jezioro':      return ['kra','kra','rock','trzcina','trzcina'];
+                case 'jezioro':      return ['kra','kra','rock','trzcina','trzcina','wrak_lodzi','kamien_mech'];
                 case 'studnia':      return ['kosciotrup','beczka','skrzynia','rock'];
                 case 'szpital':      return ['lozko','wozek','kroplowka','regal'];
                 // Las wreszcie wygląda jak las: podszyt, próchno i grzyby
-                case 'las':          return ['kloda','paproc','paproc','krzak','krzak','grzyby','pniak','rock','zagajnik','zagajnik','drzewo_liany','stos_drewna'];
+                case 'las':          return ['kloda','paproc','paproc','krzak','krzak','grzyby','pniak','rock','zagajnik','zagajnik','drzewo_liany','stos_drewna','mrowisko','kamien_mech','ambona'];
                 case 'wieza':        return ['regal','skrzynia','lawka','skrzynia_metal','rusztowanie'];
                 // W labiryncie poza blokami leżą tylko rzeczy po tych, co nie wyszli
                 case 'klaustrofobia': return ['kosciotrup','skrzynia','beczka','kosciotrup'];
                 case 'stacja':       return ['regal','skrzynia','skrzynia','beczka','lawka','skrzynia_metal','skrzynia_metal','rusztowanie','stos_beczek','slup','beczka_prochu','paleta','kontener','slup_energetyczny','budka_telefoniczna'];
+                case 'newyork':      return ['hydrant','kosz','znak_drogowy','budka_telefoniczna','latarnia_uliczna','latarnia_uliczna','kiosk','skrzynia_pocztowa','lawka'];
+                case 'sicario':
+                case 'ambush':       return ['kaktus','agawa','agawa','kepa','rock','krzak','czaszka_bydla','stos_opon','beczka'];
+                case 'parow':        return ['rock','rock','kloda','krzak','kepa','kamien_mech','czaszka_bydla'];
                 default:             return ['rock','kloda','zywoplot','krzak','kepa'];
             }
         }
@@ -13291,6 +13295,233 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
             return wyposazonych;
         }
+
+        // ================= REKWIZYTY Z KODU =================
+        // Każdy rekwizyt to funkcja budująca grupę wokół (0, 0, 0) na wysokości
+        // gruntu - renderObstacles tylko ją ustawia i obraca. Nowy rekwizyt =
+        // nowy wpis tutaj + jego nazwa w paletaOslon().
+        function czesc(g, geo, barwa, x, y, z, o) {
+            const opcje = Object.assign({ color: barwa }, o || {});
+            const m = new THREE.Mesh(geo, (opcje.flatShading || opcje.shininess) ? new THREE.MeshPhongMaterial(opcje) : new THREE.MeshLambertMaterial(opcje));
+            m.position.set(x, y, z);
+            g.add(m);
+            return m;
+        }
+        const ZAR = (barwa) => ({ emissive: barwa, emissiveIntensity: 1 });
+        const REKWIZYTY_Z_KODU = {
+            // --- Wulkan ---
+            zastygla_lawa: () => {
+                const g = new THREE.Group();
+                czesc(g, ksztaltGlazu(1), 0x1a1614, 0, 0.12, 0, { flatShading: true }).scale.set(0.95, 0.35, 0.8);
+                for (let k = 0; k < 3; k++) {
+                    const r = czesc(g, new THREE.BoxGeometry(0.04, 0.03, 0.5 + Math.random() * 0.3), 0xff5a10, (k - 1) * 0.22, 0.27, 0, ZAR(0xff4a00));
+                    r.rotation.y = (Math.random() - 0.5) * 1.2;
+                }
+                return g;
+            },
+            komin_wulkaniczny: () => {
+                const g = new THREE.Group();
+                czesc(g, new THREE.CylinderGeometry(0.22, 0.55, 1.1, 8), 0x2a2220, 0, 0.55, 0, { flatShading: true });
+                czesc(g, new THREE.TorusGeometry(0.2, 0.05, 5, 10), 0xff6a1a, 0, 1.1, 0, ZAR(0xff3a00)).rotation.x = Math.PI / 2;
+                czesc(g, new THREE.SphereGeometry(0.14, 6, 5), 0xffaa40, 0, 1.02, 0, ZAR(0xff7a10));
+                return g;
+            },
+            obsydian: () => {
+                const g = new THREE.Group();
+                for (let k = 0; k < 4; k++) {
+                    const h = 0.5 + Math.random() * 0.7;
+                    const s = czesc(g, new THREE.OctahedronGeometry(0.2, 0), 0x0c0a14, (Math.random() - 0.5) * 0.5, h / 2, (Math.random() - 0.5) * 0.5,
+                                    { flatShading: true, shininess: 110, specular: 0x8a7aaa });
+                    s.scale.set(0.8, h / 0.4, 0.8);
+                    s.rotation.set((Math.random() - 0.5) * 0.5, Math.random() * 3, (Math.random() - 0.5) * 0.5);
+                }
+                return g;
+            },
+            // --- Zamieć ---
+            lodowy_glaz: () => {
+                const g = new THREE.Group();
+                czesc(g, ksztaltGlazu(2), 0xbfe0f0, 0, 0.4, 0, { flatShading: true, shininess: 100, transparent: true, opacity: 0.82 }).scale.set(0.85, 0.8, 0.75);
+                czesc(g, new THREE.SphereGeometry(0.35, 8, 5), 0xf4f8fc, 0, 0.78, 0).scale.set(1, 0.3, 0.9);
+                return g;
+            },
+            sanie: () => {
+                const g = new THREE.Group();
+                const drewno = 0x6a4a2a;
+                [-0.25, 0.25].forEach(x => {
+                    czesc(g, new THREE.BoxGeometry(0.05, 0.05, 1.2), 0x2a2622, x, 0.03, 0);
+                    czesc(g, new THREE.TorusGeometry(0.15, 0.025, 4, 8, Math.PI / 2), 0x2a2622, x, 0.18, 0.6).rotation.y = Math.PI / 2;
+                    [-0.4, 0, 0.4].forEach(z => czesc(g, new THREE.BoxGeometry(0.04, 0.25, 0.04), drewno, x, 0.15, z));
+                });
+                czesc(g, new THREE.BoxGeometry(0.6, 0.05, 1.0), drewno, 0, 0.29, 0);
+                czesc(g, new THREE.BoxGeometry(0.55, 0.08, 0.6), 0xf4f8fc, 0, 0.35, -0.1);
+                return g;
+            },
+            // --- Woda ---
+            wrak_lodzi: () => {
+                const g = new THREE.Group();
+                const deska = 0x4a3a2a;
+                czesc(g, new THREE.BoxGeometry(0.5, 0.06, 1.5), deska, 0, 0.05, 0);
+                [-1, 1].forEach(k => {
+                    const b = czesc(g, new THREE.BoxGeometry(0.06, 0.38, 1.5), deska, k * 0.3, 0.2, 0);
+                    b.rotation.z = -k * 0.35;
+                });
+                czesc(g, new THREE.BoxGeometry(0.6, 0.36, 0.06), 0x3a2e22, 0, 0.2, -0.74);
+                const dziob = czesc(g, new THREE.ConeGeometry(0.32, 0.5, 4), deska, 0, 0.2, 0.95);
+                dziob.rotation.x = Math.PI / 2; dziob.scale.set(1, 1, 0.6);
+                czesc(g, new THREE.BoxGeometry(0.5, 0.04, 0.12), 0x5a4a36, 0, 0.3, 0.1);
+                const wioslo = czesc(g, new THREE.BoxGeometry(0.05, 0.04, 1.3), 0x6a5034, 0.5, 0.03, 0.2);
+                wioslo.rotation.y = 0.3;
+                g.rotation.z = 0.12;
+                return g;
+            },
+            // --- Miasto ---
+            latarnia_uliczna: () => {
+                const g = new THREE.Group();
+                const zelazo = 0x23302a;
+                czesc(g, new THREE.CylinderGeometry(0.12, 0.16, 0.3, 8), zelazo, 0, 0.15, 0);
+                czesc(g, new THREE.CylinderGeometry(0.045, 0.06, 2.6, 6), zelazo, 0, 1.45, 0);
+                czesc(g, new THREE.BoxGeometry(0.5, 0.05, 0.05), zelazo, 0.22, 2.7, 0);
+                czesc(g, new THREE.CylinderGeometry(0.06, 0.16, 0.18, 6), zelazo, 0.45, 2.62, 0);
+                czesc(g, new THREE.SphereGeometry(0.08, 6, 4), 0xffe2a0, 0.45, 2.52, 0, ZAR(0xffc860));
+                return g;
+            },
+            kiosk: () => {
+                const g = new THREE.Group();
+                const barwa = barwaAkcentu(1) || 0x2f5a3a;
+                czesc(g, new THREE.BoxGeometry(0.9, 1.15, 0.85), barwa, 0, 0.575, 0);
+                czesc(g, new THREE.BoxGeometry(1.1, 0.08, 1.05), 0x2a2a2a, 0, 1.2, 0);
+                czesc(g, new THREE.BoxGeometry(0.7, 0.45, 0.02), 0xd8e4c8, 0, 0.8, 0.43, ZAR(0x3a4a30));
+                for (let k = 0; k < 3; k++)
+                    czesc(g, new THREE.BoxGeometry(0.22, 0.02, 0.16), [0xe8e0d0, 0xc8b8a0, 0xd8d0c0][k], -0.25 + k * 0.25, 0.42, 0.5);
+                czesc(g, new THREE.BoxGeometry(0.85, 0.04, 0.2), 0x3a3a3a, 0, 0.4, 0.5);
+                return g;
+            },
+            skrzynia_pocztowa: () => {
+                const g = new THREE.Group();
+                czesc(g, new THREE.BoxGeometry(0.06, 0.6, 0.06), 0x2a2a2a, 0, 0.3, 0);
+                czesc(g, new THREE.BoxGeometry(0.38, 0.32, 0.5), 0x2a4a8a, 0, 0.75, 0);
+                czesc(g, new THREE.CylinderGeometry(0.19, 0.19, 0.5, 10, 1, false, 0, Math.PI), 0x2a4a8a, 0, 0.91, 0).rotation.set(Math.PI / 2, 0, Math.PI / 2);
+                czesc(g, new THREE.BoxGeometry(0.2, 0.02, 0.01), 0x1a1a1a, 0, 0.82, 0.255);
+                return g;
+            },
+            // --- Pustynia ---
+            agawa: () => {
+                const g = new THREE.Group();
+                const ile = 9 + Math.floor(Math.random() * 4);
+                for (let k = 0; k < ile; k++) {
+                    const kat = k / ile * Math.PI * 2, pochyl = 0.4 + Math.random() * 0.6, dl = 0.6 + Math.random() * 0.4;
+                    const l = czesc(g, new THREE.ConeGeometry(0.07, dl, 4), 0x6a8a72, Math.cos(kat) * 0.12, dl / 2 * Math.cos(pochyl), Math.sin(kat) * 0.12, { flatShading: true });
+                    l.rotation.order = 'YXZ';
+                    l.rotation.set(0, -kat, pochyl);
+                }
+                return g;
+            },
+            czaszka_bydla: () => {
+                const g = new THREE.Group();
+                const kosc = 0xe6dcc6;
+                czesc(g, new THREE.SphereGeometry(0.17, 7, 5), kosc, 0, 0.13, 0).scale.set(1, 0.8, 1.2);
+                czesc(g, new THREE.BoxGeometry(0.15, 0.1, 0.28), kosc, 0, 0.08, 0.22);
+                [-1, 1].forEach(k => {
+                    const r = czesc(g, new THREE.ConeGeometry(0.04, 0.45, 5), 0xd8c8a8, k * 0.3, 0.2, -0.05);
+                    r.rotation.z = -k * 1.2;
+                    czesc(g, new THREE.SphereGeometry(0.035, 5, 4), 0x1a1612, k * 0.07, 0.17, 0.15);
+                });
+                return g;
+            },
+            amfora: () => {
+                const g = new THREE.Group();
+                const profil = [[0, 0], [0.1, 0.02], [0.2, 0.2], [0.24, 0.4], [0.16, 0.62], [0.08, 0.72], [0.1, 0.8]].map(([x, y]) => new THREE.Vector2(x, y));
+                const a = czesc(g, new THREE.LatheGeometry(profil, 10), 0xb0603a, 0, 0.24, 0, { side: THREE.DoubleSide });
+                a.rotation.z = Math.PI / 2 - 0.1;
+                czesc(g, new THREE.LatheGeometry(profil, 10), 0xa05434, 0.45, 0, 0.3, { side: THREE.DoubleSide }).scale.setScalar(0.8);
+                for (let k = 0; k < 3; k++)
+                    czesc(g, new THREE.BoxGeometry(0.12, 0.02, 0.09), 0xb0603a, -0.3 + Math.random() * 0.3, 0.01, -0.3 + k * 0.15).rotation.y = Math.random() * 3;
+                return g;
+            },
+            // --- Cmentarz ---
+            aniol_nagrobny: () => {
+                const g = new THREE.Group();
+                const kam = materialKamienia(0x9a968c, 1, 1);
+                const dodaj = (geo, x, y, z) => { const m = new THREE.Mesh(geo, kam); m.position.set(x, y, z); g.add(m); return m; };
+                dodaj(new THREE.BoxGeometry(0.6, 0.4, 0.6), 0, 0.2, 0);
+                dodaj(new THREE.ConeGeometry(0.22, 0.9, 8), 0, 0.85, 0);
+                dodaj(new THREE.SphereGeometry(0.11, 8, 6), 0, 1.38, 0);
+                [-1, 1].forEach(k => {
+                    const s = dodaj(new THREE.BoxGeometry(0.04, 0.6, 0.3), k * 0.16, 1.1, -0.12);
+                    s.rotation.set(0.3, k * 0.5, k * 0.25);
+                });
+                dodaj(new THREE.BoxGeometry(0.3, 0.06, 0.08), 0, 1.0, 0.16);   // złożone ręce
+                return g;
+            },
+            znicz_latarnia: () => {
+                const g = new THREE.Group();
+                const kam = materialKamienia(0x7a766c, 1, 1);
+                const slup = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.7, 0.24), kam); slup.position.y = 0.35; g.add(slup);
+                czesc(g, new THREE.BoxGeometry(0.2, 0.22, 0.2), 0xc02a1a, 0, 0.82, 0, Object.assign({ transparent: true, opacity: 0.85 }, ZAR(0x8a1a0a)));
+                const dach = czesc(g, new THREE.ConeGeometry(0.2, 0.18, 4), 0x3a3a38, 0, 1.02, 0);
+                dach.rotation.y = Math.PI / 4;
+                return g;
+            },
+            // --- Las ---
+            mrowisko: () => {
+                const g = new THREE.Group();
+                czesc(g, new THREE.ConeGeometry(0.6, 0.7, 9), 0x5a4228, 0, 0.35, 0, { flatShading: true }).scale.set(1, 1, 0.9);
+                for (let k = 0; k < 6; k++)
+                    czesc(g, new THREE.CylinderGeometry(0.01, 0.01, 0.3, 3), 0x3a2a1a, (Math.random() - 0.5) * 0.6, 0.2 + Math.random() * 0.3, (Math.random() - 0.5) * 0.6)
+                        .rotation.set(Math.random() * 3, 0, Math.random() * 3);
+                return g;
+            },
+            kamien_mech: () => {
+                const g = new THREE.Group();
+                czesc(g, ksztaltGlazu(0), 0x7a7870, 0, 0.3, 0, { flatShading: true }).scale.set(0.75, 0.6, 0.7);
+                czesc(g, new THREE.SphereGeometry(0.4, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), 0x4a6a2a, 0, 0.42, 0).scale.set(0.9, 0.45, 0.85);
+                return g;
+            },
+            ambona: () => {
+                const g = new THREE.Group();
+                const drewno = 0x5a4430;
+                [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, b]) => {
+                    const n = czesc(g, new THREE.CylinderGeometry(0.04, 0.05, 2.1, 5), drewno, a * 0.35, 1.0, b * 0.35);
+                    n.rotation.set(-b * 0.08, 0, a * 0.08);
+                });
+                czesc(g, new THREE.BoxGeometry(0.7, 0.06, 0.7), drewno, 0, 2.0, 0);
+                czesc(g, new THREE.BoxGeometry(0.66, 0.5, 0.04), drewno, 0, 2.28, -0.32);
+                [-1, 1].forEach(k => czesc(g, new THREE.BoxGeometry(0.04, 0.5, 0.66), drewno, k * 0.32, 2.28, 0));
+                czesc(g, new THREE.BoxGeometry(0.66, 0.25, 0.04), drewno, 0, 2.15, 0.32);
+                czesc(g, new THREE.BoxGeometry(0.85, 0.05, 0.85), 0x3a2e24, 0, 2.95, 0).rotation.x = 0.12;
+                [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, b]) => czesc(g, new THREE.BoxGeometry(0.04, 0.45, 0.04), drewno, a * 0.32, 2.75, b * 0.32));
+                // Drabina
+                [-0.15, 0.15].forEach(x => { czesc(g, new THREE.BoxGeometry(0.04, 2.2, 0.04), drewno, x, 1.0, 0.65).rotation.x = -0.3; });
+                for (let k = 0; k < 6; k++) czesc(g, new THREE.BoxGeometry(0.3, 0.03, 0.03), drewno, 0, 0.25 + k * 0.32, 0.88 - k * 0.1);
+                return g;
+            },
+            // --- Dżungla ---
+            kamienna_glowa: () => {
+                const g = new THREE.Group();
+                const kam = materialKamienia(0x7a7a68, 1, 1);
+                const dodaj = (geo, x, y, z) => { const m = new THREE.Mesh(geo, kam); m.position.set(x, y, z); g.add(m); return m; };
+                dodaj(new THREE.SphereGeometry(0.55, 10, 8), 0, 0.6, 0).scale.set(0.9, 1.05, 0.85);
+                dodaj(new THREE.CylinderGeometry(0.52, 0.52, 0.2, 10, 1, true), 0, 0.98, 0);
+                [-1, 1].forEach(k => czesc(g, new THREE.BoxGeometry(0.14, 0.06, 0.05), 0x2a2a22, k * 0.17, 0.72, 0.46));
+                dodaj(new THREE.BoxGeometry(0.14, 0.2, 0.12), 0, 0.58, 0.48);
+                czesc(g, new THREE.BoxGeometry(0.28, 0.05, 0.05), 0x2a2a22, 0, 0.38, 0.44);
+                czesc(g, new THREE.SphereGeometry(0.5, 8, 5, 0, Math.PI * 2, 0, Math.PI / 3), 0x3a5a22, 0.05, 0.62, -0.05).scale.set(0.95, 0.9, 0.9);
+                return g;
+            },
+            // --- Wieś ---
+            taczka: () => {
+                const g = new THREE.Group();
+                czesc(g, new THREE.CylinderGeometry(0.16, 0.16, 0.05, 10), 0x2a2622, 0, 0.16, 0.45).rotation.z = Math.PI / 2;
+                const skrzynia = czesc(g, new THREE.BoxGeometry(0.5, 0.25, 0.6), 0x6a5038, 0, 0.38, 0.1);
+                skrzynia.rotation.x = 0.12;
+                czesc(g, new THREE.BoxGeometry(0.42, 0.06, 0.5), 0x4a3a20, 0, 0.5, 0.1);   // ziemia w środku
+                [-1, 1].forEach(k => {
+                    czesc(g, new THREE.BoxGeometry(0.04, 0.04, 0.8), 0x5a4430, k * 0.2, 0.36, -0.35).rotation.x = -0.15;
+                    czesc(g, new THREE.BoxGeometry(0.04, 0.3, 0.04), 0x5a4430, k * 0.2, 0.15, -0.15);
+                });
+                return g;
+            }
+        };
 
         function renderObstacles() {
             usunSladyWspolczesnosci();
@@ -15419,6 +15650,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         new THREE.MeshLambertMaterial({ color: 0x6e6860 }));
                     kam.position.set(pos.x, ty + 0.08, pos.z + 0.05);
                     scene.add(kam); obstacleMeshes.push(kam);
+                }
+                else if (REKWIZYTY_Z_KODU[pos.type]) {
+                    const g = REKWIZYTY_Z_KODU[pos.type](pos);
+                    g.position.set(pos.x, ty, pos.z);
+                    g.rotation.y = Math.random() * Math.PI * 2;
+                    scene.add(g); obstacleMeshes.push(g);
                 }
                 else if (pos.type === 'gravestone') {
                     const stoneMat = new THREE.MeshLambertMaterial({ color: 0x9a9a9a });
