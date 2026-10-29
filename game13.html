@@ -12056,21 +12056,21 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // Bagno to trzciny, próchno i grzyby. Beczka i skrzynia zostają:
                 // to rzeczy wyrzucone na brzeg, a przy okazji jedyne na tej planszy,
                 // które niosą barwny akcent - bez nich bagno robiło się jednolicie zielone.
-                case 'bagno':        return ['trzcina','trzcina','trzcina','paproc','kloda','grzyby','pniak','beczka','skrzynia','drzewo_liany'];
+                case 'bagno':        return ['trzcina','trzcina','trzcina','paproc','kloda','grzyby','pniak','beczka','skrzynia','drzewo_liany','latarnia_bagienna','pomost','wrak_lodzi'];
                 // Pustynia miała SAME kamienie i ani jednego kaktusa
-                case 'sahara':       return ['kaktus','kaktus','kepa','kepa','rock','rock','kosciotrup','skrzynia','agawa','czaszka_bydla','amfora'];
+                case 'sahara':       return ['kaktus','kaktus','kepa','kepa','rock','rock','kosciotrup','skrzynia','agawa','czaszka_bydla','amfora','namiot_pustynny'];
                 case 'wioska':       return ['rock','krzak','beczka','kloda','zywoplot','kepa','skrzynia','stos_beczek','slup','beczka_prochu','zagajnik','stog_siana','stos_drewna','taczka','studnia_wiejska'];
                 case 'alabama':      return ['zywoplot','zywoplot','lawka','kosz','kloda','krzak','kepa','slup','zagajnik','slup_energetyczny','stos_opon','stog_siana','paleta','wiatrak_pompa','skrzynia_pocztowa'];
                 case 'kremlin':
                 case 'whitehouse':
-                case 'zhongnanhai':  return ['lawka','lawka','kosz','kosz','zywoplot','zywoplot','beczka','rock','hydrant','budka_telefoniczna','znak_drogowy'];
-                case 'pentagon':     return ['beczka','beczka','kosz','rock','rock','skrzynia_metal','skrzynia_metal','stos_beczek','beczka_prochu','kontener','paleta','znak_drogowy'];
+                case 'zhongnanhai':  return ['lawka','lawka','kosz','kosz','zywoplot','zywoplot','beczka','rock','hydrant','budka_telefoniczna','znak_drogowy','latarnia_uliczna','latarnia_uliczna','pomnik'];
+                case 'pentagon':     return ['beczka','beczka','kosz','rock','rock','skrzynia_metal','skrzynia_metal','stos_beczek','beczka_prochu','kontener','paleta','znak_drogowy','radar'];
                 case 'wesole':       return ['beczka','kosz','kosz','lawka','lawka','beczka','zywoplot','kontener','hydrant','budka_telefoniczna','stragan','stragan','automat_biletowy'];
                 case 'nekropolia':
                 case 'cmentarzysko': return ['nagrobek','nagrobek','rock','kloda','krzak','grzyby','krzyz','drzewo_liany','aniol_nagrobny','znicz_latarnia','znicz_latarnia'];
                 case 'wulkan':       return ['rock','rock','zastygla_lawa','zastygla_lawa','komin_wulkaniczny','obsydian','obsydian'];
-                case 'zamiec':       return ['rock','kloda','pniak','krzak','zagajnik','stos_drewna','lodowy_glaz','lodowy_glaz','sanie'];
-                case 'powodz':       return ['kloda','trzcina','trzcina','beczka','rock','slup','zagajnik','slup_energetyczny','stos_opon','paleta','wrak_lodzi'];
+                case 'zamiec':       return ['rock','kloda','pniak','krzak','zagajnik','stos_drewna','lodowy_glaz','lodowy_glaz','sanie','pien_z_siekiera'];
+                case 'powodz':       return ['kloda','trzcina','trzcina','beczka','rock','slup','zagajnik','slup_energetyczny','stos_opon','paleta','wrak_lodzi','lodowka_porzucona','dach_zatopiony','dach_zatopiony'];
                 case 'wyspy':        return ['rock','trzcina','kloda','krzak','kepa','wrak_lodzi','kamien_mech'];
                 // Otchłań: tylko kamień, kości i czarny monolit - nic żywego
                 case 'otchlan':      return ['rock','rock','kosciotrup','obelisk','kosciotrup','stos_czaszek','rogi_demona','rogi_demona','kociol'];
@@ -12084,12 +12084,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 case 'studnia':      return ['kosciotrup','beczka','skrzynia','rock','stos_czaszek'];
                 case 'szpital':      return ['lozko','wozek','kroplowka','regal','parawan','wozek_inwalidzki','szafka_lekarska'];
                 // Las wreszcie wygląda jak las: podszyt, próchno i grzyby
-                case 'las':          return ['kloda','paproc','paproc','krzak','krzak','grzyby','pniak','rock','zagajnik','zagajnik','drzewo_liany','stos_drewna','mrowisko','kamien_mech','ambona'];
+                case 'las':          return ['kloda','paproc','paproc','krzak','krzak','grzyby','pniak','rock','zagajnik','zagajnik','drzewo_liany','stos_drewna','mrowisko','kamien_mech','ambona','pien_z_siekiera'];
                 case 'wieza':        return ['regal','skrzynia','lawka','skrzynia_metal','rusztowanie','globus','zegar_stojacy'];
                 // W labiryncie poza blokami leżą tylko rzeczy po tych, co nie wyszli
                 case 'klaustrofobia': return ['kosciotrup','skrzynia','beczka','kosciotrup','stos_czaszek'];
                 case 'stacja':       return ['regal','skrzynia','skrzynia','beczka','lawka','skrzynia_metal','skrzynia_metal','rusztowanie','stos_beczek','slup','beczka_prochu','paleta','kontener','slup_energetyczny','budka_telefoniczna','automat_biletowy','automat_biletowy'];
-                case 'newyork':      return ['hydrant','kosz','znak_drogowy','budka_telefoniczna','latarnia_uliczna','latarnia_uliczna','kiosk','skrzynia_pocztowa','lawka'];
+                case 'newyork':      return ['hydrant','kosz','znak_drogowy','budka_telefoniczna','latarnia_uliczna','latarnia_uliczna','kiosk','skrzynia_pocztowa','lawka','pomnik'];
                 case 'sicario':
                 case 'ambush':       return ['kaktus','agawa','agawa','kepa','rock','krzak','czaszka_bydla','stos_opon','beczka'];
                 case 'parow':        return ['rock','rock','kloda','krzak','kepa','kamien_mech','czaszka_bydla'];
@@ -13729,6 +13729,91 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                     (Math.random() - 0.5) * 0.25, 0.95, (Math.random() - 0.5) * 0.25, ZAR(k % 2 ? 0xff8a20 : 0xff3a00));
                     p.rotation.z = (Math.random() - 0.5) * 0.4;
                 }
+                return g;
+            },
+            // --- Bagno i powódź ---
+            latarnia_bagienna: () => {
+                const g = new THREE.Group();
+                const kij = czesc(g, new THREE.CylinderGeometry(0.03, 0.04, 1.6, 5), 0x3a2e22, 0, 0.8, 0);
+                kij.rotation.z = 0.15;
+                czesc(g, new THREE.BoxGeometry(0.3, 0.03, 0.03), 0x3a2e22, 0.25, 1.55, 0);
+                czesc(g, new THREE.CylinderGeometry(0.005, 0.005, 0.2, 3), 0x1a1a1a, 0.38, 1.45, 0);
+                czesc(g, new THREE.BoxGeometry(0.12, 0.16, 0.12), 0x8affc0, 0.38, 1.28, 0, Object.assign({ transparent: true, opacity: 0.8 }, ZAR(0x2a8a5a)));
+                return g;
+            },
+            pomost: () => {
+                const g = new THREE.Group();
+                for (let k = 0; k < 6; k++) {
+                    if (Math.random() < 0.15) continue;   // brakująca deska
+                    czesc(g, new THREE.BoxGeometry(0.8, 0.04, 0.15), 0x5a4a36, 0, 0.3 + (Math.random() - 0.5) * 0.04, -0.45 + k * 0.18).rotation.z = (Math.random() - 0.5) * 0.08;
+                }
+                [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, b]) => czesc(g, new THREE.CylinderGeometry(0.05, 0.05, 0.6, 5), 0x3a2e22, a * 0.36, 0.2, b * 0.45));
+                return g;
+            },
+            lodowka_porzucona: () => {
+                const g = new THREE.Group();
+                const l = new THREE.Group();
+                czesc(l, new THREE.BoxGeometry(0.6, 1.5, 0.55), 0xd8d4c8, 0, 0.75, 0, { shininess: 30 });
+                czesc(l, new THREE.BoxGeometry(0.02, 0.4, 0.04), 0x8a8a8a, 0.24, 1.05, 0.29);
+                czesc(l, new THREE.BoxGeometry(0.58, 0.01, 0.02), 0x8a8a8a, 0, 1.0, 0.28);
+                czesc(l, new THREE.BoxGeometry(0.6, 0.3, 0.56), 0x6a5a3a, 0, 0.15, 0);   // błoto do połowy
+                l.rotation.z = 1.35; l.position.set(0.5, 0.05, 0);
+                g.add(l);
+                return g;
+            },
+            dach_zatopiony: () => {
+                const g = new THREE.Group();
+                const barwa = 0x6a3a2a;
+                [-1, 1].forEach(k => czesc(g, new THREE.BoxGeometry(0.62, 0.05, 1.0), barwa, k * 0.25, 0.3, 0).rotation.z = k * 0.75);
+                czesc(g, new THREE.BoxGeometry(0.15, 0.4, 0.15), 0x7a6a5a, 0.25, 0.55, 0.2);   // komin
+                czesc(g, new THREE.BoxGeometry(1.0, 0.04, 1.1), 0x4a5a5a, 0, 0.02, 0, { transparent: true, opacity: 0.5 });
+                return g;
+            },
+            // --- Miasta i pustynia ---
+            pomnik: () => {
+                const g = new THREE.Group();
+                const kam = materialKamienia(0x8a8478, 1, 1);
+                const cokol = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.9, 0.75), kam); cokol.position.y = 0.45; g.add(cokol);
+                const braz = { shininess: 50, specular: 0x4a6a5a };
+                czesc(g, new THREE.CylinderGeometry(0.14, 0.2, 0.75, 8), 0x3a6a5a, 0, 1.3, 0, braz);
+                czesc(g, new THREE.SphereGeometry(0.11, 8, 6), 0x3a6a5a, 0, 1.78, 0, braz);
+                const reka = czesc(g, new THREE.CylinderGeometry(0.04, 0.04, 0.5, 5), 0x3a6a5a, 0.22, 1.6, 0.05, braz);
+                reka.rotation.z = -1.0;
+                czesc(g, new THREE.BoxGeometry(0.4, 0.12, 0.02), 0xb89a40, 0, 0.6, 0.38, { shininess: 80 });   // tablica
+                return g;
+            },
+            namiot_pustynny: () => {
+                const g = new THREE.Group();
+                const plotno = czesc(g, new THREE.ConeGeometry(0.7, 1.0, 4, 1, true), 0xc8a878, 0, 0.5, 0, { side: THREE.DoubleSide, flatShading: true });
+                plotno.rotation.y = Math.PI / 4;
+                czesc(g, new THREE.BoxGeometry(0.35, 0.5, 0.02), 0x2a1a10, 0, 0.25, 0.49);
+                for (let k = 0; k < 3; k++)
+                    czesc(g, new THREE.BoxGeometry(0.06, 0.02, 0.5), 0x8a3a2a, -0.3 + k * 0.3, 0.6, 0.15).rotation.x = -0.5;
+                czesc(g, new THREE.CylinderGeometry(0.02, 0.02, 1.2, 4), 0x5a4430, 0, 0.6, 0);
+                return g;
+            },
+            radar: () => {
+                const g = new THREE.Group();
+                czesc(g, new THREE.BoxGeometry(0.6, 0.4, 0.6), 0x4a5a3a, 0, 0.2, 0);
+                czesc(g, new THREE.CylinderGeometry(0.06, 0.08, 0.8, 6), 0x5a5e62, 0, 0.8, 0);
+                const czasza = czesc(g, new THREE.SphereGeometry(0.55, 12, 6, 0, Math.PI * 2, 0, Math.PI / 3), 0xc8ccc8, 0, 1.4, 0, { side: THREE.DoubleSide, shininess: 50 });
+                czasza.rotation.x = Math.PI - 0.7;
+                czesc(g, new THREE.CylinderGeometry(0.015, 0.015, 0.5, 4), 0x5a5e62, 0, 1.45, 0.15).rotation.x = 0.7;
+                czesc(g, new THREE.SphereGeometry(0.04, 5, 4), 0xff3a2a, 0, 1.65, 0.3, ZAR(0xaa1a0a));
+                return g;
+            },
+            // --- Las ---
+            pien_z_siekiera: () => {
+                const g = new THREE.Group();
+                czesc(g, new THREE.CylinderGeometry(0.32, 0.38, 0.5, 10), 0x5a4430, 0, 0.25, 0);
+                czesc(g, new THREE.CylinderGeometry(0.31, 0.31, 0.01, 10), 0xc8a878, 0, 0.505, 0);
+                const s = new THREE.Group();
+                czesc(s, new THREE.CylinderGeometry(0.025, 0.03, 0.7, 5), 0x8a6a40, 0, 0.35, 0);
+                czesc(s, new THREE.BoxGeometry(0.2, 0.12, 0.03), 0x6a6e74, 0.08, 0.66, 0, { shininess: 70 });
+                s.position.set(0.05, 0.42, 0); s.rotation.z = 0.5;
+                g.add(s);
+                for (let k = 0; k < 3; k++)
+                    czesc(g, new THREE.CylinderGeometry(0.1, 0.1, 0.4, 6), 0x7a5a3a, 0.5 + Math.random() * 0.1, 0.06 + (k === 2 ? 0.12 : 0), -0.2 + (k % 2) * 0.22).rotation.x = Math.PI / 2;
                 return g;
             }
         };
