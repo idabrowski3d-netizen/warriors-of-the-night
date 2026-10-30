@@ -905,6 +905,25 @@
         #instructions .opis-misji { display: none; }
         #instructions:hover .opis-misji { display: inline; }
         .start-btn { background: linear-gradient(#23201d, #121010); color: #e3c27a; border: 1px solid #7a6136; border-radius: 2px; font-family: 'Cinzel', Georgia, serif; letter-spacing: 0.05em; }
+        /* Karta snu - okno wejścia do misji */
+        #karta-snu { width: min(560px, 94vw); max-height: 94vh; overflow-y: auto; background: #0e0b12;
+            border: 1px solid #7a5fa0; box-shadow: 0 0 0 4px #0e0b12, 0 0 0 5px #4a3a62, 0 0 40px rgba(150, 100, 220, 0.35); }
+        #karta-snu-obraz { height: 220px; background: radial-gradient(ellipse at 50% 30%, #3a2a55, #0e0b12 75%); position: relative; }
+        #karta-snu-obraz img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        #karta-snu-obraz::after { content: ''; position: absolute; inset: 0; background: linear-gradient(transparent 45%, #0e0b12); }
+        #karta-snu-tresc { padding: 0 28px 18px; margin-top: -56px; position: relative; text-align: left; }
+        #start-screen #start-title { font-size: 12px; margin: 0; color: #b89be0 !important; letter-spacing: 0.25em; }
+        #karta-snu-plansza { font-family: 'Cinzel', Georgia, serif; font-size: 30px; color: #f1e3c4; margin: 2px 0 12px; text-shadow: 0 2px 8px #000; }
+        #start-info { color: #c9c0d6; font-size: 15px; line-height: 1.5; }
+        .karta-snu-znaczniki { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+        .karta-snu-znaczniki span { border: 1px solid #7a6136; color: #e3c27a; padding: 4px 12px; border-radius: 3px; font-size: 13px; background: #17131b; }
+        .karta-snu-znaczniki span.ciezki { border-color: #9a6fd0; color: #c9a6ff; }
+        .karta-snu-koszt { text-align: center; border-top: 1px solid #3a2f48; border-bottom: 1px solid #3a2f48; padding: 6px; color: #e3c27a; }
+        .karta-snu-koszt small { color: #8a8096; }
+        #karta-snu-wybor { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-top: 16px; }
+        #karta-snu-wybor .start-btn { padding: 12px 8px; font-size: 15px; }
+        #karta-snu-wybor .start-btn:hover { border-color: #b48ae8; box-shadow: 0 0 14px rgba(170, 120, 240, 0.55); }
+        #karta-snu-stopka { text-align: center; color: #6e6480; font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; margin-top: 14px; font-family: 'Cinzel', Georgia, serif; }
         .start-btn:hover { background: linear-gradient(#2e2922, #171411); color: #fff3d6; border-color: #d9b46a; box-shadow: 0 0 10px rgba(217, 180, 106, 0.45); }
 
     </style>
@@ -1062,14 +1081,21 @@
     </div>
 
     <div id="start-screen">
+      <div id="karta-snu">
+        <div id="karta-snu-obraz"><img id="karta-snu-img" alt="" onerror="this.style.display='none'"></div>
+        <div id="karta-snu-tresc">
         <div id="start-title">Misja we śnie</div>
-        <div id="start-info" style="color:#ccc; font-size:18px; line-height:1.6; text-align:center; margin-bottom:24px;"></div>
-        <div style="display: flex; gap: 20px;">
+        <div id="karta-snu-plansza"></div>
+        <div id="start-info"></div>
+        <div id="karta-snu-wybor">
             <button class="start-btn" data-count="1">1 Wojownik</button>
             <button class="start-btn" data-count="2">2 Wojowników</button>
             <button class="start-btn" data-count="3">3 Wojowników</button>
             <button class="start-btn" data-count="4">4 Wojowników</button>
         </div>
+        <div id="karta-snu-stopka">Niektóre sny ratują życie</div>
+        </div>
+      </div>
     </div>
 
     <div id="title-screen">
@@ -24102,11 +24128,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const plansza = DREAM_ICONS[themeId] ? DREAM_ICONS[themeId].label
                 : (theme ? (theme.__bazowaNazwa || theme.name) : 'losowa');
             const misja = oblezenie ? 'oblezenie' : (tropArtefaktu ? 'artifact' : (d && d.mission));
+            // Karta snu: obraz miejsca z graphics/sny/<plansza>.jpg (brak pliku - sam nastrojowy gradient)
+            const img = document.getElementById('karta-snu-img');
+            img.style.display = themeId ? '' : 'none';
+            if (themeId) img.src = 'graphics/sny/' + themeId + '.jpg';
+            document.getElementById('karta-snu-plansza').textContent = plansza === 'losowa' ? 'Nieznane miejsce' : plansza;
             document.getElementById('start-info').innerHTML =
-                `Plansza: <b>${plansza}</b><br>` +
-                `Misja: <b>${misja ? missionTypeLabel(misja) : 'losowa'}</b>` +
-                (d ? `<br>Trudność: <b style="color:${d.hard ? '#ff7766' : '#88cc88'};">${d.hard ? 'ciężki sen' : 'zwykły sen'}</b>` +
-                     `<br>Wejście kosztowało 10 Łaski (zostało: ${playerStats.grace})` : '');
+                `<div class="karta-snu-znaczniki"><span>${misja ? missionTypeLabel(misja) : 'Misja losowa'}</span>` +
+                (d ? `<span class="${d.hard ? 'ciezki' : ''}">${d.hard ? 'Ciężki sen' : 'Zwykły sen'}</span>` : '') + `</div>` +
+                (d ? `<div class="karta-snu-koszt">Koszt: <b>✦ 10 Łaski</b> <small>(zostało: ${playerStats.grace})</small></div>` : '');
             const titleEl = document.getElementById('start-title');
             if (pendingRecruitSlot) {
                 titleEl.innerText = 'Misja we śnie - dziwna obecność...';
