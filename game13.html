@@ -22850,6 +22850,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             renderCemeteryCandle();
             revealFullMap();
             renderStreetLamps();
+            ozdobTerazniejszosc();
 
             spawnHero(atPosition);
             spawnDreamPortals();
@@ -29975,6 +29976,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }, 60);
         }
         function startGameTeraz(count) {
+            usunOzdobyMiasta();
             zerujKursor();
             resetWarriorMixers();   // stare modele odchodzą razem z poprzednią misją
             ofiaraStada = null;
@@ -43126,6 +43128,418 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
         }
 
+        // ========================================================
+        // --- OZDOBY MIASTA (Teraźniejszość) ---
+        // Sam wygląd: znaki na jezdni, krawężniki, kałuże, liście, ławki, ogródki,
+        // pranie, świecące okna, wrony, mgła, znaki Zakonu, kot, ćmy i nietoperze.
+        // Nic tu nie blokuje ruchu ani strzału - siatka przeszkód zostaje bez zmian.
+        // ========================================================
+        let ozdobyMiasta = null;          // grupa wszystkich ozdób
+        let oknaMiasta = [];              // { mesh, houseId }
+        let wronyMiasta = [], cmyMiasta = [], nietoperzeMiasta = [], mgłaMiasta = [];
+        let kotMiasta = null, kotNastepny = 0, ostatniCzasOzdob = 0, oknaSprawdzone = 0;
+
+        function usunOzdobyMiasta() {
+            if (!ozdobyMiasta) return;
+            scene.remove(ozdobyMiasta);
+            ozdobyMiasta.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+            ozdobyMiasta = null; oknaMiasta = []; wronyMiasta = []; cmyMiasta = []; nietoperzeMiasta = []; mgłaMiasta = []; kotMiasta = null;
+        }
+        const jestNocWMiescie = () => gameMode === 'presentNight' || currentTimeOfDay === 'noc' || currentTimeOfDay === 'wieczor';
+
+        function teksturaPlotna(w, h, rysuj) {
+            const c = document.createElement('canvas'); c.width = w; c.height = h;
+            rysuj(c.getContext('2d'), w, h);
+            const t = new THREE.CanvasTexture(c); return t;
+        }
+
+        function ozdobTerazniejszosc() {
+            usunOzdobyMiasta();
+            if (!isExploreMode()) return;
+            const G = new THREE.Group(); G.userData.unitType = 'fx';
+            ozdobyMiasta = G; scene.add(G);
+            const typ = (mx, mz) => (mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth) ? terrainTypeMap[mx][mz] : -1;
+            const wolne = (mx, mz) => typ(mx, mz) >= 0 && obstacleGrid[mx][mz] === null;
+            const Y = (mx, mz) => getTerrainY(mx - offsetX, mz - offsetZ);
+            const dummy = new THREE.Object3D();
+            // Instancje jednego kształtu z listy położeń [x, y, z, obrót, sx, sy, sz]
+            const wstaw = (geo, mat, lista) => {
+                if (!lista.length) return null;
+                const m = new THREE.InstancedMesh(geo, mat, lista.length);
+                lista.forEach((p, i) => {
+                    dummy.position.set(p[0], p[1], p[2]); dummy.rotation.set(0, p[3] || 0, 0);
+                    dummy.scale.set(p[4] || 1, p[5] || 1, p[6] || 1); dummy.updateMatrix(); m.setMatrixAt(i, dummy.matrix);
+                });
+                G.add(m); return m;
+            };
+
+            // --- 1. Jezdnia: przerywana linia środkowa, przejścia dla pieszych, krawężniki ---
+            const kreski = [], krawezniki = [];   // przejścia dla pieszych gra maluje już sama
+            const srodkiPasow = (dlugosc, wymiar, czyAsfalt, dodaj) => {
+                for (let a = 0; a < dlugosc; a++) {
+                    let b = 0;
+                    while (b < wymiar) {
+                        if (!czyAsfalt(a, b)) { b++; continue; }
+                        let k = b; while (k < wymiar && czyAsfalt(a, k)) k++;
+                        if (k - b >= 4 && k - b <= 10) dodaj(a, Math.floor((b + k - 1) / 2), b, k - 1);   // przekrój jezdni, nie jej długość
+                        b = k;
+                    }
+                }
+            };
+            // jezdnia biegnąca wzdłuż Z (pas szeroki w X)
+            srodkiPasow(mapDepth, mapWidth, (z, x) => typ(x, z) === 2, (z, x) => {
+                if (z % 2 === 0) kreski.push([x - offsetX, Y(x, z) + 0.13, z - offsetZ, 0, 0.12, 1, 0.55]);
+            });
+            // jezdnia biegnąca wzdłuż X
+            srodkiPasow(mapWidth, mapDepth, (x, z) => typ(x, z) === 2, (x, z) => {
+                if (x % 2 === 0) kreski.push([x - offsetX, Y(x, z) + 0.13, z - offsetZ, Math.PI / 2, 0.12, 1, 0.55]);
+            });
+            for (let x = 0; x < mapWidth; x++) for (let z = 0; z < mapDepth; z++) {
+                if (typ(x, z) !== 2) continue;
+                const y = Y(x, z) + 0.13;
+                // Krawężnik tam, gdzie asfalt styka się z trawą lub ziemią
+                [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dz]) => {
+                    const t = typ(x + dx, z + dz);
+                    if (t === 0 || t === 1) krawezniki.push([x - offsetX + dx * 0.47, y + 0.03, z - offsetZ + dz * 0.47, dx ? 0 : Math.PI / 2, 0.08, 1, 1]);
+                });
+            }
+            const farba = new THREE.MeshLambertMaterial({ color: 0xe8e4d8 });
+            wstaw(new THREE.BoxGeometry(1, 0.01, 1), farba, kreski);
+            wstaw(new THREE.BoxGeometry(1, 0.1, 1), new THREE.MeshLambertMaterial({ color: 0x9a978c }), krawezniki);
+
+            // --- 2. Kałuże po deszczu (lśniące, odbijają światło latarni) ---
+            const pada = weatherType && /deszcz|burza|rain|storm/i.test(weatherType);
+            const kaluze = [];
+            const ileKaluz = pada ? 26 : (currentSeason === 'zima' ? 0 : (Math.random() < 0.5 ? 10 : 0));
+            for (let i = 0, prob = 0; kaluze.length < ileKaluz && prob < 600; prob++) {
+                const x = Math.floor(Math.random() * mapWidth), z = Math.floor(Math.random() * mapDepth);
+                if (typ(x, z) !== 2 && typ(x, z) !== 3) continue;
+                const s = 0.5 + Math.random() * 0.9;
+                kaluze.push([x - offsetX + Math.random() - 0.5, Y(x, z) + 0.14, z - offsetZ + Math.random() - 0.5, Math.random() * 3, s, 1, s * (0.6 + Math.random() * 0.5)]);
+            }
+            wstaw(new THREE.CylinderGeometry(0.5, 0.5, 0.005, 14),
+                  new THREE.MeshPhongMaterial({ color: 0x1c2430, shininess: 120, specular: 0x9fb4d0, transparent: true, opacity: 0.75 }), kaluze);
+
+            // --- 3. Jesień: liście; zima: zaspy przy krawężnikach ---
+            if (currentSeason === 'jesien') {
+                const liscie = [[], [], []];
+                for (let i = 0; i < 420; i++) {
+                    const x = Math.floor(Math.random() * mapWidth), z = Math.floor(Math.random() * mapDepth);
+                    if (!wolne(x, z) || typ(x, z) === 5) continue;
+                    liscie[i % 3].push([x - offsetX + Math.random() - 0.5, Y(x, z) + 0.135, z - offsetZ + Math.random() - 0.5, Math.random() * 6, 1, 1, 1]);
+                }
+                [0xc8661e, 0x9a3a16, 0xd8a43a].forEach((k, i) =>
+                    wstaw(new THREE.BoxGeometry(0.14, 0.004, 0.1), new THREE.MeshLambertMaterial({ color: k }), liscie[i]));
+            } else if (currentSeason === 'zima') {
+                const zaspy = krawezniki.filter(() => Math.random() < 0.35).map(p => [p[0], p[1] - 0.05, p[2], p[3], 1.2, 0.35, 1]);
+                wstaw(new THREE.SphereGeometry(0.35, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0xf2f6fa }), zaspy);
+            }
+
+            // --- 4. Wyposażenie ulicy przy głównych jezdniach ---
+            const przyJezdni = [];
+            for (let x = 0; x < mapWidth; x++) for (let z = 0; z < mapDepth; z++) {
+                if (!wolne(x, z) || (typ(x, z) !== 0 && typ(x, z) !== 1)) continue;
+                const kier = [[1, 0], [-1, 0], [0, 1], [0, -1]].find(([dx, dz]) => typ(x + dx, z + dz) === 2 && typ(x + 2 * dx, z + 2 * dz) === 2 && typ(x + 3 * dx, z + 3 * dz) === 2);
+                if (kier) przyJezdni.push({ x, z, kat: Math.atan2(kier[0], kier[1]) });
+            }
+            przyJezdni.sort(() => Math.random() - 0.5);
+            const zajete = new Set();
+            const wybierz = () => {
+                for (const p of przyJezdni) {
+                    let blisko = false;
+                    zajete.forEach(k => { const [a, b] = k.split(',').map(Number); if (Math.abs(a - p.x) + Math.abs(b - p.z) < 6) blisko = true; });
+                    if (!blisko) { zajete.add(p.x + ',' + p.z); return p; }
+                }
+                return null;
+            };
+            const drewno = new THREE.MeshLambertMaterial({ color: 0x6b4a2f });
+            const metal = new THREE.MeshLambertMaterial({ color: 0x2c3036 });
+            const postaw = (p, budowa) => {
+                const g = new THREE.Group(); budowa(g);
+                g.position.set(p.x - offsetX, Y(p.x, p.z) + 0.1, p.z - offsetZ); g.rotation.y = p.kat;
+                G.add(g);
+            };
+            const pudlo = (g, w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); g.add(m); return m; };
+            const ileMebli = Math.min(16, Math.floor(przyJezdni.length / 6));
+            const rodzaje = ['lawka', 'kosz', 'lawka', 'slup', 'kosz', 'przystanek', 'budka', 'lawka', 'kosz', 'slup'];
+            let przystanek = false, budka = false;
+            for (let i = 0; i < ileMebli; i++) {
+                let r = rodzaje[i % rodzaje.length];
+                if ((r === 'przystanek' && przystanek) || (r === 'budka' && budka)) r = 'lawka';
+                const p = wybierz(); if (!p) break;
+                if (r === 'lawka') postaw(p, g => {
+                    pudlo(g, 1.1, 0.06, 0.32, drewno, 0, 0.38, 0); pudlo(g, 1.1, 0.3, 0.05, drewno, 0, 0.58, -0.16);
+                    [-0.45, 0.45].forEach(x => pudlo(g, 0.06, 0.38, 0.32, metal, x, 0.19, 0));
+                });
+                else if (r === 'kosz') postaw(p, g => {
+                    const k = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.14, 0.55, 10), new THREE.MeshLambertMaterial({ color: 0x2f4a2a }));
+                    k.position.y = 0.28; g.add(k);
+                });
+                else if (r === 'slup') postaw(p, g => {
+                    // Słup ogłoszeniowy oklejony afiszami i nekrologami
+                    const plakaty = teksturaPlotna(128, 64, (c, w, h) => {
+                        c.fillStyle = '#d9cfb4'; c.fillRect(0, 0, w, h);
+                        for (let i = 0; i < 9; i++) {
+                            c.fillStyle = ['#f2ead8', '#ece4c8', '#e4ddd0', '#c9b98e'][i % 4];
+                            const x = (i * 14) % w, y = (i % 2) * 30 + 2; c.fillRect(x, y, 13, 28);
+                            c.strokeStyle = '#111'; c.lineWidth = 1; if (i % 3 === 0) c.strokeRect(x + 1, y + 1, 11, 26);   // nekrolog w czarnej ramce
+                            c.fillStyle = '#555'; for (let l = 0; l < 4; l++) c.fillRect(x + 3, y + 7 + l * 5, 7, 1);
+                        }
+                    });
+                    const s = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 1.8, 14), new THREE.MeshLambertMaterial({ map: plakaty }));
+                    s.position.y = 0.9; g.add(s);
+                    const d = new THREE.Mesh(new THREE.ConeGeometry(0.38, 0.25, 14), metal); d.position.y = 1.92; g.add(d);
+                });
+                else if (r === 'przystanek') { przystanek = true; postaw(p, g => {
+                    const szyba = new THREE.MeshPhongMaterial({ color: 0x9fb8c8, transparent: true, opacity: 0.35, shininess: 90 });
+                    pudlo(g, 1.8, 1.5, 0.04, szyba, 0, 0.85, -0.4); pudlo(g, 0.04, 1.5, 0.8, szyba, -0.9, 0.85, 0);
+                    pudlo(g, 2, 0.06, 0.95, metal, 0, 1.62, -0.02);
+                    [-0.9, 0.9].forEach(x => pudlo(g, 0.06, 1.62, 0.06, metal, x, 0.81, -0.4));
+                    pudlo(g, 1.4, 0.06, 0.3, metal, 0.1, 0.42, -0.25);
+                    pudlo(g, 0.05, 2.1, 0.05, metal, 1.1, 1.05, 0.35);
+                    const tab = pudlo(g, 0.4, 0.4, 0.03, new THREE.MeshLambertMaterial({ color: 0xd8b22a }), 1.1, 2.1, 0.35);
+                }); }
+                else if (r === 'budka') { budka = true; postaw(p, g => {
+                    const czerw = new THREE.MeshLambertMaterial({ color: 0x8e1d1a });
+                    pudlo(g, 0.8, 2.1, 0.06, czerw, 0, 1.05, -0.37);
+                    [-0.37, 0.37].forEach(x => pudlo(g, 0.06, 2.1, 0.8, czerw, x, 1.05, 0));
+                    pudlo(g, 0.86, 0.14, 0.86, czerw, 0, 2.15, 0);
+                    pudlo(g, 0.3, 0.4, 0.1, metal, 0, 1.3, -0.3);
+                }); }
+            }
+
+            // --- 5. Ogródki przed domami i pranie za domami ---
+            const sztachety = [], krzaki = [], sznury = [];
+            (houses || []).forEach(h => {
+                if (!h || h.maxX - h.minX < 2) return;
+                const z0 = h.minZ - 2 + offsetZ;
+                if (Math.random() < 0.65) for (let wx = h.minX - 1; wx <= h.maxX + 1; wx++) {
+                    const mx = wx + offsetX;
+                    if (!wolne(mx, z0) || typ(mx, z0) >= 2 || typ(mx, z0 + 1) === 3 || typ(mx, z0 - 1) === 3) continue;
+                    for (let s = -2; s <= 2; s++) sztachety.push([wx + s * 0.2, Y(mx, z0) + 0.35, z0 - offsetZ - 0.45, 0, 1, 1, 1]);
+                    if (Math.random() < 0.35) krzaki.push([wx, Y(mx, z0) + 0.25, z0 - offsetZ + 0.1, 0, 0.8 + Math.random() * 0.5, 0.7, 0.8 + Math.random() * 0.5]);
+                }
+                // Sznur z praniem za domem, między dwoma słupkami
+                const zt = h.maxZ + 2 + offsetZ;
+                if (Math.random() < 0.4 && wolne(h.minX + offsetX, zt) && wolne(h.maxX + offsetX, zt) && typ(h.minX + offsetX, zt) < 2) {
+                    const y = Y(h.minX + offsetX, zt);
+                    sznury.push({ x0: h.minX, x1: h.maxX, z: zt - offsetZ, y });
+                }
+            });
+            wstaw(new THREE.BoxGeometry(0.07, 0.6, 0.04), new THREE.MeshLambertMaterial({ color: 0xe8e2d2 }), sztachety);
+            wstaw(new THREE.SphereGeometry(0.4, 8, 6), new THREE.MeshLambertMaterial({ color: 0x2f5a24 }), krzaki);
+            const BARWY_PRANIA = [0xe8e8e0, 0x6a8fc0, 0xc05a4a, 0xd8c070, 0x7ab07a];
+            sznury.forEach(s => {
+                const g = new THREE.Group(); g.position.set(0, s.y + 0.1, s.z);
+                [s.x0, s.x1].forEach(x => { const sl = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.6, 6), drewno); sl.position.set(x, 0.8, 0); g.add(sl); });
+                const dl = s.x1 - s.x0;
+                const linka = new THREE.Mesh(new THREE.BoxGeometry(dl, 0.015, 0.015), metal); linka.position.set((s.x0 + s.x1) / 2, 1.5, 0); g.add(linka);
+                for (let i = 0; i < Math.max(2, Math.floor(dl / 0.7)); i++) {
+                    const ubr = new THREE.Mesh(new THREE.PlaneGeometry(0.35 + Math.random() * 0.2, 0.4 + Math.random() * 0.25),
+                        new THREE.MeshLambertMaterial({ color: BARWY_PRANIA[Math.floor(Math.random() * BARWY_PRANIA.length)], side: THREE.DoubleSide }));
+                    ubr.position.set(s.x0 + 0.4 + i * 0.7, 1.28, 0); ubr.userData.faza = Math.random() * 6; g.add(ubr);
+                    ubr.userData.pranie = true;
+                }
+                G.add(g);
+            });
+
+            // --- 6. Okna: nocą świecą tam, gdzie nikt nie śpi ---
+            const blask = new THREE.MeshBasicMaterial({ color: 0xffc76a, transparent: true, opacity: 0.9 });
+            const ciemne = new THREE.MeshBasicMaterial({ color: 0x0c1016, transparent: true, opacity: 0.85 });
+            const geoOkna = new THREE.PlaneGeometry(0.5, 0.5);
+            const geoPlamy = new THREE.PlaneGeometry(1.3, 1.1);
+            const matPlamy = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+                map: teksturaPlotna(64, 64, (c, w, h) => {
+                    const g = c.createRadialGradient(32, 20, 0, 32, 32, 32);
+                    g.addColorStop(0, 'rgba(255, 190, 90, 0.55)'); g.addColorStop(1, 'rgba(255, 190, 90, 0)');
+                    c.fillStyle = g; c.fillRect(0, 0, w, h);
+                }) });
+            (houses || []).forEach(h => {
+                if (!h) return;
+                const W = h.maxX - h.minX + 1; if (W < 3) return;
+                const okX = h.minX + Math.floor(W / 2);
+                const y = getTerrainY(okX, h.maxZ) + 1.15;
+                const miejsca = [[okX, h.maxZ + 0.52, 0], [h.minX + 1, h.minZ - 0.52, Math.PI], [h.maxX - 1, h.minZ - 0.52, Math.PI]];
+                miejsca.forEach(([x, z, k]) => {
+                    const o = new THREE.Mesh(geoOkna, ciemne); o.position.set(x, y, z); o.rotation.y = k;
+                    // Plama światła na ziemi przed oknem - z góry okno chowa się pod okapem
+                    const plama = new THREE.Mesh(geoPlamy, matPlamy);
+                    plama.rotation.x = -Math.PI / 2; plama.position.set(x, getTerrainY(Math.round(x), Math.round(z + (k ? -0.6 : 0.6))) + 0.15, z + (k ? -0.75 : 0.75));
+                    plama.visible = false; plama.renderOrder = 1;
+                    G.add(o, plama); oknaMiasta.push({ mesh: o, plama, houseId: h.id, swiatlo: Math.random() < 0.8 });
+                });
+            });
+            ozdobyMiasta.userData.blask = blask; ozdobyMiasta.userData.ciemne = ciemne;
+            oknaSprawdzone = 0;
+
+            // --- 7. Bluszcz na niektórych ścianach i znaki Zakonu na murach ---
+            const bluszcz = teksturaPlotna(64, 64, (c, w, h) => {
+                for (let i = 0; i < 260; i++) {
+                    c.fillStyle = ['#1f4a1c', '#2c5e24', '#3b7330', '#173a15'][i % 4];
+                    const x = w / 2 + (Math.random() - 0.5) * w * (1 - Math.random() * 0.4), y = h - Math.pow(Math.random(), 0.7) * h;
+                    c.beginPath(); c.arc(x, y, 2 + Math.random() * 2.5, 0, 7); c.fill();
+                }
+            });
+            const matBluszcz = new THREE.MeshLambertMaterial({ map: bluszcz, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide });
+            const znak = teksturaPlotna(64, 64, (c, w, h) => {
+                c.strokeStyle = 'rgba(150, 18, 18, 0.9)'; c.lineWidth = 5; c.lineCap = 'round';
+                c.beginPath(); c.arc(32, 32, 22, 0, 7); c.stroke();
+                c.beginPath(); c.moveTo(32, 8); c.lineTo(32, 56); c.moveTo(14, 26); c.lineTo(50, 26); c.stroke();
+                c.beginPath(); c.moveTo(18, 46); c.lineTo(32, 36); c.lineTo(46, 46); c.stroke();
+                c.fillStyle = 'rgba(150, 18, 18, 0.7)'; c.fillRect(30, 54, 3, 8); c.fillRect(44, 44, 2, 10);   // zacieki farby
+            });
+            const matZnak = new THREE.MeshLambertMaterial({ map: znak, transparent: true, alphaTest: 0.1 });
+            const ileZnakow = Math.round((typeof sledzenieZakonu === 'number' ? sledzenieZakonu : 0) / 15);
+            const domy = (houses || []).filter(h => h && h.maxX - h.minX >= 2).sort(() => Math.random() - 0.5);
+            domy.forEach((h, i) => {
+                const y = getTerrainY(h.minX, h.maxZ);
+                if (i < domy.length * 0.3) {
+                    const b = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.8), matBluszcz);
+                    b.position.set(h.minX + 0.2, y + 0.95, h.maxZ + 0.53); G.add(b);
+                } else if (i < domy.length * 0.3 + ileZnakow) {
+                    const zn = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.7), matZnak);
+                    zn.position.set(h.maxX - 0.3, y + 1.0, h.minZ - 0.53); zn.rotation.y = Math.PI; G.add(zn);
+                }
+            });
+
+            // --- 8. Wrony - zrywają się, gdy ktoś podejdzie ---
+            const matWrony = new THREE.MeshLambertMaterial({ color: 0x111114 });
+            for (let i = 0, prob = 0; wronyMiasta.length < 7 && prob < 300; prob++) {
+                const x = Math.floor(Math.random() * mapWidth), z = Math.floor(Math.random() * mapDepth);
+                if (!wolne(x, z) || typ(x, z) >= 2) continue;
+                const w = new THREE.Group();
+                const tulow = new THREE.Mesh(new THREE.SphereGeometry(0.12, 7, 5), matWrony); tulow.scale.set(1, 0.85, 1.5); tulow.position.y = 0.14; w.add(tulow);
+                const glowa = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5), matWrony); glowa.position.set(0, 0.24, 0.15); w.add(glowa);
+                const dziob = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.09, 4), matWrony); dziob.rotation.x = Math.PI / 2; dziob.position.set(0, 0.23, 0.24); w.add(dziob);
+                const ogon = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.02, 0.16), matWrony); ogon.position.set(0, 0.12, -0.2); w.add(ogon);
+                const baza = Y(x, z) + 0.1;
+                w.position.set(x - offsetX, baza, z - offsetZ); w.rotation.y = Math.random() * 6;
+                w.userData = { baza, x: x - offsetX, z: z - offsetZ, lot: 0, wraca: 0, glowa, faza: Math.random() * 6 };
+                G.add(w); wronyMiasta.push(w);
+            }
+
+            // --- 9. Nocna mgła przy ziemi ---
+            const mglaTex = teksturaPlotna(128, 128, (c, w, h) => {
+                const g = c.createRadialGradient(64, 64, 0, 64, 64, 64);
+                g.addColorStop(0, 'rgba(200, 210, 225, 0.55)'); g.addColorStop(1, 'rgba(200, 210, 225, 0)');
+                c.fillStyle = g; c.fillRect(0, 0, w, h);
+            });
+            const matMgly = new THREE.MeshBasicMaterial({ map: mglaTex, transparent: true, depthWrite: false, opacity: 0.35 });
+            for (let i = 0; i < 16; i++) {
+                const m = new THREE.Mesh(new THREE.PlaneGeometry(9, 9), matMgly);
+                m.rotation.x = -Math.PI / 2;
+                m.position.set((Math.random() - 0.5) * mapWidth * 0.9, 0.35 + Math.random() * 0.3, (Math.random() - 0.5) * mapDepth * 0.9);
+                m.userData.dryf = (Math.random() - 0.5) * 0.4; m.renderOrder = 1;
+                G.add(m); mgłaMiasta.push(m);
+            }
+
+            // --- 10. Ćmy przy latarniach i nietoperze ---
+            const matCmy = new THREE.MeshBasicMaterial({ color: 0xf0ead8 });
+            (streetLamps || []).slice(0, 12).forEach(l => {
+                for (let i = 0; i < 3; i++) {
+                    const c = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.04), matCmy);
+                    c.userData = { lampa: l, r: 0.25 + Math.random() * 0.35, v: 2 + Math.random() * 3, faza: Math.random() * 6, h: 2.6 + Math.random() * 0.8 };
+                    G.add(c); cmyMiasta.push(c);
+                }
+            });
+            const matNietoperza = new THREE.MeshBasicMaterial({ color: 0x0a0a0c, side: THREE.DoubleSide });
+            for (let i = 0; i < 5; i++) {
+                const n = new THREE.Group();
+                [-1, 1].forEach(s => { const sk = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.14), matNietoperza); sk.position.x = s * 0.15; sk.userData.strona = s; n.add(sk); });
+                n.userData = { cx: (Math.random() - 0.5) * mapWidth * 0.6, cz: (Math.random() - 0.5) * mapDepth * 0.6, r: 3 + Math.random() * 5, v: 0.5 + Math.random() * 0.5, faza: Math.random() * 6, h: 5 + Math.random() * 3 };
+                G.add(n); nietoperzeMiasta.push(n);
+            }
+
+            // --- 11. Kot, który od czasu do czasu przebiega przez ulicę ---
+            kotMiasta = new THREE.Group();
+            const matKota = new THREE.MeshLambertMaterial({ color: 0x18161a });
+            const tul = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.13, 0.42), matKota); tul.position.y = 0.17; kotMiasta.add(tul);
+            const gl = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.12, 0.12), matKota); gl.position.set(0, 0.26, 0.24); kotMiasta.add(gl);
+            [-0.04, 0.04].forEach(x => { const u = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.06, 4), matKota); u.position.set(x, 0.34, 0.24); kotMiasta.add(u); });
+            const og = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.32, 5), matKota); og.position.set(0, 0.3, -0.27); og.rotation.x = -0.6; kotMiasta.add(og);
+            kotMiasta.visible = false; kotMiasta.userData.trasa = null;
+            G.add(kotMiasta);
+            kotNastepny = 0;
+            // Trasy kota: w poprzek jezdni, od trawy do trawy
+            kotMiasta.userData.przejscia = przyJezdni.slice(0, 30);
+        }
+
+        function animujOzdobyMiasta(time) {
+            if (!ozdobyMiasta) return;
+            const dt = ostatniCzasOzdob ? Math.min(0.1, (time - ostatniCzasOzdob) / 1000) : 0;
+            ostatniCzasOzdob = time;
+            const t = time / 1000;
+            const noc = jestNocWMiescie();
+
+            // Okna sprawdzamy rzadko - śpiący zmieniają się tylko między scenami
+            if (time - oknaSprawdzone > 1000) {
+                oknaSprawdzone = time;
+                const zeSpiacym = new Set((typeof sleepingNPCs !== 'undefined' ? sleepingNPCs : []).map(n => n.houseId));
+                oknaMiasta.forEach(o => {
+                    const pali = noc && o.swiatlo && !zeSpiacym.has(o.houseId);
+                    o.mesh.material = pali ? ozdobyMiasta.userData.blask : ozdobyMiasta.userData.ciemne;
+                    o.plama.visible = pali;
+                });
+            }
+            mgłaMiasta.forEach(m => {
+                m.visible = noc;
+                if (!noc) return;
+                m.position.x += m.userData.dryf * dt;
+                if (Math.abs(m.position.x) > mapWidth / 2) m.userData.dryf *= -1;
+            });
+            cmyMiasta.forEach(c => {
+                const u = c.userData; c.visible = noc && u.lampa.visible !== false && u.lampa.parent;
+                if (!c.visible) return;
+                const a = t * u.v + u.faza;
+                c.position.set(u.lampa.position.x + Math.cos(a) * u.r, u.lampa.position.y + u.h + Math.sin(a * 1.7) * 0.15, u.lampa.position.z + Math.sin(a) * u.r);
+                c.lookAt(camera.position);
+            });
+            nietoperzeMiasta.forEach(n => {
+                const u = n.userData; n.visible = noc;
+                if (!noc) return;
+                const a = t * u.v + u.faza;
+                n.position.set(u.cx + Math.cos(a) * u.r, u.h + Math.sin(a * 2.3) * 0.6, u.cz + Math.sin(a) * u.r * 0.7);
+                n.rotation.y = -a;
+                const mach = Math.sin(t * 18 + u.faza) * 0.9;
+                n.children.forEach(sk => { sk.rotation.z = sk.userData.strona * mach; });
+            });
+            // Wrony: dziobią, a spłoszone odlatują i po chwili wracają
+            const hp = (typeof hero !== 'undefined' && hero && hero.mesh) ? hero.mesh.position : null;
+            wronyMiasta.forEach(w => {
+                const u = w.userData;
+                if (u.lot > 0) {
+                    u.lot += dt;
+                    w.position.y += dt * 3.5; w.position.x += Math.sin(u.faza) * dt * 3; w.position.z += Math.cos(u.faza) * dt * 3;
+                    if (u.lot > 2.5) { u.lot = 0; u.wraca = time + 15000 + Math.random() * 15000; w.visible = false; }
+                    return;
+                }
+                if (!w.visible) {
+                    if (time > u.wraca) { w.visible = true; w.position.set(u.x, u.baza, u.z); }
+                    return;
+                }
+                u.glowa.position.y = 0.24 - Math.max(0, Math.sin(t * 2.2 + u.faza)) * 0.08;
+                if (hp && Math.hypot(hp.x - u.x, hp.z - u.z) < 2.6) { u.lot = 0.01; w.rotation.y = u.faza; }
+            });
+            // Pranie kołysze się na wietrze
+            ozdobyMiasta.children.forEach(g => g.children && g.children.forEach(c => { if (c.userData.pranie) c.rotation.x = Math.sin(t * 1.6 + c.userData.faza) * 0.25; }));
+            // Kot
+            const k = kotMiasta, ku = k && k.userData;
+            if (k && ku.przejscia && ku.przejscia.length) {
+                if (!ku.trasa && time > kotNastepny) {
+                    const p = ku.przejscia[Math.floor(Math.random() * ku.przejscia.length)];
+                    const sx = p.x - offsetX, sz = p.z - offsetZ, dx = Math.sin(p.kat), dz = Math.cos(p.kat);
+                    ku.trasa = { sx, sz, dx, dz, s: 0, dl: 9 };
+                    k.visible = true; k.rotation.y = p.kat;
+                }
+                if (ku.trasa) {
+                    const tr = ku.trasa; tr.s += dt * 3.2;
+                    const x = tr.sx + tr.dx * tr.s, z = tr.sz + tr.dz * tr.s;
+                    k.position.set(x, getTerrainY(Math.round(x), Math.round(z)) + 0.1 + Math.abs(Math.sin(tr.s * 6)) * 0.04, z);
+                    if (tr.s > tr.dl) { ku.trasa = null; k.visible = false; kotNastepny = time + 35000 + Math.random() * 45000; }
+                }
+            }
+        }
+
         // Pasek życia nad wrogiem: ciemna ramka ze złotym brzegiem i czerwone wypełnienie
         const paskiZycia = new Map();
         function rysujPasekZycia(sp, ulamek) {
@@ -43190,6 +43604,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             animujPozar(time);
             animujPioruny(time);
             paskiZyciaWrogow();
+            animujOzdobyMiasta(time);
             animujMgleSnu(time);
             tikWidzianych(time);
             animujPortale(time);
