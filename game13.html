@@ -823,7 +823,39 @@
         /* Grupy na pasku: akcje | koniec ruchu i tury | zapis i ucieczka */
         #btn-end-soldier-turn, #btn-save-combat { margin-left: 18px; }
 
+        /* Pasek w stylu gotyckim: panel w złotej ramce, ciemne kafle, jasne ikony */
+        #controls:not(:empty) {
+            padding: 8px; background: rgba(12, 9, 9, 0.88);
+            border: 1px solid #7a6136; outline: 1px solid rgba(122, 97, 54, 0.35); outline-offset: 3px;
+        }
+        #controls .ma-ikone, #camera-rotate-controls .ma-ikone {
+            min-width: 60px; min-height: 60px; border-radius: 2px;
+            border: 1px solid #6b5631 !important; background: linear-gradient(#23201d, #121010);
+            box-shadow: inset 0 0 0 2px #0a0808, inset 0 0 0 3px rgba(122, 97, 54, 0.4);
+            color: #ddd6c8; font-family: 'Cinzel', Georgia, serif; font-size: 10px;
+        }
+        #controls .ma-ikone::before, #camera-rotate-controls .ma-ikone::before { width: 28px; height: 28px; }
+        #controls .ma-ikone:hover:not(:disabled), #camera-rotate-controls .ma-ikone:hover:not(:disabled) {
+            background: linear-gradient(#2e2922, #171411); color: #fff3d6; border-color: #d9b46a !important;
+            box-shadow: inset 0 0 0 2px #0a0808, 0 0 10px rgba(217, 180, 106, 0.45);
+        }
+        #controls .ma-ikone:disabled { color: #5d5850; border-color: #3b3328 !important; }
+        #controls button[data-ap]::after {
+            top: 2px; right: 2px; min-width: 12px; padding: 2px 3px;
+            background: #1d4f8a; border: 1px solid #5d9be0; color: #e6f1ff; text-shadow: none; text-align: center;
+        }
+        #controls #btn-turn.ma-ikone {
+            flex-direction: row; gap: 10px; padding: 0 20px; margin-left: 18px;
+            font-size: 15px; letter-spacing: 0.06em; color: #f0d79a; border-color: #b8913f !important;
+            box-shadow: inset 0 0 0 2px #0a0808, inset 0 0 0 3px #8a6b2c, 0 0 14px rgba(217, 160, 60, 0.25);
+        }
+        #controls #btn-turn.ma-ikone::before { width: 26px; height: 26px; }
+        body.mobilny #controls .ma-ikone { min-width: 44px; min-height: 44px; }
+        body.mobilny #controls .ma-ikone::before { width: 20px; height: 20px; }
+        body.mobilny #controls #btn-turn.ma-ikone { font-size: 11px !important; padding: 0 10px !important; }
+
     </style>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&display=swap">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
