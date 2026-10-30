@@ -24286,7 +24286,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             document.getElementById('ks-koszt-p').innerHTML = d ? `10 Łaski <small>(zostało: ${playerStats.grace})</small>` : 'opłacone';
             // Portrety oddziału na czterech polach karty: bohater i zwerbowani, reszta pól to puste miejsce.
             // Klik w portret wybiera, ilu idzie do snu.
-            const PORTRET = { uzdrowiciel: 'uzdrowiciel', snajper: 'snajper' };
+            const PORTRET = { uzdrowiciel: 'uzdrowiciel', snajper: 'snajper', uniwersalna: 'palladyn' };
             const oddzial = [{ name: playerName || 'Bohater', class: 'uniwersalna' }].concat(recruitedWarriors).slice(0, maxSquad);
             if (!(kartaSnuWybor >= 1 && kartaSnuWybor <= maxSquad)) kartaSnuWybor = maxSquad;
             const rzad = document.getElementById('karta-snu-portrety');
