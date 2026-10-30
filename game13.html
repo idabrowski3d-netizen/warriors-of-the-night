@@ -870,7 +870,9 @@
             box-shadow: 0 6px 24px rgba(0, 0, 0, 0.7) !important; color: #ddd6c8;
         }
         #ap-tooltip { color: #f0d79a !important; }
-        h1, #stats-panel-title, #minimap-label, #turn-indicator, #name-prompt-title {
+        #player-stats-panel { top: 56px; }
+        #camera-rotate-controls { bottom: max(7%, 96px); }
+        h1, #stats-panel-title, #minimap-label, #turn-indicator, #name-prompt-title, #start-title {
             font-family: 'Cinzel', Georgia, serif; color: #e3c27a !important; letter-spacing: 0.06em; text-shadow: none;
         }
         #stats-panel-title { border-bottom: 1px solid #4a3c24; padding-bottom: 8px; text-align: center; }
@@ -30100,7 +30102,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             [['btn-kneel', kneelCost], ['btn-melee', meleeCost], ['btn-heal', healCost], ['btn-shield', shieldCost],
              ['btn-ocuc', PIORUN_OCUCENIE_AP], ['btn-level-up', lvlCost], ['btn-level-down', lvlCost]].forEach(([id, koszt]) => {
                 const b = document.getElementById(id);
-                b.dataset.ap = koszt + ' PA';
+                b.dataset.ap = koszt;
                 b.disabled = !active || active.ap < koszt;
             });
 
@@ -45311,7 +45313,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 b.style.display = widoczny ? '' : 'none';
                 b.innerText = `${ZIOLA[k].nazwa} (${ile})`;
                 b.title = ZIOLA[k].opis;
-                if (ZIOLA[k].koszt) b.dataset.ap = ZIOLA[k].koszt + ' PA';
+                if (ZIOLA[k].koszt) b.dataset.ap = ZIOLA[k].koszt;
             });
         }
 
