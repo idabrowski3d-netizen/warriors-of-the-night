@@ -47020,6 +47020,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Pliki w graphics/swieci - imię patrona albo ogólny wizerunek
         const WIZERUNKI_SWIETYCH = ['agnieszka', 'barbara', 'cecylia', 'franciszek', 'helena', 'hieronim', 'joanna', 'lowca',
             'michal', 'piotr', 'rita', 'rycerz', 'rycerz_wlocznia', 'szlachcianka', 'wojciech', 'wojownik_skora', 'zakonnica', 'zielarka'];
+        // Losowy wizerunek musi zgadzać się z płcią patrona
+        const WIZERUNKI_KOBIET = ['agnieszka', 'barbara', 'cecylia', 'helena', 'joanna', 'rita', 'szlachcianka', 'zakonnica', 'zielarka'];
         const wizerunekPatrona = {};
         // Patron pokazuje się na żywo, w trakcie wpisywania imienia
         document.getElementById('name-prompt-input').addEventListener('input', (e) => {
@@ -47032,7 +47034,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (!klucz || klucz === 'jozef') portret.style.display = 'none';
             else {
                 if (!wizerunekPatrona[klucz]) wizerunekPatrona[klucz] = WIZERUNKI_SWIETYCH.includes(klucz) ? klucz
-                    : WIZERUNKI_SWIETYCH[Math.floor(Math.random() * WIZERUNKI_SWIETYCH.length)];
+                    : (() => {
+                        const kobieta = sw.title.startsWith('Święta') || (klucz === 'aniol' && /a$/i.test(imie));
+                        const pula = WIZERUNKI_SWIETYCH.filter(w => WIZERUNKI_KOBIET.includes(w) === kobieta);
+                        return pula[Math.floor(Math.random() * pula.length)];
+                    })();
                 portret.style.display = 'block'; portret.src = 'graphics/swieci/' + wizerunekPatrona[klucz] + '.jpg';
             }
             document.getElementById('tytul-premie').innerHTML = sw
