@@ -18701,6 +18701,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             'jakub': { title: 'Święty Jakub Apostoł', bio: 'Apostoł, patron pielgrzymów, cel słynnej drogi do Santiago.', boost: { witalnosc: 2, zrecznosc: 1 } },
             'jan': { title: 'Święty Jan Apostoł', bio: 'Umiłowany uczeń Jezusa, autor Ewangelii i Apokalipsy.', boost: { madrosc: 2, charyzma: 1 } },
             'jerzy': { title: 'Święty Jerzy', bio: 'Rycerz-męczennik, według legendy pogromca smoka.', boost: { zrecznosc: 2, silaPsychiczna: 1 } },
+            'hubert': { title: 'Święty Hubert', bio: 'Myśliwy, który ujrzał krzyż w porożu jelenia; patron myśliwych i leśników.', boost: { zrecznosc: 2, witalnosc: 1 } },
+            'ireneusz': { title: 'Święty Ireneusz z Lyonu', bio: 'Biskup i obrońca wiary przed herezjami, uczeń ucznia świętego Jana.', boost: { madrosc: 2, silaPsychiczna: 1 } },
             'jozef': { title: 'Święty Józef', bio: 'Opiekun Świętej Rodziny, cieśla, patron pracujących.', boost: { witalnosc: 2, silaPsychiczna: 1 } },
             'kacper': { title: 'Święty Kacper', bio: 'Jeden z Trzech Mędrców ze Wschodu, złożył dar Dzieciątku Jezus.', boost: { madrosc: 2, charyzma: 1 } },
             'kamil': { title: 'Święty Kamil de Lellis', bio: 'Założyciel zakonu opiekującego się chorymi i umierającymi.', boost: { witalnosc: 3 } },
@@ -18771,6 +18773,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const norm = normalizeName(name);
             if (SAINTS_DB[norm]) return SAINTS_DB[norm];
             for (const key in SAINTS_DB) {
+                // Przybliżone dopasowanie nie może zmienić płci: Ireneusz to nie Irena
+                const zenskie = norm.endsWith('a'), swieta = SAINTS_DB[key].title.startsWith('Święta');
+                if (zenskie !== swieta) continue;
                 if (norm.length >= 4 && key.length >= 4 && (norm.startsWith(key.slice(0, 4)) || key.startsWith(norm.slice(0, 4)))) return SAINTS_DB[key];
             }
             return null;
@@ -47578,7 +47583,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             document.getElementById('name-prompt-input').focus();
         });
         // Pliki w graphics/swieci - imię patrona albo ogólny wizerunek
-        const WIZERUNKI_SWIETYCH = ['agnieszka', 'barbara', 'cecylia', 'franciszek', 'helena', 'hieronim', 'joanna', 'lowca',
+        const WIZERUNKI_SWIETYCH = ['agnieszka', 'barbara', 'cecylia', 'franciszek', 'helena', 'hieronim', 'joanna', 'hubert',
             'michal', 'piotr', 'rita', 'rycerz', 'rycerz_wlocznia', 'szlachcianka', 'wojciech', 'wojownik_skora', 'zakonnica', 'zielarka'];
         // Losowy wizerunek musi zgadzać się z płcią patrona
         const WIZERUNKI_KOBIET = ['agnieszka', 'barbara', 'cecylia', 'helena', 'joanna', 'rita', 'szlachcianka', 'zakonnica', 'zielarka'];
