@@ -36517,7 +36517,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 cien.scale.setScalar(1.2);
                 cien.traverse(o => { o.renderOrder = 2; });   // na kłębach, ale nadal półprzezroczysty
                 cien.userData = {
-                    t: Math.random(), v: (0.004 + Math.random() * 0.006) * (Math.random() < 0.5 ? -1 : 1),
+                    t: Math.random(), v: (0.0015 + Math.random() * 0.0025) * (Math.random() < 0.5 ? -1 : 1),
                     pas: 1.6 + Math.random() * 3.2, wys: 0.5 + Math.random() * 3, faza: Math.random() * 6.28
                 };
                 mglaSnuGrupa.add(cien);
@@ -36653,9 +36653,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             cienieWeMgle.forEach(c => {
                 const u = c.userData;
                 u.t = (u.t + u.v * dt + 1) % 1;
-                const p = obwodProstokata(u.t, polX + u.pas, polZ + u.pas);
-                const przod = obwodProstokata(u.t + Math.sign(u.v) * 0.002, polX + u.pas, polZ + u.pas);
-                c.position.set(p.x, u.wys + Math.sin(time * 0.0011 + u.faza) * 0.6, p.z);
+                // Płyną falą: kołyszą się w górę i w dół oraz na boki toru
+                const fala = Math.sin(time * 0.0006 + u.faza);
+                const pas = u.pas + Math.cos(time * 0.0004 + u.faza) * 1.2;
+                const p = obwodProstokata(u.t, polX + pas, polZ + pas);
+                const przod = obwodProstokata(u.t + Math.sign(u.v) * 0.002, polX + pas, polZ + pas);
+                c.position.set(p.x, u.wys + fala * 1.4, p.z);
                 c.rotation.y = Math.atan2(przod.x - p.x, przod.z - p.z);
                 c.rotation.z = Math.sin(time * 0.0007 + u.faza) * 0.12;
                 if (u.napis) {
