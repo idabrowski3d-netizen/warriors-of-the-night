@@ -496,6 +496,31 @@
         .izba h4 { margin: 0 0 5px; color: #e0c468; font-size: 15px; }
         .izba p { margin: 0; font-size: 12px; color: #a99f85; line-height: 1.45; }
         .izba .poziom { float: right; color: #8aa86a; font-size: 12px; }
+        /* Plan Ostoi: czyste tło dziedzińca, zbudowane izby kładziemy w ich polach */
+        #ostoja-box { max-width: 1240px !important; }
+        #ostoja-uklad { display: grid; grid-template-columns: 1.25fr 1fr; gap: 14px; align-items: start; }
+        body.mobilny #ostoja-uklad, #ostoja-uklad.waski { grid-template-columns: 1fr; }
+        #ostoja-mapa { position: relative; width: 100%; aspect-ratio: 655 / 520; background: url('graphics/ostoja/plan.jpg') center / 100% 100%; }
+        #ostoja-mapa .pole { position: absolute; cursor: pointer; box-sizing: border-box; border: 1px solid transparent; }
+        #ostoja-mapa .pole img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+        #ostoja-mapa .pole:hover { border-color: #c8a84a; box-shadow: 0 0 12px rgba(217, 180, 106, 0.5); }
+        #ostoja-mapa .pole.wybrane { border: 2px solid #f0cf7a; box-shadow: 0 0 16px rgba(240, 207, 122, 0.65); }
+        #ostoja-mapa .podpis { position: absolute; left: 0; right: 0; bottom: 4%; text-align: center; font-family: 'Cinzel', Georgia, serif;
+            font-size: clamp(9px, 1.15vw, 15px); color: #f1e3c4; text-shadow: 0 1px 4px #000, 0 0 8px #000; letter-spacing: 0.06em; }
+        .kropki { display: inline-flex; gap: 4px; vertical-align: middle; }
+        .kropki i { width: 9px; height: 9px; border-radius: 50%; border: 1px solid #c8a84a; display: inline-block; }
+        .kropki i.pelna { background: radial-gradient(circle at 35% 35%, #ffe7a3, #b58a2e); }
+        #ostoja-mapa .pasek { width: 70%; height: 6px; margin: 3px auto 0; border: 1px solid #7a6136; background: #120f0b; }
+        #ostoja-mapa .pasek b { display: block; height: 100%; background: linear-gradient(#e8c877, #9a7330); }
+        #ostoja-plan { margin-top: 10px; }
+        #ostoja-panel { background: linear-gradient(#17130e, #0e0c09); border: 1px solid #7a6136; box-shadow: inset 0 0 0 3px #0e0c09, inset 0 0 0 4px #3d3220; padding: 14px; min-height: 300px; }
+        #ostoja-naglowek { display: grid; grid-template-columns: 38% 1fr; gap: 12px; align-items: start; }
+        #ostoja-naglowek img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border: 1px solid #7a6136; display: block; }
+        #ostoja-naglowek img.niezbudowana { filter: grayscale(1) brightness(0.45); }
+        #ostoja-naglowek h3 { margin: 0 0 4px; font-family: 'Cinzel', Georgia, serif; color: #f1e3c4; font-size: 22px; letter-spacing: 0.06em; text-transform: uppercase; }
+        #ostoja-naglowek .poziom-izby { font-family: 'Cinzel', Georgia, serif; color: #e3c27a; margin: 6px 0; }
+        #ostoja-naglowek .opis-izby { grid-column: 1 / -1; color: #c8bfa4; font-size: 13px; line-height: 1.5; border-bottom: 1px solid #3d3220; padding-bottom: 10px; }
+        #ostoja-naglowek .dziala-izby { color: #9a8f70; font-size: 12px; font-style: italic; }
         #ostoja-opis { margin-top: 14px; font-size: 13px; color: #c8bfa4; min-height: 42px; line-height: 1.5; }
         .izba.trop { border-color: #a8644a; background: #221611; }
         .izba.trop:hover { border-color: #e08a5a; background: #2d1d16; }
@@ -1178,8 +1203,16 @@
         <div id="ostoja-box">
             <div id="stats-panel-title">Ostoja</div>
             <div id="ostoja-sub">Dom modlitwy i ćwiczenia. Tu przygotowujesz się do tego, co czeka w snach.</div>
-            <div id="ostoja-plan"></div>
-            <div id="ostoja-opis"></div>
+            <div id="ostoja-uklad">
+                <div id="ostoja-lewa">
+                    <div id="ostoja-mapa"></div>
+                    <div id="ostoja-plan"></div>
+                </div>
+                <div id="ostoja-panel">
+                    <div id="ostoja-naglowek"></div>
+                    <div id="ostoja-opis"></div>
+                </div>
+            </div>
             <button id="btn-close-ostoja" class="start-btn">Zamknij [O]</button>
         </div>
     </div>
@@ -45271,32 +45304,71 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                              `<p>${kartyRejestru.length ? 'Karty wyrwane z księgi Zakonu. Przeczytaj, co udało się złożyć.' : 'Pusty. Nie masz jeszcze ani jednej karty.'}</p>`;
             kRej.onclick = () => otworzRejestr();
             plan.appendChild(kRej);
+            const mapa = document.getElementById('ostoja-mapa');
+            mapa.innerHTML = '';
             Object.keys(IZBY).forEach(id => {
-                const def = IZBY[id], p = ostoja[id];
+                const def = IZBY[id], p = ostoja[id], [x0, y0, x1, y1] = POLA_OSTOI[id];
                 const buduje = ostojaBudowa && ostojaBudowa.izba === id;
                 const div = document.createElement('div');
-                div.className = 'izba' + (p === 0 && !buduje ? ' pusta' : '') + (buduje ? ' buduje' : '');
-                const zostalo = buduje ? Math.max(0, ostojaBudowa.gotoweDnia - dzienGry()) : 0;
-                div.innerHTML = `<h4>${def.nazwa}<span class="poziom">${buduje ? 'w budowie: ' + zostalo + ' dni' : (p > 0 ? 'poziom ' + p : 'brak')}</span></h4>` +
-                                `<p>${p > 0 ? def.dziala(p) : def.opis}</p>`;
+                div.className = 'pole' + (ostojaWybrana === id ? ' wybrane' : '');
+                Object.assign(div.style, { left: x0 / 6.55 + '%', top: y0 / 5.2 + '%', width: (x1 - x0) / 6.55 + '%', height: (y1 - y0) / 5.2 + '%' });
+                let dol = kropkiPoziomu(p, def.maxPoziom);
+                if (buduje) {
+                    const zostalo = Math.max(0, ostojaBudowa.gotoweDnia - dzienGry());
+                    const ulamek = 1 - zostalo / Math.max(1, def.dni(p));
+                    dol = `<div class="pasek"><b style="width:${Math.round(ulamek * 100)}%"></b></div>${zostalo} ${zostalo === 1 ? 'dzień' : 'dni'}`;
+                }
+                div.innerHTML = (p > 0 ? `<img src="graphics/ostoja/${id}.jpg" alt="">` : '') +
+                                `<div class="podpis">${def.nazwa}<br>${dol}</div>`;
+                div.title = p > 0 ? def.dziala(p) : def.opis;
                 div.onclick = () => klikIzba(id);
-                plan.appendChild(div);
+                mapa.appendChild(div);
             });
+            rysujNaglowekIzby();
             const op = document.getElementById('ostoja-opis');
             if (op) op.innerText = ostojaBudowa
                 ? `Trwa budowa: ${IZBY[ostojaBudowa.izba].nazwa}. Naraz można wznosić jedną izbę.`
                 : `Łaska: ${playerStats.grace}. Kliknij izbę, by ją wznieść lub rozbudować.`;
         }
 
+        // Pola izb na planie (piksele tła 655x520) - zgodne z graphics/ostoja/POLA.txt
+        const POLA_OSTOI = { kaplica: [68, 32, 233, 165], skryptorium: [248, 42, 405, 165], demonarium: [420, 42, 580, 165],
+                             zielarnia: [62, 173, 215, 293], dzwonnica: [471, 173, 586, 310],
+                             zbrojownia: [58, 303, 230, 425], golebnik: [405, 321, 586, 428] };
+        let ostojaWybrana = 'kaplica';
+        const kropkiPoziomu = (p, max) => '<span class="kropki">' +
+            Array.from({ length: max }, (_, i) => `<i class="${i < p ? 'pelna' : ''}"></i>`).join('') + '</span>';
+        // Nagłówek panelu: obraz, nazwa, poziom i przycisk budowy wybranej izby
+        function rysujNaglowekIzby() {
+            const n = document.getElementById('ostoja-naglowek');
+            if (!n) return;
+            const id = ostojaWybrana, def = IZBY[id], p = ostoja[id];
+            const buduje = ostojaBudowa && ostojaBudowa.izba === id;
+            let akcja = '';
+            if (buduje) akcja = `<div class="dziala-izby">W budowie - jeszcze ${Math.max(0, ostojaBudowa.gotoweDnia - dzienGry())} dni.</div>`;
+            else if (p < def.maxPoziom) akcja = `<button class="start-btn" id="btn-buduj-izbe" style="font-size:12px; padding:7px 12px;" ${ostojaBudowa ? 'disabled' : ''}>` +
+                `${p ? 'Rozbuduj' : 'Wznieś'} - ${def.koszt(p)} Łaski, ${def.dni(p)} dni</button>`;
+            n.innerHTML = `<img src="graphics/ostoja/${id}.jpg" class="${p ? '' : 'niezbudowana'}" alt="">` +
+                `<div><h3>${def.nazwa}</h3><div class="poziom-izby">Poziom ${p} / ${def.maxPoziom} ${kropkiPoziomu(p, def.maxPoziom)}</div>` +
+                (p ? `<div class="dziala-izby">${def.dziala(p)}</div>` : '') + akcja + '</div>' +
+                `<div class="opis-izby">${def.opis}</div>`;
+            const b = document.getElementById('btn-buduj-izbe');
+            if (b) b.onclick = () => rozbudujIzbe(id);
+        }
+
         function klikIzba(id) {
             const def = IZBY[id], p = ostoja[id];
             const op = document.getElementById('ostoja-opis');
+            ostojaWybrana = id;
+            document.querySelectorAll('#ostoja-mapa .pole').forEach((el, i) => el.classList.toggle('wybrane', Object.keys(IZBY)[i] === id));
+            rysujNaglowekIzby();
             // Gotowa Kaplica otwiera listę wyrzeczeń zamiast od razu proponować rozbudowę
             if (id === 'kaplica' && p > 0 && !ostojaBudowa) { pokazCwiczenia(); return; }
             if (id === 'demonarium' && p > 0 && !ostojaBudowa) { pokazDemonarium(); return; }
             if (id === 'zielarnia' && p > 0 && !ostojaBudowa) { pokazZielarnie(); return; }
-            if (ostojaBudowa) { op.innerText = `Najpierw dokończ budowę: ${IZBY[ostojaBudowa.izba].nazwa}.`; return; }
-            rozbudujIzbe(id);
+            op.innerText = ostojaBudowa && ostojaBudowa.izba !== id
+                ? `Trwa budowa: ${IZBY[ostojaBudowa.izba].nazwa}. Naraz można wznosić jedną izbę.`
+                : `Łaska: ${playerStats.grace}.`;
         }
 
         function rozbudujIzbe(id) {
