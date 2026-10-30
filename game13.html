@@ -895,6 +895,15 @@
         .ability-btn:hover:not(:disabled) { background: linear-gradient(#2e2922, #171411); border-color: #d9b46a; color: #fff3d6; }
         .ability-title { font-family: 'Cinzel', Georgia, serif; color: #e3c27a; letter-spacing: 0.04em; }
         .ability-desc { color: #a59f94; }
+        .ability-btn { display: flex; align-items: center; gap: 14px; }
+        .ability-ikona { flex: 0 0 auto; width: 40px; height: 40px; padding: 6px; box-sizing: border-box;
+            border: 1px solid #5a4a2c; background: #0d0b0a; fill: none; stroke: #e3c27a; stroke-width: 1.6;
+            stroke-linecap: round; stroke-linejoin: round; }
+        .ability-btn:disabled .ability-ikona { stroke: #6b6355; }
+        /* Opis misji: widać sam rodzaj, pełny opis po najechaniu */
+        #instructions:has(.opis-misji) { pointer-events: auto; cursor: help; }
+        #instructions .opis-misji { display: none; }
+        #instructions:hover .opis-misji { display: inline; }
         .start-btn { background: linear-gradient(#23201d, #121010); color: #e3c27a; border: 1px solid #7a6136; border-radius: 2px; font-family: 'Cinzel', Georgia, serif; letter-spacing: 0.05em; }
         .start-btn:hover { background: linear-gradient(#2e2922, #171411); color: #fff3d6; border-color: #d9b46a; box-shadow: 0 0 10px rgba(217, 180, 106, 0.45); }
 
@@ -21135,6 +21144,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }));
         }
 
+        // Ikonka podpowiadająca, co robi umiejętność
+        const IKONY_UMIEJETNOSCI = {
+            cross: '<path d="M12 3v18M7 8h10"/>',
+            levitate: '<circle cx="12" cy="4" r="2"/><path d="M12 7v6M8 10h8M10 16l2-3 2 3M4 21c2-1.5 4-1.5 6 0s4 1.5 6 0 4-1.5 4-1.5"/>',
+            stealth: '<path d="M3 11c3 4 15 4 18 0M7 14l-1.5 2M12 15v2.5M17 14l1.5 2"/>',
+            call: '<path d="M3 10v4h4l6 5V5L7 10zM17 9a4 4 0 0 1 0 6M20 6a8 8 0 0 1 0 12"/>',
+            angel: '<ellipse cx="12" cy="4" rx="5" ry="1.6"/><circle cx="12" cy="11" r="4"/><path d="M5 21c1-3.5 3.5-5 7-5s6 1.5 7 5"/>',
+            relikwia: '<path d="M6 3h12l3 6-9 12L3 9zM3 9h18M9 3l3 6 3-6M12 9v12"/>'
+        };
         function renderAbilitiesPanel() {
             const list = document.getElementById('abilities-list');
             list.innerHTML = '';
@@ -21146,8 +21164,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 btn.className = 'ability-btn';
                 const ok = ab.available(idx);
                 const left = active ? ab.usesLeft(active, idx) : 0;
-                btn.innerHTML = `<div class="ability-title">${ab.name}${ok ? ` — pozostało ${left}` : ' (zablokowana)'}</div>` +
-                                `<div class="ability-desc">${ab.describe(idx)}</div>`;
+                btn.innerHTML = `<svg class="ability-ikona" viewBox="0 0 24 24" aria-hidden="true">${IKONY_UMIEJETNOSCI[ab.id] || IKONY_UMIEJETNOSCI.relikwia}</svg>` +
+                                `<div><div class="ability-title">${ab.name}${ok ? ` — pozostało ${left}` : ' (zablokowana)'}</div>` +
+                                `<div class="ability-desc">${ab.describe(idx)}</div></div>`;
                 btn.disabled = !ok || left <= 0;
                 if (!btn.disabled) btn.addEventListener('click', () => {
                     document.getElementById('abilities-overlay').style.display = 'none';
@@ -22176,7 +22195,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             document.getElementById('ui-container').style.display = 'block';
             document.getElementById('controls').style.display = 'flex';
             document.getElementById('minimap-label').innerText = (currentCombatTheme ? currentCombatTheme.name.toUpperCase() : 'MISJA') + ' - ' + TIME_LABELS[currentTimeOfDay] + ' - ' + SEASON_LABELS[currentSeason];
-            document.getElementById('instructions').innerHTML = `<b>${missionTypeLabel(currentMissionType)}</b><br>${missionBriefing(currentMissionType)}`;
+            document.getElementById('instructions').innerHTML = `<b>${missionTypeLabel(currentMissionType)}</b><span class="opis-misji"><br>${missionBriefing(currentMissionType)}</span>`;
 
             initSleepingVitalBar();
             sleepingVitalSegments = data.sleepingVitalSegments;
@@ -29993,7 +30012,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             document.getElementById('ui-container').style.display = 'block'; 
             document.getElementById('controls').style.display = 'flex'; 
             document.getElementById('minimap-label').innerText = currentCombatTheme.name.toUpperCase() + ' - ' + TIME_LABELS[currentTimeOfDay];
-            document.getElementById('instructions').innerHTML = `<b>${missionTypeLabel(currentMissionType)}</b><br>${missionBriefing(currentMissionType)}`;
+            document.getElementById('instructions').innerHTML = `<b>${missionTypeLabel(currentMissionType)}</b><span class="opis-misji"><br>${missionBriefing(currentMissionType)}</span>`;
             document.getElementById('game-over-screen').style.display = 'none'; 
             document.getElementById('btn-turn').disabled = false; 
             updateUI("Zarządzaj oddziałem!");
