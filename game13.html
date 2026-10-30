@@ -781,7 +781,7 @@
             font-size: 10px !important; white-space: nowrap !important; width: auto !important;
         }
         body.mobilny #controls button.ma-ikone {
-            min-width: 44px !important; padding: 4px 5px !important; font-size: 9px !important; flex: 0 0 auto !important;
+            min-width: 40px !important; padding: 0 !important; font-size: 0 !important; flex: 0 0 auto !important;
         }
         body.mobilny #camera-rotate-controls { display: none !important; }
         body.mobilny .start-btn { min-height: 36px !important; font-size: 12px !important; }
@@ -848,7 +848,17 @@
             color: #f0d79a; border-color: #b8913f !important;
             box-shadow: inset 0 0 0 2px #0a0808, inset 0 0 0 3px #8a6b2c, 0 0 14px rgba(217, 160, 60, 0.25);
         }
-        body.mobilny #controls .ma-ikone { min-width: 44px; min-height: 44px; }
+        /* Wersja bez podpisów: same ikony, napis zostaje w podpowiedzi (title) */
+        #controls .ma-ikone, #camera-rotate-controls .ma-ikone {
+            min-width: 46px; min-height: 46px; width: 46px; height: 46px; padding: 0; font-size: 0 !important;
+        }
+        #controls .ma-ikone::before, #camera-rotate-controls .ma-ikone::before { width: 24px; height: 24px; }
+        #controls #btn-reserve.ma-ikone { position: relative; }
+        #controls #btn-reserve.ma-ikone[data-ile]:not([data-ile=""])::after {
+            content: attr(data-ile); position: absolute; top: 2px; right: 2px; min-width: 12px; padding: 2px 3px;
+            font: bold 10px/1 monospace; background: #1d4f8a; border: 1px solid #5d9be0; color: #e6f1ff;
+        }
+        body.mobilny #controls .ma-ikone { min-width: 40px; min-height: 40px; width: 40px; height: 40px; }
         body.mobilny #controls .ma-ikone::before { width: 20px; height: 20px; }
 
     </style>
@@ -46934,6 +46944,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (!b) return;
                 const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + ikony[id] + '</svg>';
                 b.style.setProperty('--ik', 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '")');
+                if (!b.title) b.title = (b.innerText || '').trim();
                 b.classList.add('ma-ikone');
             });
         })();
