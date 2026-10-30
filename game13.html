@@ -9152,7 +9152,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             terrainMeshes.forEach(m => { for(let j=0; j<m.count; j++) m.setMatrixAt(j, dummy.matrix); });
             
             let currentIdx = [0, 0, 0, 0, 0, 0];
-            dummy.scale.set(0.96, 1, 0.96); 
+            // Kafle stykają się bez szczelin - grunt ma wyglądać jednolicie, kratkę pokazuje tylko znacznik ruchu
+            dummy.scale.set(1, 1, 1);
             
             // Na Latających Wyspach pod otchłanią nie ma gruntu - wcześniej rysowała się
             // tam zwykła trawa, przez co cała mapa wyglądała na przechodnią.
