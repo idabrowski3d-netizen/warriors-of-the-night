@@ -979,6 +979,7 @@
             <div id="test-squad" class="test-grid"></div>
             <div id="test-current"></div>
             <button id="btn-test-start" class="start-btn" style="border-color:#66cc66;">▶ Uruchom misję testową</button>
+            <button id="btn-test-karta" class="start-btn">🖼 Podgląd kart snu</button>
             <div class="test-sub">Gry logiczne (uwalnianie serca)</div>
             <div id="test-zagadki" class="test-grid"></div>
             <div class="test-sub">Narzędzia w trakcie walki</div>
@@ -21536,6 +21537,41 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const se = forcedSeason || 'losowa';
             return `Plansza: ${th} | Misja: ${ms} | Pora: ${tm} / ${se} | Oddział: ${testSquadSize}`;
         }
+
+        // Podgląd kart snu: przegląd wszystkich plansz strzałkami, bez wchodzenia do misji
+        let podgladKarty = null;
+        function pokazPodgladKarty(i) {
+            const n = COMBAT_THEMES.length;
+            podgladKarty = (i + n) % n;
+            const t = COMBAT_THEMES[podgladKarty];
+            pendingDream = { themeId: t.id, mission: forcedMissionType, hard: podgladKarty % 2 === 1 };
+            renderStartScreenSquadOptions();
+            document.getElementById('start-title').innerText = `Podgląd ${podgladKarty + 1}/${n} · ← → zmiana · Esc zamyka · ${t.id}.jpg`;
+            Object.assign(document.getElementById('start-screen').style, { display: 'flex', zIndex: 120 });
+        }
+        function zamknijPodgladKarty() {
+            podgladKarty = null; pendingDream = null;
+            Object.assign(document.getElementById('start-screen').style, { display: 'none', zIndex: '' });
+        }
+        document.getElementById('btn-test-karta').addEventListener('click', () => {
+            const i = COMBAT_THEMES.findIndex(t => t.id === forcedThemeId);
+            pokazPodgladKarty(i < 0 ? 0 : i);
+        });
+        window.addEventListener('keydown', e => {
+            if (podgladKarty === null) return;
+            if (e.key === 'ArrowRight') pokazPodgladKarty(podgladKarty + 1);
+            else if (e.key === 'ArrowLeft') pokazPodgladKarty(podgladKarty - 1);
+            else if (e.key === 'Escape') zamknijPodgladKarty();
+            else return;
+            e.preventDefault(); e.stopImmediatePropagation();
+        }, true);
+        // W podglądzie przyciski oddziału i klik obok karty tylko zamykają podgląd
+        document.getElementById('start-screen').addEventListener('click', e => {
+            if (podgladKarty === null) return;
+            const naKarcie = e.target.closest('#karta-snu');
+            if (e.target.closest('.start-btn') || !naKarcie) { e.stopImmediatePropagation(); e.preventDefault(); zamknijPodgladKarty(); }
+            else pokazPodgladKarty(podgladKarty + 1);   // klik w kartę - następna (wygodne na telefonie)
+        }, true);
 
         function renderTestPanel() {
             const mk = (label, active, onClick, cls) => {
