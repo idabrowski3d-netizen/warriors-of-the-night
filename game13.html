@@ -905,30 +905,37 @@
         #instructions .opis-misji { display: none; }
         #instructions:hover .opis-misji { display: inline; }
         .start-btn { background: linear-gradient(#23201d, #121010); color: #e3c27a; border: 1px solid #7a6136; border-radius: 2px; font-family: 'Cinzel', Georgia, serif; letter-spacing: 0.05em; }
-        /* Karta snu - okno wejścia do misji */
-        #karta-snu { width: min(560px, 94vw); max-height: 94vh; overflow-y: auto; background: #0e0b12;
-            border: 1px solid #7a5fa0; box-shadow: 0 0 0 4px #0e0b12, 0 0 0 5px #4a3a62, 0 0 40px rgba(150, 100, 220, 0.35); }
-        #karta-snu-obraz { height: 220px; background: radial-gradient(ellipse at 50% 30%, #3a2a55, #0e0b12 75%); position: relative; }
+        /* Karta snu - okno wejścia do misji. Tło to gotowa grafika (scena + ramka karty),
+           a napisy i obraz miejsca kładziemy w procentach na jej puste pola */
+        #start-screen { background: #000 !important; }
+        #karta-snu-scena { position: relative; width: min(100vw, 100vh * 1672 / 941); aspect-ratio: 1672 / 941;
+            background: url('graphics/karta_snu_tlo.jpg') center / 100% 100% no-repeat; }
+        #karta-snu { position: absolute; left: 39.95%; top: 0; width: 50.36%; height: 98.3%; container-type: inline-size;
+            font-family: 'Cinzel', Georgia, serif; color: #e6dccb; }
+        #karta-snu > * { position: absolute; margin: 0; box-sizing: border-box; }
+        #karta-snu-obraz { left: 2.6%; width: 95%; top: 9.7%; height: 27.6%;
+            background: radial-gradient(ellipse at 50% 40%, #3a2a55, #0d0b10 75%); overflow: hidden; }
         #karta-snu-obraz img { width: 100%; height: 100%; object-fit: cover; display: block; }
-        #karta-snu-obraz::after { content: ''; position: absolute; inset: 0; background: linear-gradient(transparent 45%, #0e0b12); }
-        #karta-snu-tresc { padding: 0 28px 18px; margin-top: -56px; position: relative; text-align: left; }
-        #start-screen #start-title { font-size: 12px; margin: 0; color: #b89be0 !important; letter-spacing: 0.25em; }
-        #karta-snu-plansza { font-family: 'Cinzel', Georgia, serif; font-size: 30px; color: #f1e3c4; margin: 2px 0 12px; text-shadow: 0 2px 8px #000; }
-        #start-info { color: #c9c0d6; font-size: 15px; line-height: 1.5; }
-        .karta-snu-znaczniki { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-        .karta-snu-znaczniki span { border: 1px solid #7a6136; color: #e3c27a; padding: 4px 12px; border-radius: 3px; font-size: 13px; background: #17131b; }
-        .karta-snu-znaczniki span.ciezki { border-color: #9a6fd0; color: #c9a6ff; }
-        .karta-snu-koszt { text-align: center; border-top: 1px solid #3a2f48; border-bottom: 1px solid #3a2f48; padding: 6px; color: #e3c27a; }
-        .karta-snu-koszt small { color: #8a8096; }
-        #karta-snu-wybor { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-top: 16px; }
-        #karta-snu-wybor .start-btn { padding: 12px 8px; font-size: 15px; }
-        #karta-snu-wybor .start-btn:hover { border-color: #b48ae8; box-shadow: 0 0 14px rgba(170, 120, 240, 0.55); }
-        #karta-snu-portrety { display: flex; justify-content: center; gap: 14px; margin-top: 16px; }
-        #karta-snu-portrety .portret { width: 96px; text-align: center; transition: 0.2s; }
-        #karta-snu-portrety .portret.nie { opacity: 0.25; filter: grayscale(1); }
-        #karta-snu-portrety img { width: 96px; height: 98px; object-fit: cover; display: block; }
-        #karta-snu-portrety span { display: block; font-size: 11px; color: #c9c0d6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        #karta-snu-stopka { text-align: center; color: #6e6480; font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; margin-top: 14px; font-family: 'Cinzel', Georgia, serif; }
+        #karta-snu-obraz::after { content: ''; position: absolute; inset: 0; background: linear-gradient(transparent 55%, #0d0b10); }
+        #karta-snu #start-title { left: 7%; top: 29.5%; font-size: 1.5cqw; color: #b89be0 !important; letter-spacing: 0.25em; text-transform: uppercase; }
+        #karta-snu-plansza { left: 7%; right: 5%; top: 31.3%; font-size: 4.6cqw; color: #f1e3c4; text-shadow: 0 2px 8px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ks-znacznik { top: 39.4%; height: 4.1%; display: flex; align-items: center; padding-left: 6.6cqw; font-size: 1.55cqw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #ks-misja { left: 8.3%; width: 17.1%; color: #e3b36a; }
+        #ks-trudnosc { left: 27%; width: 21.9%; color: #c9a6ff; }
+        #start-info { left: 7%; width: 86%; top: 46.4%; height: 8.6%; font-family: Georgia, serif; font-size: 2.1cqw; line-height: 1.45; color: #c9c0d6; overflow: hidden; }
+        #ks-koszt-l, #ks-koszt-p { top: 55.4%; height: 3.6%; display: flex; align-items: center; font-size: 2.3cqw; color: #e3c27a; }
+        #ks-koszt-l { right: 55%; } #ks-koszt-p { left: 52.5%; }
+        #ks-koszt-p small { color: #8a8096; font-size: 1.6cqw; margin-left: 0.8cqw; }
+        #karta-snu-portrety { inset: 0; pointer-events: none; }
+        #karta-snu-portrety .portret { position: absolute; top: 61.1%; width: 18.05%; height: 16.9%; transform: translateX(-50%); pointer-events: auto; cursor: pointer; transition: 0.2s; }
+        #karta-snu-portrety .portret img { width: 100%; height: 100%; display: block; }
+        #karta-snu-portrety .portret.nie { opacity: 0.35; filter: grayscale(1); }
+        .ks-przycisk { top: 81.1%; height: 8.4%; background: none; border: 0; cursor: pointer; font-family: inherit; font-size: 2.9cqw; color: #e6dccb; }
+        .ks-przycisk:hover { color: #fff; text-shadow: 0 0 10px rgba(200, 160, 255, 0.9); }
+        #ks-wyjdz { left: 6.4%; width: 39.5%; }
+        #ks-wejdz { left: 47.7%; width: 46.9%; padding-left: 9cqw; color: #e9d8ff; }
+        #karta-snu-wybor { display: none; }
+        #karta-snu-stopka { left: 0; right: 0; top: 91.6%; text-align: center; color: #6e6480; font-size: 1.3cqw; letter-spacing: 0.3em; text-transform: uppercase; }
         .start-btn:hover { background: linear-gradient(#2e2922, #171411); color: #fff3d6; border-color: #d9b46a; box-shadow: 0 0 10px rgba(217, 180, 106, 0.45); }
 
     </style>
@@ -1087,13 +1094,17 @@
     </div>
 
     <div id="start-screen">
-      <div id="karta-snu">
+      <div id="karta-snu-scena"><div id="karta-snu">
         <div id="karta-snu-obraz"><img id="karta-snu-img" alt="" onerror="this.style.display='none'"></div>
-        <div id="karta-snu-tresc">
         <div id="start-title">Misja we śnie</div>
         <div id="karta-snu-plansza"></div>
+        <div id="ks-misja" class="ks-znacznik"></div>
+        <div id="ks-trudnosc" class="ks-znacznik"></div>
         <div id="start-info"></div>
+        <div id="ks-koszt-l">Koszt:</div><div id="ks-koszt-p"></div>
         <div id="karta-snu-portrety"></div>
+        <button id="ks-wyjdz" class="ks-przycisk">Wyjdź</button>
+        <button id="ks-wejdz" class="ks-przycisk">Wejdź do snu</button>
         <div id="karta-snu-wybor">
             <button class="start-btn" data-count="1">1 Wojownik</button>
             <button class="start-btn" data-count="2">2 Wojowników</button>
@@ -1101,7 +1112,8 @@
             <button class="start-btn" data-count="4">4 Wojowników</button>
         </div>
         <div id="karta-snu-stopka">Niektóre sny ratują życie</div>
-        </div>
+      </div></div>
+    </div>
       </div>
     </div>
 
@@ -24148,10 +24160,25 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             heroSavedPosition = { x: hero.mesh.position.x, z: hero.mesh.position.z };
             dreamTransitionPending = true; // zatrzymuje ruch bohatera i cienie, dopóki nie wybierzemy oddziału
             pendingRecruitSlot = getNextRecruitSlot();
+            kartaZWejscia = true; kartaSnuWybor = 0;
             renderStartScreenSquadOptions();
             document.getElementById('start-screen').style.display = 'flex';
         }
 
+        let kartaSnuWybor = 0, kartaZWejscia = false;   // ilu idzie do snu; czy kartę otwarto wejściem (można wyjść)
+        document.getElementById('ks-wejdz').addEventListener('click', () => {
+            const b = document.querySelector(`#start-screen .start-btn[data-count="${kartaSnuWybor}"]`);
+            if (podgladKarty === null) kartaZWejscia = false;
+            if (b) b.click();
+        });
+        // Wyjście ze snu przed wyborem: Łaska wraca, bohater zostaje w mieście
+        document.getElementById('ks-wyjdz').addEventListener('click', () => {
+            if (!kartaZWejscia || podgladKarty !== null) return;
+            kartaZWejscia = false;
+            playerStats.grace += 10; updatePlayerStatsUI();
+            dreamTransitionPending = false; pendingRecruitSlot = null; pendingDream = null;
+            document.getElementById('start-screen').style.display = 'none';
+        });
         function renderStartScreenSquadOptions() {
             const maxSquad = getMaxSquadSize();
             document.querySelectorAll('#start-screen .start-btn').forEach(btn => {
@@ -24175,22 +24202,30 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             img.style.display = themeId ? '' : 'none';
             if (themeId) img.src = 'graphics/sny/' + themeId + '.jpg';
             document.getElementById('karta-snu-plansza').textContent = plansza === 'losowa' ? 'Nieznane miejsce' : plansza;
-            document.getElementById('start-info').innerHTML =
-                `<div class="karta-snu-znaczniki"><span>${misja ? missionTypeLabel(misja) : 'Misja losowa'}</span>` +
-                (d ? `<span class="${d.hard ? 'ciezki' : ''}">${d.hard ? 'Ciężki sen' : 'Zwykły sen'}</span>` : '') + `</div>` +
-                (d ? `<div class="karta-snu-koszt">Koszt: <b>✦ 10 Łaski</b> <small>(zostało: ${playerStats.grace})</small></div>` : '');
-            // Portrety oddziału: bohater i zwerbowani w kolejności wysyłania, dalej puste miejsce
+            document.getElementById('ks-misja').textContent = misja ? missionTypeLabel(misja) : 'Misja losowa';
+            document.getElementById('ks-trudnosc').textContent = d && d.hard ? 'Ciężki sen' : 'Zwykły sen';
+            document.getElementById('start-info').textContent = misja ? missionBriefing(misja)
+                : 'Ktoś śni i woła o pomoc. Nie wiadomo jeszcze, co czeka po drugiej stronie snu.';
+            document.getElementById('ks-koszt-p').innerHTML = d ? `10 Łaski <small>(zostało: ${playerStats.grace})</small>` : 'opłacone';
+            // Portrety oddziału na czterech polach karty: bohater i zwerbowani, reszta pól to puste miejsce.
+            // Klik w portret wybiera, ilu idzie do snu.
             const PORTRET = { uzdrowiciel: 'uzdrowiciel', snajper: 'snajper' };
-            const portrety = [{ name: playerName || 'Bohater', class: 'uniwersalna' }].concat(recruitedWarriors)
-                .map(w => `<div class="portret" title="${w.name}"><img src="graphics/portrety/${PORTRET[w.class] || 'wojownik'}.jpg" alt=""><span>${w.name}</span></div>`);
-            if (pendingRecruitSlot && portrety.length < 4) portrety.push('<div class="portret puste" title="Ktoś nieznany czeka we śnie"><img src="graphics/portrety/puste.jpg" alt=""><span>?</span></div>');
+            const oddzial = [{ name: playerName || 'Bohater', class: 'uniwersalna' }].concat(recruitedWarriors).slice(0, maxSquad);
+            if (!(kartaSnuWybor >= 1 && kartaSnuWybor <= maxSquad)) kartaSnuWybor = maxSquad;
             const rzad = document.getElementById('karta-snu-portrety');
-            rzad.innerHTML = portrety.join('');
-            // Najechanie na przycisk podświetla tych, którzy pójdą do snu
-            document.querySelectorAll('#start-screen .start-btn').forEach(btn => {
-                btn.onmouseenter = () => [...rzad.children].forEach((el, i) => el.classList.toggle('nie', i >= +btn.dataset.count));
-                btn.onmouseleave = () => [...rzad.children].forEach(el => el.classList.remove('nie'));
+            rzad.innerHTML = [18.8, 39.7, 60.6, 81.8].map((x, i) => {
+                const w = oddzial[i];
+                const nieznajomy = !w && pendingRecruitSlot && i === oddzial.length;
+                const plik = w ? (PORTRET[w.class] || 'wojownik') : 'puste';
+                const opis = w ? w.name : (nieznajomy ? 'Ktoś nieznany czeka we śnie' : 'Wolne miejsce');
+                return `<div class="portret${w && i >= kartaSnuWybor ? ' nie' : ''}" data-i="${i}" title="${opis}" style="left:${x}%"><img src="graphics/portrety/${plik}.jpg" alt=""></div>`;
+            }).join('');
+            rzad.querySelectorAll('.portret').forEach(el => el.onclick = () => {
+                const i = +el.dataset.i;
+                if (i < oddzial.length) { kartaSnuWybor = i + 1; renderStartScreenSquadOptions(); }
             });
+            document.getElementById('ks-wejdz').textContent = `Wejdź do snu (${kartaSnuWybor})`;
+            document.getElementById('ks-wyjdz').style.visibility = kartaZWejscia ? '' : 'hidden';
             const titleEl = document.getElementById('start-title');
             if (pendingRecruitSlot) {
                 titleEl.innerText = 'Misja we śnie - dziwna obecność...';
