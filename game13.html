@@ -46983,17 +46983,27 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 'btn-ziolo-wyciag': '<path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/>',
                 'btn-ziolo-sokoleOko': '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'
             };
+            const IKONA_WSTAN = '<path d="M12 20V10M7 15l5-5 5 5M4 4h16"/>';
             Object.keys(ikony).forEach(id => {
                 const b = document.getElementById(id);
                 if (!b) return;
-                const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + ikony[id] + '</svg>';
-                b.style.setProperty('--ik', 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '")');
+                const ustawIkone = ksztalt => {
+                    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + ksztalt + '</svg>';
+                    b.style.setProperty('--ik', 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '")');
+                };
+                ustawIkone(ikony[id]);
                 if (!b.title) b.title = (b.innerText || '').trim();
                 // Licznik z napisu, np. "Balsam (2)", trafia do znaczka w rogu
                 if (id !== 'btn-reserve') {
                     const licz = () => {
                         const m = b.textContent.match(/\((\d+)\)/);
                         b.dataset.ile = m ? m[1] : '';
+                        // Przyklęknięty wojownik widzi ikonę wstawania
+                        if (id === 'btn-kneel') {
+                            const wstan = /Wstań/.test(b.textContent);
+                            ustawIkone(wstan ? IKONA_WSTAN : ikony[id]);
+                            b.title = wstan ? 'Wstań' : 'Przyklęknij';
+                        }
                     };
                     licz();
                     new MutationObserver(licz).observe(b, { childList: true, characterData: true, subtree: true });
