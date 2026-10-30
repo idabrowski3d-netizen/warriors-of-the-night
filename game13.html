@@ -12921,8 +12921,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return polozonych;
         }
 
-        // Dziedziniec i izby Ostoi. Jednolity chodnik na całym dziedzińcu wyglądał
-        // jak linoleum - teraz jest bruk, a na nim wydeptane łaty i kałuże.
+        // Dziedziniec i izby Ostoi: dziedziniec bruk, każda izba własna posadzka.
         function ozdobPodlogiOstoi() {
             if (!currentCombatTheme || currentCombatTheme.id !== 'ostoja') return 0;
             if (typeof ostojaIzbyNaPlanszy === 'undefined') return 0;
@@ -12931,27 +12930,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const M = OSTOJA_MUR - 1;
             polozPlatPodlogi(-M, -M, M, M, 'bruk', getTerrainY(0, 0), 0, true);
             polozonych++;
-            // 2. Izby mają pierwszeństwo - ich posadzka zajmuje pola, zanim
-            // zaczniemy rozsypywać łaty po dziedzińcu.
+            // 2. Posadzka należy do izby - każda izba ma swoją, cały dziedziniec bruk.
+            // Wcześniej po dziedzińcu rozsypane były łaty innych posadzek i ziemia
+            // wyglądała jak połatana, bez związku z pomieszczeniami.
+            // Izba jeszcze niezbudowana dostaje starte płyty fundamentu.
             ostojaIzbyNaPlanszy.forEach(iz => {
-                if (!iz.poziom || iz.x0 === undefined) return;
+                if (iz.x0 === undefined) return;
+                const rodzaj = iz.poziom ? (POSADZKI_IZB[iz.id] || 'plyty') : 'wytarte';
                 if (polozPlatPodlogi(iz.x0 + 1, iz.z0 + 1, iz.x1 - 1, iz.z1 - 1,
-                        POSADZKI_IZB[iz.id] || 'plyty', getTerrainY(iz.x, iz.z), 2)) polozonych++;
+                        rodzaj, getTerrainY(iz.x, iz.z), 2)) polozonych++;
             });
-            // 3. Wydeptane ścieżki i łaty - deterministycznie, żeby nie migotały
-            for (let i = 0; i < 26; i++) {
-                const kat = (i * 2.399963);                       // kąt złoty - równo rozsiane
-                const r = 3 + ((i * 7) % (M - 4));
-                const cx = Math.round(Math.cos(kat) * r), cz = Math.round(Math.sin(kat) * r);
-                const bok = 2 + (i % 3);
-                if (Math.abs(cx) + bok > M || Math.abs(cz) + bok > M) continue;
-                // Łata nie może wejść w izbę - tam jest własna posadzka
-                const wIzbie = ostojaIzbyNaPlanszy.some(iz => cx >= iz.x0 - 1 && cx <= iz.x1 + 1 &&
-                                                              cz >= iz.z0 - 1 && cz <= iz.z1 + 1);
-                if (wIzbie) continue;
-                if (polozPlatPodlogi(cx - bok, cz - bok, cx + bok, cz + bok,
-                        (i % 2 === 0) ? 'wytarte' : 'plyty', getTerrainY(cx, cz), 1)) polozonych++;
-            }
             return polozonych;
         }
         // Wariant pola. Najpierw ozdoba - ona ma pierwszeństwo, bo wyznacza rytm
