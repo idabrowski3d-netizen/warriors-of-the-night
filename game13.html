@@ -780,11 +780,8 @@
             min-height: 30px !important; padding: 3px 6px !important;
             font-size: 10px !important; white-space: nowrap !important; width: auto !important;
         }
-        /* Ikony muszą mieć dokładnie szerokość jednej ikony z arkusza - szerszy przycisk
-           pokazywał kilka sąsiednich ikon naraz i wyglądało to jak podwojenie */
         body.mobilny #controls button.ma-ikone {
-            width: 36px !important; height: 40px !important; min-height: 0 !important;
-            padding: 0 !important; font-size: 0 !important; flex: 0 0 auto !important;
+            min-width: 44px !important; padding: 4px 5px !important; font-size: 9px !important; flex: 0 0 auto !important;
         }
         body.mobilny #camera-rotate-controls { display: none !important; }
         body.mobilny .start-btn { min-height: 36px !important; font-size: 12px !important; }
@@ -801,65 +798,16 @@
 
 
         /* ================= IKONY PRZYCISKÓW =================
-           Arkusz graphics/ikony_small.png (1200x81, 15 ikon). Ikony NIE są
-           rozmieszczone równomiernie - pozycje pochodzą z pomiaru pliku.
-           Wysokość przycisku = pełna wysokość ikony (nic nie jest ucinane),
-           szerokość = najmniejszy odstęp, więc sąsiedzi wypadają poza kadr. */
+           Ikony wektorowe (maska SVG w --ik, ustawiana w skrypcie na końcu pliku).
+           Napis przycisku zostaje jako podpis pod ikoną - gra może go dowolnie zmieniać. */
         .ma-ikone {
-            width: 42.0px !important; height: 48px !important;
-            padding: 0 !important; border: none !important;
-            background-color: transparent !important;
-            background-image: url('graphics/ikony_small.png') !important;
-            background-repeat: no-repeat !important;
-            background-size: 711.1px 48.0px !important;
-            font-size: 0 !important; color: transparent !important;
-            overflow: hidden; flex: 0 0 auto;
-            transition: filter 0.12s, transform 0.12s;
+            display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 4px; min-width: 64px; padding: 6px 8px 5px; font-size: 11px; line-height: 1.1;
+            border-radius: 6px; flex: 0 0 auto;
         }
-        /* Domyślna reguła przycisków używa SKRÓTU "background", który kasuje
-           także obrazek tła - dlatego ikona znikała przy najechaniu.
-           Tu przywracamy go jawnie razem z pozostałymi właściwościami. */
-        .ma-ikone:hover:not(:disabled),
-        .ma-ikone:focus:not(:disabled) {
-            background-image: url('graphics/ikony_small.png') !important;
-            background-color: transparent !important;
-            background-repeat: no-repeat !important;
-            color: transparent !important;
-            outline: none;
-            filter: brightness(1.45) drop-shadow(0 0 6px rgba(140,210,255,0.85));
-            transform: scale(1.08);
-        }
-        .ma-ikone:active:not(:disabled) {
-            background-image: url('graphics/ikony_small.png') !important;
-            background-color: transparent !important;
-            filter: brightness(1.7); transform: scale(0.94);
-        }
-        .ma-ikone:disabled { filter: grayscale(0.85) brightness(0.5); }
-
-
-
-
-        #btn-next.ma-ikone { background-position: -3.0px center !important; }
-        #btn-kneel.ma-ikone { background-position: -48.0px center !important; }
-        #btn-reserve.ma-ikone { background-position: -92.2px center !important; }
-        #btn-melee.ma-ikone { background-position: -134.9px center !important; }
-        #btn-abilities.ma-ikone { background-position: -178.1px center !important; }
-        #btn-end-soldier-turn.ma-ikone { background-position: -222.9px center !important; }
-        #btn-turn.ma-ikone { background-position: -266.7px center !important; }
-        #btn-save-combat.ma-ikone { background-position: -312.3px center !important; }
-        #btn-ucieczka.ma-ikone { background-position: -358.0px center !important; }
-        #btn-shield.ma-ikone { background-position: -403.3px center !important; }
-        #btn-heal.ma-ikone { background-position: -446.6px center !important; }
-        #btn-level-up.ma-ikone { background-position: -526.6px center !important; }
-        #btn-level-down.ma-ikone { background-position: -570.1px center !important; }
-        #btn-left.ma-ikone { background-position: -620.2px center !important; }
-        #btn-right.ma-ikone { background-position: -667.0px center !important; }
-
-        #btn-reserve.ma-ikone { position: relative; }
-        #btn-reserve.ma-ikone::after {
-            content: attr(data-ile);
-            position: absolute; right: 0; bottom: -1px;
-            font-size: 12px; color: #cfe9ff; text-shadow: 0 1px 3px #000;
+        .ma-ikone::before {
+            content: ''; width: 24px; height: 24px; background: currentColor;
+            -webkit-mask: var(--ik) center / contain no-repeat; mask: var(--ik) center / contain no-repeat;
         }
 
         /* Koszt akcji w PA (data-ap) - znaczek w rogu. Ikony mają font-size 0, więc rozmiar podany wprost */
@@ -875,25 +823,6 @@
         /* Grupy na pasku: akcje | koniec ruchu i tury | zapis i ucieczka */
         #btn-end-soldier-turn, #btn-save-combat { margin-left: 18px; }
 
-        body.mobilny #btn-next.ma-ikone { background-position: -2.5px center !important; }
-        body.mobilny #btn-kneel.ma-ikone { background-position: -40.0px center !important; }
-        body.mobilny #btn-reserve.ma-ikone { background-position: -76.8px center !important; }
-        body.mobilny #btn-melee.ma-ikone { background-position: -112.4px center !important; }
-        body.mobilny #btn-abilities.ma-ikone { background-position: -148.4px center !important; }
-        body.mobilny #btn-end-soldier-turn.ma-ikone { background-position: -185.7px center !important; }
-        body.mobilny #btn-turn.ma-ikone { background-position: -222.3px center !important; }
-        body.mobilny #btn-save-combat.ma-ikone { background-position: -260.3px center !important; }
-        body.mobilny #btn-ucieczka.ma-ikone { background-position: -298.3px center !important; }
-        body.mobilny #btn-shield.ma-ikone { background-position: -336.1px center !important; }
-        body.mobilny #btn-heal.ma-ikone { background-position: -372.1px center !important; }
-        body.mobilny #btn-level-up.ma-ikone { background-position: -438.8px center !important; }
-        body.mobilny #btn-level-down.ma-ikone { background-position: -475.1px center !important; }
-        body.mobilny #btn-left.ma-ikone { background-position: -516.8px center !important; }
-        body.mobilny #btn-right.ma-ikone { background-position: -555.8px center !important; }
-        body.mobilny .ma-ikone {
-            width: 35.0px !important; height: 40px !important;
-            background-size: 592.6px 40.0px !important;
-        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
@@ -46942,31 +46871,42 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (d) d.addEventListener('change', () => { window.__pokazDrazek = d.checked; });
         })();
 
-        // Ikony na przyciskach - tylko jeśli arkusz faktycznie się wczyta.
-        // Gdy pliku brakuje, zostają dotychczasowe napisy.
+        // Ikony na przyciskach: kształt SVG jako maska, napis zostaje podpisem pod ikoną
         (function () {
-            const mapaIkon = {
-                'btn-next': 1, 'btn-kneel': 2, 'btn-reserve': 3, 'btn-melee': 4,
-                'btn-abilities': 5, 'btn-end-soldier-turn': 6, 'btn-turn': 7,
-                'btn-save-combat': 8, 'btn-ucieczka': 9, 'btn-shield': 10, 'btn-heal': 11,
-                'btn-level-up': 12, 'btn-level-down': 13, 'btn-left': 14, 'btn-right': 15
+            const ikony = {
+                'btn-next': '<circle cx="9" cy="7" r="3"/><path d="M3 20c0-4 3-6 6-6s6 2 6 6M16 12h6m-3-3 3 3-3 3"/>',
+                'btn-kneel': '<path d="M12 4v10M7 9l5 5 5-5M4 20h16"/>',
+                'btn-reserve': '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3M12 14v3"/>',
+                'btn-melee': '<path d="M4 4l12 12M20 4 8 16M14 18l4-4M10 18l-4-4M17 17l3 3M7 17l-3 3"/>',
+                'btn-heal': '<path d="M12 20s-8-5-8-11a4.5 4.5 0 0 1 8-2.5A4.5 4.5 0 0 1 20 9c0 6-8 11-8 11zM12 9v6M9 12h6"/>',
+                'btn-shield': '<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/>',
+                'btn-abilities': '<path d="M4 5c3-1 5-1 8 1 3-2 5-2 8-1v14c-3-1-5-1-8 1-3-2-5-2-8-1zM12 6v14"/>',
+                'btn-left': '<path d="M4 4v6h6M4 10a8 8 0 1 1 2 6"/>',
+                'btn-right': '<path d="M20 4v6h-6M20 10a8 8 0 1 0-2 6"/>',
+                'btn-level-up': '<path d="M3 20h5v-5h5v-5h5V5h3"/>',
+                'btn-level-down': '<path d="M3 5h5v5h5v5h5v5h3"/>',
+                'btn-end-soldier-turn': '<path d="M5 21V4h11l-2 4 2 4H5"/>',
+                'btn-turn': '<path d="M6 3h12M6 21h12M7 3v2l5 7-5 7v2M17 3v2l-5 7 5 7v2"/>',
+                'btn-save-combat': '<path d="M5 3h11l3 3v15H5zM8 3v5h7V3M8 21v-7h8v7"/>',
+                'btn-ucieczka': '<path d="M14 4H5v16h9M10 12h11M18 9l3 3-3 3"/>',
+                // Propozycje dla przycisków, które dotąd nie miały ikon
+                'btn-ocuc': '<circle cx="5" cy="13" r="2"/><path d="M3 19h12M8 16h6M18 20V8M15 11l3-3 3 3"/>',
+                'btn-telekineza': '<circle cx="12" cy="9" r="4"/><path d="M6 21l3-6M18 21l-3-6M12 21v-6M4 9H2M22 9h-2"/>',
+                'btn-zapalajacy': '<path d="M12 3c1 4 6 6 6 11a6 6 0 0 1-12 0c0-3 2-4 3-6 1 2 2 2 3 2 0-3-1-5 0-7z"/>',
+                'btn-mrozacy': '<path d="M12 2v20M3.5 7l17 10M20.5 7l-17 10M9 4l3 2 3-2M9 20l3-2 3 2"/>',
+                'btn-zadanie': '<path d="M12 3c1 2 2 3 0 5-2-2-1-3 0-5zM9 10h6v11H9zM6 21h12"/>',
+                'btn-pochodnia': '<path d="M12 3c2 2 3 3 3 5a3 3 0 0 1-6 0c0-2 1-3 3-5zM9 11h6l-2 10h-2z"/>',
+                'btn-ziolo-balsam': '<path d="M8 4h8M9 4v3H7v13h10V7h-2V4M7 12h10"/>',
+                'btn-ziolo-wyciag': '<path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/>',
+                'btn-ziolo-sokoleOko': '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'
             };
-            const probny = new Image();
-            probny.onload = () => {
-                Object.keys(mapaIkon).forEach(id => {
-                    const b = document.getElementById(id);
-                    if (!b) return;
-                    // Napis wędruje do podpowiedzi - na przycisku zostaje sama ikona
-                    if (!b.title) b.title = (b.innerText || '').replace(/\s*\[.*?\]/, '').trim();
-                    b.classList.add('ma-ikone');
-                });
-                window.__ikonyGotowe = true;
-                console.info('[ikony] Arkusz wczytany - przyciski mają ikony.');
-            };
-            probny.onerror = () => {
-                console.info('[ikony] Brak graphics/ikony_small.png - przyciski zostają z samymi napisami.');
-            };
-            probny.src = 'graphics/ikony_small.png';
+            Object.keys(ikony).forEach(id => {
+                const b = document.getElementById(id);
+                if (!b) return;
+                const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + ikony[id] + '</svg>';
+                b.style.setProperty('--ik', 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '")');
+                b.classList.add('ma-ikone');
+            });
         })();
 
         wlaczSterowanieDotykiem();
