@@ -36403,6 +36403,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // granicą dosłownie: kto w nią wejdzie, ten się wybudzi i opuści misję.
         let mglaSnuGrupa = null;
         let mglaSnuKlebki = [];
+        let cienieWeMgle = [];            // sylwetki przelatujące przez mgłę
+        let nastepnySzept = 0, ostatniCzasMgly = 0;
+        const SZEPTY = ['...wróć...', '...zostań z nami...', '...słyszymy cię...', '...on cię okłamuje...',
+                        '...ilu już tu zostało...', '...obudź się...', '...nie patrz za siebie...', '...to nie twój sen...'];
         const MGLA_WARSTWY = 3;           // ile pierścieni kłębów w głąb
         const MGLA_WYSOKOSC = 7;          // jak wysoko sięga ściana mgły
         const MGLA_GESTOSC = 2.6;         // kłąb na tyle pól obwodu
@@ -36434,6 +36438,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
             mglaSnuGrupa = null;
             mglaSnuKlebki = [];
+            cienieWeMgle = [];
         }
 
         // Barwa mgły idzie za mgłą sceny - inaczej na każdej planszy byłaby
@@ -36490,6 +36495,40 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     mglaSnuKlebki.push(klab);
                 }
             }
+            // Cienie nieznanych postaci krążą w mgle - widać tylko sylwetkę
+            const matCienia = new THREE.MeshBasicMaterial({ color: 0x07070c, transparent: true, opacity: 0.6, depthWrite: false, fog: false });
+            const matOczu = new THREE.MeshBasicMaterial({ color: 0xd8e2ff, transparent: true, opacity: 0.85, fog: false });
+            const ileCieni = trybOszczedny ? 3 : 6;
+            for (let i = 0; i < ileCieni; i++) {
+                const cien = new THREE.Group();
+                const szata = new THREE.Mesh(new THREE.ConeGeometry(0.55, 2.2, 8, 1, true), matCienia);
+                szata.position.y = 1.1;
+                const glowa = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6), matCienia);
+                glowa.position.y = 2.35;
+                // Ramiona opadają wzdłuż szaty, lekko odchylone - jak rękawy na wietrze
+                [-1, 1].forEach(st => {
+                    const rek = new THREE.Mesh(new THREE.ConeGeometry(0.16, 1.3, 6, 1, true), matCienia);
+                    rek.position.set(st * 0.42, 1.45, 0);
+                    rek.rotation.z = st * 0.45;
+                    cien.add(rek);
+                });
+                // Blade oczy - na ciemnej mgle sama czerń by zginęła
+                [-0.11, 0.11].forEach(ox => {
+                    const oko = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 4), matOczu);
+                    oko.position.set(ox, 2.38, 0.27);
+                    cien.add(oko);
+                });
+                cien.add(szata, glowa);
+                cien.scale.setScalar(2.2);
+                cien.traverse(o => { o.renderOrder = 2; });   // na kłębach, ale nadal półprzezroczysty
+                cien.userData = {
+                    t: Math.random(), v: (0.004 + Math.random() * 0.006) * (Math.random() < 0.5 ? -1 : 1),
+                    pas: 1.6 + Math.random() * 3.2, wys: 0.5 + Math.random() * 3, faza: Math.random() * 6.28
+                };
+                mglaSnuGrupa.add(cien);
+                cienieWeMgle.push(cien);
+            }
+            nastepnySzept = 0;
             dodajHoryzont(mglaSnuGrupa, offsetX - marginX, offsetZ - marginZ);
             scene.add(mglaSnuGrupa);
             return mglaSnuKlebki.length;
@@ -36601,12 +36640,61 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Mgła ma się ruszać - nieruchoma czyta się jak mur z waty
         function animujMgleSnu(time) {
             if (!mglaSnuKlebki.length) return;
+            animujCienieWeMgle(time);
             const t = time * 0.00022;
             for (let i = 0; i < mglaSnuKlebki.length; i++) {
                 const k = mglaSnuKlebki[i];
                 const f = k.userData.mglaFaza;
                 k.position.y = k.userData.mglaBaza + Math.sin(t + f) * 0.7 * k.userData.mglaDryf;
                 k.rotation.y = f + t * k.userData.mglaDryf;
+            }
+        }
+
+        function animujCienieWeMgle(time) {
+            const dt = ostatniCzasMgly ? Math.min(0.1, (time - ostatniCzasMgly) / 1000) : 0;
+            ostatniCzasMgly = time;
+            if (!cienieWeMgle.length) return;
+            const polX = offsetX * 0.9, polZ = offsetZ * 0.9;
+            cienieWeMgle.forEach(c => {
+                const u = c.userData;
+                u.t = (u.t + u.v * dt + 1) % 1;
+                const p = obwodProstokata(u.t, polX + u.pas, polZ + u.pas);
+                const przod = obwodProstokata(u.t + Math.sign(u.v) * 0.002, polX + u.pas, polZ + u.pas);
+                c.position.set(p.x, u.wys + Math.sin(time * 0.0011 + u.faza) * 0.6, p.z);
+                c.rotation.y = Math.atan2(przod.x - p.x, przod.z - p.z);
+                c.rotation.z = Math.sin(time * 0.0007 + u.faza) * 0.12;
+                if (u.napis) {
+                    u.napis.material.opacity = Math.max(0, u.napis.material.opacity - dt * 0.3);
+                    if (u.napis.material.opacity <= 0) { c.remove(u.napis); u.napis.material.map.dispose(); u.napis.material.dispose(); u.napis = null; }
+                }
+            });
+            // Co jakiś czas któryś cień szepcze w stronę oddziału
+            if (!nastepnySzept) nastepnySzept = time + 8000 + Math.random() * 10000;
+            if (time > nastepnySzept) {
+                nastepnySzept = time + 15000 + Math.random() * 20000;
+                szepnijZMgly(cienieWeMgle[Math.floor(Math.random() * cienieWeMgle.length)]);
+            }
+        }
+
+        function szepnijZMgly(c) {
+            if (!c || c.userData.napis) return;
+            const tekst = SZEPTY[Math.floor(Math.random() * SZEPTY.length)];
+            const cv = document.createElement('canvas'); cv.width = 512; cv.height = 96;
+            const g = cv.getContext('2d');
+            g.font = 'italic 52px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+            g.shadowColor = '#000'; g.shadowBlur = 10; g.fillStyle = '#d8d2e6';
+            g.fillText(tekst, 256, 48);
+            const napis = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false, depthTest: false, fog: false, opacity: 1 }));
+            napis.scale.set(4.5, 0.85, 1);   // grupa cienia jest już powiększona
+            napis.position.y = 3.1;
+            napis.renderOrder = 3;
+            c.add(napis);
+            c.userData.napis = napis;
+            // Głos: kilka zdyszanych sylab szumu, cicho
+            if (SoundEngine.sfxEnabled && SoundEngine.ctx) {
+                const sylaby = 3 + Math.floor(Math.random() * 3);
+                for (let i = 0; i < sylaby; i++)
+                    setTimeout(() => SoundEngine.playNoise(0.18 + Math.random() * 0.15, 0.06, 2600 + Math.random() * 1600), i * 230 + Math.random() * 80);
             }
         }
 
