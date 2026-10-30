@@ -923,6 +923,11 @@
         #karta-snu-wybor { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-top: 16px; }
         #karta-snu-wybor .start-btn { padding: 12px 8px; font-size: 15px; }
         #karta-snu-wybor .start-btn:hover { border-color: #b48ae8; box-shadow: 0 0 14px rgba(170, 120, 240, 0.55); }
+        #karta-snu-portrety { display: flex; justify-content: center; gap: 14px; margin-top: 16px; }
+        #karta-snu-portrety .portret { width: 96px; text-align: center; transition: 0.2s; }
+        #karta-snu-portrety .portret.nie { opacity: 0.25; filter: grayscale(1); }
+        #karta-snu-portrety img { width: 96px; height: 98px; object-fit: cover; display: block; }
+        #karta-snu-portrety span { display: block; font-size: 11px; color: #c9c0d6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         #karta-snu-stopka { text-align: center; color: #6e6480; font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; margin-top: 14px; font-family: 'Cinzel', Georgia, serif; }
         .start-btn:hover { background: linear-gradient(#2e2922, #171411); color: #fff3d6; border-color: #d9b46a; box-shadow: 0 0 10px rgba(217, 180, 106, 0.45); }
 
@@ -1087,6 +1092,7 @@
         <div id="start-title">Misja we śnie</div>
         <div id="karta-snu-plansza"></div>
         <div id="start-info"></div>
+        <div id="karta-snu-portrety"></div>
         <div id="karta-snu-wybor">
             <button class="start-btn" data-count="1">1 Wojownik</button>
             <button class="start-btn" data-count="2">2 Wojowników</button>
@@ -24137,6 +24143,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 `<div class="karta-snu-znaczniki"><span>${misja ? missionTypeLabel(misja) : 'Misja losowa'}</span>` +
                 (d ? `<span class="${d.hard ? 'ciezki' : ''}">${d.hard ? 'Ciężki sen' : 'Zwykły sen'}</span>` : '') + `</div>` +
                 (d ? `<div class="karta-snu-koszt">Koszt: <b>✦ 10 Łaski</b> <small>(zostało: ${playerStats.grace})</small></div>` : '');
+            // Portrety oddziału: bohater i zwerbowani w kolejności wysyłania, dalej puste miejsce
+            const PORTRET = { uzdrowiciel: 'uzdrowiciel', snajper: 'snajper' };
+            const portrety = [{ name: playerName || 'Bohater', class: 'uniwersalna' }].concat(recruitedWarriors)
+                .map(w => `<div class="portret" title="${w.name}"><img src="graphics/portrety/${PORTRET[w.class] || 'wojownik'}.jpg" alt=""><span>${w.name}</span></div>`);
+            if (pendingRecruitSlot && portrety.length < 4) portrety.push('<div class="portret puste" title="Ktoś nieznany czeka we śnie"><img src="graphics/portrety/puste.jpg" alt=""><span>?</span></div>');
+            const rzad = document.getElementById('karta-snu-portrety');
+            rzad.innerHTML = portrety.join('');
+            // Najechanie na przycisk podświetla tych, którzy pójdą do snu
+            document.querySelectorAll('#start-screen .start-btn').forEach(btn => {
+                btn.onmouseenter = () => [...rzad.children].forEach((el, i) => el.classList.toggle('nie', i >= +btn.dataset.count));
+                btn.onmouseleave = () => [...rzad.children].forEach(el => el.classList.remove('nie'));
+            });
             const titleEl = document.getElementById('start-title');
             if (pendingRecruitSlot) {
                 titleEl.innerText = 'Misja we śnie - dziwna obecność...';
