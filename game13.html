@@ -36496,30 +36496,25 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
             }
             // Cienie nieznanych postaci krążą w mgle - widać tylko sylwetkę
-            const matCienia = new THREE.MeshBasicMaterial({ color: 0x07070c, transparent: true, opacity: 0.6, depthWrite: false, fog: false });
-            const matOczu = new THREE.MeshBasicMaterial({ color: 0xd8e2ff, transparent: true, opacity: 0.85, fog: false });
+            // Jak duszki z Teraźniejszości nocą, tylko bledsze - ledwie widoczna smuga w mgle
+            const matCienia = new THREE.MeshBasicMaterial({ color: 0xdfe6ee, transparent: true, opacity: 0.22, depthWrite: false, fog: false });
             const ileCieni = trybOszczedny ? 3 : 6;
             for (let i = 0; i < ileCieni; i++) {
                 const cien = new THREE.Group();
-                const szata = new THREE.Mesh(new THREE.ConeGeometry(0.55, 2.2, 8, 1, true), matCienia);
-                szata.position.y = 1.1;
-                const glowa = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6), matCienia);
-                glowa.position.y = 2.35;
-                // Ramiona opadają wzdłuż szaty, lekko odchylone - jak rękawy na wietrze
+                // Szata zwęża się ku dołowi w smugę - postać nie ma nóg, tylko się rozwiewa
+                const szata = new THREE.Mesh(new THREE.ConeGeometry(0.32, 1.9, 8, 1, true), matCienia);
+                szata.rotation.x = Math.PI;
+                szata.position.y = 0.95;
+                const glowa = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), matCienia);
+                glowa.position.y = 2.05;
                 [-1, 1].forEach(st => {
-                    const rek = new THREE.Mesh(new THREE.ConeGeometry(0.16, 1.3, 6, 1, true), matCienia);
-                    rek.position.set(st * 0.42, 1.45, 0);
-                    rek.rotation.z = st * 0.45;
+                    const rek = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.9, 5, 1, true), matCienia);
+                    rek.position.set(st * 0.26, 1.45, 0);
+                    rek.rotation.z = st * 0.35;
                     cien.add(rek);
                 });
-                // Blade oczy - na ciemnej mgle sama czerń by zginęła
-                [-0.11, 0.11].forEach(ox => {
-                    const oko = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 4), matOczu);
-                    oko.position.set(ox, 2.38, 0.27);
-                    cien.add(oko);
-                });
                 cien.add(szata, glowa);
-                cien.scale.setScalar(2.2);
+                cien.scale.setScalar(1.2);
                 cien.traverse(o => { o.renderOrder = 2; });   // na kłębach, ale nadal półprzezroczysty
                 cien.userData = {
                     t: Math.random(), v: (0.004 + Math.random() * 0.006) * (Math.random() < 0.5 ? -1 : 1),
