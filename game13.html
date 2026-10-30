@@ -853,8 +853,8 @@
             min-width: 46px; min-height: 46px; width: 46px; height: 46px; padding: 0; font-size: 0 !important;
         }
         #controls .ma-ikone::before, #camera-rotate-controls .ma-ikone::before { width: 24px; height: 24px; }
-        #controls #btn-reserve.ma-ikone { position: relative; }
-        #controls #btn-reserve.ma-ikone[data-ile]:not([data-ile=""])::after {
+        #controls .ma-ikone { position: relative; }
+        #controls .ma-ikone[data-ile]:not([data-ile=""]):not([data-ap])::after {
             content: attr(data-ile); position: absolute; top: 2px; right: 2px; min-width: 12px; padding: 2px 3px;
             font: bold 10px/1 monospace; background: #1d4f8a; border: 1px solid #5d9be0; color: #e6f1ff;
         }
@@ -46945,6 +46945,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + ikony[id] + '</svg>';
                 b.style.setProperty('--ik', 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '")');
                 if (!b.title) b.title = (b.innerText || '').trim();
+                // Licznik z napisu, np. "Balsam (2)", trafia do znaczka w rogu
+                if (id !== 'btn-reserve') {
+                    const licz = () => {
+                        const m = b.textContent.match(/\((\d+)\)/);
+                        b.dataset.ile = m ? m[1] : '';
+                    };
+                    licz();
+                    new MutationObserver(licz).observe(b, { childList: true, characterData: true, subtree: true });
+                }
                 b.classList.add('ma-ikone');
             });
         })();
