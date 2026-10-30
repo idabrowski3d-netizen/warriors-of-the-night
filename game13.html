@@ -42909,6 +42909,45 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
         }
 
+        // Pasek życia nad wrogiem: ciemna ramka ze złotym brzegiem i czerwone wypełnienie
+        const paskiZycia = new Map();
+        function rysujPasekZycia(sp, ulamek) {
+            const c = sp.userData.plotno, g = c.getContext('2d');
+            g.clearRect(0, 0, 128, 20);
+            g.fillStyle = '#120d0d'; g.fillRect(0, 0, 128, 20);
+            const gr = g.createLinearGradient(0, 3, 0, 17);
+            gr.addColorStop(0, '#ff4a3a'); gr.addColorStop(1, '#7a0c0c');
+            g.fillStyle = gr; g.fillRect(3, 3, 122 * ulamek, 14);
+            g.strokeStyle = '#b08a4a'; g.lineWidth = 2; g.strokeRect(1, 1, 126, 18);
+            sp.material.map.needsUpdate = true;
+        }
+        function paskiZyciaWrogow() {
+            if (typeof enemies === 'undefined') return;
+            const widoczne = new Set();
+            enemies.forEach(e => {
+                if (!e.mesh || e.isDead || !e.mesh.visible || !e.mesh.parent) return;
+                widoczne.add(e);
+                let sp = paskiZycia.get(e);
+                if (!sp) {
+                    const c = document.createElement('canvas'); c.width = 128; c.height = 20;
+                    sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, fog: false }));
+                    sp.userData.plotno = c; sp.scale.set(1.1, 0.17, 1); sp.renderOrder = 5;
+                    scene.add(sp); paskiZycia.set(e, sp);
+                }
+                // Model może się jeszcze wczytywać - mierzymy, dopóki nie ma wysokości
+                if (!(sp.userData.wys > 0.8)) {
+                    const b = new THREE.Box3().setFromObject(e.mesh);
+                    sp.userData.wys = b.isEmpty() ? 0 : b.max.y - e.mesh.position.y + 0.35;
+                }
+                const u = Math.max(0, Math.min(1, e.hp / (e.maxHp || e.hp || 1)));
+                if (sp.userData.u !== u) { sp.userData.u = u; rysujPasekZycia(sp, u); }
+                sp.position.set(e.mesh.position.x, e.mesh.position.y + Math.max(sp.userData.wys, 1.6), e.mesh.position.z);
+            });
+            paskiZycia.forEach((sp, e) => {
+                if (widoczne.has(e)) return;
+                scene.remove(sp); sp.material.map.dispose(); sp.material.dispose(); paskiZycia.delete(e);
+            });
+        }
         function animate(time) { 
             requestAnimationFrame(animate); 
             const dt = Math.min((time - lastFrameTime) / 1000, 0.1); 
@@ -42933,6 +42972,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             animujGasicieli(time);
             animujPozar(time);
             animujPioruny(time);
+            paskiZyciaWrogow();
             animujMgleSnu(time);
             tikWidzianych(time);
             animujPortale(time);
