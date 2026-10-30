@@ -841,7 +841,7 @@
         }
         #controls .ma-ikone:disabled { color: #5d5850; border-color: #3b3328 !important; }
         #controls button[data-ap]::after {
-            top: 2px; right: 2px; min-width: 12px; padding: 2px 3px;
+            top: 2px; right: 2px; min-width: 9px; padding: 1px 2px; font-size: 8px;
             background: #1d4f8a; border: 1px solid #5d9be0; color: #e6f1ff; text-shadow: none; text-align: center;
         }
         #controls #btn-turn.ma-ikone {
@@ -855,11 +855,46 @@
         #controls .ma-ikone::before, #camera-rotate-controls .ma-ikone::before { width: 24px; height: 24px; }
         #controls .ma-ikone { position: relative; }
         #controls .ma-ikone[data-ile]:not([data-ile=""]):not([data-ap])::after {
-            content: attr(data-ile); position: absolute; top: 2px; right: 2px; min-width: 12px; padding: 2px 3px;
-            font: bold 10px/1 monospace; background: #1d4f8a; border: 1px solid #5d9be0; color: #e6f1ff;
+            content: attr(data-ile); position: absolute; top: 2px; right: 2px; min-width: 9px; padding: 1px 2px;
+            font: bold 8px/1 monospace; background: #1d4f8a; border: 1px solid #5d9be0; color: #e6f1ff;
         }
         body.mobilny #controls .ma-ikone { min-width: 40px; min-height: 40px; width: 40px; height: 40px; }
         body.mobilny #controls .ma-ikone::before { width: 20px; height: 20px; }
+
+        /* ================= OKNA W STYLU PASKA AKCJI =================
+           Ciemne tło, cienka złota ramka z drugą obwódką, nagłówki Cinzel. */
+        #ui-container, #minimap-container, #player-stats-panel, #sleeping-vital-container,
+        #settings-dropdown, #npc-dialogue, #stats-panel-box, #abilities-box, #kryzys-box, #instructions, #ap-tooltip {
+            background: rgba(12, 9, 9, 0.9) !important; border: 1px solid #7a6136 !important; border-radius: 2px !important;
+            outline: 1px solid rgba(122, 97, 54, 0.35); outline-offset: 3px;
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.7) !important; color: #ddd6c8;
+        }
+        #ap-tooltip { color: #f0d79a !important; }
+        h1, #stats-panel-title, #minimap-label, #turn-indicator, #name-prompt-title {
+            font-family: 'Cinzel', Georgia, serif; color: #e3c27a !important; letter-spacing: 0.06em; text-shadow: none;
+        }
+        #stats-panel-title { border-bottom: 1px solid #4a3c24; padding-bottom: 8px; text-align: center; }
+        .char-stat-row { color: #ddd6c8; }
+        .char-stat-row span, #player-stats-panel .stat-line span { color: #e3c27a; }
+        #player-stats-panel .stat-line { color: #c9c0ae; }
+        #minimap-canvas { border-color: #4a3c24; }
+        #settings-toggle-btn { background: rgba(12, 9, 9, 0.9) !important; border: 1px solid #7a6136 !important; color: #e3c27a; }
+        #settings-toggle-btn:hover:not(:disabled) { background: #2e2922 !important; color: #fff3d6; }
+        button { background: linear-gradient(#23201d, #121010); color: #ddd6c8; border: 1px solid #6b5631; border-radius: 2px; }
+        button:hover:not(:disabled) { background: linear-gradient(#2e2922, #171411); color: #fff3d6; border-color: #d9b46a; }
+        button:disabled { border-color: #3b3328; color: #5d5850; }
+        /* Okno Umiejętności */
+        #abilities-box { padding: 24px 28px; }
+        .ability-btn {
+            background: linear-gradient(#1f1b17, #121010); border: 1px solid #5a4a2c; border-radius: 2px;
+            box-shadow: inset 0 0 0 2px #0a0808, inset 0 0 0 3px rgba(122, 97, 54, 0.3);
+            color: #ddd6c8; padding: 12px 16px;
+        }
+        .ability-btn:hover:not(:disabled) { background: linear-gradient(#2e2922, #171411); border-color: #d9b46a; color: #fff3d6; }
+        .ability-title { font-family: 'Cinzel', Georgia, serif; color: #e3c27a; letter-spacing: 0.04em; }
+        .ability-desc { color: #a59f94; }
+        .start-btn { background: linear-gradient(#23201d, #121010); color: #e3c27a; border: 1px solid #7a6136; border-radius: 2px; font-family: 'Cinzel', Georgia, serif; letter-spacing: 0.05em; }
+        .start-btn:hover { background: linear-gradient(#2e2922, #171411); color: #fff3d6; border-color: #d9b46a; box-shadow: 0 0 10px rgba(217, 180, 106, 0.45); }
 
     </style>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&display=swap">
