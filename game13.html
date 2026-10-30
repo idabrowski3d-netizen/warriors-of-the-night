@@ -5658,6 +5658,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     }
                 };
                 islands.forEach(carveIsland);
+                wyspyElipsy = islands.map(I => ({ x: I.cx - offsetX, z: I.cz - offsetZ, rx: I.rx, rz: I.rz }));
 
                 // Mostki: minimalne drzewo rozpinające po najbliższych sąsiadach,
                 // żeby każda wyspa była osiągalna i żaden mostek nie był zbędny.
@@ -9358,6 +9359,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // wrażenie unoszących się w powietrzu, a pustka przestaje wyglądać na grunt.
         // ========================================================
         let cloudSeaMeshes = [];
+        let wyspyElipsy = [];       // kształty Latających Wysp (świat) - pod nie idą gładkie bryły
 
         function clearCloudSea() {
             cloudSeaMeshes.forEach(m => {
@@ -9398,6 +9400,42 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 inst.userData.unitType = 'fx';
                 scene.add(inst);
                 cloudSeaMeshes.push(inst);
+            });
+
+            // Gładkie bryły wysp: kafle dają schodkowy brzeg jak z klocków, więc każdą
+            // wyspę obejmuje owalny brzeg (trawa tuż pod kaflami), pas ziemi i skalny
+            // spód zwężający się w dół. Kanciaste rogi kafli giną w tym owalu.
+            const OBRZEZE = 0.8;
+            const trawa = terrainMats.grass.clone();
+            if (trawa.map) { trawa.map = trawa.map.clone(); trawa.map.needsUpdate = true; }
+            const ziemia = new THREE.MeshLambertMaterial({ color: 0x5a4632 });
+            const skala = new THREE.MeshPhongMaterial({ color: 0x6b6458, flatShading: true, shininess: 0 });
+            wyspyElipsy.forEach(E => {
+                const rx = E.rx + OBRZEZE, rz = E.rz + OBRZEZE;
+                const wierzch = new THREE.Mesh(new THREE.CircleGeometry(1, 64), trawa);
+                wierzch.rotation.x = -Math.PI / 2;
+                wierzch.scale.set(rx, rz, 1);
+                wierzch.position.set(E.x, -0.004, E.z);
+                const pas = new THREE.Mesh(new THREE.CylinderGeometry(1, 0.97, 1, 64, 1, true), ziemia);
+                pas.scale.set(rx, 1, rz);
+                pas.position.set(E.x, -0.5, E.z);
+                // Spód: stożek ostrzem w dół, z poszarpaną skałą
+                const sGeo = new THREE.ConeGeometry(1, 1, 40, 6);
+                const pos = sGeo.attributes.position;
+                for (let i = 0; i < pos.count; i++) {
+                    const y = pos.getY(i);
+                    if (y > 0.49) continue;                      // górny brzeg zostaje gładki
+                    const k = 1 + (Math.random() - 0.5) * 0.35;
+                    pos.setX(i, pos.getX(i) * k); pos.setZ(i, pos.getZ(i) * k);
+                    pos.setY(i, y + (Math.random() - 0.5) * 0.08);
+                }
+                sGeo.computeVertexNormals();
+                const spod = new THREE.Mesh(sGeo, skala);
+                const glebokosc = 4 + Math.min(rx, rz) * 0.35;
+                spod.rotation.x = Math.PI;
+                spod.scale.set(rx * 0.97, glebokosc, rz * 0.97);
+                spod.position.set(E.x, -1 - glebokosc / 2, E.z);
+                [wierzch, pas, spod].forEach(m => { m.userData.unitType = 'fx'; scene.add(m); cloudSeaMeshes.push(m); });
             });
 
             // delikatna mgiełka tuż pod krawędziami wysp
