@@ -43528,7 +43528,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 for (let z = ch.minZ + 1; z < ch.maxZ; z += 2) { dodajWitraz(ch.minX - 0.53, z, -Math.PI / 2); dodajWitraz(ch.maxX + 0.53, z, Math.PI / 2); }
             }
 
-            // Model auta stoi długością wzdłuż X - przód to +X
+            // Model auta stoi długością wzdłuż Z - przód (światła) to +Z
             // --- 15. Auta przejeżdżające główną drogą, nocą z reflektorami ---
             if (typeof createCarMesh === 'function') {
                 const srodek = Math.floor(mapWidth / 2) - offsetX;
@@ -43536,9 +43536,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const auto = createCarMesh();
                     const reflektory = new THREE.Group();
                     const matRefl = new THREE.MeshBasicMaterial({ color: 0xfff4d0 });
-                    [-0.3, 0.3].forEach(dx => { const r = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 5), matRefl); r.position.set(1.0, 0.45, dx); reflektory.add(r); });
+                    [-0.3, 0.3].forEach(dx => { const r = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 5), matRefl); r.position.set(dx, 0.5, 1.33); reflektory.add(r); });
                     const snop = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 3.2), new THREE.MeshBasicMaterial({ map: mglaTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xfff0c0 }));
-                    snop.rotation.set(-Math.PI / 2, 0, Math.PI / 2); snop.position.set(2.6, 0.06, 0); reflektory.add(snop);
+                    snop.rotation.x = -Math.PI / 2; snop.position.set(0, 0.06, 2.9); reflektory.add(snop);
                     auto.add(reflektory);
                     auto.userData.reflektory = reflektory;
                     auto.userData.jazda = { x, kier, z: -kier * mapDepth / 2, czeka: performance.now() + 4000 + i * 9000, v: 4.5 + Math.random() * 1.5 };
@@ -43644,7 +43644,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const przed = hp && Math.abs(hp.x - j.x) < 1.6 && (hp.z - j.z) * j.kier > 0 && (hp.z - j.z) * j.kier < 3.5;
                 if (!przed) j.z += j.kier * j.v * dt;
                 a.position.set(j.x, getTerrainY(Math.round(j.x), Math.round(j.z)), j.z);
-                a.rotation.y = j.kier > 0 ? -Math.PI / 2 : Math.PI / 2;
+                a.rotation.y = j.kier > 0 ? 0 : Math.PI;
                 if (Math.abs(j.z) > mapDepth / 2 + 2) { j.z = -j.kier * (mapDepth / 2 + 1); j.czeka = time + 15000 + Math.random() * 30000; a.visible = false; }
             });
             // Kot
