@@ -1,0 +1,8 @@
+Pola izb na tlo.jpg (1024x520), lewy-gorny i prawy-dolny rog w pikselach:
+kaplica: (68, 32, 233, 165)
+skryptorium: (248, 42, 405, 165)
+demonarium: (420, 42, 580, 165)
+zielarnia: (62, 173, 215, 293)
+dzwonnica: (471, 173, 586, 310)
+zbrojownia: (58, 303, 230, 425)
+golebnik: (405, 321, 586, 428)
