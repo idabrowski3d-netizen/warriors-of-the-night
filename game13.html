@@ -637,6 +637,29 @@
             display: block; color: #44aaff; font-size: clamp(11px, 1.4vw, 17px); white-space: nowrap; font-weight: bold;
         }
 
+        /* Ekran tytułowy: menu po lewej, panel imienia na ramce po prawej (procenty grafiki 1024x577) */
+        #title-screen-heading, #title-screen-sub { display: none; }
+        #title-screen-image-wrap, #title-screen-img { max-height: 100vh !important; }
+        #title-screen-image-wrap:not(.no-image) .title-click-area { left: 7%; width: 24%; height: 5.6%; display: flex; align-items: center; }
+        #title-screen-image-wrap:not(.no-image) .title-click-area span { display: block; padding-left: 8%; font-family: 'Cinzel', Georgia, serif;
+            font-size: clamp(11px, 1.9vw, 26px); letter-spacing: 0.12em; text-transform: uppercase; color: #b9b2a6; transition: 0.15s; }
+        #title-screen-image-wrap:not(.no-image) .title-click-area:hover {
+            background: linear-gradient(90deg, rgba(217, 180, 106, 0.28), transparent); border-top: 1px solid rgba(217, 180, 106, 0.5); border-bottom: 1px solid rgba(217, 180, 106, 0.5); }
+        #title-screen-image-wrap:not(.no-image) .title-click-area:hover span { color: #fff3d6; text-shadow: 0 0 10px rgba(255, 210, 120, 0.7); }
+        #title-screen-image-wrap:not(.no-image) .title-click-area:hover span::before { content: '✝'; position: absolute; left: 1.5%; color: #e3c27a; }
+        #tytul-panel { position: absolute; left: 70.8%; width: 26.6%; top: 3.5%; height: 92%; font-family: 'Cinzel', Georgia, serif; text-align: center; visibility: hidden; }
+        #tytul-panel.widoczny { visibility: visible; }
+        #tytul-panel > * { position: absolute; left: 6%; right: 6%; margin: 0; }
+        #tytul-panel #name-prompt-title { top: 4.5%; font-size: clamp(10px, 1.6vw, 22px); color: #e3c27a !important; letter-spacing: 0.08em; text-transform: uppercase; }
+        #tytul-panel #name-prompt-input { top: 16.5%; height: 6.5%; width: 88%; box-sizing: border-box; background: rgba(0, 0, 0, 0.55); border: 1px solid #7a6136;
+            color: #f1e3c4; font-family: Georgia, serif; font-style: italic; font-size: clamp(10px, 1.4vw, 18px); padding: 0 4%; border-radius: 0; text-align: left; }
+        #tytul-panel #name-prompt-input:focus { outline: none; border-color: #d9b46a; }
+        #tytul-patron { top: 69.5%; font-size: clamp(10px, 1.7vw, 22px); color: #e3c27a; letter-spacing: 0.06em; text-transform: uppercase; }
+        #tytul-premie { top: 75.5%; font-family: monospace; font-size: clamp(8px, 1.15vw, 15px); line-height: 1.5; color: #7fd67a; text-transform: uppercase; }
+        #tytul-cytat { top: 87%; font-family: Georgia, serif; font-size: clamp(7px, 0.95vw, 13px); line-height: 1.4; color: #c9bfa8; letter-spacing: 0.04em; }
+        #tytul-panel #name-prompt-btn { top: 93.8%; left: 30%; right: 30%; height: 4.5%; background: linear-gradient(#2a241b, #14110d); border: 1px solid #7a6136;
+            color: #e3c27a; font-family: inherit; font-size: clamp(8px, 1.1vw, 14px); letter-spacing: 0.1em; cursor: pointer; text-transform: uppercase; }
+        #tytul-panel #name-prompt-btn:hover { border-color: #d9b46a; color: #fff3d6; }
         #name-prompt-screen {
             display: none; /* domyślnie ukryty - pokazywany jawnie po kliknięciu "Nowa gra" */
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -1146,19 +1169,23 @@
         <div id="title-screen-heading">Warriors of the Night</div>
         <div id="title-screen-sub">Wojownicy Nocy</div>
         <div id="title-screen-image-wrap">
-            <img id="title-screen-img" src="graphics/plansza_poczatkowa.jpg" onerror="document.getElementById('title-screen-image-wrap').classList.add('no-image');" alt="">
-            <div id="title-click-newgame" class="title-click-area" style="left: 31.98%; top: 89.32%; width: 9.96%; height: 4.82%;"><span>Nowa gra</span></div>
-            <div id="title-click-loadgame" class="title-click-area" style="left: 41.86%; top: 89.71%; width: 12.06%; height: 4.43%;"><span>Wczytaj grę</span></div>
-            <div id="title-click-options" class="title-click-area" style="left: 54.07%; top: 89.84%; width: 5.89%; height: 4.30%;"><span>Opcje</span></div>
-            <div id="title-click-exit" class="title-click-area" style="left: 59.96%; top: 89.84%; width: 7.70%; height: 4.30%;"><span>Wyjście</span></div>
+            <img id="title-screen-img" src="graphics/ekran_tytulowy.jpg" onerror="document.getElementById('title-screen-image-wrap').classList.add('no-image');" alt="">
+            <div id="title-click-newgame" class="title-click-area" style="top: 50.5%;"><span>Nowa gra</span></div>
+            <div id="title-click-loadgame" class="title-click-area" style="top: 57%;"><span>Wczytaj grę</span></div>
+            <div id="title-click-options" class="title-click-area" style="top: 63.5%;"><span>Opcje</span></div>
+            <div id="title-click-exit" class="title-click-area" style="top: 70%;"><span>Wyjście</span></div>
+            <div id="tytul-panel">
+                <div id="name-prompt-title">Jak masz na imię?</div>
+                <input type="text" id="name-prompt-input" maxlength="20" placeholder="Wpisz swoje imię...">
+                <div id="tytul-patron">Twój patron</div>
+                <div id="tytul-premie">Imię wskaże niebiańskiego patrona,<br>który wesprze Twoje cechy.</div>
+                <div id="tytul-cytat"></div>
+                <button id="name-prompt-btn">Rozpocznij</button>
+            </div>
         </div>
     </div>
 
     <div id="name-prompt-screen">
-        <div id="name-prompt-title">Jak masz na imię?</div>
-        <div id="name-prompt-sub">Twoje imię wskaże Twojego niebiańskiego patrona, który wesprze Twoje statystyki.</div>
-        <input type="text" id="name-prompt-input" maxlength="20" placeholder="Wpisz swoje imię...">
-        <button id="name-prompt-btn" class="start-btn">Rozpocznij</button>
     </div>
 
     <div id="stats-panel-overlay">
@@ -46969,6 +46996,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             kaplicaCwiczen = 0; kaplicaOstatniDzien = -1; ostojaWspomniana = false; skryptoriumOstatni = -1; tropArtefaktu = false; domyPogorzeliska = []; znakNaDrzwiach = false;
             poziomNamierzenia = 0; incydentyPrzebyte = []; domyPogorzeliska = [];
             document.getElementById('name-prompt-screen').style.display = 'none';
+            document.getElementById('title-screen').style.display = 'none';
             pokazIntro(() => startPresentMode());
         }
         document.getElementById('name-prompt-btn').addEventListener('click', submitPlayerName);
@@ -46983,9 +47011,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         document.getElementById('title-click-newgame').addEventListener('click', () => {
-            document.getElementById('title-screen').style.display = 'none';
-            document.getElementById('name-prompt-screen').style.display = 'flex';
+            document.getElementById('tytul-panel').classList.add('widoczny');
             document.getElementById('name-prompt-input').focus();
+        });
+        // Patron pokazuje się na żywo, w trakcie wpisywania imienia
+        document.getElementById('name-prompt-input').addEventListener('input', (e) => {
+            const imie = e.target.value.trim();
+            const sw = imie ? (findPatronSaint(imie) || { title: 'Anioł Stróż', bio: 'Nie ma świętego o tym imieniu - czuwa nad Tobą Twój Anioł Stróż.', boost: { silaPsychiczna: 1, charyzma: 1 } }) : null;
+            document.getElementById('tytul-patron').textContent = sw ? sw.title : 'Twój patron';
+            document.getElementById('tytul-premie').innerHTML = sw
+                ? Object.keys(sw.boost).map(k => `+${sw.boost[k]} ${STAT_INFO[k] ? STAT_INFO[k].name : k}`).join('<br>')
+                : 'Imię wskaże niebiańskiego patrona,<br>który wesprze Twoje cechy.';
+            document.getElementById('tytul-cytat').textContent = sw ? '„' + sw.bio + '”' : '';
         });
         // Wczytanie zapisu z przeglądarki (localStorage) - używane przez ekran tytułowy
         function loadSaveFromBrowser(key) {
