@@ -5678,6 +5678,29 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     connected.push(best.j);
                 }
 
+                // Kładka leży DOKŁADNIE na linii mostka (obrócona) i wchodzi na oba brzegi.
+                // Wcześniej zawsze biegła wzdłuż osi Z i miała długość samej pustki,
+                // więc wisiała obok schodków z kafli i nie dochodziła do wysp.
+                // Osobna kładka na każdy odcinek pustki wzdłuż linii (łącznik może przeciąć wyspę)
+                const dodajKladki = (A, dx, dz, steps) => {
+                    let pocz = null;
+                    for (let s = 0; s <= steps + 1; s++) {
+                        const x = Math.round(A.cx + (dx * s) / steps), z = Math.round(A.cz + (dz * s) / steps);
+                        const pustka = s <= steps && x >= 0 && x < mapWidth && z >= 0 && z < mapDepth && riverGrid[x][z] === 1;
+                        if (pustka && pocz === null) pocz = s;
+                        if (!pustka && pocz !== null) { dodajKladke(A, dx, dz, steps, pocz, s - 1); pocz = null; }
+                    }
+                };
+                const dodajKladke = (A, dx, dz, steps, firstVoid, lastVoid) => {
+                    const krok = Math.hypot(dx, dz) / steps;
+                    const midS = (firstVoid + lastVoid) / 2;
+                    bridgePositions.push({
+                        x: A.cx + (dx * midS) / steps - offsetX,
+                        z: A.cz + (dz * midS) / steps - offsetZ,
+                        halfWidth: 1, depth: (lastVoid - firstVoid + 1) * krok + 3,
+                        kat: Math.atan2(dx, dz)
+                    });
+                };
                 const buildBridge = (A, B) => {
                     const dx = B.cx - A.cx, dz = B.cz - A.cz;
                     const steps = Math.max(Math.abs(dx), Math.abs(dz));
@@ -5691,10 +5714,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         if (riverGrid[x][z] === 1) { if (firstVoid === null) firstVoid = s; lastVoid = s; }
                     }
                     if (firstVoid === null) return; // wyspy się stykają - mostek zbędny
+                    dodajKladki(A, dx, dz, steps);   // przed wycięciem drogi - potem pustki już nie ma
                     // przedłużamy o 2 kafle w każdą stronę, żeby mostek wchodził na brzeg
                     for (let s = firstVoid - 2; s <= lastVoid + 2; s++) {
                         const bx = A.cx + (dx * s) / steps, bz = A.cz + (dz * s) / steps;
-                        for (let w = -1; w <= 1; w++) {
+                        for (let w = -1; w <= 1; w += 0.5) {   // co pół pola - skośny pas nie ma dziur
                             const x = Math.round(bx + px * w), z = Math.round(bz + pz * w);
                             if (x < 0 || x >= mapWidth || z < 0 || z >= mapDepth) continue;
                             riverGrid[x][z] = 0;
@@ -5704,13 +5728,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             islandBridgeTiles.push([x, z]);
                         }
                     }
-                    const midS = (firstVoid + lastVoid) / 2;
-                    bridgePositions.push({
-                        x: Math.round(A.cx + (dx * midS) / steps) - offsetX,
-                        z: Math.round(A.cz + (dz * midS) / steps) - offsetZ,
-                        halfWidth: 1, depth: (lastVoid - firstVoid) + 5,
-                        vertical: Math.abs(dz) >= Math.abs(dx)
-                    });
                 };
                 edges.forEach(([i, j]) => buildBridge(islands[i], islands[j]));
 
@@ -5745,9 +5762,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         const dxF = I.cx - A.cx, dzF = I.cz - A.cz;
                         const stepsF = Math.max(Math.abs(dxF), Math.abs(dzF)) || 1;
                         const pxF = -dzF / stepsF, pzF = dxF / stepsF;
+                        dodajKladki(A, dxF, dzF, stepsF);
                         for (let s = 0; s <= stepsF; s++) {
                             const bx = A.cx + (dxF * s) / stepsF, bz = A.cz + (dzF * s) / stepsF;
-                            for (let w = -1; w <= 1; w++) {
+                            for (let w = -1; w <= 1; w += 0.5) {   // co pół pola - skośny pas nie ma dziur
                                 const x = Math.round(bx + pxF * w), z = Math.round(bz + pzF * w);
                                 if (x < 0 || x >= mapWidth || z < 0 || z >= mapDepth) continue;
                                 if (riverGrid[x][z] === 1) {
@@ -9167,6 +9185,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     terrainIndices[x][z] = idx;
 
                     if (chasmMap && riverGrid && riverGrid[x][z] === 1) continue;   // pustka - brak kafla
+                    // Pole mostka nad pustką: chodzi się po nim, ale widać tylko kładkę
+                    if (chasmMap && wyspyElipsy.length && !wyspyElipsy.some(E => {
+                            const ex = (x - offsetX - E.x) / E.rx, ez = (z - offsetZ - E.z) / E.rz;
+                            return ex * ex + ez * ez <= 1; })) continue;
 
                     const worldX = x - offsetX, worldZ = z - offsetZ;
                     if (foldZ !== null && worldZ > foldZ) {
@@ -9838,15 +9860,19 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const railMat = riverIsLava ? new THREE.MeshLambertMaterial({ color: 0x1a1613 }) : new THREE.MeshLambertMaterial({ color: 0x4a3320 });
             bridgePositions.forEach(bp => {
                 const width = bp.halfWidth * 2 + 1;
-                const ty = getTerrainY(bp.x, bp.z);
+                const ty = getTerrainY(Math.round(bp.x), Math.round(bp.z));
+                const most = new THREE.Group();
+                most.position.set(bp.x, ty, bp.z);
+                most.rotation.y = bp.kat || 0;
                 const plank = new THREE.Mesh(new THREE.BoxGeometry(width, 0.2, bp.depth), plankMat);
-                plank.position.set(bp.x, ty + 0.1, bp.z);
-                scene.add(plank); bridgeMeshes.push(plank);
+                plank.position.y = 0.1;
+                most.add(plank);
                 [-width / 2 + 0.15, width / 2 - 0.15].forEach(ox => {
                     const rail = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.5, bp.depth), railMat);
-                    rail.position.set(bp.x + ox, ty + 0.5, bp.z);
-                    scene.add(rail); bridgeMeshes.push(rail);
+                    rail.position.set(ox, 0.5, 0);
+                    most.add(rail);
                 });
+                scene.add(most); bridgeMeshes.push(most);
             });
         }
 
@@ -22005,6 +22031,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 riverIsLava: riverIsLava,
                 rzekaKrwi: rzekaKrwi,
                 bridgePositions: bridgePositions,
+                wyspyElipsy: wyspyElipsy,
                 skalnaKrawedz: skalnaKrawedz,
                 lodRzeki: [...lodNaRzece], tratwa: tratwa,
                 riverGrid: hasRiver ? riverGrid.map(row => Array.from(row)) : null,
@@ -22123,6 +22150,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             riverIsLava = data.riverIsLava;
             rzekaKrwi = !!data.rzekaKrwi;
             bridgePositions = data.bridgePositions || [];
+            wyspyElipsy = data.wyspyElipsy || [];
             skalnaKrawedz = data.skalnaKrawedz || null;
             lodNaRzece = new Set(data.lodRzeki || []);
             tratwa = data.tratwa || null;
