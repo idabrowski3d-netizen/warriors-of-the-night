@@ -47017,15 +47017,24 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             document.getElementById('tytul-panel').classList.add('widoczny');
             document.getElementById('name-prompt-input').focus();
         });
+        // Pliki w graphics/swieci - imię patrona albo ogólny wizerunek
+        const WIZERUNKI_SWIETYCH = ['agnieszka', 'barbara', 'cecylia', 'franciszek', 'helena', 'hieronim', 'joanna', 'lowca',
+            'michal', 'piotr', 'rita', 'rycerz', 'rycerz_wlocznia', 'szlachcianka', 'wojciech', 'wojownik_skora', 'zakonnica', 'zielarka'];
+        const wizerunekPatrona = {};
         // Patron pokazuje się na żywo, w trakcie wpisywania imienia
         document.getElementById('name-prompt-input').addEventListener('input', (e) => {
             const imie = e.target.value.trim();
             const sw = imie ? (findPatronSaint(imie) || { title: 'Anioł Stróż', bio: 'Nie ma świętego o tym imieniu - czuwa nad Tobą Twój Anioł Stróż.', boost: { silaPsychiczna: 1, charyzma: 1 } }) : null;
             document.getElementById('tytul-patron').textContent = sw ? sw.title : 'Twój patron';
-            const klucz = imie ? Object.keys(SAINTS_DB).find(k => SAINTS_DB[k] === sw) : null;
+            // Patron z własnym wizerunkiem dostaje go; pozostali losowy z puli (stały dla danego patrona)
+            const klucz = imie ? (Object.keys(SAINTS_DB).find(k => SAINTS_DB[k] === sw) || 'aniol') : null;
             const portret = document.getElementById('tytul-portret');
-            if (klucz && klucz !== 'jozef') { portret.style.display = 'block'; portret.src = 'graphics/swieci/' + klucz + '.jpg'; }
-            else portret.style.display = 'none';
+            if (!klucz || klucz === 'jozef') portret.style.display = 'none';
+            else {
+                if (!wizerunekPatrona[klucz]) wizerunekPatrona[klucz] = WIZERUNKI_SWIETYCH.includes(klucz) ? klucz
+                    : WIZERUNKI_SWIETYCH[Math.floor(Math.random() * WIZERUNKI_SWIETYCH.length)];
+                portret.style.display = 'block'; portret.src = 'graphics/swieci/' + wizerunekPatrona[klucz] + '.jpg';
+            }
             document.getElementById('tytul-premie').innerHTML = sw
                 ? Object.keys(sw.boost).map(k => `+${sw.boost[k]} ${STAT_INFO[k] ? STAT_INFO[k].name : k}`).join('<br>')
                 : 'Imię wskaże niebiańskiego patrona,<br>który wesprze Twoje cechy.';
