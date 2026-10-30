@@ -6427,6 +6427,21 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         }
                     }
                 }
+                const zUkladem = currentCombatTheme && REKWIZYTY_PLANSZ_Z_UKLADEM[currentCombatTheme.id];
+                if (zUkladem) {
+                    for (let t = 0, stoi = 0; t < 400 && stoi < 24; t++) {
+                        const gx = Math.floor(Math.random() * (mapWidth - 14)) + 7 - offsetX;
+                        const gz = Math.floor(Math.random() * (mapDepth - 14)) + 7 - offsetZ;
+                        let wolne = true;
+                        for (let dx = -1; dx <= 1 && wolne; dx++)
+                            for (let dz = -1; dz <= 1 && wolne; dz++)
+                                if (!isWithinPlayBounds(gx + dx, gz + dz) || isObstacle(gx + dx, gz + dz) ||
+                                    terrainTypeMap[gx + dx + offsetX][gz + dz + offsetZ] >= 2) wolne = false;
+                        if (!wolne) continue;
+                        addObstacle(gx, gz, zUkladem[Math.floor(Math.random() * zUkladem.length)]);
+                        stoi++;
+                    }
+                }
                 // Porzucone wraki: osobowy na 3 pola, ciężarowy na 4. Środkowe pole niesie
                 // wygląd, pozostałe zajmuje niewidoczna część - przez auto się nie przejdzie.
                 if (currentCombatTheme && WRAKI_MAPY.includes(currentCombatTheme.id) && Math.random() < WRAKI_SZANSA) {
@@ -13815,7 +13830,152 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 for (let k = 0; k < 3; k++)
                     czesc(g, new THREE.CylinderGeometry(0.1, 0.1, 0.4, 6), 0x7a5a3a, 0.5 + Math.random() * 0.1, 0.06 + (k === 2 ? 0.12 : 0), -0.2 + (k % 2) * 0.22).rotation.x = Math.PI / 2;
                 return g;
+            },
+            // --- Cyber ---
+            terminal: () => {
+                const g = new THREE.Group();
+                czesc(g, new THREE.BoxGeometry(0.5, 1.0, 0.35), 0x1a1e26, 0, 0.5, 0, { shininess: 60 });
+                const ekran = czesc(g, new THREE.BoxGeometry(0.42, 0.32, 0.02), 0x3affe0, 0, 1.12, 0.12, ZAR(0x0a8a7a));
+                ekran.rotation.x = -0.4;
+                czesc(g, new THREE.BoxGeometry(0.44, 0.03, 0.2), 0x2a2e36, 0, 0.98, 0.2);
+                [0.3, 0.5, 0.7].forEach(y => czesc(g, new THREE.BoxGeometry(0.3, 0.015, 0.01), 0xff2a8a, 0, y, 0.18, ZAR(0xaa1a5a)));
+                return g;
+            },
+            antena: () => {
+                const g = new THREE.Group();
+                const stal = 0x3a3e46;
+                czesc(g, new THREE.BoxGeometry(0.5, 0.2, 0.5), stal, 0, 0.1, 0);
+                czesc(g, new THREE.CylinderGeometry(0.03, 0.06, 3.0, 5), stal, 0, 1.6, 0);
+                [1.2, 1.9, 2.6].forEach((y, k) => czesc(g, new THREE.BoxGeometry(0.7 - k * 0.15, 0.03, 0.03), stal, 0, y, 0));
+                czesc(g, new THREE.SphereGeometry(0.06, 6, 4), 0xff2a4a, 0, 3.12, 0, ZAR(0xcc0a2a));
+                return g;
+            },
+            holo_slup: () => {
+                const g = new THREE.Group();
+                czesc(g, new THREE.CylinderGeometry(0.3, 0.35, 0.15, 10), 0x2a2e36, 0, 0.075, 0, { shininess: 60 });
+                czesc(g, new THREE.CylinderGeometry(0.25, 0.25, 1.6, 12, 1, true), 0x3ac8ff, 0, 0.95, 0,
+                      Object.assign({ transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false }, ZAR(0x1a6aaa)));
+                czesc(g, new THREE.OctahedronGeometry(0.16, 0), 0x8ae8ff, 0, 1.0, 0, Object.assign({ flatShading: true }, ZAR(0x2a8acc)));
+                return g;
+            },
+            // --- Katedra ---
+            kropielnica: () => {
+                const g = new THREE.Group();
+                const kam = materialKamienia(0xb0a898, 1, 1);
+                const d = (geo, y) => { const m = new THREE.Mesh(geo, kam); m.position.y = y; g.add(m); return m; };
+                d(new THREE.CylinderGeometry(0.25, 0.3, 0.1, 8), 0.05);
+                d(new THREE.CylinderGeometry(0.08, 0.12, 0.7, 8), 0.45);
+                const misa = d(new THREE.SphereGeometry(0.32, 10, 6, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), 0.95);
+                misa.material = kam.clone(); misa.material.side = THREE.DoubleSide;
+                czesc(g, new THREE.CircleGeometry(0.28, 10), 0x8ab8d0, 0, 0.88, 0, { shininess: 100 }).rotation.x = -Math.PI / 2;
+                return g;
+            },
+            pulpit_z_ksiega: () => {
+                const g = new THREE.Group();
+                const drewno = 0x4a2a18;
+                czesc(g, new THREE.BoxGeometry(0.4, 0.06, 0.4), drewno, 0, 0.03, 0);
+                czesc(g, new THREE.BoxGeometry(0.1, 1.0, 0.1), drewno, 0, 0.5, 0);
+                czesc(g, new THREE.BoxGeometry(0.5, 0.04, 0.4), drewno, 0, 1.05, 0).rotation.x = -0.35;
+                [-1, 1].forEach(k => czesc(g, new THREE.BoxGeometry(0.2, 0.04, 0.3), 0xe8dcc0, k * 0.11, 1.1, 0).rotation.set(-0.35, 0, -k * 0.08));
+                czesc(g, new THREE.BoxGeometry(0.01, 0.02, 0.3), 0x8a1a1a, 0, 1.12, 0.02).rotation.x = -0.35;   // zakładka
+                return g;
+            },
+            konfesjonal: () => {
+                const g = new THREE.Group();
+                const drewno = 0x3a2214;
+                czesc(g, new THREE.BoxGeometry(0.9, 1.8, 0.7), drewno, 0, 0.9, 0);
+                czesc(g, new THREE.BoxGeometry(0.4, 1.4, 0.02), 0x1a0e08, 0, 0.75, 0.36);
+                czesc(g, new THREE.BoxGeometry(0.42, 0.9, 0.02), 0x6a1a1a, 0, 0.9, 0.38);   // zasłona
+                czesc(g, new THREE.BoxGeometry(1.0, 0.1, 0.8), drewno, 0, 1.85, 0);
+                const krzyz = new THREE.Group();
+                czesc(krzyz, new THREE.BoxGeometry(0.05, 0.3, 0.05), 0xb89a40, 0, 0, 0, { shininess: 80 });
+                czesc(krzyz, new THREE.BoxGeometry(0.18, 0.05, 0.05), 0xb89a40, 0, 0.06, 0, { shininess: 80 });
+                krzyz.position.y = 2.05; g.add(krzyz);
+                return g;
+            },
+            // --- Cmentarz ---
+            grob_otwarty: () => {
+                const g = new THREE.Group();
+                czesc(g, new THREE.BoxGeometry(0.6, 0.02, 1.0), 0x0a0806, 0, 0.01, 0);
+                czesc(g, new THREE.BoxGeometry(0.5, 0.35, 0.6), 0x4a3a28, 0.55, 0.15, 0.1, { flatShading: true }).rotation.y = 0.3;   // usypana ziemia
+                const lopata = new THREE.Group();
+                czesc(lopata, new THREE.CylinderGeometry(0.02, 0.02, 0.9, 5), 0x6a5034, 0, 0.45, 0);
+                czesc(lopata, new THREE.BoxGeometry(0.2, 0.25, 0.02), 0x5a5e62, 0, -0.02, 0, { shininess: 50 });
+                lopata.position.set(0.55, 0.3, 0.1); lopata.rotation.z = 0.25;
+                g.add(lopata);
+                const kam = materialKamienia(0x8a8680, 1, 1);
+                const tablica = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.6, 0.1), kam);
+                tablica.position.set(0, 0.3, -0.55); tablica.rotation.x = -0.15; g.add(tablica);
+                return g;
+            },
+            // --- Pobojowisko ---
+            armata: () => {
+                const g = new THREE.Group();
+                const lufa = czesc(g, new THREE.CylinderGeometry(0.1, 0.14, 1.2, 10), 0x2a2a2e, 0, 0.5, 0.1, { shininess: 50 });
+                lufa.rotation.x = Math.PI / 2 - 0.2;
+                czesc(g, new THREE.BoxGeometry(0.3, 0.2, 0.9), 0x4a3424, 0, 0.3, -0.3).rotation.x = 0.25;
+                [-1, 1].forEach(k => {
+                    czesc(g, new THREE.CylinderGeometry(0.32, 0.32, 0.06, 12), 0x3a2a1a, k * 0.25, 0.32, 0).rotation.z = Math.PI / 2;
+                    czesc(g, new THREE.TorusGeometry(0.32, 0.025, 4, 14), 0x1a1a1a, k * 0.28, 0.32, 0).rotation.y = Math.PI / 2;
+                });
+                for (let k = 0; k < 3; k++) czesc(g, new THREE.SphereGeometry(0.08, 6, 5), 0x1a1a1e, -0.3 + k * 0.12, 0.08, 0.55 + (k % 2) * 0.1);
+                return g;
+            },
+            kozly: () => {
+                const g = new THREE.Group();
+                czesc(g, new THREE.CylinderGeometry(0.06, 0.06, 1.2, 6), 0x4a3a2a, 0, 0.4, 0).rotation.z = Math.PI / 2;
+                for (let k = 0; k < 4; k++) {
+                    const x = -0.45 + k * 0.3;
+                    [0.7, -0.7].forEach(a => { czesc(g, new THREE.ConeGeometry(0.04, 1.0, 5), 0x5a4430, x, 0.4, 0).rotation.x = a; });
+                }
+                return g;
+            },
+            helm_na_mieczu: () => {
+                const g = new THREE.Group();
+                const stal = { shininess: 70 };
+                czesc(g, new THREE.BoxGeometry(0.05, 1.0, 0.02), 0x8a8e94, 0, 0.5, 0, stal);
+                czesc(g, new THREE.BoxGeometry(0.3, 0.04, 0.05), 0x5a4a2a, 0, 0.85, 0);
+                czesc(g, new THREE.CylinderGeometry(0.025, 0.025, 0.18, 5), 0x3a2a1a, 0, 0.96, 0);
+                czesc(g, new THREE.SphereGeometry(0.16, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0x6a6e74, 0, 0.92, 0, Object.assign({ side: THREE.DoubleSide }, stal));
+                czesc(g, new THREE.BoxGeometry(0.04, 0.16, 0.04), 0x6a6e74, 0, 0.86, 0.15, stal);   // nosal
+                czesc(g, new THREE.ConeGeometry(0.4, 0.15, 8), 0x4a3a28, 0, 0.07, 0, { flatShading: true });   // kopczyk
+                return g;
+            },
+            // --- Ostoja ---
+            kowadlo: () => {
+                const g = new THREE.Group();
+                czesc(g, new THREE.CylinderGeometry(0.25, 0.3, 0.5, 8), 0x5a4430, 0, 0.25, 0);
+                czesc(g, new THREE.BoxGeometry(0.2, 0.18, 0.15), 0x2a2a2e, 0, 0.59, 0, { shininess: 60 });
+                czesc(g, new THREE.BoxGeometry(0.5, 0.1, 0.2), 0x2a2a2e, 0, 0.73, 0, { shininess: 60 });
+                czesc(g, new THREE.ConeGeometry(0.08, 0.25, 6), 0x2a2a2e, 0.35, 0.73, 0, { shininess: 60 }).rotation.z = -Math.PI / 2;
+                const mlot = new THREE.Group();
+                czesc(mlot, new THREE.CylinderGeometry(0.02, 0.02, 0.4, 5), 0x6a5034, 0, 0, 0);
+                czesc(mlot, new THREE.BoxGeometry(0.14, 0.07, 0.07), 0x3a3a3e, 0, 0.2, 0);
+                mlot.position.set(-0.1, 0.82, 0.05); mlot.rotation.z = Math.PI / 2;
+                g.add(mlot);
+                return g;
+            },
+            tarcza_strzelnicza: () => {
+                const g = new THREE.Group();
+                [-1, 1].forEach(k => czesc(g, new THREE.CylinderGeometry(0.03, 0.04, 1.3, 5), 0x5a4430, k * 0.3, 0.6, -0.1).rotation.x = -0.25);
+                const t = new THREE.Group();
+                [[0.42, 0xd8c8a0], [0.32, 0xb03a2a], [0.22, 0xd8c8a0], [0.12, 0xb03a2a]].forEach(([r, b], i) =>
+                    czesc(t, new THREE.CylinderGeometry(r, r, 0.08 + i * 0.01, 16), b, 0, 0, 0).rotation.x = Math.PI / 2);
+                t.position.set(0, 1.0, 0); t.rotation.x = -0.15;
+                g.add(t);
+                for (let k = 0; k < 2; k++)
+                    czesc(g, new THREE.CylinderGeometry(0.008, 0.008, 0.5, 3), 0x6a5034, (Math.random() - 0.5) * 0.3, 1.0 + (Math.random() - 0.5) * 0.3, 0.25).rotation.x = Math.PI / 2;
+                return g;
             }
+        };
+        // Plansze z własnym układem (bez ogólnego posypania osłonami) dostają garść
+        // rekwizytów tylko na polach, wokół których jest wolno - alejki zostają drożne.
+        const REKWIZYTY_PLANSZ_Z_UKLADEM = {
+            cyber: ['terminal', 'antena', 'holo_slup', 'holo_slup'],
+            katedra: ['kropielnica', 'pulpit_z_ksiega', 'konfesjonal'],
+            cmentarzysko: ['grob_otwarty', 'aniol_nagrobny', 'znicz_latarnia', 'znicz_latarnia'],
+            pobojowisko: ['armata', 'kozly', 'helm_na_mieczu', 'helm_na_mieczu'],
+            ostoja: ['kowadlo', 'tarcza_strzelnicza', 'studnia_wiejska', 'taczka']
         };
 
         function renderObstacles() {
