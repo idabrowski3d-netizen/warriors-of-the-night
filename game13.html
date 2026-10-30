@@ -43138,12 +43138,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         let oknaMiasta = [];              // { mesh, houseId }
         let wronyMiasta = [], cmyMiasta = [], nietoperzeMiasta = [], mgłaMiasta = [];
         let kotMiasta = null, kotNastepny = 0, ostatniCzasOzdob = 0, oknaSprawdzone = 0;
+        let swieceKapliczek = [], dymKominow = [], witrazeKosciola = [], autaMiasta = [];
 
         function usunOzdobyMiasta() {
             if (!ozdobyMiasta) return;
             scene.remove(ozdobyMiasta);
             ozdobyMiasta.traverse(o => { if (o.geometry) o.geometry.dispose(); });
             ozdobyMiasta = null; oknaMiasta = []; wronyMiasta = []; cmyMiasta = []; nietoperzeMiasta = []; mgłaMiasta = []; kotMiasta = null;
+            swieceKapliczek = []; dymKominow = []; witrazeKosciola = []; autaMiasta = [];
         }
         const jestNocWMiescie = () => gameMode === 'presentNight' || currentTimeOfDay === 'noc' || currentTimeOfDay === 'wieczor';
 
@@ -43450,6 +43452,100 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 G.add(n); nietoperzeMiasta.push(n);
             }
 
+
+            // --- 12. Świece przy kapliczkach - chwieją się i przygasają, gdy krąży Cień ---
+            const matWosku = new THREE.MeshLambertMaterial({ color: 0xefe6cf });
+            (shrines || []).forEach(sh => {
+                const y = getTerrainY(Math.round(sh.x), Math.round(sh.z));
+                [[-0.28, 0.42], [0.25, 0.45], [0.02, 0.55]].forEach(([dx, dz], i) => {
+                    const g = new THREE.Group();
+                    const wosk = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.12 + i * 0.04, 8), matWosku);
+                    wosk.position.y = 0.06 + i * 0.02; g.add(wosk);
+                    const plomien = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.09, 6), new THREE.MeshBasicMaterial({ color: 0xffb347, transparent: true }));
+                    plomien.position.y = 0.17 + i * 0.04; g.add(plomien);
+                    g.position.set(sh.x + dx, y + 0.1, sh.z + dz);
+                    g.userData = { plomien, faza: Math.random() * 6, sila: 1 };
+                    G.add(g); swieceKapliczek.push(g);
+                });
+            });
+
+            // --- 13. Anteny, talerze satelitarne i dym z kominów na dachach ---
+            const dymTex = teksturaPlotna(64, 64, (c, w, h) => {
+                const g = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+                g.addColorStop(0, 'rgba(190, 190, 195, 0.6)'); g.addColorStop(1, 'rgba(190, 190, 195, 0)');
+                c.fillStyle = g; c.fillRect(0, 0, w, h);
+            });
+            const dymi = currentSeason === 'zima' || currentSeason === 'jesien' || jestNocWMiescie();
+            (houses || []).forEach(h => {
+                if (!h || h.maxX - h.minX < 2) return;
+                // Wysokość dachu bierzemy z tego, co faktycznie stoi w obrysie domu (model albo ściany i dach)
+                const box = new THREE.Box3(), b = new THREE.Box3();
+                obstacleMeshes.forEach(m => {
+                    if (m.position.x < h.minX - 0.6 || m.position.x > h.maxX + 0.6 || m.position.z < h.minZ - 0.6 || m.position.z > h.maxZ + 0.6) return;
+                    b.setFromObject(m); if (!b.isEmpty()) box.union(b);
+                });
+                if (box.isEmpty() || box.max.y < 1.5 || box.max.y > 9) return;
+                const cx = (h.minX + h.maxX) / 2, cz = (h.minZ + h.maxZ) / 2, top = box.max.y;
+                const los = Math.random();
+                if (los < 0.45) {
+                    const a = new THREE.Group();
+                    pudlo(a, 0.04, 1.1, 0.04, metal, 0, 0.55, 0);
+                    [0.75, 0.95].forEach((yy, i) => pudlo(a, 0.7 - i * 0.2, 0.025, 0.025, metal, 0, yy, 0));
+                    a.position.set(cx + (h.maxX - h.minX) * 0.25, top - 0.15, cz); a.rotation.y = Math.random() * 3; G.add(a);
+                } else if (los < 0.7) {
+                    const t = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2.6), new THREE.MeshLambertMaterial({ color: 0xd8d8d2, side: THREE.DoubleSide }));
+                    t.rotation.x = -1.1; t.position.set(cx - (h.maxX - h.minX) * 0.25, top - 0.35, cz - 0.3); G.add(t);
+                }
+                if (dymi && Math.random() < 0.55) {
+                    for (let i = 0; i < 5; i++) {
+                        const d = new THREE.Sprite(new THREE.SpriteMaterial({ map: dymTex, transparent: true, depthWrite: false, opacity: 0 }));
+                        d.userData = { x: h.minX + 0.8, y: top, z: cz + 0.4, faza: i / 5 };
+                        G.add(d); dymKominow.push(d);
+                    }
+                }
+            });
+
+            // --- 14. Witraże kościoła świecą nocą ---
+            const ch = specialBuildingSpawns.church &&
+                (houses || []).find(h => h.centerX === specialBuildingSpawns.church.x && h.centerZ === specialBuildingSpawns.church.z);
+            if (ch) {
+                const BARWY = ['#d8a13a', '#8a3fbf', '#c23a3a', '#3a6fc2', '#e8d070'];
+                const witraz = teksturaPlotna(32, 64, (c, w, h) => {
+                    c.fillStyle = '#1a1208'; c.fillRect(0, 0, w, h);
+                    for (let y = 4; y < h - 4; y += 8) for (let x = 3; x < w - 3; x += 7) {
+                        c.fillStyle = BARWY[(x + y) % BARWY.length]; c.fillRect(x, y, 6, 7);
+                    }
+                    c.globalCompositeOperation = 'destination-in';
+                    c.beginPath(); c.moveTo(2, h); c.lineTo(2, 14); c.quadraticCurveTo(w / 2, -6, w - 2, 14); c.lineTo(w - 2, h); c.fill();
+                });
+                const matWitraza = new THREE.MeshBasicMaterial({ map: witraz, transparent: true });
+                const yC = getTerrainY(ch.centerX, ch.centerZ);
+                const dodajWitraz = (x, z, kat) => {
+                    const m = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 1.3), matWitraza);
+                    m.position.set(x, yC + 2.1, z); m.rotation.y = kat; m.visible = false; G.add(m); witrazeKosciola.push(m);
+                };
+                for (let x = ch.minX + 1; x < ch.maxX; x += 2) { dodajWitraz(x, ch.minZ - 0.53, Math.PI); dodajWitraz(x, ch.maxZ + 0.53, 0); }
+                for (let z = ch.minZ + 1; z < ch.maxZ; z += 2) { dodajWitraz(ch.minX - 0.53, z, -Math.PI / 2); dodajWitraz(ch.maxX + 0.53, z, Math.PI / 2); }
+            }
+
+            // Model auta stoi długością wzdłuż X - przód to +X
+            // --- 15. Auta przejeżdżające główną drogą, nocą z reflektorami ---
+            if (typeof createCarMesh === 'function') {
+                const srodek = Math.floor(mapWidth / 2) - offsetX;
+                [[srodek - 1.5, 1], [srodek + 1.5, -1]].forEach(([x, kier], i) => {
+                    const auto = createCarMesh();
+                    const reflektory = new THREE.Group();
+                    const matRefl = new THREE.MeshBasicMaterial({ color: 0xfff4d0 });
+                    [-0.3, 0.3].forEach(dx => { const r = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 5), matRefl); r.position.set(1.0, 0.45, dx); reflektory.add(r); });
+                    const snop = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 3.2), new THREE.MeshBasicMaterial({ map: mglaTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xfff0c0 }));
+                    snop.rotation.set(-Math.PI / 2, 0, Math.PI / 2); snop.position.set(2.6, 0.06, 0); reflektory.add(snop);
+                    auto.add(reflektory);
+                    auto.userData.reflektory = reflektory;
+                    auto.userData.jazda = { x, kier, z: -kier * mapDepth / 2, czeka: performance.now() + 4000 + i * 9000, v: 4.5 + Math.random() * 1.5 };
+                    auto.visible = false; G.add(auto); autaMiasta.push(auto);
+                });
+            }
+
             // --- 11. Kot, który od czasu do czasu przebiega przez ulicę ---
             kotMiasta = new THREE.Group();
             const matKota = new THREE.MeshLambertMaterial({ color: 0x18161a });
@@ -43522,6 +43618,35 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
             // Pranie kołysze się na wietrze
             ozdobyMiasta.children.forEach(g => g.children && g.children.forEach(c => { if (c.userData.pranie) c.rotation.x = Math.sin(t * 1.6 + c.userData.faza) * 0.25; }));
+            // Świece: migoczą, a Cień w pobliżu dławi płomień
+            const wrogowieNocy = (typeof nightEnemies !== 'undefined' && gameMode === 'presentNight') ? nightEnemies : [];
+            swieceKapliczek.forEach(s => {
+                const u = s.userData;
+                const cien = wrogowieNocy.some(e => !e.isDead && e.mesh && Math.hypot(e.mesh.position.x - s.position.x, e.mesh.position.z - s.position.z) < 4.5);
+                u.sila += ((cien ? 0.25 : 1) - u.sila) * Math.min(1, dt * 2);
+                const migot = 0.85 + Math.sin(t * 13 + u.faza) * 0.1 + Math.sin(t * 29 + u.faza * 2) * 0.05;
+                u.plomien.scale.set(u.sila, u.sila * migot * (cien ? 0.6 + Math.random() * 0.4 : 1), u.sila);
+                u.plomien.material.opacity = 0.35 + u.sila * 0.65;
+            });
+            dymKominow.forEach(d => {
+                const u = d.userData, f = (t * 0.18 + u.faza) % 1;
+                d.position.set(u.x + f * 0.9, u.y + f * 2.6, u.z + Math.sin(f * 5 + u.faza) * 0.2);
+                d.scale.setScalar(0.4 + f * 1.4);
+                d.material.opacity = Math.sin(f * Math.PI) * 0.45;
+            });
+            witrazeKosciola.forEach(w => { w.visible = noc; });
+            autaMiasta.forEach(a => {
+                const j = a.userData.jazda;
+                a.userData.reflektory.visible = noc;
+                if (time < j.czeka) { a.visible = false; return; }
+                a.visible = true;
+                // Auto staje, gdy ktoś wyjdzie mu przed maskę
+                const przed = hp && Math.abs(hp.x - j.x) < 1.6 && (hp.z - j.z) * j.kier > 0 && (hp.z - j.z) * j.kier < 3.5;
+                if (!przed) j.z += j.kier * j.v * dt;
+                a.position.set(j.x, getTerrainY(Math.round(j.x), Math.round(j.z)), j.z);
+                a.rotation.y = j.kier > 0 ? -Math.PI / 2 : Math.PI / 2;
+                if (Math.abs(j.z) > mapDepth / 2 + 2) { j.z = -j.kier * (mapDepth / 2 + 1); j.czeka = time + 15000 + Math.random() * 30000; a.visible = false; }
+            });
             // Kot
             const k = kotMiasta, ku = k && k.userData;
             if (k && ku.przejscia && ku.przejscia.length) {
