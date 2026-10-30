@@ -5819,7 +5819,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const riverCenterZ = 40 + Math.floor(Math.random() * (mapDepth - 80));
                 const bridgeHalfWidth = 2; // mostek ma ok. 5 kafelków szerokości
                 const secondBridgeX = 10 + Math.floor(Math.random() * (mapWidth - 20));
-                const bridgeGridXs = [mainRoadX, secondBridgeX];
+                // Dwa mosty zbyt blisko siebie zlewały się w jeden krzywy pomost
+                const bridgeGridXs = Math.abs(secondBridgeX - mainRoadX) > bridgeHalfWidth * 2 + 4 ? [mainRoadX, secondBridgeX] : [mainRoadX];
 
                 // Czasem rzeka jest kręta - dwie fale o różnej długości dają naturalne
                 // zakola zamiast linijki przez całą planszę. Mostki trzymamy na prostych
@@ -5847,7 +5848,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     }
                 }
                 // Mostek musi trafić w rzekę także tam, gdzie ta skręca
-                bridgeGridXs.forEach(bx => bridgePositions.push({ x: bx - offsetX, z: riverCenterZ + zakole(bx) - offsetZ, halfWidth: bridgeHalfWidth, depth: riverHalfWidth * 2 + 3 }));
+                // Na zakolu każda kolumna mostu ma koryto gdzie indziej - pomost obejmuje je wszystkie
+                bridgeGridXs.forEach(bx => {
+                    let minZ = Infinity, maxZ = -Infinity;
+                    for (let x = bx - bridgeHalfWidth; x <= bx + bridgeHalfWidth; x++) {
+                        minZ = Math.min(minZ, riverCenterZ + zakole(x) - riverHalfWidth);
+                        maxZ = Math.max(maxZ, riverCenterZ + zakole(x) + riverHalfWidth);
+                    }
+                    bridgePositions.push({ x: bx - offsetX, z: (minZ + maxZ) / 2 - offsetZ, halfWidth: bridgeHalfWidth, depth: maxZ - minZ + 3 });
+                });
                 const zwyklaWoda = !isVolcanoTheme && !rzekaKrwi;
                 if (zwyklaWoda && currentSeason === 'zima' && Math.random() < 0.6) {
                     // ZIMA: rzeka skuta lodem - da się po niej przejść, ale wybuch kruszy lód
@@ -9814,7 +9823,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     tratwaMesh.position.set(tratwa.x, getTerrainY(tratwa.x, tratwa.z) + 0.1, tratwa.z);
                     scene.add(tratwaMesh); bridgeMeshes.push(tratwaMesh);
                 }
-                riverMesh = new THREE.InstancedMesh(streamGeo, streamMat, Math.max(1, tiles.length));
+                // Woda z zachodzących na siebie krążków zamiast kwadratów - brzeg faluje, bez schodków
+                const wodaGeo = isChasm ? streamGeo : new THREE.CylinderGeometry(0.74, 0.74, 0.15, 12);
+                riverMesh = new THREE.InstancedMesh(wodaGeo, streamMat, Math.max(1, tiles.length));
                 const dummy = new THREE.Object3D();
                 tiles.forEach(([wx, wz], idx) => {
                     const ty = getTerrainY(wx, wz);
@@ -9860,7 +9871,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const railMat = riverIsLava ? new THREE.MeshLambertMaterial({ color: 0x1a1613 }) : new THREE.MeshLambertMaterial({ color: 0x4a3320 });
             bridgePositions.forEach(bp => {
                 const width = bp.halfWidth * 2 + 1;
-                const ty = getTerrainY(Math.round(bp.x), Math.round(bp.z));
+                // Pomost leży na wysokości brzegów, nie zapada się do koryta
+                const kon = bp.depth / 2 - 0.5, sk = Math.sin(bp.kat || 0), ck = Math.cos(bp.kat || 0);
+                const ty = Math.max(getTerrainY(Math.round(bp.x), Math.round(bp.z)),
+                    getTerrainY(Math.round(bp.x + sk * kon), Math.round(bp.z + ck * kon)),
+                    getTerrainY(Math.round(bp.x - sk * kon), Math.round(bp.z - ck * kon)));
                 const most = new THREE.Group();
                 most.position.set(bp.x, ty, bp.z);
                 most.rotation.y = bp.kat || 0;
