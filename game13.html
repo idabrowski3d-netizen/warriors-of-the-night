@@ -654,6 +654,8 @@
         #tytul-panel #name-prompt-input { top: 16.5%; height: 6.5%; width: 88%; box-sizing: border-box; background: rgba(0, 0, 0, 0.55); border: 1px solid #7a6136;
             color: #f1e3c4; font-family: Georgia, serif; font-style: italic; font-size: clamp(10px, 1.4vw, 18px); padding: 0 4%; border-radius: 0; text-align: left; }
         #tytul-panel #name-prompt-input:focus { outline: none; border-color: #d9b46a; }
+        /* Portret patrona z graphics/swieci/<klucz>.jpg kładziemy na wtopionego w tło Józefa */
+        #tytul-panel #tytul-portret { left: 12.1%; right: auto; width: 74.3%; top: 23.2%; height: 45.6%; object-fit: cover; display: none; }
         #tytul-patron { top: 69.5%; font-size: clamp(10px, 1.7vw, 22px); color: #e3c27a; letter-spacing: 0.06em; text-transform: uppercase; }
         #tytul-premie { top: 75.5%; font-family: monospace; font-size: clamp(8px, 1.15vw, 15px); line-height: 1.5; color: #7fd67a; text-transform: uppercase; }
         #tytul-cytat { top: 87%; font-family: Georgia, serif; font-size: clamp(7px, 0.95vw, 13px); line-height: 1.4; color: #c9bfa8; letter-spacing: 0.04em; }
@@ -1177,6 +1179,7 @@
             <div id="tytul-panel">
                 <div id="name-prompt-title">Jak masz na imię?</div>
                 <input type="text" id="name-prompt-input" maxlength="20" placeholder="Wpisz swoje imię...">
+                <img id="tytul-portret" alt="" onerror="this.style.display='none'">
                 <div id="tytul-patron">Twój patron</div>
                 <div id="tytul-premie">Imię wskaże niebiańskiego patrona,<br>który wesprze Twoje cechy.</div>
                 <div id="tytul-cytat"></div>
@@ -47019,6 +47022,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const imie = e.target.value.trim();
             const sw = imie ? (findPatronSaint(imie) || { title: 'Anioł Stróż', bio: 'Nie ma świętego o tym imieniu - czuwa nad Tobą Twój Anioł Stróż.', boost: { silaPsychiczna: 1, charyzma: 1 } }) : null;
             document.getElementById('tytul-patron').textContent = sw ? sw.title : 'Twój patron';
+            const klucz = imie ? Object.keys(SAINTS_DB).find(k => SAINTS_DB[k] === sw) : null;
+            const portret = document.getElementById('tytul-portret');
+            if (klucz && klucz !== 'jozef') { portret.style.display = 'block'; portret.src = 'graphics/swieci/' + klucz + '.jpg'; }
+            else portret.style.display = 'none';
             document.getElementById('tytul-premie').innerHTML = sw
                 ? Object.keys(sw.boost).map(k => `+${sw.boost[k]} ${STAT_INFO[k] ? STAT_INFO[k].name : k}`).join('<br>')
                 : 'Imię wskaże niebiańskiego patrona,<br>który wesprze Twoje cechy.';
