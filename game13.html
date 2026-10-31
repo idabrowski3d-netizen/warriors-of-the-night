@@ -16555,8 +16555,21 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     } else {
                         roof.scale.set(pos.roofScaleX || 1, 0.85 + ((pos.roofScaleX || 1) + (pos.roofScaleZ || 1)) * 0.075, pos.roofScaleZ || 1);
                     }
-                    const roofY = pos.domeRoof ? (ty + floors * 2 - 0.9) : pos.flatRoof ? (ty + floors * FLOOR_HEIGHT + 0.15) : (ty + floors * 2 + 1);
+                    let roofY = pos.domeRoof ? (ty + floors * 2 - 0.9) : pos.flatRoof ? (ty + floors * FLOOR_HEIGHT + 0.15) : (ty + floors * 2 + 1);
                     roof.position.set(pos.x, roofY, pos.z);
+                    const dom = houses[pos.houseId];
+                    if (!pos.domeRoof && !pos.flatRoof && dom && dom.maxX > dom.minX && dom.maxZ > dom.minZ) {
+                        // Spadzisty dach liczony z obrysu domu - środek i boki trafiają w mur
+                        const wx = dom.maxX - dom.minX + 1, wz = dom.maxZ - dom.minZ + 1;
+                        roof.geometry.dispose();
+                        roof.geometry = geometriaDachuDomu(Math.max(wx, wz), Math.min(wx, wz), 0.3);
+                        roof.material.map = teksturaDachowki(); roof.material.vertexColors = true;
+                        roof.scale.set(1, 1, 1);
+                        if (wz > wx) roof.rotation.y = Math.PI / 2;
+                        roofY = ty + floors * FLOOR_HEIGHT + 0.12;
+                        roof.position.set((dom.minX + dom.maxX) / 2, roofY, (dom.minZ + dom.maxZ) / 2);
+                        roofY += 0.6;   // krzyż i szyld nad kalenicą
+                    }
                     roof.userData = { type: 'house-roof', x: pos.x, z: pos.z, houseId: pos.houseId, roofLevel: floors }; 
                     scene.add(roof); obstacleMeshes.push(roof);
 
@@ -37157,6 +37170,52 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Materiały z powtarzaniem dobranym do wielkości bryły
         // Jedna tekstura muru na barwę - ścian są setki, każda z osobną teksturą zapchałaby kartę
         const _teksturyScian = {};
+        // Dachówka: rzędy łusek z cieniem pod każdym rzędem (jedna jednostka = 4 rzędy)
+        let _teksturaDachowki = null;
+        function teksturaDachowki() {
+            if (_teksturaDachowki) return _teksturaDachowki;
+            const c = document.createElement('canvas'); c.width = c.height = 64;
+            const g = c.getContext('2d');
+            g.fillStyle = '#d8d8d8'; g.fillRect(0, 0, 64, 64);
+            for (let r = 0; r < 4; r++) {
+                const y = r * 16, sx = (r % 2) * 8;
+                for (let x = -16; x < 64; x += 16) {
+                    const j = 200 + Math.floor(Math.random() * 55);
+                    g.fillStyle = `rgb(${j},${j},${j})`;
+                    g.beginPath(); g.moveTo(x + sx, y); g.lineTo(x + sx + 16, y); g.lineTo(x + sx + 16, y + 11);
+                    g.quadraticCurveTo(x + sx + 8, y + 17, x + sx, y + 11); g.fill();
+                    g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x + sx + 15, y, 1, 12);
+                }
+                g.fillStyle = 'rgba(0,0,0,0.4)'; g.fillRect(0, y + 13, 64, 3);
+            }
+            const t = new THREE.CanvasTexture(c);
+            t.wrapS = t.wrapT = THREE.RepeatWrapping;
+            return _teksturaDachowki = t;
+        }
+        // Dach dwuspadowy dopasowany do obrysu domu: kalenica wzdłuż dłuższego boku,
+        // okap wystaje 0.3 poza mur, szczyty domknięte (ciemniejsze, bez dachówek)
+        function geometriaDachuDomu(dl, sz, okap) {
+            const L = dl / 2 + okap, S = sz / 2 + okap, Ls = dl / 2, Hs = sz / 2, H = Hs * 0.8;
+            const slope = Math.hypot(S, H * S / Hs);
+            const pos = [], uv = [], kol = [];
+            const tri = (a, b, c, ua, ub, uc, k) => { pos.push(...a, ...b, ...c); uv.push(...ua, ...ub, ...uc); for (let i = 0; i < 3; i++) kol.push(k, k, k); };
+            const Hk = H * S / Hs, y0 = -(S - Hs) * H / Hs;   // okap schodzi niżej, dalej po tym samym spadku
+            [1, -1].forEach(st => {
+                const e1 = [-L, y0, st * S], e2 = [L, y0, st * S], r1 = [-L, H, 0], r2 = [L, H, 0];
+                const u0 = [-L, 0], u1 = [L, 0], u2 = [-L, slope], u3 = [L, slope];
+                if (st > 0) { tri(e1, e2, r2, u0, u1, u3, 1); tri(e1, r2, r1, u0, u3, u2, 1); }
+                else { tri(e2, e1, r1, u1, u0, u2, 1); tri(e2, r1, r2, u1, u2, u3, 1); }
+            });
+            const z = [0, 0.97];
+            tri([Ls, 0, Hs], [Ls, 0, -Hs], [Ls, H, 0], z, z, z, 0.5);
+            tri([-Ls, 0, -Hs], [-Ls, 0, Hs], [-Ls, H, 0], z, z, z, 0.5);
+            const g = new THREE.BufferGeometry();
+            g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+            g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+            g.setAttribute('color', new THREE.Float32BufferAttribute(kol, 3));
+            g.computeVertexNormals();
+            return g;
+        }
         function teksturaScianyBud(barwa) {
             return _teksturyScian[barwa] || (_teksturyScian[barwa] = teksturaZPlotna(plotnoMuru(barwa), 1, 2));
         }
