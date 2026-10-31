@@ -1184,6 +1184,7 @@
             <div id="title-click-loadgame" class="title-click-area" style="top: 57%;"><span>Wczytaj grę</span></div>
             <div id="title-click-options" class="title-click-area" style="top: 63.5%;"><span>Opcje</span></div>
             <div id="title-click-exit" class="title-click-area" style="top: 70%;"><span>Wyjście</span></div>
+            <div id="title-click-multi" class="title-click-area" style="top: 76.5%;"><span>Multiplayer</span></div>
             <div id="tytul-panel">
                 <div id="name-prompt-title">Jak masz na imię?</div>
                 <input type="text" id="name-prompt-input" maxlength="20" placeholder="Wpisz swoje imię...">
@@ -1197,6 +1198,32 @@
     </div>
 
     <div id="name-prompt-screen">
+    </div>
+
+    <!-- GRA WE DWÓCH: lobby, obraz u gościa i znacznik, kto teraz steruje -->
+    <div id="mp-panel" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(5,4,3,.92);color:#e9dcc0;font-family:Georgia,serif;overflow:auto">
+        <div style="max-width:720px;margin:6vh auto;padding:0 16px;text-align:center">
+            <div style="font-family:Cinzel,Georgia,serif;font-size:28px;letter-spacing:.12em;color:#e3c27a">GRA WE DWÓCH</div>
+            <div style="margin:8px 0 18px;color:#a99a7c">Każdy prowadzi jednego bohatera. Misje losują się same, po wygranej dostajecie premie.</div>
+            <input id="mp-imie" maxlength="20" placeholder="Twoje imię..." style="width:260px;max-width:90%;padding:8px 10px;background:#000a;border:1px solid #7a6136;color:#f1e3c4;font:italic 17px Georgia,serif">
+            <div id="mp-klasy" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:18px 0"></div>
+            <div style="display:flex;gap:28px;justify-content:center;flex-wrap:wrap;align-items:flex-start">
+                <div><button id="mp-utworz" class="start-btn">Utwórz grę</button></div>
+                <div><input id="mp-kod" maxlength="4" placeholder="KOD" style="width:90px;padding:8px;text-transform:uppercase;text-align:center;letter-spacing:.3em;background:#000a;border:1px solid #7a6136;color:#f1e3c4;font:18px monospace">
+                    <button id="mp-dolacz" class="start-btn">Dołącz</button></div>
+            </div>
+            <div id="mp-status" style="margin-top:22px;min-height:48px;font-size:18px;color:#e3c27a;white-space:pre-line"></div>
+            <button id="mp-wroc" class="start-btn" style="margin-top:10px">Wróć</button>
+        </div>
+    </div>
+    <video id="mp-wideo" autoplay playsinline muted style="display:none;position:fixed;inset:0;width:100vw;height:100vh;object-fit:contain;background:#000;z-index:400;cursor:crosshair"></video>
+    <div id="mp-znak" style="display:none;position:fixed;top:6px;left:50%;transform:translateX(-50%);z-index:250;padding:4px 14px;background:rgba(0,0,0,.7);border:1px solid #d9b46a;color:#f1e3c4;font:14px Georgia,serif;pointer-events:none"></div>
+    <div id="mp-koniec" style="display:none;position:fixed;inset:0;z-index:260;background:rgba(0,0,0,.8);color:#e9dcc0;font-family:Georgia,serif;text-align:center">
+        <div style="max-width:520px;margin:18vh auto;padding:24px;background:#1a140c;border:1px solid #b9a77a">
+            <div id="mp-koniec-tytul" style="font-family:Cinzel,Georgia,serif;font-size:26px;color:#e3c27a;letter-spacing:.1em"></div>
+            <div id="mp-koniec-tresc" style="margin:16px 0 20px;line-height:1.6;white-space:pre-line"></div>
+            <button id="mp-dalej" class="start-btn">Następna misja</button>
+        </div>
     </div>
 
     <div id="stats-panel-overlay">
@@ -24430,6 +24457,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             enemies.forEach(e => scene.remove(e.mesh));
             npcs.forEach(n => scene.remove(n.mesh));
             soldiers = []; enemies = []; npcs = [];
+            if (mp) { mpPoMisji(); return; }
 
             // Licznik misji (napędza rekrutację i cykl pór roku) liczy tylko UKOŃCZONE misje,
             // czyli takie, w których pokonano wszystkich wrogów. Przegrana nie posuwa postępu.
@@ -24614,7 +24642,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
                 // Klasę trzeba znać PRZED zbudowaniem bryły - łucznik ma własny model
                 let name = i === 0 ? (playerName || availableNames[0]) : (recruitedWarriors[i - 1] ? recruitedWarriors[i - 1].name : availableNames[i % availableNames.length]);
-                let wClass = i === 0 ? 'uniwersalna' : (recruitedWarriors[i - 1] ? recruitedWarriors[i - 1].class : 'uniwersalna');
+                let wClass = i === 0 ? (mp ? mp.ja.klasa : 'uniwersalna') : (recruitedWarriors[i - 1] ? recruitedWarriors[i - 1].class : 'uniwersalna');
                 let soldierMesh = createCharacter(0x44aaff, 0xffccaa, 0x331100, 1, 'player', false, wClass);
                 soldierMesh.position.set(px, getTerrainY(px, pz) + soldierMesh.userData.yOffset, pz);
                 const classInfo = WARRIOR_CLASSES[wClass] || WARRIOR_CLASSES.uniwersalna;
@@ -24637,6 +24665,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 });
             }
             activeSoldierIndex = 0;
+            // Gra we dwóch: premie zdobyte w poprzednich misjach; drugi w oddziale należy do gościa
+            if (mp) soldiers.forEach((s, i) => {
+                const pr = mp.premie[i]; if (!pr) return;
+                s.maxHp += pr.hp; s.hp += pr.hp; s.maxAp += pr.ap; s.ap += pr.ap; s.accuracyBonus += pr.celnosc;
+                if (i === 1) s.mpGosc = true;
+            });
             refreshPlayerPositions();
             updateCameraPosition();
         }
@@ -24691,7 +24725,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (s && s.isEscortee) return true;   // powierzonym cywilem sterujemy zawsze
             if (s && s.summonedTurns > 0) return true;
             if (s && s.isAngel) return false;  // patron walczy samodzielnie - nie da się nim kierować
-            return idx < getObedientSquadSize();
+            return idx < getObedientSquadSize() || (!!mp && idx < 2);   // we dwóch każdy słucha swojego gracza
         }
 
         // Wojownik poza zasięgiem posłuszeństwa (zbyt niska Charyzma) działa sam -
@@ -48203,6 +48237,184 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             document.getElementById('title-screen').style.display = 'none';
             pokazIntro(() => startPresentMode());
         }
+
+        // ===== GRA WE DWÓCH =====
+        // Gospodarz prowadzi całą grę u siebie i udostępnia obraz swojej karty. Gość ogląda ten obraz
+        // i odsyła kliknięcia oraz klawisze. W planszę gość klika tylko wtedy, gdy rusza się jego
+        // bohater (drugi w oddziale) - gospodarz wtedy nie może nim sterować, i odwrotnie.
+        const MP_KLASY = [['wojownik', 'Wojownik', 'wojownik'], ['uniwersalna', 'Palladyn', 'palladyn'], ['snajper', 'Snajper', 'snajper'], ['uzdrowiciel', 'Uzdrowiciel', 'uzdrowiciel']];
+        const MP_PREFIKS = 'wotn-mp-';
+        let mp = null;   // { rola, peer, conn, ja: {imie, klasa}, gosc: {imie, klasa}, premie: [{hp, ap, celnosc}] }
+        let mpKlasa = 'wojownik';
+        const mpStatus = t => { document.getElementById('mp-status').textContent = t; };
+        const mpGoscSteruje = () => !!mp && gameMode === 'dream' && soldiers[activeSoldierIndex] && soldiers[activeSoldierIndex].mpGosc;
+        function mpLadujPeer() {
+            if (window.Peer) return Promise.resolve();
+            return new Promise((ok, zle) => {
+                const sc = document.createElement('script');
+                sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js';
+                sc.onload = ok; sc.onerror = () => zle(new Error('Nie udało się wczytać biblioteki połączeń (brak internetu?)'));
+                document.head.appendChild(sc);
+            });
+        }
+        function mpOtworz() {
+            document.getElementById('mp-panel').style.display = 'block';
+            const k = document.getElementById('mp-klasy');
+            k.innerHTML = MP_KLASY.map(([id, nazwa, plik]) =>
+                `<div data-k="${id}" style="cursor:pointer;width:130px;border:2px solid ${id === mpKlasa ? '#e3c27a' : '#3a3024'};padding:4px;background:#000a">
+                    <img src="graphics/portrety/${plik}.jpg" style="width:100%;display:block" alt=""><div style="padding:4px 0;font-family:Cinzel,Georgia,serif">${nazwa}</div></div>`).join('');
+            k.querySelectorAll('[data-k]').forEach(el => el.onclick = () => { mpKlasa = el.dataset.k; mpOtworz(); });
+        }
+        function mpJa() {
+            const imie = document.getElementById('mp-imie').value.trim();
+            if (!imie) { document.getElementById('mp-imie').focus(); mpStatus('Wpisz najpierw swoje imię.'); return null; }
+            return { imie, klasa: mpKlasa };
+        }
+        async function mpUtworz() {
+            const ja = mpJa(); if (!ja) return;
+            // Obraz karty trzeba zamówić od razu, w odpowiedzi na kliknięcie - przeglądarka zapyta o zgodę
+            let obraz;
+            try {
+                obraz = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: false, preferCurrentTab: true, selfBrowserSurface: 'include' });
+            } catch (e) {
+                obraz = renderer.domElement.captureStream(30);   // bez zgody: sama plansza, bez okienek gry
+            }
+            try { await mpLadujPeer(); } catch (e) { mpStatus(e.message); return; }
+            const kod = Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPRSTUWXYZ'[Math.floor(Math.random() * 22)]).join('');
+            const peer = new Peer(MP_PREFIKS + kod);
+            mp = { rola: 'gospodarz', peer, ja, premie: [{ hp: 0, ap: 0, celnosc: 0 }, { hp: 0, ap: 0, celnosc: 0 }], obraz };
+            peer.on('open', () => mpStatus(`Kod gry: ${kod}\nPodaj go drugiemu graczowi. Czekam, aż dołączy...`));
+            peer.on('error', e => mpStatus('Błąd połączenia: ' + (e.type || e.message)));
+            peer.on('connection', conn => {
+                if (mp.conn) { conn.close(); return; }
+                mp.conn = conn;
+                conn.on('data', d => {
+                    if (d.typ === 'witaj') { mp.gosc = { imie: d.imie, klasa: d.klasa }; peer.call(conn.peer, obraz); mpStartGospodarza(); }
+                    else mpWejscieGoscia(d);
+                });
+                conn.on('close', () => showFloatingWarning('Drugi gracz się rozłączył.'));
+            });
+        }
+        async function mpDolacz() {
+            const ja = mpJa(); if (!ja) return;
+            const kod = document.getElementById('mp-kod').value.trim().toUpperCase();
+            if (kod.length !== 4) { mpStatus('Wpisz czteroliterowy kod od gospodarza.'); return; }
+            try { await mpLadujPeer(); } catch (e) { mpStatus(e.message); return; }
+            mpStatus('Łączę...');
+            const peer = new Peer();
+            mp = { rola: 'gosc', peer, ja };
+            peer.on('error', e => mpStatus(e.type === 'peer-unavailable' ? 'Nie ma gry o takim kodzie.' : 'Błąd połączenia: ' + (e.type || e.message)));
+            peer.on('call', call => {
+                call.answer();
+                call.on('stream', st => {
+                    const w = document.getElementById('mp-wideo');
+                    w.srcObject = st; w.style.display = 'block';
+                    document.getElementById('mp-panel').style.display = 'none';
+                    document.getElementById('title-screen').style.display = 'none';
+                });
+            });
+            peer.on('open', () => {
+                const conn = peer.connect(MP_PREFIKS + kod, { reliable: true });
+                mp.conn = conn;
+                conn.on('open', () => { conn.send({ typ: 'witaj', imie: ja.imie, klasa: ja.klasa }); mpStatus('Połączono! Czekam na obraz od gospodarza...'); mpPodlaczWejscie(conn); });
+                conn.on('close', () => { mpStatus('Gospodarz zakończył grę.'); document.getElementById('mp-wideo').style.display = 'none'; document.getElementById('mp-panel').style.display = 'block'; });
+            });
+        }
+        // Gość: kliknięcia i klawisze z obrazu idą do gospodarza jako ułamki rozmiaru obrazu
+        function mpPodlaczWejscie(conn) {
+            const w = document.getElementById('mp-wideo');
+            const pkt = e => {
+                const r = w.getBoundingClientRect(), vw = w.videoWidth || r.width, vh = w.videoHeight || r.height;
+                const sk = Math.min(r.width / vw, r.height / vh), ox = (r.width - vw * sk) / 2, oy = (r.height - vh * sk) / 2;
+                return { x: (e.clientX - r.left - ox) / (vw * sk), y: (e.clientY - r.top - oy) / (vh * sk) };
+            };
+            let ostatniRuch = 0;
+            ['pointerdown', 'pointerup', 'pointermove'].forEach(typ => w.addEventListener(typ, e => {
+                if (typ === 'pointermove') { const t = performance.now(); if (t - ostatniRuch < 50) return; ostatniRuch = t; }
+                e.preventDefault(); conn.send({ typ: 'mysz', e: typ, b: e.button, ...pkt(e) });
+            }));
+            w.addEventListener('contextmenu', e => e.preventDefault());
+            w.addEventListener('wheel', e => { e.preventDefault(); conn.send({ typ: 'kolko', d: e.deltaY, ...pkt(e) }); }, { passive: false });
+            ['keydown', 'keyup'].forEach(typ => window.addEventListener(typ, e => {
+                if (w.style.display === 'none') return;
+                e.preventDefault(); conn.send({ typ: 'klawisz', e: typ, key: e.key, code: e.code, shift: e.shiftKey, ctrl: e.ctrlKey });
+            }));
+        }
+        // Gospodarz: odtwarza zdarzenia gościa na własnej stronie
+        let mpCelWcisniecia = null;
+        function mpWejscieGoscia(d) {
+            if (d.typ === 'klawisz') {
+                (document.activeElement || document.body).dispatchEvent(new KeyboardEvent(d.e, { key: d.key, code: d.code, shiftKey: d.shift, ctrlKey: d.ctrl, bubbles: true }));
+                return;
+            }
+            const x = d.x * innerWidth, y = d.y * innerHeight;
+            if (d.x < 0 || d.x > 1 || d.y < 0 || d.y > 1) return;
+            const el = document.elementFromPoint(x, y); if (!el) return;
+            const opcje = { clientX: x, clientY: y, button: d.b || 0, buttons: d.e === 'pointerdown' ? 1 : 0, bubbles: true, cancelable: true, pointerId: 77, isPrimary: true };
+            if (d.typ === 'kolko') { el.dispatchEvent(new WheelEvent('wheel', { ...opcje, deltaY: d.d })); return; }
+            const plansza = el === renderer.domElement;
+            if (d.e === 'pointermove') { el.dispatchEvent(new PointerEvent('pointermove', opcje)); el.dispatchEvent(new MouseEvent('mousemove', opcje)); return; }
+            if (plansza && !mpGoscSteruje() && d.b === 0) return;   // nie jego kolej - plansza nie reaguje na jego kliknięcia
+            if (d.e === 'pointerdown') {
+                mpCelWcisniecia = el;
+                el.dispatchEvent(new PointerEvent('pointerdown', opcje)); el.dispatchEvent(new MouseEvent('mousedown', opcje));
+                if (el.focus && /INPUT|TEXTAREA|SELECT/.test(el.tagName)) el.focus();
+            } else {
+                el.dispatchEvent(new PointerEvent('pointerup', opcje)); el.dispatchEvent(new MouseEvent('mouseup', opcje));
+                if (mpCelWcisniecia === el) el.dispatchEvent(new MouseEvent(d.b === 2 ? 'contextmenu' : 'click', opcje));
+                mpCelWcisniecia = null;
+            }
+        }
+        // Gdy rusza się bohater gościa, gospodarz nie może nim klikać po planszy
+        ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click'].forEach(typ => window.addEventListener(typ, e => {
+            if (mp && mp.rola === 'gospodarz' && e.isTrusted && e.target === renderer.domElement && e.button === 0 && mpGoscSteruje()) {
+                e.stopImmediatePropagation(); e.preventDefault();
+            }
+        }, true));
+        setInterval(() => {
+            const z = document.getElementById('mp-znak');
+            if (!mp || mp.rola !== 'gospodarz' || gameMode !== 'dream' || !soldiers[activeSoldierIndex]) { z.style.display = 'none'; return; }
+            const s = soldiers[activeSoldierIndex];
+            z.style.display = 'block';
+            z.textContent = `Misja ${mp.misja} · Rusza się: ${s.name} (${s.mpGosc ? 'gracz 2' : 'gracz 1'})`;
+        }, 300);
+        function mpStartGospodarza() {
+            document.getElementById('mp-panel').style.display = 'none';
+            document.getElementById('title-screen').style.display = 'none';
+            playerName = mp.ja.imie;
+            mp.misja = 0;
+            startPresentMode();
+            setTimeout(mpNastepnaMisja, 800);
+        }
+        function mpNastepnaMisja() {
+            document.getElementById('mp-koniec').style.display = 'none';
+            recruitedWarriors = [{ name: mp.gosc.imie, class: mp.gosc.klasa }];
+            mp.misja++;
+            startGame(2);
+        }
+        const MP_PREMIE = [['hp', 2, '+2 do życia'], ['ap', 1, '+1 punkt ruchu'], ['celnosc', 10, '+10% celności']];
+        function mpPoMisji() {
+            gameMode = 'mp-przerwa';
+            const wygrana = lastMissionWon;
+            const imiona = [mp.ja.imie, mp.gosc.imie];
+            let tresc;
+            if (wygrana) {
+                tresc = imiona.map((im, i) => {
+                    const [klucz, ile, opis] = MP_PREMIE[Math.floor(Math.random() * MP_PREMIE.length)];
+                    mp.premie[i][klucz] += ile;
+                    return `${im}: ${opis}`;
+                }).join('\n') + '\n\nPremie zostają na kolejne misje.';
+            } else tresc = 'Sen okazał się silniejszy. Premie zostają - spróbujcie następnego.';
+            document.getElementById('mp-koniec-tytul').textContent = wygrana ? `MISJA ${mp.misja} WYGRANA` : 'PORAŻKA';
+            document.getElementById('mp-koniec-tresc').textContent = tresc;
+            document.getElementById('mp-koniec').style.display = 'block';
+        }
+        document.getElementById('title-click-multi').addEventListener('click', mpOtworz);
+        document.getElementById('mp-wroc').addEventListener('click', () => { document.getElementById('mp-panel').style.display = 'none'; });
+        document.getElementById('mp-utworz').addEventListener('click', mpUtworz);
+        document.getElementById('mp-dolacz').addEventListener('click', mpDolacz);
+        document.getElementById('mp-dalej').addEventListener('click', mpNastepnaMisja);
+        ['mp-imie', 'mp-kod'].forEach(id => document.getElementById(id).addEventListener('keydown', e => e.stopPropagation()));
         document.getElementById('name-prompt-btn').addEventListener('click', submitPlayerName);
         document.getElementById('name-prompt-input').addEventListener('keydown', (e) => {
             e.stopPropagation();
