@@ -10140,32 +10140,35 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const pierscien = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.022, 6, 12), postMat);
                 pierscien.rotation.x = Math.PI / 2; pierscien.position.set(0, y, 0); group.add(pierscien);
             });
-            const luk = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.04, 6, 14, Math.PI), postMat);
-            luk.position.set(0.32, 3.4, 0);
-            group.add(luk);
-            const zwis = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.18, 6), postMat);
-            zwis.position.set(0.64, 3.31, 0);
-            group.add(zwis);
-
             const isCyber = currentCombatTheme && currentCombatTheme.id === 'cyber';
             const kolorZarowki = isVolcano ? 0xff3311 : (isCyber ? 0xbdf1ff : 0xffdd66);
             const bulbMat = new THREE.MeshBasicMaterial({ color: kolorZarowki });
-            const daszek = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.16, 6), postMat);
-            daszek.position.set(0.64, 3.18, 0);
-            group.add(daszek);
-            const bulb = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.1, 0.3, 6), bulbMat.clone());
-            bulb.position.set(0.64, 2.95, 0);
-            bulb.userData.isBulb = true;
-            group.add(bulb);
-            const dno = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.1, 6), postMat);
-            dno.rotation.x = Math.PI; dno.position.set(0.64, 2.75, 0);
-            group.add(dno);
+            // Rączka laseczki rozłożona na dwie strony - po latarence z każdej strony słupa
+            [-1, 1].forEach(st => {
+                const luk = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.04, 6, 14, Math.PI), postMat);
+                luk.position.set(st * 0.32, 3.4, 0);
+                group.add(luk);
+                const x = st * 0.64;
+                const zwis = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.18, 6), postMat);
+                zwis.position.set(x, 3.31, 0);
+                group.add(zwis);
+                const daszek = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.16, 6), postMat);
+                daszek.position.set(x, 3.18, 0);
+                group.add(daszek);
+                const bulb = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.1, 0.3, 6), bulbMat.clone());
+                bulb.position.set(x, 2.95, 0);
+                bulb.userData.isBulb = true;
+                group.add(bulb);
+                const dno = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.1, 6), postMat);
+                dno.rotation.x = Math.PI; dno.position.set(x, 2.75, 0);
+                group.add(dno);
+            });
             group.userData.bulbColor = kolorZarowki;
             group.userData.lit = true;
 
             // Latarnie nie świecą w dzień - intensywność włącza się dopiero w nocy (updateStreetLampsLighting)
             const light = new THREE.PointLight(isVolcano ? 0xff2200 : 0x88bbff, 0, 6.5, 2.2);
-            light.position.set(0.64, 2.9, 0);
+            light.position.set(0, 2.9, 0);   // między latarenkami - oświetla chodnik i trawę po równo
             group.add(light);
             group.userData.lampLight = light;
 
