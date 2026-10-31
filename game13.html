@@ -43596,6 +43596,46 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     box(z, 0.06, 0.4, 0.02, M(0xd8b060), 0, 0.95, 0.16);   // wahadło
                 }
             }
+
+            // PLAC ZABAW na wolnym kawałku trawy: huśtawki, karuzela, piaskownica, zjeżdżalnia, ławka
+            for (let proba = 0; proba < 600 && String(gameMode).indexOf('present') === 0; proba++) {
+                const px = Math.floor(Math.random() * (mapWidth - 12)) + 6 - offsetX, pz = Math.floor(Math.random() * (mapDepth - 12)) + 6 - offsetZ;
+                let ok = true;
+                for (let dx = -5; dx <= 5 && ok; dx++) for (let dz = -5; dz <= 5 && ok; dz++) {
+                    ok = wolne(px + dx, pz + dz) && terrainTypeMap[px + dx + offsetX][pz + dz + offsetZ] === 0;
+                }
+                if (!ok) continue;
+                const czerw = M(0xd23a2a), zolty = M(0xf0c030), niebie = M(0x3a7ad2), piach = M(0xe6cf8e);
+                const pl = grupa(px, pz, 0);
+                box(pl, 9, 0.04, 9, M(0x8a5a40), 0, 0.02, 0);   // nawierzchnia z gumy
+                // huśtawki: rama A z dwoma siedziskami na łańcuchach
+                [-1.4, 1.4].forEach(x => [-0.5, 0.5].forEach(z => { const n = box(pl, 0.08, 2.3, 0.08, niebie, 2 + x, 1.1, -2 + z); n.rotation.x = -z * 0.4; }));
+                box(pl, 3, 0.1, 0.1, niebie, 2, 2.15, -2);
+                [1.5, 2.5].forEach(x => { [-0.15, 0.15].forEach(dx => box(pl, 0.02, 1.6, 0.02, metal, x + dx, 1.35, -2)); box(pl, 0.45, 0.05, 0.25, czerw, x, 0.55, -2); });
+                // karuzela: obrotowy krąg z barierkami
+                const tarcza = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 0.12, 20), zolty); tarcza.position.set(-2, 0.3, 2); pl.add(tarcza);
+                box(pl, 0.08, 1.0, 0.08, metal, -2, 0.8, 2);
+                [0, 1, 2, 3].forEach(i => { const a = i * Math.PI / 2, u = box(pl, 0.05, 0.6, 0.05, czerw, -2 + Math.cos(a) * 0.8, 0.65, 2 + Math.sin(a) * 0.8);
+                    const r = box(pl, 0.8, 0.05, 0.05, czerw, -2 + Math.cos(a) * 0.4, 0.95, 2 + Math.sin(a) * 0.4); r.rotation.y = -a; });
+                // piaskownica z drewnianą ramką i wiaderkiem
+                box(pl, 2.4, 0.12, 2.4, piach, -2, 0.12, -2);
+                [[0, -1.2, 2.5, 0.12], [0, 1.2, 2.5, 0.12], [-1.2, 0, 0.12, 2.5], [1.2, 0, 0.12, 2.5]].forEach(([x, z, w, d]) => box(pl, w, 0.3, d, drewno, -2 + x, 0.15, -2 + z));
+                const wiadro = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.09, 0.2, 8), niebie); wiadro.position.set(-1.6, 0.28, -2.3); pl.add(wiadro);
+                // zjeżdżalnia: drabinka, podest i rynna
+                [[1.6, 1.6], [2.2, 1.6], [1.6, 2.2], [2.2, 2.2]].forEach(([x, z]) => box(pl, 0.08, 1.5, 0.08, niebie, x, 0.75, z));
+                box(pl, 0.7, 0.08, 0.7, zolty, 1.9, 1.5, 1.9);
+                [0.4, 0.8, 1.2].forEach(y => box(pl, 0.6, 0.05, 0.05, metal, 1.9, y, 1.55));
+                const rynna = box(pl, 0.55, 0.06, 2.2, czerw, 1.9, 0.8, 3.0); rynna.rotation.x = 0.6;
+                // ławka dla rodziców
+                const lw = new THREE.Group(); lw.position.set(0, 0, 4); pl.add(lw);
+                box(lw, 1.6, 0.06, 0.4, drewno, 0, 0.45, 0); box(lw, 1.6, 0.35, 0.05, drewno, 0, 0.7, -0.18); nogi(lw, 1.6, 0.4, 0.45, czern, 0.06);
+                // urządzenia zajmują swoje pola, przejścia między nimi zostają wolne
+                for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) {
+                    if (Math.abs(dx) >= 1 && Math.abs(dz) >= 1) zajmij(px + dx, pz + dz, 'plac-zabaw');
+                }
+                for (let dx = -1; dx <= 1; dx++) zajmij(px + dx, pz + 4, 'plac-zabaw');
+                break;
+            }
         }
 
         function ozdobTerazniejszosc() {
