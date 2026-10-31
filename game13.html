@@ -43331,10 +43331,21 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             scene.remove(ozdobyMiasta);
             ozdobyMiasta.traverse(o => { if (o.geometry) o.geometry.dispose(); });
             ozdobyMiasta = null; oknaMiasta = []; wronyMiasta = []; cmyMiasta = []; nietoperzeMiasta = []; mgłaMiasta = []; kotMiasta = null;
-            swieceKapliczek = []; dymKominow = []; witrazeKosciola = []; autaMiasta = []; slupyOgloszen = [];
+            swieceKapliczek = []; dymKominow = []; witrazeKosciola = []; autaMiasta = []; slupyOgloszen = []; kucharkaJadlodajni = null;
         }
         // Słupy ogłoszeniowe z wieściami: plotki o snach, poszlaki, ślady Zakonu
-        let slupyOgloszen = [];
+        let slupyOgloszen = [], kucharkaJadlodajni = null;
+        // Kucharka z jadłodajni wie, kto u niej jadł - opowiada o ludziach w potrzebie i o dziwnych gościach
+        const OPOWIESCI_KUCHARKI = [
+            'Był dziś u mnie starszy pan spod kościoła, ledwo trzymał łyżkę. Kaszle od tygodnia, a do apteki nie ma siły dojść. Może byś mu zaniósł lekarstwo?',
+            'Przychodzi tu taka dziewczynka bez kurtki, zawsze sama. Mówi, że mama śpi od trzech dni i nie da się jej dobudzić. Serce mi pęka.',
+            'Jeden z pensjonariuszy domu starców wymknął się na zupę. Prosił, żeby nikomu nie mówić - podobno w nocy coś stoi w ich korytarzu.',
+            'Wczoraj jadł tu mężczyzna w ciemnym habicie. Nie zjadł nic, tylko wypytywał, kto w mieście źle śpi. Zapłacił starą monetą.',
+            'Sąsiadka spod numeru przy fontannie nie przyszła po obiad trzeci dzień z rzędu. Zajrzałbyś do niej? Ja nie mogę zostawić garów.',
+            'Grabarz zostawił tu rano łopatę i uciekł. Twierdzi, że na cmentarzu ktoś nucił kołysankę spod ziemi. Pewnie wypił, ale bał się naprawdę.',
+            'Weź miskę, kochaneczku, na pusty żołądek nikt jeszcze Cienia nie pokonał. A jak spotkasz biednego - przyślij go do mnie.',
+            'Dzieciaki ze szkoły opowiadają sobie sen o studni bez dna. Wszystkie ten sam. Nauczycielka mówi, że to bajka, ale sama zbladła.'
+        ];
         const OGLOSZENIA = [
             'ZAGINĄŁ PIES. Ostatnio widziany przy starym szpitalu, nocą. Sąsiedzi mówią, że wył do pustego okna na drugim piętrze.',
             'KTO WIDZIAŁ? Mężczyzna w ciemnym habicie wypytywał dzieci przy szkole o ich sny. Proszę o kontakt z proboszczem.',
@@ -43349,7 +43360,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             'Zbiórka krwi w szpitalu. Lekarze proszą: nie budzić gwałtownie tych, którzy mówią przez sen.',
             'Zakon pamięta. Zakon czuwa. Kto widzi znak na murze - niech się przeżegna i idzie dalej.'
         ];
-        function pokazOgloszenie(nr) {
+        function pokazOgloszenie(nr, tekst, tytul) {
             let el = document.getElementById('ogloszenie-karta');
             if (!el) {
                 el = document.createElement('div'); el.id = 'ogloszenie-karta';
@@ -43359,18 +43370,20 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 el.onclick = () => { el.style.display = 'none'; };
                 document.body.appendChild(el);
             }
-            const t = OGLOSZENIA[(nr * 5 + Math.floor(Date.now() / 60000)) % OGLOSZENIA.length];
-            el.innerHTML = '<div style="font-family:Cinzel,Georgia,serif;letter-spacing:.12em;font-size:13px;color:#7a5a2a;margin-bottom:10px">OGŁOSZENIE</div>' +
+            const t = tekst || OGLOSZENIA[(nr * 5 + Math.floor(Date.now() / 60000)) % OGLOSZENIA.length];
+            el.innerHTML = '<div style="font-family:Cinzel,Georgia,serif;letter-spacing:.12em;font-size:13px;color:#7a5a2a;margin-bottom:10px">' + (tytul || 'OGŁOSZENIE') + '</div>' +
                 t + '<div style="font-size:11px;color:#8a7a5a;margin-top:14px">(kliknij, by zamknąć)</div>';
             el.style.display = 'block';
         }
         window.addEventListener('pointerdown', (e) => {
-            if (!slupyOgloszen.length || !isExploreMode() || e.target !== renderer.domElement) return;
+            if ((!slupyOgloszen.length && !kucharkaJadlodajni) || !isExploreMode() || e.target !== renderer.domElement) return;
             const r = renderer.domElement.getBoundingClientRect();
             const ray = new THREE.Raycaster();
             ray.setFromCamera(new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
             const traf = ray.intersectObjects(slupyOgloszen, false)[0];
             if (traf) pokazOgloszenie(traf.object.userData.ogloszenie);
+            else if (kucharkaJadlodajni && ray.intersectObject(kucharkaJadlodajni, true).length)
+                pokazOgloszenie(0, '„' + OPOWIESCI_KUCHARKI[Math.floor(Math.random() * OPOWIESCI_KUCHARKI.length)] + '”', 'KUCHARKA Z JADŁODAJNI');
         });
         const jestNocWMiescie = () => gameMode === 'presentNight' || currentTimeOfDay === 'noc' || currentTimeOfDay === 'wieczor';
 
@@ -43418,7 +43431,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
                 for (let z = sz.minZ + 2; z <= sz.maxZ - 4; z++)
                     for (let x = sz.minX + 1; x <= sz.maxX - 1; x++) {
-                        if (x === cx || (x - sz.minX) % 2 === 0 || !wolne(x, z) || drzwiObok(x, z)) continue;
+                        if (x === cx || (x - sz.minX) % 2 === 0 || !wolne(x, z) || [-1, 0, 1].some(d => drzwiObok(x + d, z) || drzwiObok(x, z + d))) continue;   // wolny dostęp od każdych drzwi
                         const l = grupa(x, z, 0); zajmij(x, z, 'lawka');
                         box(l, 0.8, 0.05, 0.45, drewno, 0, 0.72, 0.15); nogi(l, 0.8, 0.45, 0.7, metal, 0.04, 0.15);
                         box(l, 0.28, 0.02, 0.2, biel, -0.15, 0.755, 0.15);   // zeszyt
@@ -43559,7 +43572,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
                 // kucharka w fartuchu i czepku za ladą
                 if (wolne(sx, zl + 1)) {
-                    const k = grupa(sx, zl + 1, Math.PI); zajmij(sx, zl + 1, 'lawka');
+                    const k = grupa(sx, zl + 1, Math.PI); zajmij(sx, zl + 1, 'lawka'); kucharkaJadlodajni = k;
                     box(k, 0.36, 0.8, 0.24, M(0x3a4a6a), 0, 0.4, 0); box(k, 0.42, 0.6, 0.28, M(0xc04a3a), 0, 1.1, 0);
                     box(k, 0.36, 0.75, 0.02, biel, 0, 0.95, 0.15);   // fartuch
                     const glowa = new THREE.Mesh(new THREE.SphereGeometry(0.17, 10, 8), M(0xe8c4a0)); glowa.position.set(0, 1.58, 0); k.add(glowa);
