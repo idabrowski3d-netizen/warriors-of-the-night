@@ -22919,7 +22919,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             foldZ = null;
             clearShieldBubble(null);
             clearDustDevils();
-            heroUpstairs = false; hospitalStairs = null; hospitalUpperTiles = null; hospitalPatients = [];
+            heroUpstairs = false; hospitalStairs = null; hospitalUpperTiles = null; hospitalPatients = []; szkolaGora = false;
             clearSaintApparition();
             if (typeof hospitalUpperMeshes !== 'undefined') { hospitalUpperMeshes.forEach(m => scene.remove(m)); hospitalUpperMeshes = []; }
             terrainMats = createTerrainTextures(SEASON_TERRAIN_PALETTES[currentSeason]);
@@ -23464,6 +23464,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Piętro szpitala: Teraźniejszość nie ma turowego systemu kondygnacji,
         // więc realizujemy je punktowo - schodami wchodzi się na osobny poziom nad oddziałem.
         let heroUpstairs = false;
+        let szkolaGora = false, szkolaPietro = null;   // piętro szkoły: { T, x, z, grupa, zajete }
         let hospitalStairs = null;      // { x, z } - kafel schodów
         let hospitalUpperTiles = null;  // { minX, maxX, minZ, maxZ } - obrys sali na piętrze
         let hospitalPatients = [];
@@ -23561,8 +23562,21 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         // Wejście i zejście po schodach szpitala
         function checkHospitalStairs() {
-            if (!hero || gameMode !== 'present' || !hospitalStairs) return;
+            if (!hero || gameMode !== 'present') return;
             const hx = hero.mesh.position.x, hz = hero.mesh.position.z;
+            if (szkolaPietro && (szkolaGora || !heroUpstairs)) {
+                if (Math.hypot(hx - szkolaPietro.x, hz - szkolaPietro.z) <= 1.0) {
+                    if (!hero.stairCooldown) {
+                        hero.stairCooldown = true;
+                        heroUpstairs = szkolaGora = !szkolaGora;
+                        szkolaPietro.grupa.visible = szkolaGora;
+                        showFloatingWarning(szkolaGora ? 'Szkoła - klasy na piętrze' : 'Szkoła - parter');
+                    }
+                    return;
+                }
+                if (szkolaGora) { hero.stairCooldown = false; return; }
+            }
+            if (!hospitalStairs) return;
             const near = Math.hypot(hx - hospitalStairs.x, hz - hospitalStairs.z) <= 1.0;
             if (!near) { hero.stairCooldown = false; return; }
             if (hero.stairCooldown) return;      // nie przełączaj w kółko stojąc na schodach
@@ -24084,11 +24098,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (isGhost) {
                     if (!isSleepingNPCAt(nextX, curZ) && nextX > -offsetX + 1 && nextX < offsetX - 1) hero.mesh.position.x = nextX;
                     if (!isSleepingNPCAt(hero.mesh.position.x, nextZ) && nextZ > -offsetZ + 1 && nextZ < offsetZ - 1) hero.mesh.position.z = nextZ;
-                } else if (heroUpstairs && hospitalUpperTiles) {
-                    // Na piętrze szpitala poruszamy się tylko w obrębie sali - ściany są tu granicą
-                    const T = hospitalUpperTiles;
+                } else if (heroUpstairs && (szkolaGora ? szkolaPietro : hospitalUpperTiles)) {
+                    // Na piętrze szpitala (i szkoły) poruszamy się tylko w obrębie sali - ściany są tu granicą
+                    const T = szkolaGora ? szkolaPietro.T : hospitalUpperTiles;
                     const inRoom = (x, z) => x >= T.minX - 0.4 && x <= T.maxX + 0.4 && z >= T.minZ - 0.4 && z <= T.maxZ + 0.4;
-                    const onBed = (x, z) => hospitalPatients.some(p => Math.abs(x - p.x) < 0.7 && Math.abs(z - p.z) < 1.1);
+                    const onBed = (x, z) => szkolaGora ? szkolaPietro.zajete.has(Math.round(x) + ',' + Math.round(z)) && !(Math.round(x) === szkolaPietro.x && Math.round(z) === szkolaPietro.z) : hospitalPatients.some(p => Math.abs(x - p.x) < 0.7 && Math.abs(z - p.z) < 1.1);
                     if (inRoom(nextX, curZ) && !onBed(nextX, curZ)) hero.mesh.position.x = nextX;
                     if (inRoom(hero.mesh.position.x, nextZ) && !onBed(hero.mesh.position.x, nextZ)) hero.mesh.position.z = nextZ;
                 } else {
@@ -33763,7 +33777,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     ...pets.map(p => ({ mesh: p.mesh, kind: 'pet', data: p })),
                     ...(ambulance ? [{ mesh: ambulance.mesh, kind: 'ambulance', data: ambulance }] : []),
                     ...(cemeteryCandleMesh ? [{ mesh: cemeteryCandleMesh, kind: 'candle', data: null }] : []),
-                    ...(heroUpstairs ? hospitalPatients.filter(p => p.mesh).map(p => ({ mesh: p.klikalne || p.mesh, kind: 'patient', data: p })) : [])
+                    ...(heroUpstairs && !szkolaGora ? hospitalPatients.filter(p => p.mesh).map(p => ({ mesh: p.klikalne || p.mesh, kind: 'patient', data: p })) : [])
                 ] : [
                     ...sleepingNPCs.map(n => ({ mesh: n.mesh, kind: 'sleeping', data: n })),
                     ...(departedSoul ? [{ mesh: departedSoul.mesh, kind: 'soul', data: null }] : []),
@@ -43331,7 +43345,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             scene.remove(ozdobyMiasta);
             ozdobyMiasta.traverse(o => { if (o.geometry) o.geometry.dispose(); });
             ozdobyMiasta = null; oknaMiasta = []; wronyMiasta = []; cmyMiasta = []; nietoperzeMiasta = []; mgłaMiasta = []; kotMiasta = null;
-            swieceKapliczek = []; dymKominow = []; witrazeKosciola = []; autaMiasta = []; slupyOgloszen = []; kucharkaJadlodajni = null;
+            swieceKapliczek = []; dymKominow = []; witrazeKosciola = []; autaMiasta = []; slupyOgloszen = []; kucharkaJadlodajni = null; szkolaPietro = null; szkolaGora = false;
         }
         // Słupy ogłoszeniowe z wieściami: plotki o snach, poszlaki, ślady Zakonu
         let slupyOgloszen = [], kucharkaJadlodajni = null;
@@ -43403,7 +43417,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const nogi = (g, w, d, h, mat, gr, oz) => [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, b]) => box(g, gr, h, gr, mat, a * (w / 2 - gr), h / 2, b * (d / 2 - gr) + (oz || 0)));
             const wolne = (x, z) => { const mx = x + offsetX, mz = z + offsetZ; return mx >= 0 && mz >= 0 && mx < mapWidth && mz < mapDepth && obstacleGrid[mx][mz] === null; };
             const zajmij = (x, z, typ) => { obstacleGrid[x + offsetX][z + offsetZ] = { type: typ, x, z }; };
-            const grupa = (x, z, rot) => { const g = new THREE.Group(); g.position.set(x, getTerrainY(Math.round(x), Math.round(z)), z); g.rotation.y = rot || 0; G.add(g); return g; };
+            const grupa = (x, z, rot, rodzic) => { const g = new THREE.Group(); g.position.set(x, getTerrainY(Math.round(x), Math.round(z)), z); g.rotation.y = rot || 0; (rodzic || G).add(g); return g; };
             const drzwiObok = (x, z) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => {
                 const k = obstacleGrid[x + a + offsetX], o = k && k[z + b + offsetZ];
                 return o && o.type === 'house-door';
@@ -43414,29 +43428,50 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 box(k, 0.4, 0.05, 0.4, drewno, 0, 0.45, 0); nogi(k, 0.4, 0.4, 0.45, ciemne, 0.04);
                 box(k, 0.4, 0.4, 0.05, drewno, 0, 0.68, -0.18);
             };
+            const niebieskiWazon = () => M(0x3a6ab0);
             const budynek = sp => sp && houses.find(h => h.centerX === sp.x && h.centerZ === sp.z);
 
             // SZKOŁA: tablica na północnej ścianie, biurko nauczyciela, rzędy ławek z krzesłami
             const sz = budynek(specialBuildingSpawns.school);
             if (sz) {
                 const cx = Math.round((sz.minX + sz.maxX) / 2);
-                const t = grupa(cx, sz.maxZ + 0.25, Math.PI);
-                box(t, 3.2, 1.3, 0.08, ciemne, 0, 1.45, 0); box(t, 3.0, 1.15, 0.1, zielen, 0, 1.45, 0);
-                box(t, 3.0, 0.05, 0.14, ciemne, 0, 0.84, 0.06);
-                [-0.9, -0.2, 0.6].forEach((x, i) => box(t, 0.5 - i * 0.1, 0.03, 0.02, biel, x, 1.5 + (i % 2) * 0.25, 0.06));   // kreda na tablicy
-                if (wolne(cx, sz.maxZ - 2)) {
-                    const b = grupa(cx, sz.maxZ - 2, Math.PI); zajmij(cx, sz.maxZ - 2, 'lawka');
-                    box(b, 1.4, 0.06, 0.7, drewno, 0, 0.76, 0); box(b, 1.3, 0.7, 0.05, ciemne, 0, 0.38, 0.3);
-                    box(b, 0.35, 0.03, 0.25, biel, 0.3, 0.8, 0); krzeslo(b, 0, -0.6, 0);
-                }
-                for (let z = sz.minZ + 2; z <= sz.maxZ - 4; z++)
-                    for (let x = sz.minX + 1; x <= sz.maxX - 1; x++) {
-                        if (x === cx || (x - sz.minX) % 2 === 0 || !wolne(x, z) || [-1, 0, 1].some(d => drzwiObok(x + d, z) || drzwiObok(x, z + d))) continue;   // wolny dostęp od każdych drzwi
-                        const l = grupa(x, z, 0); zajmij(x, z, 'lawka');
-                        box(l, 0.8, 0.05, 0.45, drewno, 0, 0.72, 0.15); nogi(l, 0.8, 0.45, 0.7, metal, 0.04, 0.15);
-                        box(l, 0.28, 0.02, 0.2, biel, -0.15, 0.755, 0.15);   // zeszyt
-                        krzeslo(l, 0, -0.32, 0);
+                // Schody na piętro w rogu przy tablicy (albo w drugim rogu, gdy ten zajęty)
+                const schody = [[sz.minX + 1, sz.maxZ - 1], [sz.maxX - 1, sz.maxZ - 1]].find(([x, z]) => wolne(x, z) && !drzwiObok(x, z));
+                const klasa = (rodzic, wolneK, zajmijK) => {
+                    const t = grupa(cx, sz.maxZ + 0.25, Math.PI, rodzic);
+                    box(t, 3.2, 1.3, 0.08, ciemne, 0, 1.45, 0); box(t, 3.0, 1.15, 0.1, zielen, 0, 1.45, 0);
+                    box(t, 3.0, 0.05, 0.14, ciemne, 0, 0.84, 0.06);
+                    [-0.9, -0.2, 0.6].forEach((x, i) => box(t, 0.5 - i * 0.1, 0.03, 0.02, biel, x, 1.5 + (i % 2) * 0.25, 0.06));   // kreda na tablicy
+                    if (wolneK(cx, sz.maxZ - 2)) {
+                        const b = grupa(cx, sz.maxZ - 2, Math.PI, rodzic); zajmijK(cx, sz.maxZ - 2);
+                        box(b, 1.4, 0.06, 0.7, drewno, 0, 0.76, 0); box(b, 1.3, 0.7, 0.05, ciemne, 0, 0.38, 0.3);
+                        box(b, 0.35, 0.03, 0.25, biel, 0.3, 0.8, 0); krzeslo(b, 0, -0.6, 0);
                     }
+                    for (let z = sz.minZ + 2; z <= sz.maxZ - 4; z++)
+                        for (let x = sz.minX + 1; x <= sz.maxX - 1; x++) {
+                            if (x === cx || (x - sz.minX) % 2 === 0 || !wolneK(x, z)) continue;
+                            const l = grupa(x, z, 0, rodzic); zajmijK(x, z);
+                            box(l, 0.8, 0.05, 0.45, drewno, 0, 0.72, 0.15); nogi(l, 0.8, 0.45, 0.7, metal, 0.04, 0.15);
+                            box(l, 0.28, 0.02, 0.2, biel, -0.15, 0.755, 0.15);   // zeszyt
+                            krzeslo(l, 0, -0.32, 0);
+                        }
+                };
+                const naSchodach = (x, z) => schody && x === schody[0] && z === schody[1];
+                klasa(undefined, (x, z) => wolne(x, z) && !naSchodach(x, z) && ![-1, 0, 1].some(d => drzwiObok(x + d, z) || drzwiObok(x, z + d)), (x, z) => zajmij(x, z, 'lawka'));   // wolny dostęp od każdych drzwi
+                if (schody) {
+                    const [sx, sz2] = schody;
+                    const st = grupa(sx, sz2, 0); zajmij(sx, sz2, 'stairs');
+                    for (let i = 0; i < 6; i++) box(st, 0.9, 0.18, 0.16, drewno, 0, 0.09 + i * 0.18, -0.4 + i * 0.16);
+                    box(st, 0.05, 1.3, 0.05, ciemne, 0.45, 0.65, 0.4);
+                    // PIĘTRO: podłoga i druga klasa; widać je tylko, gdy bohater wejdzie po schodach
+                    const gora = new THREE.Group(); gora.position.y = FLOOR_HEIGHT; gora.visible = false; G.add(gora);
+                    const pod = grupa((sz.minX + sz.maxX) / 2, (sz.minZ + sz.maxZ) / 2, 0, gora);
+                    box(pod, sz.maxX - sz.minX + 0.5, 0.15, sz.maxZ - sz.minZ + 0.5, M(0xb08a5a), 0, -0.08, 0);
+                    const zajete = new Set([sx + ',' + sz2]);
+                    klasa(gora, (x, z) => !zajete.has(x + ',' + z), (x, z) => zajete.add(x + ',' + z));
+                    const wyj = grupa(sx, sz2, 0, gora); box(wyj, 0.9, 0.04, 0.9, M(0x3a2a1a), 0, 0.02, 0);   // wylot schodów
+                    szkolaPietro = { T: { minX: sz.minX, maxX: sz.maxX, minZ: sz.minZ, maxZ: sz.maxZ }, x: sx, z: sz2, grupa: gora, zajete };
+                }
             }
 
             // Łóżko wzdłuż Z na dwóch polach (z, z+1), wezgłowie od strony -Z
@@ -43554,6 +43589,68 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (x === dx + 1) { box(l, 0.35, 0.22, 0.3, czern, 0, 1.12, 0); box(l, 0.25, 0.12, 0.02, ekran, 0, 1.2, -0.16); }
                     else box(l, 0.25, 0.12, 0.15, M(BARWY_LEKOW[x % BARWY_LEKOW.length]), 0.2, 1.06, 0);
                 }
+            }
+
+            // DOM BOHATERA: przytulnie - łóżko, kuchnia, stół, fotel, biurko, obrazy i dywan
+            const db = budynek(specialBuildingSpawns.heroHouse);
+            if (db) {
+                const ok = (x, z) => wolne(x, z) && !drzwiObok(x, z);
+                const dyw = grupa((db.minX + db.maxX) / 2, (db.minZ + db.maxZ) / 2);
+                box(dyw, 2.6, 0.02, 1.8, M(0x8a2e2e), 0, 0.02, 0); box(dyw, 2.2, 0.025, 1.4, M(0xc89a4a), 0, 0.022, 0);
+                // łóżko z kocem w kratę i szafka nocna z lampką
+                const lx = db.minX + 1;
+                if (ok(lx, db.maxZ - 2) && ok(lx, db.maxZ - 1)) {
+                    const g = lozko(lx, db.maxZ - 2, false); g.rotation.y = Math.PI;
+                    box(g, 0.92, 0.04, 0.9, M(0x3a6a4a), 0, 0.66, -0.3);
+                    if (ok(lx + 1, db.maxZ - 1)) { const s = grupa(lx + 1, db.maxZ - 1); zajmij(lx + 1, db.maxZ - 1, 'regal');
+                        box(s, 0.45, 0.5, 0.4, drewno, 0, 0.25, 0); box(s, 0.1, 0.25, 0.1, ciemne, 0, 0.62, 0);
+                        const k = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.2, 10, 1, true), M(0xf0d890)); k.position.set(0, 0.82, 0); s.add(k); }
+                }
+                // aneks kuchenny pod ścianą: szafki, kuchenka z garnkiem, zlew, lodówka
+                [['lodowka', db.maxX - 1], ['kuchenka', db.maxX - 2], ['zlew', db.maxX - 3]].forEach(([co, x]) => {
+                    const z = db.maxZ - 1; if (!ok(x, z)) return;
+                    const k = grupa(x, z, Math.PI); zajmij(x, z, 'regal');
+                    if (co === 'lodowka') { box(k, 0.85, 1.9, 0.7, biel, 0, 0.95, 0); box(k, 0.04, 0.4, 0.04, metal, 0.32, 1.2, -0.36); return; }
+                    box(k, 0.95, 0.85, 0.6, M(0x6a8a6a), 0, 0.43, 0); box(k, 0.98, 0.05, 0.64, M(0xe8e0d0), 0, 0.88, 0);
+                    box(k, 0.9, 0.5, 0.35, M(0x6a8a6a), 0, 1.75, 0.12);   // szafka wisząca
+                    if (co === 'kuchenka') { [-0.2, 0.2].forEach(dx => box(k, 0.22, 0.02, 0.22, czern, dx, 0.92, 0));
+                        const gar = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.13, 0.18, 10), M(0xb84a2a)); gar.position.set(-0.2, 1.02, 0); k.add(gar); }
+                    else { box(k, 0.45, 0.04, 0.35, metal, 0, 0.9, 0); box(k, 0.03, 0.2, 0.03, metal, 0, 1.0, 0.15); }
+                });
+                // stół z obrusem, czterema krzesłami i wazonem z kwiatami
+                const tx = db.maxX - 2, tz = db.minZ + 3;
+                if (ok(tx, tz)) {
+                    const t = grupa(tx, tz); zajmij(tx, tz, 'stol');
+                    box(t, 1.2, 0.06, 0.8, drewno, 0, 0.75, 0); nogi(t, 1.2, 0.8, 0.72, ciemne, 0.06); box(t, 0.9, 0.01, 0.82, biel, 0, 0.785, 0);
+                    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.18, 8), niebieskiWazon()); w.position.set(0, 0.88, 0); t.add(w);
+                    [0xd23a5a, 0xf0c030, 0xe86aa0].forEach((c, i) => { const f = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5), M(c)); f.position.set(-0.05 + i * 0.05, 1.02 + (i % 2) * 0.04, 0); t.add(f); });
+                    krzeslo(t, -0.3, -0.6, 0); krzeslo(t, 0.3, -0.6, 0); krzeslo(t, -0.3, 0.6, Math.PI); krzeslo(t, 0.3, 0.6, Math.PI);
+                }
+                // fotel z poduszką i stojąca lampa obok
+                const fx = db.minX + 1, fz = db.minZ + 2;
+                if (ok(fx, fz)) {
+                    const f = grupa(fx, fz, Math.PI / 2); zajmij(fx, fz, 'stol');
+                    box(f, 0.8, 0.4, 0.75, tapicerka, 0, 0.3, 0); box(f, 0.8, 0.6, 0.18, tapicerka, 0, 0.75, -0.3);
+                    [-1, 1].forEach(st => box(f, 0.14, 0.3, 0.75, tapicerka, st * 0.37, 0.6, 0)); box(f, 0.35, 0.12, 0.3, M(0xf0c040), 0.1, 0.56, -0.12);
+                    box(f, 0.04, 1.5, 0.04, czern, 0.55, 0.75, -0.3); const ab = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.25, 10, 1, true), M(0xf0e0b0)); ab.position.set(0.55, 1.55, -0.3); f.add(ab);
+                }
+                // biurko do pracy z lampką, książkami i krzesłem
+                const bx = db.maxX - 1, bz = db.minZ + 1;
+                if (ok(bx, bz)) {
+                    const b = grupa(bx, bz, -Math.PI / 2); zajmij(bx, bz, 'stol');
+                    box(b, 1.1, 0.05, 0.6, ciemne, 0, 0.75, 0); nogi(b, 1.1, 0.6, 0.73, ciemne, 0.05);
+                    [0x8a2a2a, 0x2a4a8a, 0x3a6a3a].forEach((c, i) => box(b, 0.06, 0.24, 0.18, M(c), -0.45 + i * 0.07, 0.9, -0.15));
+                    box(b, 0.3, 0.02, 0.22, biel, 0.05, 0.785, 0.05); box(b, 0.03, 0.3, 0.03, czern, 0.38, 0.92, -0.15);
+                    box(b, 0.16, 0.06, 0.1, M(0xf0d890), 0.32, 1.07, -0.12); krzeslo(b, 0, 0.55, Math.PI);
+                }
+                // obrazy w ramach na ścianach
+                const obraz = (x, z, rot, a, c1, c2) => {
+                    const o = grupa(x, z, rot); box(o, 0.75, 0.55, 0.04, M(0x6a4a20), 0, 1.75, 0);
+                    box(o, 0.65, 0.45, 0.05, M(c1), 0, 1.75, 0.005); box(o, 0.65, 0.18, 0.055, M(c2), 0, 1.6 + a, 0.006);
+                };
+                obraz(db.minX + 1, db.maxZ + 0.3, Math.PI, 0, 0x8ab8e0, 0x4a7a3a);   // pejzaż nad łóżkiem
+                obraz(db.minX - 0.3, (db.minZ + db.maxZ) / 2, Math.PI / 2, 0.1, 0xe0a050, 0x8a3a2a);   // zachód słońca
+                obraz(db.maxX + 0.3, db.minZ + 3, -Math.PI / 2, 0.05, 0x2a3a6a, 0xf0e0a0);   // nocny księżyc
             }
 
             // JADŁODAJNIA: lada z garami i kucharką za nią, podłużne stoły z krzesłami
