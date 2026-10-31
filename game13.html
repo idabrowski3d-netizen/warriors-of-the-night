@@ -9489,7 +9489,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         let cornfieldMesh = null;
 
         function renderCornfields() {
-            if (cornfieldMesh) { scene.remove(cornfieldMesh); cornfieldMesh.geometry.dispose(); cornfieldMesh.material.dispose(); cornfieldMesh = null; }
+            if (cornfieldMesh) { scene.remove(cornfieldMesh); cornfieldMesh.geometry.dispose(); cornfieldMesh = null; }
 
             const tiles = [];
             for (let mx = 0; mx < mapWidth; mx++) {
@@ -9499,9 +9499,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
             if (tiles.length === 0) return;
 
+            // Zboże z gęstych kęp narysowanych źdźbeł (płaszczyzny na krzyż), nie ze stożków
             const stalksPerTile = 3;
-            const stalkGeo = new THREE.ConeGeometry(0.08, 1.1, 5);
-            const stalkMat = new THREE.MeshLambertMaterial({ color: 0x6b8f3a });
+            const stalkGeo = geometriaKepki(0.9, 1.2, 0);
+            const stalkMat = materialTrawy('#6b8f3a', true);
             cornfieldMesh = new THREE.InstancedMesh(stalkGeo, stalkMat, tiles.length * stalksPerTile);
 
             const dummy = new THREE.Object3D();
@@ -12909,6 +12910,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         // Źdźbła trawy na przezroczystym tle - jeden materiał na barwę (sprite albo płaszczyzna)
         const _materialyTrawy = {};
+        // Dwie płaszczyzny na krzyż - z każdej strony widać źdźbła narysowane na teksturze
+        function geometriaKepki(szer, wys, y) {
+            const g1 = new THREE.PlaneGeometry(szer, wys); g1.translate(0, y, 0);
+            const g2 = g1.clone().rotateY(Math.PI / 2), wynik = new THREE.BufferGeometry();
+            ['position', 'normal', 'uv'].forEach(n => {
+                const a1 = g1.toNonIndexed().attributes[n], a2 = g2.toNonIndexed().attributes[n];
+                wynik.setAttribute(n, new THREE.Float32BufferAttribute([...a1.array, ...a2.array], a1.itemSize));
+            });
+            return wynik;
+        }
         function materialTrawy(barwa, plaszczyzna) {
             const klucz = barwa + (plaszczyzna ? 'p' : 's');
             if (_materialyTrawy[klucz]) return _materialyTrawy[klucz];
@@ -12966,14 +12977,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     }
                 }
             }
-            const kepkaGeo = new THREE.PlaneGeometry(0.4, 0.3); kepkaGeo.translate(0, 0.05, 0);
-            const krzyz = kepkaGeo.clone().rotateY(Math.PI / 2);
-            const kepkaPodwojna = new THREE.BufferGeometry();   // dwie płaszczyzny na krzyż - z każdej strony widać źdźbła
-            ['position', 'normal', 'uv'].forEach(n => {
-                const a1 = kepkaGeo.toNonIndexed().attributes[n], a2 = krzyz.toNonIndexed().attributes[n];
-                kepkaPodwojna.setAttribute(n, new THREE.Float32BufferAttribute([...a1.array, ...a2.array], a1.itemSize));
-            });
-            return dodajNakladke(kepkaPodwojna, materialTrawy('#' + trawa.toString(16).padStart(6, '0'), true), kepki) +
+            return dodajNakladke(geometriaKepki(0.4, 0.3, 0.05), materialTrawy('#' + trawa.toString(16).padStart(6, '0'), true), kepki) +
                    dodajNakladke(ksztaltGlazu(1), new THREE.MeshPhongMaterial({ color: 0x8a8378, flatShading: true }), kamyki);
         }
 
@@ -16508,15 +16512,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const drewno = new THREE.MeshLambertMaterial({ color: pos.wysoki ? 0x59432b : 0x47341f });
                     const h = pos.wysoki ? 1.65 : 1.15;
                     const przechyl = pos.przechyl || 0;
-                    const pion = new THREE.Mesh(new THREE.BoxGeometry(0.11, h, 0.11), drewno);
-                    pion.position.set(pos.x, ty + h / 2, pos.z);
-                    pion.rotation.z = przechyl;
-                    scene.add(pion); obstacleMeshes.push(pion);
+                    // Przechyla się wokół miejsca wbicia w ziemię - podstawa zostaje w gruncie, ramię na słupku
+                    const krzyz = new THREE.Group();
+                    krzyz.position.set(pos.x, ty, pos.z); krzyz.rotation.z = przechyl;
+                    const pion = new THREE.Mesh(new THREE.BoxGeometry(0.11, h + 0.15, 0.11), drewno);
+                    pion.position.y = (h - 0.15) / 2; krzyz.add(pion);
                     const ramie = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.11, 0.1), drewno);
-                    const yr = ty + h * 0.72;
-                    ramie.position.set(pos.x + Math.sin(przechyl) * yr * 0.5, yr, pos.z);
-                    ramie.rotation.z = przechyl;
-                    scene.add(ramie); obstacleMeshes.push(ramie);
+                    ramie.position.y = h * 0.72; krzyz.add(ramie);
+                    scene.add(krzyz); obstacleMeshes.push(krzyz);
                     // Kamień u podstawy - przytrzymuje krzyż w ziemi
                     const kam = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.16, 0.3),
                         new THREE.MeshLambertMaterial({ color: 0x6e6860 }));
