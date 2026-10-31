@@ -43623,18 +43623,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     while (b < wymiar) {
                         if (!czyAsfalt(a, b)) { b++; continue; }
                         let k = b; while (k < wymiar && czyAsfalt(a, k)) k++;
-                        if (k - b >= 4 && k - b <= 10) dodaj(a, Math.floor((b + k - 1) / 2), b, k - 1);   // przekrój jezdni, nie jej długość
+                        if (k - b >= 4 && k - b <= 10) dodaj(a, (b + k - 1) / 2, b, k - 1);   // dokładny środek, także przy parzystej szerokości   // przekrój jezdni, nie jej długość
                         b = k;
                     }
                 }
             };
             // jezdnia biegnąca wzdłuż Z (pas szeroki w X)
             srodkiPasow(mapDepth, mapWidth, (z, x) => typ(x, z) === 2, (z, x) => {
-                if (z % 2 === 0) kreski.push([x - offsetX, Y(x, z) + 0.13, z - offsetZ, 0, 0.12, 1, 0.55]);
+                if (z % 2 === 0) kreski.push([x - offsetX, Y(Math.floor(x), z) + 0.13, z - offsetZ, 0, 0.12, 1, 0.55]);
             });
             // jezdnia biegnąca wzdłuż X
             srodkiPasow(mapWidth, mapDepth, (x, z) => typ(x, z) === 2, (x, z) => {
-                if (x % 2 === 0) kreski.push([x - offsetX, Y(x, z) + 0.13, z - offsetZ, Math.PI / 2, 0.12, 1, 0.55]);
+                if (x % 2 === 0) kreski.push([x - offsetX, Y(x, Math.floor(z)) + 0.13, z - offsetZ, Math.PI / 2, 0.12, 1, 0.55]);
             });
             for (let x = 0; x < mapWidth; x++) for (let z = 0; z < mapDepth; z++) {
                 if (typ(x, z) !== 2) continue;
