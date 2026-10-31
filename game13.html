@@ -18822,6 +18822,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             'jakub': { title: 'Święty Jakub Apostoł', bio: 'Apostoł, patron pielgrzymów, cel słynnej drogi do Santiago.', boost: { witalnosc: 2, zrecznosc: 1 } },
             'jan': { title: 'Święty Jan Apostoł', bio: 'Umiłowany uczeń Jezusa, autor Ewangelii i Apokalipsy.', boost: { madrosc: 2, charyzma: 1 } },
             'jerzy': { title: 'Święty Jerzy', bio: 'Rycerz-męczennik, według legendy pogromca smoka.', boost: { zrecznosc: 2, silaPsychiczna: 1 } },
+            'sebastian': { title: 'Święty Sebastian', bio: 'Rzymski żołnierz przeszyty strzałami za wiarę; patron żołnierzy i łuczników.', boost: { witalnosc: 2, zrecznosc: 1 } },
             'hubert': { title: 'Święty Hubert', bio: 'Myśliwy, który ujrzał krzyż w porożu jelenia; patron myśliwych i leśników.', boost: { zrecznosc: 2, witalnosc: 1 } },
             'ireneusz': { title: 'Święty Ireneusz z Lyonu', bio: 'Biskup i obrońca wiary przed herezjami, uczeń ucznia świętego Jana.', boost: { madrosc: 2, silaPsychiczna: 1 } },
             'jozef': { title: 'Święty Józef', bio: 'Opiekun Świętej Rodziny, cieśla, patron pracujących.', boost: { witalnosc: 2, silaPsychiczna: 1 } },
@@ -48435,9 +48436,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         });
         // Pliki w graphics/swieci - imię patrona albo ogólny wizerunek
         const WIZERUNKI_SWIETYCH = ['agnieszka', 'barbara', 'cecylia', 'franciszek', 'helena', 'hieronim', 'joanna', 'hubert',
-            'michal', 'piotr', 'rita', 'rycerz', 'rycerz_wlocznia', 'szlachcianka', 'wojciech', 'wojownik_skora', 'zakonnica', 'zielarka'];
+            'michal', 'piotr', 'rita', 'aniol', 'krzysztof', 'teresa', 'sebastian', 'jozef', 'rycerz', 'rycerz_wlocznia', 'szlachcianka', 'wojciech', 'wojownik_skora', 'zakonnica', 'zielarka'];
         // Losowy wizerunek musi zgadzać się z płcią patrona
-        const WIZERUNKI_KOBIET = ['agnieszka', 'barbara', 'cecylia', 'helena', 'joanna', 'rita', 'szlachcianka', 'zakonnica', 'zielarka'];
+        const WIZERUNKI_KOBIET = ['agnieszka', 'barbara', 'cecylia', 'helena', 'joanna', 'rita', 'teresa', 'szlachcianka', 'zakonnica', 'zielarka'];
         const wizerunekPatrona = {};
         // Patron pokazuje się na żywo, w trakcie wpisywania imienia
         document.getElementById('name-prompt-input').addEventListener('input', (e) => {
@@ -48452,7 +48453,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (!wizerunekPatrona[klucz]) wizerunekPatrona[klucz] = WIZERUNKI_SWIETYCH.includes(klucz) ? klucz
                     : (() => {
                         const kobieta = sw.title.startsWith('Święta') || (klucz === 'aniol' && /a$/i.test(imie));
-                        const pula = WIZERUNKI_SWIETYCH.filter(w => WIZERUNKI_KOBIET.includes(w) === kobieta);
+                        const pula = WIZERUNKI_SWIETYCH.filter(w => WIZERUNKI_KOBIET.includes(w) === kobieta && w !== 'aniol' && w !== 'jozef');
                         return pula[Math.floor(Math.random() * pula.length)];
                     })();
                 portret.style.display = 'block'; portret.src = 'graphics/swieci/' + wizerunekPatrona[klucz] + '.jpg';
