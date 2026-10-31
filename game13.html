@@ -10127,32 +10127,45 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 return group;
             }
 
-            const postMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
-            const post = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.32, 2.2, 10), postMat);
-            post.position.set(0, 1.1, 0);
+            // Smukła latarnia-laseczka: żeliwny słup z cokołem, wygięty łukiem na górze,
+            // a na końcu łuku wisi szklana latarenka
+            const postMat = new THREE.MeshLambertMaterial({ color: 0x1c1f22 });
+            const cokol = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.19, 0.5, 8), postMat);
+            cokol.position.set(0, 0.25, 0);
+            group.add(cokol);
+            const post = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.07, 3.0, 8), postMat);
+            post.position.set(0, 1.9, 0);
             group.add(post);
-
-            // Poprzeczka, na której osadzone są dwie klosze - pasuje do grubszego słupa
-            const armMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
-            const arm = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.09, 0.12), armMat);
-            arm.position.set(0, 2.2, 0);
-            group.add(arm);
+            [0.55, 3.2].forEach(y => {
+                const pierscien = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.022, 6, 12), postMat);
+                pierscien.rotation.x = Math.PI / 2; pierscien.position.set(0, y, 0); group.add(pierscien);
+            });
+            const luk = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.04, 6, 14, Math.PI), postMat);
+            luk.position.set(0.32, 3.4, 0);
+            group.add(luk);
+            const zwis = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.18, 6), postMat);
+            zwis.position.set(0.64, 3.31, 0);
+            group.add(zwis);
 
             const isCyber = currentCombatTheme && currentCombatTheme.id === 'cyber';
             const kolorZarowki = isVolcano ? 0xff3311 : (isCyber ? 0xbdf1ff : 0xffdd66);
             const bulbMat = new THREE.MeshBasicMaterial({ color: kolorZarowki });
-            [-0.52, 0.52].forEach(dx => {
-                const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 12), bulbMat.clone());
-                bulb.position.set(dx, 2.12, 0);
-                bulb.userData.isBulb = true;
-                group.add(bulb);
-            });
+            const daszek = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.16, 6), postMat);
+            daszek.position.set(0.64, 3.18, 0);
+            group.add(daszek);
+            const bulb = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.1, 0.3, 6), bulbMat.clone());
+            bulb.position.set(0.64, 2.95, 0);
+            bulb.userData.isBulb = true;
+            group.add(bulb);
+            const dno = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.1, 6), postMat);
+            dno.rotation.x = Math.PI; dno.position.set(0.64, 2.75, 0);
+            group.add(dno);
             group.userData.bulbColor = kolorZarowki;
             group.userData.lit = true;
 
             // Latarnie nie świecą w dzień - intensywność włącza się dopiero w nocy (updateStreetLampsLighting)
             const light = new THREE.PointLight(isVolcano ? 0xff2200 : 0x88bbff, 0, 6.5, 2.2);
-            light.position.set(0, 2.12, 0);
+            light.position.set(0.64, 2.9, 0);
             group.add(light);
             group.userData.lampLight = light;
 
@@ -12864,6 +12877,26 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return ile;
         }
 
+        // Źdźbła trawy na przezroczystym tle - jeden materiał na barwę (sprite albo płaszczyzna)
+        const _materialyTrawy = {};
+        function materialTrawy(barwa, plaszczyzna) {
+            const klucz = barwa + (plaszczyzna ? 'p' : 's');
+            if (_materialyTrawy[klucz]) return _materialyTrawy[klucz];
+            const c = document.createElement('canvas'); c.width = c.height = 64;
+            const g = c.getContext('2d'), baza = new THREE.Color(barwa);
+            for (let i = 0; i < 26; i++) {
+                const x = 6 + Math.random() * 52, h = 28 + Math.random() * 34, wychyl = (Math.random() - 0.5) * 26;
+                const j = 0.7 + Math.random() * 0.5, k = baza.clone().multiplyScalar(j);
+                g.strokeStyle = '#' + k.getHexString(); g.lineWidth = 1.5 + Math.random() * 1.5; g.lineCap = 'round';
+                g.beginPath(); g.moveTo(x, 64); g.quadraticCurveTo(x + wychyl * 0.3, 64 - h * 0.6, x + wychyl, 64 - h); g.stroke();
+            }
+            const t = new THREE.CanvasTexture(c);
+            const opcje = { map: t, transparent: true, alphaTest: 0.35, depthWrite: false };
+            return _materialyTrawy[klucz] = plaszczyzna
+                ? new THREE.MeshLambertMaterial(Object.assign(opcje, { side: THREE.DoubleSide, depthWrite: true }))
+                : new THREE.SpriteMaterial(opcje);
+        }
+
         // ================= PRZEJŚCIA GRUNTU =================
         // Trawa, ziemia i droga stykały się ostrymi kwadratami. Na granicy kładziemy
         // kępki trawy po stronie trawy i drobne kamyki po stronie ziemi.
@@ -12903,7 +12936,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     }
                 }
             }
-            return dodajNakladke(new THREE.ConeGeometry(0.05, 0.28, 4), new THREE.MeshLambertMaterial({ color: trawa }), kepki) +
+            const kepkaGeo = new THREE.PlaneGeometry(0.4, 0.3); kepkaGeo.translate(0, 0.05, 0);
+            const krzyz = kepkaGeo.clone().rotateY(Math.PI / 2);
+            const kepkaPodwojna = new THREE.BufferGeometry();   // dwie płaszczyzny na krzyż - z każdej strony widać źdźbła
+            ['position', 'normal', 'uv'].forEach(n => {
+                const a1 = kepkaGeo.toNonIndexed().attributes[n], a2 = krzyz.toNonIndexed().attributes[n];
+                kepkaPodwojna.setAttribute(n, new THREE.Float32BufferAttribute([...a1.array, ...a2.array], a1.itemSize));
+            });
+            return dodajNakladke(kepkaPodwojna, materialTrawy('#' + trawa.toString(16).padStart(6, '0'), true), kepki) +
                    dodajNakladke(ksztaltGlazu(1), new THREE.MeshPhongMaterial({ color: 0x8a8378, flatShading: true }), kamyki);
         }
 
@@ -16337,17 +16377,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
                 else if (pos.type === 'kepa') {
                     // Kępa suchych traw - niska, nie zasłania, ale łamie pustkę
-                    const barwy = [0x8a8450, 0x9a9060, 0x7a7444];
-                    const mat = new THREE.MeshLambertMaterial({ color: barwy[Math.floor(Math.random() * barwy.length)] });
-                    const ile = 7 + Math.floor(Math.random() * 6);
+                    const barwy = ['#8a8450', '#9a9060', '#7a7444'];
+                    const ile = 6 + Math.floor(Math.random() * 4);
                     for (let k = 0; k < ile; k++) {
-                        const h = 0.32 + Math.random() * 0.3;
-                        const t = new THREE.Mesh(new THREE.BoxGeometry(0.05, h, 0.05), mat);
-                        t.position.set(pos.x + (Math.random() - 0.5) * 0.75,
-                                       ty + h / 2,
-                                       pos.z + (Math.random() - 0.5) * 0.75);
-                        t.rotation.z = (Math.random() - 0.5) * 0.9;
-                        t.rotation.x = (Math.random() - 0.5) * 0.9;
+                        const h = 0.45 + Math.random() * 0.3;
+                        const t = new THREE.Sprite(materialTrawy(barwy[k % 3]));
+                        t.scale.set(h * 1.1, h, 1);
+                        t.position.set(pos.x + (Math.random() - 0.5) * 0.8, ty + h / 2 - 0.02, pos.z + (Math.random() - 0.5) * 0.8);
                         scene.add(t); obstacleMeshes.push(t);
                     }
                 }
@@ -16607,7 +16643,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         if (wz > wx) roof.rotation.y = Math.PI / 2;
                         roofY = ty + floors * FLOOR_HEIGHT + 0.12;
                         roof.position.set((dom.minX + dom.maxX) / 2, roofY, (dom.minZ + dom.maxZ) / 2);
-                        roofY += 0.6;   // krzyż i szyld nad kalenicą
+                        roofY += Math.min(wx, wz) * 0.4 - 0.2;   // krzyż i szyld nad kalenicą, nie w połaci
                     }
                     roof.userData = { type: 'house-roof', x: pos.x, z: pos.z, houseId: pos.houseId, roofLevel: floors }; 
                     scene.add(roof); obstacleMeshes.push(roof);
@@ -37246,8 +37282,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 else { tri(e2, e1, r1, u1, u0, u2, 1); tri(e2, r1, r2, u1, u2, u3, 1); }
             });
             const z = [0, 0.97];
-            tri([Ls, 0, Hs], [Ls, 0, -Hs], [Ls, H, 0], z, z, z, 0.5);
-            tri([-Ls, 0, -Hs], [-Ls, 0, Hs], [-Ls, H, 0], z, z, z, 0.5);
+            tri([Ls, 0, Hs], [Ls, 0, -Hs], [Ls, H, 0], z, z, z, 0.75);
+            tri([-Ls, 0, -Hs], [-Ls, 0, Hs], [-Ls, H, 0], z, z, z, 0.75);
             const g = new THREE.BufferGeometry();
             g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
             g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
@@ -43285,14 +43321,271 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             scene.remove(ozdobyMiasta);
             ozdobyMiasta.traverse(o => { if (o.geometry) o.geometry.dispose(); });
             ozdobyMiasta = null; oknaMiasta = []; wronyMiasta = []; cmyMiasta = []; nietoperzeMiasta = []; mgłaMiasta = []; kotMiasta = null;
-            swieceKapliczek = []; dymKominow = []; witrazeKosciola = []; autaMiasta = [];
+            swieceKapliczek = []; dymKominow = []; witrazeKosciola = []; autaMiasta = []; slupyOgloszen = [];
         }
+        // Słupy ogłoszeniowe z wieściami: plotki o snach, poszlaki, ślady Zakonu
+        let slupyOgloszen = [];
+        const OGLOSZENIA = [
+            'ZAGINĄŁ PIES. Ostatnio widziany przy starym szpitalu, nocą. Sąsiedzi mówią, że wył do pustego okna na drugim piętrze.',
+            'KTO WIDZIAŁ? Mężczyzna w ciemnym habicie wypytywał dzieci przy szkole o ich sny. Proszę o kontakt z proboszczem.',
+            'Nekrolog: zmarł we śnie, spokojnie, choć rodzina twierdzi, że ostatniej nocy krzyczał imię, którego nikt nie znał.',
+            'Apteka przypomina: na bezsenność - melisa. Na sny, z których nie można się obudzić - modlitwa.',
+            'OGŁOSZENIE PARAFIALNE. Nocna adoracja w piątek. Zapalcie świecę przy kapliczce, gdy w domu ktoś śpi zbyt długo.',
+            'Dom Starców prosi o ciepłe ubrania. Pensjonariusze skarżą się, że w nocy w korytarzu stoi mgła.',
+            'UWAGA: w lesie za cmentarzem ktoś wyciął w korze znaki - krzyż w kręgu. Nie dotykać, zgłosić.',
+            'Sprzedam stary zegar z wahadłem. Staje zawsze o 3:33. Tanio.',
+            'Kto śni o pustyni, niech nie pije przed snem. Kto śni o wodzie - niech nie zasypia sam.',
+            'Szukam świadków: w nocy z soboty na niedzielę na skrzyżowaniu przy przystanku stał cień bez człowieka.',
+            'Zbiórka krwi w szpitalu. Lekarze proszą: nie budzić gwałtownie tych, którzy mówią przez sen.',
+            'Zakon pamięta. Zakon czuwa. Kto widzi znak na murze - niech się przeżegna i idzie dalej.'
+        ];
+        function pokazOgloszenie(nr) {
+            let el = document.getElementById('ogloszenie-karta');
+            if (!el) {
+                el = document.createElement('div'); el.id = 'ogloszenie-karta';
+                el.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-1.5deg);z-index:150;max-width:min(380px,86vw);' +
+                    'padding:22px 24px;background:#efe3c2;color:#2a1e10;font-family:Georgia,serif;font-size:16px;line-height:1.55;' +
+                    'box-shadow:0 10px 40px rgba(0,0,0,.7);border:1px solid #b9a77a;cursor:pointer;text-align:center';
+                el.onclick = () => { el.style.display = 'none'; };
+                document.body.appendChild(el);
+            }
+            const t = OGLOSZENIA[(nr * 5 + Math.floor(Date.now() / 60000)) % OGLOSZENIA.length];
+            el.innerHTML = '<div style="font-family:Cinzel,Georgia,serif;letter-spacing:.12em;font-size:13px;color:#7a5a2a;margin-bottom:10px">OGŁOSZENIE</div>' +
+                t + '<div style="font-size:11px;color:#8a7a5a;margin-top:14px">(kliknij, by zamknąć)</div>';
+            el.style.display = 'block';
+        }
+        window.addEventListener('pointerdown', (e) => {
+            if (!slupyOgloszen.length || !isExploreMode() || e.target !== renderer.domElement) return;
+            const r = renderer.domElement.getBoundingClientRect();
+            const ray = new THREE.Raycaster();
+            ray.setFromCamera(new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+            const traf = ray.intersectObjects(slupyOgloszen, false)[0];
+            if (traf) pokazOgloszenie(traf.object.userData.ogloszenie);
+        });
         const jestNocWMiescie = () => gameMode === 'presentNight' || currentTimeOfDay === 'noc' || currentTimeOfDay === 'wieczor';
 
         function teksturaPlotna(w, h, rysuj) {
             const c = document.createElement('canvas'); c.width = w; c.height = h;
             rysuj(c.getContext('2d'), w, h);
             const t = new THREE.CanvasTexture(c); return t;
+        }
+
+        // Meble w budynkach miasta. Pole z meblem staje się przeszkodą, ale tylko gdy było wolne
+        // (nie zastawiamy drzwi, schodów ani miejsca, w którym stoi mieszkaniec).
+        function umeblujBudynki(G) {
+            const M = c => new THREE.MeshLambertMaterial({ color: c });
+            const drewno = M(0x9a6a3c), ciemne = M(0x4a3020), metal = M(0xb4bac0), biel = M(0xf2f2ec), posciel = M(0xe4ecf2),
+                  koc = M(0x7d9cc0), zielen = M(0x1f4a34), tapicerka = M(0x7a3a3a), czern = M(0x1a1a1e), ekran = new THREE.MeshBasicMaterial({ color: 0x3aff8a });
+            const box = (g, w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); g.add(m); return m; };
+            const nogi = (g, w, d, h, mat, gr, oz) => [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, b]) => box(g, gr, h, gr, mat, a * (w / 2 - gr), h / 2, b * (d / 2 - gr) + (oz || 0)));
+            const wolne = (x, z) => { const mx = x + offsetX, mz = z + offsetZ; return mx >= 0 && mz >= 0 && mx < mapWidth && mz < mapDepth && obstacleGrid[mx][mz] === null; };
+            const zajmij = (x, z, typ) => { obstacleGrid[x + offsetX][z + offsetZ] = { type: typ, x, z }; };
+            const grupa = (x, z, rot) => { const g = new THREE.Group(); g.position.set(x, getTerrainY(Math.round(x), Math.round(z)), z); g.rotation.y = rot || 0; G.add(g); return g; };
+            const drzwiObok = (x, z) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => {
+                const k = obstacleGrid[x + a + offsetX], o = k && k[z + b + offsetZ];
+                return o && o.type === 'house-door';
+            });
+            // Krzesło zwrócone przodem w +Z
+            const krzeslo = (g, x, z, rot) => {
+                const k = new THREE.Group(); k.position.set(x, 0, z); k.rotation.y = rot || 0; g.add(k);
+                box(k, 0.4, 0.05, 0.4, drewno, 0, 0.45, 0); nogi(k, 0.4, 0.4, 0.45, ciemne, 0.04);
+                box(k, 0.4, 0.4, 0.05, drewno, 0, 0.68, -0.18);
+            };
+            const budynek = sp => sp && houses.find(h => h.centerX === sp.x && h.centerZ === sp.z);
+
+            // SZKOŁA: tablica na północnej ścianie, biurko nauczyciela, rzędy ławek z krzesłami
+            const sz = budynek(specialBuildingSpawns.school);
+            if (sz) {
+                const cx = Math.round((sz.minX + sz.maxX) / 2);
+                const t = grupa(cx, sz.maxZ + 0.25, Math.PI);
+                box(t, 3.2, 1.3, 0.08, ciemne, 0, 1.45, 0); box(t, 3.0, 1.15, 0.1, zielen, 0, 1.45, 0);
+                box(t, 3.0, 0.05, 0.14, ciemne, 0, 0.84, 0.06);
+                [-0.9, -0.2, 0.6].forEach((x, i) => box(t, 0.5 - i * 0.1, 0.03, 0.02, biel, x, 1.5 + (i % 2) * 0.25, 0.06));   // kreda na tablicy
+                if (wolne(cx, sz.maxZ - 2)) {
+                    const b = grupa(cx, sz.maxZ - 2, Math.PI); zajmij(cx, sz.maxZ - 2, 'lawka');
+                    box(b, 1.4, 0.06, 0.7, drewno, 0, 0.76, 0); box(b, 1.3, 0.7, 0.05, ciemne, 0, 0.38, 0.3);
+                    box(b, 0.35, 0.03, 0.25, biel, 0.3, 0.8, 0); krzeslo(b, 0, -0.6, 0);
+                }
+                for (let z = sz.minZ + 2; z <= sz.maxZ - 4; z++)
+                    for (let x = sz.minX + 1; x <= sz.maxX - 1; x++) {
+                        if (x === cx || (x - sz.minX) % 2 === 0 || !wolne(x, z) || drzwiObok(x, z)) continue;
+                        const l = grupa(x, z, 0); zajmij(x, z, 'lawka');
+                        box(l, 0.8, 0.05, 0.45, drewno, 0, 0.72, 0.15); nogi(l, 0.8, 0.45, 0.7, metal, 0.04, 0.15);
+                        box(l, 0.28, 0.02, 0.2, biel, -0.15, 0.755, 0.15);   // zeszyt
+                        krzeslo(l, 0, -0.32, 0);
+                    }
+            }
+
+            // Łóżko wzdłuż Z na dwóch polach (z, z+1), wezgłowie od strony -Z
+            const lozko = (x, z, medyczne) => {
+                const g = grupa(x, z + 0.5, 0); zajmij(x, z, 'lozko'); zajmij(x, z + 1, 'lozko');
+                box(g, 0.95, 0.1, 1.95, medyczne ? metal : drewno, 0, 0.42, 0); nogi(g, 0.95, 1.95, 0.4, medyczne ? metal : ciemne, 0.05);
+                box(g, 0.9, 0.16, 1.88, posciel, 0, 0.55, 0);
+                box(g, 0.92, 0.08, 1.2, koc, 0, 0.66, 0.33);
+                box(g, 0.6, 0.1, 0.35, biel, 0, 0.67, -0.7);
+                box(g, 0.95, medyczne ? 0.55 : 0.75, 0.06, medyczne ? metal : ciemne, 0, medyczne ? 0.75 : 0.8, -0.97);
+                return g;
+            };
+            const kroplowka = (g, x, z) => {
+                box(g, 0.03, 1.8, 0.03, metal, x, 0.9, z); box(g, 0.3, 0.03, 0.03, metal, x, 1.78, z);
+                box(g, 0.14, 0.22, 0.05, M(0xd8f0ff), x + 0.12, 1.62, z); box(g, 0.4, 0.04, 0.4, metal, x, 0.02, z);
+            };
+            // Wózek z monitorem pracy serca
+            const aparatura = (x, z, rot) => {
+                const g = grupa(x, z, rot); zajmij(x, z, 'wozek');
+                box(g, 0.6, 0.8, 0.45, biel, 0, 0.5, 0); box(g, 0.62, 0.04, 0.47, metal, 0, 0.92, 0);
+                box(g, 0.5, 0.38, 0.06, czern, 0, 1.15, 0.1); box(g, 0.42, 0.04, 0.01, ekran, 0, 1.17, 0.135);
+                box(g, 0.2, 0.25, 0.2, M(0xd03030), 0.15, 0.25, 0.24);
+            };
+            const szafkaLekarska = (x, z, rot) => {
+                const g = grupa(x, z, rot); zajmij(x, z, 'regal');
+                box(g, 0.8, 1.6, 0.4, biel, 0, 0.8, 0); box(g, 0.02, 1.5, 0.01, metal, 0, 0.8, 0.205);
+                box(g, 0.3, 0.08, 0.01, M(0xd03030), 0, 1.3, 0.21); box(g, 0.08, 0.3, 0.012, M(0xd03030), 0, 1.3, 0.21);
+            };
+            const wozekInwalidzki = (x, z, rot) => {
+                const g = grupa(x, z, rot); zajmij(x, z, 'wozek');
+                box(g, 0.45, 0.06, 0.45, czern, 0, 0.5, 0); box(g, 0.45, 0.5, 0.05, czern, 0, 0.78, -0.22);
+                [-0.27, 0.27].forEach(dx => {
+                    const k = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.025, 6, 16), metal);
+                    k.position.set(dx, 0.3, -0.05); k.rotation.y = Math.PI / 2; g.add(k);
+                });
+            };
+
+            // SZPITAL: łóżka z kroplówkami wzdłuż ścian bocznych, aparatura i szafki pod północną ścianą
+            const sp = budynek(specialBuildingSpawns.hospital);
+            if (sp) {
+                [[sp.minX + 1, 0.6], [sp.maxX - 1, -0.6]].forEach(([x, bok]) => {
+                    for (let z = sp.minZ + 1; z + 1 <= sp.maxZ - 2; z += 3) {
+                        if (!wolne(x, z) || !wolne(x, z + 1) || drzwiObok(x, z) || drzwiObok(x, z + 1)) continue;
+                        kroplowka(lozko(x, z, true), bok, -0.6);
+                    }
+                });
+                const rzad = [aparatura, szafkaLekarska, wozekInwalidzki];
+                for (let x = sp.minX + 3, i = 0; x <= sp.maxX - 3; x += 2, i++)
+                    if (wolne(x, sp.maxZ - 1) && !drzwiObok(x, sp.maxZ - 1)) rzad[i % 3](x, sp.maxZ - 1, Math.PI);
+            }
+
+            // KOŚCIÓŁ: ołtarz z krzyżem i świecami, ławki dla wiernych, wieża z dzwonnicą nad wejściem
+            const ko = budynek(specialBuildingSpawns.church);
+            if (ko) {
+                const cx = (ko.minX + ko.maxX) / 2, zloto = M(0xd8b04a), obrus = M(0xf4f0e2);
+                const o = grupa(cx, ko.maxZ - 1.2, Math.PI);
+                [Math.round(cx - 0.5), Math.round(cx + 0.5)].forEach(x => { if (wolne(x, ko.maxZ - 1)) zajmij(x, ko.maxZ - 1, 'lawka'); });
+                box(o, 2.4, 0.25, 1.2, M(0x8a8478), 0, 0.12, 0);      // stopień prezbiterium
+                box(o, 1.8, 0.9, 0.7, M(0xe6e0d0), 0, 0.7, 0);       // mensa
+                box(o, 1.9, 0.02, 0.78, obrus, 0, 1.16, 0);
+                box(o, 0.6, 0.5, 0.02, zloto, 0, 0.75, 0.37);        // antependium
+                [-0.7, 0.7].forEach(x => { box(o, 0.06, 0.35, 0.06, M(0xf8f0d8), x, 1.35, -0.1); box(o, 0.04, 0.08, 0.04, M(0xffc040), x, 1.56, -0.1); });
+                const krzyz = grupa(cx, ko.maxZ + 0.2, Math.PI);
+                box(krzyz, 0.14, 2.2, 0.08, ciemne, 0, 2.6, 0); box(krzyz, 1.2, 0.14, 0.08, ciemne, 0, 3.2, 0);
+                box(krzyz, 0.1, 0.7, 0.06, M(0xe8d8b8), 0, 2.95, 0.07);   // pasja
+                for (let z = ko.minZ + 2; z <= ko.maxZ - 3; z++)
+                    [[ko.minX + 1, ko.minX + 3], [ko.maxX - 3, ko.maxX - 1]].forEach(([x0, x1]) => {
+                        for (let x = x0; x <= x1; x++) if (!wolne(x, z) || drzwiObok(x, z)) return;
+                        const l = grupa((x0 + x1) / 2, z, 0);
+                        for (let x = x0; x <= x1; x++) zajmij(x, z, 'lawka');
+                        const dl = x1 - x0 + 0.8;
+                        box(l, dl, 0.06, 0.4, drewno, 0, 0.45, 0); box(l, dl, 0.5, 0.05, drewno, 0, 0.72, -0.2);
+                        box(l, dl, 0.05, 0.15, ciemne, 0, 0.18, 0.25);   // klęcznik
+                        [-dl / 2 + 0.04, dl / 2 - 0.04].forEach(x => box(l, 0.06, 0.95, 0.5, ciemne, x, 0.48, 0));
+                    });
+                // Wieża: wyrasta z dachu nad wejściem; znika razem z dachem, gdy wchodzimy do środka
+                const yDach = getTerrainY(Math.round(cx), ko.minZ) + 3 * FLOOR_HEIGHT;
+                const mur = teksturaScianyBud(0xaa5555);
+                const czesciWiezy = [];
+                const w = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat.clone()); m.material.transparent = true; m.position.set(cx + x, yDach + y, ko.minZ + 0.6 + z); czesciWiezy.push(m); return m; };
+                w(new THREE.BoxGeometry(2, 4, 2), new THREE.MeshLambertMaterial({ map: mur }), 0, 2, 0);
+                w(new THREE.BoxGeometry(2.2, 0.2, 2.2), M(0x8a5040), 0, 4.1, 0);
+                // dzwonnica: cztery filary, przez prześwity widać dzwon
+                [[-0.85, -0.85], [0.85, -0.85], [-0.85, 0.85], [0.85, 0.85]].forEach(([a, b]) => w(new THREE.BoxGeometry(0.3, 1.6, 0.3), new THREE.MeshLambertMaterial({ map: mur }), a, 5, b));
+                w(new THREE.CylinderGeometry(0.2, 0.42, 0.6, 12, 1, true), zloto, 0, 5.1, 0).material.side = THREE.DoubleSide;
+                w(new THREE.BoxGeometry(0.06, 0.4, 0.06), ciemne, 0, 5.6, 0);
+                w(new THREE.BoxGeometry(2.2, 0.2, 2.2), M(0x8a5040), 0, 5.9, 0);
+                const helm = w(new THREE.ConeGeometry(1.45, 3, 4), M(0x3c5a4a), 0, 7.5, 0); helm.rotation.y = Math.PI / 4;
+                w(new THREE.BoxGeometry(0.1, 0.9, 0.1), zloto, 0, 9.4, 0); w(new THREE.BoxGeometry(0.5, 0.1, 0.1), zloto, 0, 9.55, 0);
+                czesciWiezy.forEach(m => { m.userData = { type: 'house-roof', x: Math.round(cx), z: ko.minZ, houseId: ko.id, roofLevel: 3 }; scene.add(m); obstacleMeshes.push(m); });
+            }
+
+            // APTEKA: lada z kasą przed wejściem, regały z lekarstwami pod ścianami
+            const ap = budynek(specialBuildingSpawns.pharmacy);
+            if (ap) {
+                const BARWY_LEKOW = [0xe8e8e0, 0xd84a4a, 0x4a8ad8, 0x5ab06a, 0xf0c040, 0xffffff];
+                const regal = (x, z, rot) => {
+                    const g = grupa(x, z, rot); zajmij(x, z, 'regal');
+                    box(g, 0.95, 2.0, 0.4, M(0xf4f4ee), 0, 1.0, 0);
+                    for (let p = 0; p < 4; p++) {
+                        box(g, 0.9, 0.03, 0.38, M(0xd8d8d0), 0, 0.4 + p * 0.45, 0.02);
+                        for (let i = 0; i < 6; i++) {
+                            const h = 0.12 + ((i + p) % 3) * 0.05;
+                            box(g, 0.11, h, 0.12, M(BARWY_LEKOW[(i * 3 + p) % BARWY_LEKOW.length]), -0.37 + i * 0.15, 0.42 + p * 0.45 + h / 2, 0.08);
+                        }
+                    }
+                };
+                for (let x = ap.minX + 1; x <= ap.maxX - 1; x++) if (wolne(x, ap.maxZ - 1) && !drzwiObok(x, ap.maxZ - 1)) regal(x, ap.maxZ - 1, Math.PI);
+                for (let z = ap.minZ + 3; z <= ap.maxZ - 2; z++) if (wolne(ap.maxX - 1, z) && !drzwiObok(ap.maxX - 1, z)) regal(ap.maxX - 1, z, -Math.PI / 2);
+                const zl = ap.maxZ - 3, dx = Math.round((ap.minX + ap.maxX) / 2);
+                for (let x = ap.minX + 2; x <= ap.maxX - 3; x++) {
+                    if (x === dx || !wolne(x, zl) || drzwiObok(x, zl)) continue;
+                    const l = grupa(x, zl, 0); zajmij(x, zl, 'lawka');
+                    box(l, 1.0, 0.95, 0.6, M(0x2e8b57), 0, 0.48, 0); box(l, 1.04, 0.05, 0.66, M(0xf0f0e8), 0, 0.98, 0);
+                    if (x === dx + 1) { box(l, 0.35, 0.22, 0.3, czern, 0, 1.12, 0); box(l, 0.25, 0.12, 0.02, ekran, 0, 1.2, -0.16); }
+                    else box(l, 0.25, 0.12, 0.15, M(BARWY_LEKOW[x % BARWY_LEKOW.length]), 0.2, 1.06, 0);
+                }
+            }
+
+            // DOM STARCÓW: łóżka pod północną ścianą, stół z krzesłami, fotel przed telewizorem, szafa, kuchenka, zegar
+            const ds = budynek(specialBuildingSpawns.seniorHome);
+            if (ds) {
+                for (let x = ds.minX + 1; x <= ds.maxX - 1; x += 2)
+                    if (wolne(x, ds.maxZ - 2) && wolne(x, ds.maxZ - 1)) {
+                        const g = lozko(x, ds.maxZ - 2, false); g.rotation.y = Math.PI;
+                        if (x + 1 <= ds.maxX - 1) {
+                            const s = grupa(x + 0.6, ds.maxZ - 0.75);
+                            box(s, 0.35, 0.45, 0.35, drewno, 0, 0.23, 0); box(s, 0.12, 0.2, 0.12, M(0xf0d890), 0, 0.55, 0);
+                        }
+                    }
+                const sx = ds.minX + 2, sz2 = ds.minZ + 3;
+                if (wolne(sx, sz2)) {
+                    const st = grupa(sx, sz2); zajmij(sx, sz2, 'lawka');
+                    box(st, 1.0, 0.06, 0.8, drewno, 0, 0.75, 0); nogi(st, 1.0, 0.8, 0.72, ciemne, 0.06);
+                    box(st, 1.04, 0.01, 0.84, M(0xe8e0c8), 0, 0.785, 0);   // obrus
+                    box(st, 0.2, 0.12, 0.2, M(0xc06030), 0.1, 0.85, 0);    // garnek
+                    krzeslo(st, 0, -0.62, 0); krzeslo(st, 0, 0.62, Math.PI); krzeslo(st, -0.72, 0, Math.PI / 2); krzeslo(st, 0.72, 0, -Math.PI / 2);
+                }
+                const tx = ds.maxX - 1, tz = ds.minZ + 2;
+                if (wolne(tx, tz) && !drzwiObok(tx, tz)) {
+                    const tv = grupa(tx, tz, -Math.PI / 2); zajmij(tx, tz, 'regal');
+                    box(tv, 0.9, 0.5, 0.45, ciemne, 0, 0.25, 0); box(tv, 0.75, 0.5, 0.08, czern, 0, 0.78, 0);
+                    box(tv, 0.68, 0.42, 0.01, M(0x3a5a8a), 0, 0.78, 0.045);
+                }
+                if (wolne(tx - 2, tz)) {
+                    const f = grupa(tx - 2, tz, Math.PI / 2); zajmij(tx - 2, tz, 'lawka');
+                    box(f, 0.75, 0.35, 0.7, tapicerka, 0, 0.3, 0); box(f, 0.75, 0.6, 0.15, tapicerka, 0, 0.7, -0.3);
+                    box(f, 0.12, 0.25, 0.7, tapicerka, -0.38, 0.55, 0); box(f, 0.12, 0.25, 0.7, tapicerka, 0.38, 0.55, 0);
+                }
+                if (wolne(ds.minX + 1, ds.minZ + 1) && !drzwiObok(ds.minX + 1, ds.minZ + 1)) {
+                    const sf = grupa(ds.minX + 1, ds.minZ + 1, Math.PI / 2); zajmij(ds.minX + 1, ds.minZ + 1, 'regal');
+                    box(sf, 0.9, 1.9, 0.55, drewno, 0, 0.95, 0); box(sf, 0.02, 1.8, 0.01, ciemne, 0, 0.95, 0.28);
+                    [-0.08, 0.08].forEach(dx => box(sf, 0.03, 0.12, 0.03, M(0xd8b060), dx, 1.0, 0.29));
+                }
+                const kx = ds.maxX - 1, kz = ds.maxZ - 4;
+                if (kz > tz && wolne(kx, kz) && !drzwiObok(kx, kz)) {
+                    const k = grupa(kx, kz, -Math.PI / 2); zajmij(kx, kz, 'regal');
+                    box(k, 0.9, 0.85, 0.6, biel, 0, 0.43, 0); box(k, 0.9, 0.04, 0.6, M(0x606060), 0, 0.87, 0);
+                    [[-0.2, -0.12], [0.2, -0.12], [-0.2, 0.15], [0.2, 0.15]].forEach(([a, b]) => {
+                        const p = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.01, 12), czern); p.position.set(a, 0.9, b); k.add(p);
+                    });
+                    box(k, 0.25, 0.15, 0.25, metal, -0.2, 0.97, -0.12);   // czajnik
+                }
+                const zx = ds.minX + 1, zz = ds.maxZ - 4;
+                if (zz > ds.minZ + 1 && wolne(zx, zz) && !drzwiObok(zx, zz)) {
+                    const z = grupa(zx, zz, Math.PI / 2); zajmij(zx, zz, 'regal');
+                    box(z, 0.45, 1.9, 0.3, ciemne, 0, 0.95, 0);
+                    const tarcza = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.02, 16), M(0xf0e6c8));
+                    tarcza.rotation.x = Math.PI / 2; tarcza.position.set(0, 1.55, 0.16); z.add(tarcza);
+                    box(z, 0.06, 0.4, 0.02, M(0xd8b060), 0, 0.95, 0.16);   // wahadło
+                }
+            }
         }
 
         function ozdobTerazniejszosc() {
@@ -43403,7 +43696,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             };
             const pudlo = (g, w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); g.add(m); return m; };
             const ileMebli = Math.min(16, Math.floor(przyJezdni.length / 6));
-            const rodzaje = ['lawka', 'kosz', 'lawka', 'slup', 'kosz', 'przystanek', 'budka', 'lawka', 'kosz', 'slup'];
+            const rodzaje = ['slup', 'lawka', 'slup', 'kosz', 'lawka', 'kosz', 'przystanek', 'budka', 'lawka', 'kosz'];
             let przystanek = false, budka = false;
             for (let i = 0; i < ileMebli; i++) {
                 let r = rodzaje[i % rodzaje.length];
@@ -43431,6 +43724,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const s = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 1.8, 14), new THREE.MeshLambertMaterial({ map: plakaty }));
                     s.position.y = 0.9; g.add(s);
                     const d = new THREE.Mesh(new THREE.ConeGeometry(0.38, 0.25, 14), metal); d.position.y = 1.92; g.add(d);
+                    if (slupyOgloszen.length < 2) {
+                        const kartka = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 0.42), new THREE.MeshBasicMaterial({ color: 0xfff2b0 }));
+                        kartka.position.set(0, 1.15, 0.33); g.add(kartka);
+                        const znak = new THREE.Sprite(new THREE.SpriteMaterial({ map: teksturaPlotna(32, 32, (c) => {
+                            c.fillStyle = '#e8c35a'; c.beginPath(); c.arc(16, 16, 14, 0, 7); c.fill();
+                            c.fillStyle = '#2a1a08'; c.font = 'bold 22px Georgia'; c.textAlign = 'center'; c.fillText('!', 16, 24);
+                        }), depthTest: false }));
+                        znak.scale.set(0.45, 0.45, 1); znak.position.y = 2.45; g.add(znak);
+                        s.userData.ogloszenie = slupyOgloszen.length; slupyOgloszen.push(s);
+                    }
                 });
                 else if (r === 'przystanek') { przystanek = true; postaw(p, g => {
                     const szyba = new THREE.MeshPhongMaterial({ color: 0x9fb8c8, transparent: true, opacity: 0.35, shininess: 90 });
@@ -43686,6 +43989,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 });
             }
 
+            // --- 16. Wnętrza: szkoła (tablica, ławki z krzesłami), szpital (łóżka, aparatura), dom starców ---
+            umeblujBudynki(G);
+
             // --- 11. Kot, który od czasu do czasu przebiega przez ulicę ---
             kotMiasta = new THREE.Group();
             const matKota = new THREE.MeshLambertMaterial({ color: 0x18161a });
@@ -43774,7 +44080,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 d.scale.setScalar(0.4 + f * 1.4);
                 d.material.opacity = Math.sin(f * Math.PI) * 0.45;
             });
-            witrazeKosciola.forEach(w => { w.visible = noc; });
+            witrazeKosciola.forEach(w => { w.visible = true; w.material.color.setScalar(noc ? 1.25 : 0.7); });
             autaMiasta.forEach(a => {
                 const j = a.userData.jazda;
                 a.userData.reflektory.visible = noc;
