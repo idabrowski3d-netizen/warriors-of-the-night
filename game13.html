@@ -23728,6 +23728,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             for (const c of parkedCars) {
                 if (Math.abs(c.x - carX) < 1.5 && Math.abs(c.z - checkZ) < 2.6) return true;
             }
+            for (const a of autaMiasta) {
+                if (a === selfMesh || !a.visible) continue;
+                if (Math.abs(a.position.x - carX) < 1.5 && Math.abs(a.position.z - checkZ) < 2.6) return true;
+            }
             return false;
         }
 
@@ -23735,7 +23739,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (gameMode !== 'present') return;
             const mainRoadWorldX = Math.floor(mapWidth / 2) - offsetX;
             const laneOffset = Math.random() < 0.5 ? -1.5 : 1.5; // dwa pasy - jeden w każdą stronę
-            const southToNorth = laneOffset < 0; // reguła ruchu prawostronnego: lewy pas = na północ, prawy pas = na południe
+            const southToNorth = laneOffset > 0; // ruch prawostronny: pas +X jedzie ku -Z, pas -X ku +Z
             const startZ = southToNorth ? offsetZ - 4 : -offsetZ + 4;
             const endZ = southToNorth ? -offsetZ + 4 : offsetZ - 4;
             const carX = mainRoadWorldX + laneOffset;
@@ -23866,7 +23870,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const mainRoadWorldX = Math.floor(mapWidth / 2) - offsetX;
             const useLeftLane = bay.side < 0;
             const laneX = mainRoadWorldX + (useLeftLane ? -1.5 : 1.5); // jedzie jednym pasem, tak jak zwykłe auta
-            const dir = useLeftLane ? -1 : 1; // ta sama reguła co zwykłe auta: lewy pas = na północ, prawy pas = na południe
+            const dir = useLeftLane ? 1 : -1; // ta sama reguła co zwykłe auta (ruch prawostronny)
             const startZ = dir > 0 ? -offsetZ + 5 : offsetZ - 5;
             const endZ = dir > 0 ? offsetZ - 5 : -offsetZ + 5;
             const stopZ = bay.z;
@@ -44088,7 +44092,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 a.visible = true;
                 // Auto staje, gdy ktoś wyjdzie mu przed maskę
                 const przed = hp && Math.abs(hp.x - j.x) < 1.6 && (hp.z - j.z) * j.kier > 0 && (hp.z - j.z) * j.kier < 3.5;
-                if (!przed) j.z += j.kier * j.v * dt;
+                if (!przed && !isVehicleInPath(j.x, j.z, j.kier, 3, a)) j.z += j.kier * j.v * dt;
                 a.position.set(j.x, getTerrainY(Math.round(j.x), Math.round(j.z)), j.z);
                 a.rotation.y = j.kier > 0 ? 0 : Math.PI;
                 if (Math.abs(j.z) > mapDepth / 2 + 2) { j.z = -j.kier * (mapDepth / 2 + 1); j.czeka = time + 15000 + Math.random() * 30000; a.visible = false; }
