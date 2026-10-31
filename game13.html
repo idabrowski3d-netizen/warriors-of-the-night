@@ -16482,6 +16482,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         // Faktura muru (cegły/bloki) w barwie ściany - zamiast gładkiej płyty
                         const wallMat = new THREE.MeshLambertMaterial({ map: teksturaScianyBud(barwaSciany), transparent: true, opacity: 1.0 });
                         if (pos.destroyedLevels && pos.destroyedLevels.indexOf(f) !== -1) continue; // ten kwadrat już wybity
+                        const boki = bokiDomu(pos);
+                        if (boki) {
+                            naBokach(boki, pos, 1, 2, GRUBOSC_MURU, ty + f * FLOOR_HEIGHT + 1, wallMat).forEach(wall => {
+                                if (f === 0) wall.add(detalSciany(GRUBOSC_MURU, barwaSciany, 0.32, -0.84, 0.62));
+                                if (f === floors - 1) wall.add(detalSciany(GRUBOSC_MURU, barwaSciany, 0.16, 0.92, 1.15));
+                                wall.userData = { type: 'house-wall', x: pos.x, z: pos.z, houseId: pos.houseId, wallLevel: f };
+                                scene.add(wall); obstacleMeshes.push(wall);
+                            });
+                            continue;
+                        }
                         const wallThickness = pos.thinWall ? 0.35 : 1; // cienkie ściany pagody
                         const wall = new THREE.Mesh(new THREE.BoxGeometry(1, 2, wallThickness), wallMat); 
                         wall.position.set(pos.x, ty + f * FLOOR_HEIGHT + 1, pos.z); 
@@ -16498,6 +16508,28 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
                 else if (pos.type === 'house-door') {
                     const doorMat = new THREE.MeshLambertMaterial({ color: pos.wallColor !== undefined ? pos.wallColor : 0xaa5555, transparent: true, opacity: 1.0 });
+                    const bokiD = bokiDomu(pos);
+                    if (bokiD) {
+                        // Drzwi w cienkim murze: nadproże, drewniana ościeżnica, próg i uchylone skrzydło
+                        const cz = [...naBokach(bokiD, pos, 1, 0.4, GRUBOSC_MURU, ty + 1.8, doorMat),
+                                    ...naBokach(bokiD, pos, 0.1, 1.6, GRUBOSC_MURU + 0.06, ty + 0.8, MAT_DREWNA, -0.45),
+                                    ...naBokach(bokiD, pos, 0.1, 1.6, GRUBOSC_MURU + 0.06, ty + 0.8, MAT_DREWNA, 0.45),
+                                    ...naBokach(bokiD, pos, 1, 0.1, GRUBOSC_MURU + 0.06, ty + 1.62, MAT_DREWNA),
+                                    ...naBokach(bokiD, pos, 1, 0.04, GRUBOSC_MURU + 0.1, ty + 0.02, MAT_RAMY)];
+                        bokiD.slice(0, 1).forEach(([sx, sz]) => {
+                            const skrzydlo = new THREE.Mesh(new THREE.BoxGeometry(0.78, 1.55, 0.05), MAT_DREWNA);
+                            skrzydlo.position.set(0.39, 0, 0);
+                            const zawias = new THREE.Group();
+                            const o = 0.5 - GRUBOSC_MURU;
+                            zawias.position.set(pos.x + sx * o - (sz ? 0.4 : 0), ty + 0.8, pos.z + sz * o - (sx ? 0.4 : 0));
+                            zawias.rotation.y = (sx ? -Math.PI / 2 : 0) + (sz < 0 || sx > 0 ? -1.1 : 1.1);
+                            zawias.add(skrzydlo); cz.push(zawias);
+                        });
+                        const floors = pos.floors || 1;
+                        for (let f = 1; f < floors; f++) cz.push(...naBokach(bokiD, pos, 1, 2, GRUBOSC_MURU, ty + f * 2 + 1, doorMat));
+                        cz.forEach(m => { if (m.material) m.userData = { type: 'house-wall', x: pos.x, z: pos.z, houseId: pos.houseId }; scene.add(m); obstacleMeshes.push(m); });
+                        return;
+                    }
                     const topDoor = new THREE.Mesh(new THREE.BoxGeometry(1, 0.4, 1), doorMat);
                     topDoor.position.set(pos.x, ty + 1.8, pos.z); scene.add(topDoor); obstacleMeshes.push(topDoor);
                     const floors = pos.floors || 1;
@@ -16511,6 +16543,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 else if (pos.type === 'house-window') {
                     const floors = pos.floors || 1;
                     const winMat = new THREE.MeshLambertMaterial({ color: pos.wallColor !== undefined ? pos.wallColor : 0xaa5555 });
+                    const bokiO = bokiDomu(pos);
+                    if (bokiO) {
+                        const czesci = pos.windowStyle === 'tall' ? oknoNaBokach(bokiO, pos, ty - 0.6, floors * 2 + 0.6, winMat).slice(1)
+                            : [].concat(...Array.from({ length: pos.windowStyle === 'wideGround' ? 1 : floors }, (_, f) => oknoNaBokach(bokiO, pos, ty + f * 2, 2, winMat)));
+                        czesci.forEach(m => { m.userData = { type: 'house-wall', x: pos.x, z: pos.z, houseId: pos.houseId }; scene.add(m); obstacleMeshes.push(m); });
+                        return;
+                    }
                     if (pos.windowStyle === 'tall') {
                         // Jedno ciągłe okno na całą wysokość budynku (nie osobne na każdym piętrze)
                         const totalHeight = floors * 2 - 0.6;
@@ -16563,7 +16602,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         const wx = dom.maxX - dom.minX + 1, wz = dom.maxZ - dom.minZ + 1;
                         roof.geometry.dispose();
                         roof.geometry = geometriaDachuDomu(Math.max(wx, wz), Math.min(wx, wz), 0.3);
-                        roof.material.map = teksturaDachowki(); roof.material.vertexColors = true;
+                        roof.material.map = teksturaDachowki(); roof.material.vertexColors = true; roof.material.side = THREE.DoubleSide;
                         roof.scale.set(1, 1, 1);
                         if (wz > wx) roof.rotation.y = Math.PI / 2;
                         roofY = ty + floors * FLOOR_HEIGHT + 0.12;
@@ -37215,6 +37254,43 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             g.setAttribute('color', new THREE.Float32BufferAttribute(kol, 3));
             g.computeVertexNormals();
             return g;
+        }
+        // Cienkie mury domu: płyta przy zewnętrznej krawędzi pola, po każdej stronie, na której leży pole
+        const GRUBOSC_MURU = 0.22;
+        function bokiDomu(pos) {
+            const h = houses[pos.houseId];
+            if (!h || pos.thinWall) return null;
+            const b = [];
+            if (pos.z === h.minZ) b.push([0, -1]);
+            if (pos.z === h.maxZ) b.push([0, 1]);
+            if (pos.x === h.minX) b.push([-1, 0]);
+            if (pos.x === h.maxX) b.push([1, 0]);
+            return b.length ? b : null;
+        }
+        // Prostopadłościan na każdym boku: w - wzdłuż muru, gr - w głąb, u - przesunięcie wzdłuż, wyp - wysunięcie na zewnątrz
+        function naBokach(boki, pos, w, h, gr, y, mat, u, wyp) {
+            return boki.map(([sx, sz]) => {
+                const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, gr), mat.clone());   // własny materiał - mur blednie osobno
+                m.material.transparent = true;
+                const o = 0.5 - GRUBOSC_MURU / 2 + (wyp || 0);
+                m.position.set(pos.x + sx * o + (sz ? (u || 0) : 0), y, pos.z + sz * o + (sx ? (u || 0) : 0));
+                if (sx) m.rotation.y = Math.PI / 2;
+                return m;
+            });
+        }
+        const MAT_SZYBY = new THREE.MeshLambertMaterial({ color: 0x8fb4cc, transparent: true, opacity: 0.55 });
+        const MAT_RAMY = new THREE.MeshLambertMaterial({ color: 0xece6d8 });
+        const MAT_DREWNA = new THREE.MeshLambertMaterial({ color: 0x5a3a22 });
+        // Okno w cienkim murze: parapet, nadproże, szyba, rama ze szprosem i podokiennik
+        function oknoNaBokach(boki, pos, y0, wys, mat) {
+            const yS = y0 + 0.8, hS = wys - 1.2, out = [];
+            out.push(...naBokach(boki, pos, 1, 0.8, GRUBOSC_MURU, y0 + 0.4, mat));
+            out.push(...naBokach(boki, pos, 1, 0.4, GRUBOSC_MURU, y0 + wys - 0.2, mat));
+            out.push(...naBokach(boki, pos, 0.9, hS, 0.04, yS + hS / 2, MAT_SZYBY));
+            [-0.46, 0.46, 0].forEach(u => out.push(...naBokach(boki, pos, u ? 0.08 : 0.05, hS, GRUBOSC_MURU + 0.04, yS + hS / 2, MAT_RAMY, u)));
+            out.push(...naBokach(boki, pos, 0.9, 0.05, GRUBOSC_MURU + 0.04, yS + hS / 2, MAT_RAMY));
+            out.push(...naBokach(boki, pos, 1.08, 0.06, 0.2, yS - 0.03, MAT_RAMY, 0, 0.1));
+            return out;
         }
         function teksturaScianyBud(barwa) {
             return _teksturyScian[barwa] || (_teksturyScian[barwa] = teksturaZPlotna(plotnoMuru(barwa), 1, 2));
