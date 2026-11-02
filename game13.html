@@ -1218,6 +1218,10 @@
     </div>
     <video id="mp-wideo" autoplay playsinline muted style="display:none;position:fixed;inset:0;width:100vw;height:100vh;object-fit:contain;background:#000;z-index:400;cursor:crosshair"></video>
     <div id="mp-znak" style="display:none;position:fixed;top:6px;left:50%;transform:translateX(-50%);z-index:250;padding:4px 14px;background:rgba(0,0,0,.7);border:1px solid #d9b46a;color:#f1e3c4;font:14px Georgia,serif;pointer-events:none"></div>
+    <div id="mp-czat" style="display:none;position:fixed;left:12px;bottom:90px;width:min(340px,80vw);z-index:500;padding:6px 8px;background:rgba(5,4,3,.92);border:1px solid #7a6136;border-radius:4px;color:#f1e3c4;font:14px/1.35 Georgia,serif;overflow-wrap:anywhere;pointer-events:none">
+        <div id="mp-czat-log"></div>
+        <input id="mp-czat-pole" maxlength="200" placeholder="Enter wysyła, Esc zamyka" style="display:none;box-sizing:border-box;width:100%;margin-top:4px;padding:5px 7px;background:#000;border:1px solid #7a6136;color:#f1e3c4;font:14px Georgia,serif;pointer-events:auto">
+    </div>
     <div id="mp-koniec" style="display:none;position:fixed;inset:0;z-index:260;background:rgba(0,0,0,.8);color:#e9dcc0;font-family:Georgia,serif;text-align:center">
         <div style="max-width:520px;margin:18vh auto;padding:24px;background:#1a140c;border:1px solid #b9a77a">
             <div id="mp-koniec-tytul" style="font-family:Cinzel,Georgia,serif;font-size:26px;color:#e3c27a;letter-spacing:.1em"></div>
@@ -48457,7 +48461,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (mp.conn) { conn.close(); return; }
                 mp.conn = conn;
                 conn.on('data', d => {
-                    if (d.typ === 'witaj') { mp.gosc = { imie: d.imie, klasa: d.klasa }; peer.call(conn.peer, obraz); mpStartGospodarza(); }
+                    if (d.typ === 'witaj') { mp.gosc = { imie: d.imie, klasa: d.klasa }; peer.call(conn.peer, obraz); mpStartGospodarza(); mpCzatDopisz('', MP_CZAT_POMOC); }
+                    else if (d.typ === 'czat') mpCzatDopisz(mp.gosc ? mp.gosc.imie : 'Gracz 2', d.tekst);
                     else mpWejscieGoscia(d);
                 });
                 conn.on('close', () => showFloatingWarning('Drugi gracz się rozłączył.'));
@@ -48484,10 +48489,53 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             peer.on('open', () => {
                 const conn = peer.connect(MP_PREFIKS + kod, { reliable: true });
                 mp.conn = conn;
-                conn.on('open', () => { conn.send({ typ: 'witaj', imie: ja.imie, klasa: ja.klasa }); mpStatus('Połączono! Czekam na obraz od gospodarza...'); mpPodlaczWejscie(conn); });
+                conn.on('data', d => { if (d.typ === 'czat') mpCzatDopisz(d.imie || 'Gracz 1', d.tekst); });
+                conn.on('open', () => { conn.send({ typ: 'witaj', imie: ja.imie, klasa: ja.klasa }); mpStatus('Połączono! Czekam na obraz od gospodarza...'); mpPodlaczWejscie(conn); mpCzatDopisz('', MP_CZAT_POMOC); });
                 conn.on('close', () => { mpStatus('Gospodarz zakończył grę.'); document.getElementById('mp-wideo').style.display = 'none'; document.getElementById('mp-panel').style.display = 'block'; });
             });
         }
+        // Czat. Ramka gościa przykrywa ramkę gospodarza widoczną na obrazie, inaczej każdy wpis byłby podwójny.
+        // ponytail: przy innych proporcjach okien ramki mogą się mijać i wpis będzie widać podwójnie.
+        const MP_CZAT_POMOC = 'Enter otwiera czat.', MP_CZAT_WIDOCZNE_MS = 12000;
+        function mpCzatOdswiez() {
+            const log = document.getElementById('mp-czat-log'), pole = document.getElementById('mp-czat-pole');
+            document.getElementById('mp-czat').style.display = (log.children.length || pole.style.display !== 'none') ? 'block' : 'none';
+        }
+        function mpCzatDopisz(autor, tekst) {
+            const log = document.getElementById('mp-czat-log'), wpis = document.createElement('div');
+            if (autor) { const b = document.createElement('b'); b.style.color = '#e3c27a'; b.textContent = autor + ': '; wpis.appendChild(b); }
+            wpis.appendChild(document.createTextNode(String(tekst).slice(0, 200)));
+            log.appendChild(wpis);
+            while (log.children.length > 6) log.removeChild(log.firstChild);
+            mpCzatOdswiez();
+            setTimeout(() => { wpis.remove(); mpCzatOdswiez(); }, MP_CZAT_WIDOCZNE_MS);
+        }
+        function mpCzatZamknij() {
+            const pole = document.getElementById('mp-czat-pole');
+            pole.value = ''; pole.style.display = 'none'; pole.blur();
+            mpCzatOdswiez();
+        }
+        // Przechwytujemy Enter, zanim dostanie go gra albo połączenie gościa
+        window.addEventListener('keydown', e => {
+            const a = document.activeElement;
+            if (e.key !== 'Enter' || !e.isTrusted || !mp || !mp.conn || !mp.conn.open || (a && /INPUT|TEXTAREA|SELECT/.test(a.tagName))) return;
+            e.preventDefault(); e.stopImmediatePropagation();
+            const pole = document.getElementById('mp-czat-pole');
+            pole.style.display = 'block'; mpCzatOdswiez(); pole.focus();
+        }, true);
+        // Klawisze wpisywane w polu nie mogą dojść do gry ani do gospodarza
+        ['keydown', 'keyup', 'keypress'].forEach(typ => document.getElementById('mp-czat-pole').addEventListener(typ, e => {
+            e.stopPropagation();
+            if (typ !== 'keydown') return;
+            if (e.key === 'Escape') mpCzatZamknij();
+            if (e.key !== 'Enter') return;
+            const tekst = e.target.value.trim();
+            if (tekst && mp && mp.conn && mp.conn.open) {
+                mp.conn.send({ typ: 'czat', imie: mp.ja.imie, tekst: tekst });
+                mpCzatDopisz(mp.ja.imie, tekst);
+            }
+            mpCzatZamknij();
+        }));
         // Gość: kliknięcia i klawisze z obrazu idą do gospodarza jako ułamki rozmiaru obrazu
         function mpPodlaczWejscie(conn) {
             const w = document.getElementById('mp-wideo');
