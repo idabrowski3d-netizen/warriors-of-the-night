@@ -8814,6 +8814,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         const roofObj = obstaclePositions.find(p => p.type === 'house-roof' && p.x === b.x && p.z === b.z);
                         if (roofObj) roofObj.flatRoof = true; // płaski dach - da się po nim chodzić
                         const bMinX = b.x - Math.round((w - 1) / 2), bMinZ = b.z - Math.round((d - 1) / 2);
+                        // Fontanna na placyku przed co drugim budynkiem, z boku od wejścia
+                        if (i % 2 === 0 && isWithinPlayBounds(b.x + 4, bMinZ - 3) && !isObstacle(b.x + 4, bMinZ - 3)) addObstacle(b.x + 4, bMinZ - 3, 'fontanna');
                         const interior = [];
                         for (let x = bMinX + 1; x < bMinX + w - 1; x++) {
                             for (let z = bMinZ + 1; z < bMinZ + d - 1; z++) {
@@ -12418,7 +12420,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 case 'alabama':      return ['zywoplot','zywoplot','lawka','kosz','kloda','krzak','kepa','slup','zagajnik','slup_energetyczny','stos_opon','stog_siana','paleta','wiatrak_pompa','skrzynia_pocztowa','strach_na_wroble'];
                 case 'kremlin':
                 case 'whitehouse':
-                case 'zhongnanhai':  return ['lawka','lawka','kosz','kosz','zywoplot','zywoplot','beczka','rock','hydrant','budka_telefoniczna','znak_drogowy','latarnia_uliczna','latarnia_uliczna','pomnik','fontanna','donica_zlota','maszt_flagowy'];
+                case 'zhongnanhai':  return ['lawka','lawka','kosz','kosz','zywoplot','zywoplot','beczka','rock','hydrant','budka_telefoniczna','znak_drogowy','latarnia_uliczna','latarnia_uliczna','pomnik','donica_zlota','maszt_flagowy'];
                 case 'pentagon':     return ['beczka','beczka','kosz','rock','rock','skrzynia_metal','skrzynia_metal','stos_beczek','beczka_prochu','kontener','paleta','znak_drogowy','radar'];
                 case 'wesole':       return ['beczka','kosz','kosz','lawka','lawka','beczka','zywoplot','kontener','hydrant','budka_telefoniczna','stragan','stragan','automat_biletowy','balony','balony','automat_z_napojami'];
                 case 'nekropolia':
@@ -12444,7 +12446,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // W labiryncie poza blokami leżą tylko rzeczy po tych, co nie wyszli
                 case 'klaustrofobia': return ['kosciotrup','skrzynia','beczka','kosciotrup','stos_czaszek','pal_z_kajdanami','pajeczyna'];
                 case 'stacja':       return ['regal','skrzynia','skrzynia','beczka','lawka','skrzynia_metal','skrzynia_metal','rusztowanie','stos_beczek','slup','beczka_prochu','paleta','kontener','slup_energetyczny','budka_telefoniczna','automat_biletowy','automat_biletowy','walizki','walizki'];
-                case 'newyork':      return ['hydrant','kosz','znak_drogowy','budka_telefoniczna','latarnia_uliczna','latarnia_uliczna','kiosk','skrzynia_pocztowa','lawka','pomnik','automat_z_napojami','fontanna','donica_zlota','donica_zlota','limuzyna','limuzyna','maszt_flagowy'];
+                case 'newyork':      return ['hydrant','kosz','znak_drogowy','budka_telefoniczna','latarnia_uliczna','latarnia_uliczna','kiosk','skrzynia_pocztowa','lawka','pomnik','automat_z_napojami','donica_zlota','donica_zlota','limuzyna','limuzyna','maszt_flagowy'];
                 case 'sicario':
                 case 'ambush':       return ['kaktus','agawa','agawa','kepa','rock','krzak','czaszka_bydla','stos_opon','beczka','kolo_wozu'];
                 case 'parow':        return ['rock','rock','kloda','krzak','kepa','kamien_mech','czaszka_bydla','kolo_wozu'];
@@ -37935,7 +37937,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
                 const sx = Math.round((o.minX + o.maxX) / 2), sz = Math.round((o.minZ + o.maxZ) / 2);
                 const probki = [];
-                for (let x = o.minX + 1; x < o.maxX; x += 2) for (let z = o.minZ + 1; z < o.maxZ; z += 2) probki.push({ x: x, z: z });
+                // Także pola tuż za murem - fasadę widać z ulicy
+                for (let x = o.minX - 1; x <= o.maxX + 1; x += 2) for (let z = o.minZ - 1; z <= o.maxZ + 1; z += 2) probki.push({ x: x, z: z });
 
                 for (let L = 0; L < o.pieter; L++) {
                     const nazwa = L === 0 ? 'lobby' : (L === o.pieter - 1 ? 'apartament' : reszta[L - 1]);
@@ -37973,16 +37976,39 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     }
                     // Dywan i żyrandol pośrodku sali
                     b.ustaw(sx, y, sz, 0, 1);
-                    const dx = Math.max(1, o.maxX - o.minX - 5), dz = Math.max(1, o.maxZ - o.minZ - 5);
-                    if (!hasHoleAt(sx, sz, L) && !hasHoleAt(sx, sz, L - 1)) {
-                        b.box(dx + 0.3, 0.015, dz + 0.3, ZLOTO, 0, 0.008, 0);
-                        b.box(dx, 0.02, dz, motyw.dywan, 0, 0.01, 0);
+                    // Dywan kładziemy pole po polu, żeby nie wisiał nad otworem
+                    const promX = Math.floor((o.maxX - o.minX - 5) / 2), promZ = Math.floor((o.maxZ - o.minZ - 5) / 2);
+                    for (let dx = -promX; dx <= promX; dx++) for (let dz = -promZ; dz <= promZ; dz++) {
+                        if (hasHoleAt(sx + dx, sz + dz, L) || hasHoleAt(sx + dx, sz + dz, L - 1)) continue;
+                        b.box(1, 0.02, 1, motyw.dywan, dx, 0.01, dz);
+                        // Wąska złota lamówka na zewnętrznym brzegu
+                        if (Math.abs(dx) === promX && dx) b.box(0.08, 0.025, 1, ZLOTO, dx + Math.sign(dx) * 0.42, 0.01, dz);
+                        if (Math.abs(dz) === promZ && dz) b.box(1, 0.025, 0.08, ZLOTO, dx, 0.01, dz + Math.sign(dz) * 0.42);
                     }
                     b.walec(0.02, 0.02, 0.3, ZLOTO, 0, 1.68, 0);
                     b.walec(0.34, 0.2, 0.08, ZLOTO, 0, 1.6, 0);
                     for (let k = 0; k < 6; k++) {
                         const a = k * Math.PI / 3;
                         b.kula(0.06, 0xfff2c4, Math.cos(a) * 0.3, 1.56, Math.sin(a) * 0.3, true);
+                    }
+                    // Fasada: złoty gzyms nad kondygnacją i rozświetlone okna z parapetem
+                    b.ustaw((o.minX + o.maxX) / 2, y, (o.minZ + o.maxZ) / 2, 0, 1);
+                    const szer = o.maxX - o.minX + 1, gleb = o.maxZ - o.minZ + 1;
+                    for (const s of [-1, 1]) {
+                        b.box(szer + 0.2, 0.08, 0.1, ZLOTO, 0, 1.9, s * (gleb / 2 + 0.03));
+                        b.box(0.1, 0.08, gleb + 0.2, ZLOTO, s * (szer / 2 + 0.03), 1.9, 0);
+                        for (let t = 1; t < szer - 1; t += 2) {
+                            const x = o.minX + t, z = s < 0 ? o.minZ : o.maxZ;
+                            if (o.drzwi.some(d => Math.abs(d.x - x) <= 1 && d.z === z)) continue;
+                            b.box(0.5, 0.75, 0.03, 0xffdf9a, t - (szer - 1) / 2, 0.8, s * (gleb / 2 + 0.02), true);
+                            b.box(0.62, 0.05, 0.12, MARMUR, t - (szer - 1) / 2, 0.75, s * (gleb / 2 + 0.05));
+                        }
+                        for (let t = 1; t < gleb - 1; t += 2) {
+                            const z = o.minZ + t, x = s < 0 ? o.minX : o.maxX;
+                            if (o.drzwi.some(d => d.x === x && Math.abs(d.z - z) <= 1)) continue;
+                            b.box(0.03, 0.75, 0.5, 0xffdf9a, s * (szer / 2 + 0.02), 0.8, t - (gleb - 1) / 2, true);
+                            b.box(0.12, 0.05, 0.62, MARMUR, s * (szer / 2 + 0.05), 0.75, t - (gleb - 1) / 2);
+                        }
                     }
                     const g = b.siatka();
                     g.userData.pietro = L;
@@ -41913,7 +41939,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const y1 = getLevelY(sx4, sz4, 0) + 1.3;
                     const y2 = getLevelY(Math.round(cel4.mesh.position.x), Math.round(cel4.mesh.position.z), 0) + 1.0;
                     createProjectile(sx4, y1, sz4, Math.round(cel4.mesh.position.x), y2,
-                                     Math.round(cel4.mesh.position.z), false, 0x9ade4a, () => {
+                                     Math.round(cel4.mesh.position.z), true, null, () => {
                         if (Math.random() * 100 < szansa) {
                             applyDamageToUnit(cel4, 3, e);
                             cel4.venomTurns = Math.max(cel4.venomTurns || 0, 3);   // jad trawi dalej
