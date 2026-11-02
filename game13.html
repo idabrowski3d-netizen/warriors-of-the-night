@@ -18443,10 +18443,43 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 setTimeout(() => { if (!zostawZwloki(wrog)) scene.remove(wrog.mesh); refreshEnemyPositions(); if (poZgonie) poZgonie(); },
                            Math.min(3500, dl));
             } else {
-                scene.remove(wrog.mesh);
+                if (!zostawCiemnyKsztalt(wrog)) scene.remove(wrog.mesh);
                 refreshEnemyPositions();
                 if (poZgonie) poZgonie();
             }
+        }
+
+        // Wróg bez animacji zgonu: jego własna bryła pada na ziemię i ciemnieje.
+        // Rój i ognik nie mają ciała, a poświaty i podpisy nie mogą zostać nad trupem.
+        function zostawCiemnyKsztalt(wrog) {
+            const m = wrog.mesh;
+            if (!m || wrog.type === 'roj' || wrog.type === 'wisp' || m.userData.isEnemyModel) return false;
+            if (!zostawZwloki(wrog)) return true;   // tu leży już ciało z pobojowiska; bryła jest usunięta
+            const doUsuniecia = [];
+            m.traverse(ch => {
+                if (ch === m) return;
+                if (ch.isLight || ch.isSprite || (ch.material && ch.material.transparent)) { doUsuniecia.push(ch); return; }
+                if (!ch.material) return;
+                ch.material = ch.material.clone();   // materiały bywają wspólne z żywymi wrogami
+                if (ch.material.color) ch.material.color.multiplyScalar(0.22);
+                if (ch.material.emissive) ch.material.emissive.setHex(0);
+            });
+            doUsuniecia.forEach(ch => { if (ch.parent) ch.parent.remove(ch); });
+            const x = Math.round(m.position.x), z = Math.round(m.position.z);
+            // Przewracamy tylko stwory stojące; niski skorpion stanąłby przewrócony dęba
+            m.updateMatrixWorld(true);
+            const wymiary = new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3());
+            if (wymiary.y > Math.max(wymiary.x, wymiary.z)) {
+                m.rotation.order = 'YXZ';
+                m.rotation.set(-Math.PI / 2, Math.random() * Math.PI * 2, 0);
+            }
+            // Układamy ciało według jego wymiarów, bo bryły mają różne punkty zaczepienia
+            m.updateMatrixWorld(true);
+            const pudlo = new THREE.Box3().setFromObject(m), srodek = pudlo.getCenter(new THREE.Vector3());
+            m.position.x += x - srodek.x;
+            m.position.z += z - srodek.z;
+            m.position.y += getLevelY(x, z, wrog.level || 0) + 0.02 - pudlo.min.y;
+            return true;
         }
 
         // ========================================================
