@@ -2621,6 +2621,14 @@
         let riverIsLava = false;
         let rzekaKrwi = false;   // Otchłań - zamiast wody płynie krew
         let bridgePositions = [];
+        // Koryto rzeki leży niżej od gruntu; więcej niż 1 odcięłoby płycizny, bo tak stromo nie da się wejść.
+        // Pola pod mostem: chodzi się po nich na wysokości brzegu, a rysuje je na dnie koryta.
+        const KORYTO_GLEBOKOSC = 1;
+        let polaPodMostem = new Set();       // klucze 'mx,mz'
+        let rzekaWKorycie = false;
+        function wysokoscGruntu(mx, mz) {
+            return polaPodMostem.has(mx + ',' + mz) ? -KORYTO_GLEBOKOSC : heightMap[mx][mz];
+        }
         let islandBridgeTiles = [];
         let themedLandmarkDecor = [];
 
@@ -5688,7 +5696,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             for(let i=0; i<mapWidth; i++) terrainTypeMap[i].fill(0);
             for(let i=0; i<mapWidth; i++) cornfieldGrid[i].fill(0);
             for(let i=0; i<mapWidth; i++) riverGrid[i].fill(0);
-            hasRiver = false; bridgePositions = []; islandBridgeTiles = []; skalnaKrawedz = null; posagiBozkow = []; nurtRzeki = false; lodNaRzece = new Set(); tratwa = null;
+            hasRiver = false; bridgePositions = []; polaPodMostem = new Set(); rzekaWKorycie = false; islandBridgeTiles = []; skalnaKrawedz = null; posagiBozkow = []; nurtRzeki = false; lodNaRzece = new Set(); tratwa = null;
 
             let mainRoadX = Math.floor(mapWidth / 2);
             // Plansze o własnym klimacie nie znają współczesności: żadnego asfaltu,
@@ -6015,6 +6023,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 hasRiver = true;
                 riverIsLava = isVolcanoTheme;
                 nurtRzeki = true;
+                rzekaWKorycie = true;
                 rzekaKrwi = currentCombatTheme && currentCombatTheme.id === 'otchlan';   // Otchłań: rzeka krwi
                 const riverHalfWidth = 2; // rzeka ma ok. 5 kafelków szerokości
                 const riverCenterZ = 40 + Math.floor(Math.random() * (mapDepth - 80));
@@ -6041,7 +6050,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         const mz = riverCenterZ + skos + dz;
                         if (mz < 0 || mz >= mapDepth) continue;
                         heightMap[x][mz] = 0;
-                        if (onBridge) { terrainTypeMap[x][mz] = (isVolcanoMap || isSaharaMap || isKatedraMap) ? 1 : 2; continue; } // mostek - zarezerwowany, nic tu nie stanie (na wulkanie ziemia, nie asfalt)
+                        if (onBridge) { polaPodMostem.add(x + ',' + mz); terrainTypeMap[x][mz] = (isVolcanoMap || isSaharaMap || isKatedraMap) ? 1 : 2; continue; } // mostek - zarezerwowany, nic tu nie stanie (na wulkanie ziemia, nie asfalt)
                         riverGrid[x][mz] = 1;
                         // Skraje koryta to płycizna: da się brodzić (jak przez błoto - podwójnie), ale nurt może znieść
                         if (!isVolcanoTheme && Math.abs(dz) === riverHalfWidth) { terrainTypeMap[x][mz] = 5; continue; }
@@ -9308,6 +9317,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // wszystko jest już rozstawione - inaczej poprawka zostałaby nadpisana.
             if (isSaharaMap) smoothSaharaDunes();
 
+            // Koryto obniżamy na końcu, żeby nic już go nie wyrównało
+            if (rzekaWKorycie) {
+                for (let mx = 0; mx < mapWidth; mx++)
+                    for (let mz = 0; mz < mapDepth; mz++)
+                        if (riverGrid[mx][mz] === 1) heightMap[mx][mz] = -KORYTO_GLEBOKOSC;
+            }
+
             // Mostki na latających wyspach to jedyne przejścia - nic nie może ich zastawić
             if (islandBridgeTiles.length > 0) {
                 islandBridgeTiles.forEach(([mx, mz]) => {
@@ -9405,7 +9421,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         dummy.position.set(worldX, heightMap[x][z] - 0.5 + (worldZ - foldZ), foldZ);
                         dummy.rotation.set(Math.PI / 2, 0, 0);
                     } else {
-                        dummy.position.set(worldX, heightMap[x][z] - 0.5, worldZ);
+                        dummy.position.set(worldX, wysokoscGruntu(x, z) - 0.5, worldZ);
                         dummy.rotation.set(0, 0, 0);
                     }
                     dummy.updateMatrix();
@@ -10007,11 +10023,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             : new THREE.MeshLambertMaterial({ color: 0x2a78c4, map: teksturaNurtu, transparent: true, opacity: 0.95 }));
                 // Lód rysujemy osobno - nie płynie i jest jasny
                 const zLodem = tiles.filter(([wx, wz]) => lodNaRzece.has((wx + offsetX) + ',' + (wz + offsetZ)));
+                // Pod mostem płynie to samo co obok: lód, gdy rzeka zamarzła, inaczej woda
+                const podMostem = [...polaPodMostem].map(k => { const [mx, mz] = k.split(',').map(Number); return [mx - offsetX, mz - offsetZ]; });
+                if (zLodem.length) zLodem.push(...podMostem);
+                const yDna = (wx, wz) => wysokoscGruntu(wx + offsetX, wz + offsetZ);
                 if (zLodem.length) {
                     tiles = tiles.filter(([wx, wz]) => !lodNaRzece.has((wx + offsetX) + ',' + (wz + offsetZ)));
                     const lod = new THREE.InstancedMesh(streamGeo, new THREE.MeshPhongMaterial({ color: 0xd4e8f4, shininess: 90, specular: 0xffffff }), zLodem.length);
                     const dl = new THREE.Object3D();
-                    zLodem.forEach(([wx, wz], i) => { dl.position.set(wx, getTerrainY(wx, wz) + 0.06, wz); dl.updateMatrix(); lod.setMatrixAt(i, dl.matrix); });
+                    zLodem.forEach(([wx, wz], i) => { dl.position.set(wx, yDna(wx, wz) + 0.06, wz); dl.updateMatrix(); lod.setMatrixAt(i, dl.matrix); });
                     lod.userData.unitType = 'fx';
                     scene.add(lod); bridgeMeshes.push(lod);
                 }
@@ -10027,16 +10047,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
                 // Woda z zachodzących na siebie krążków zamiast kwadratów - brzeg faluje, bez schodków
                 const wodaGeo = isChasm ? streamGeo : new THREE.CylinderGeometry(0.74, 0.74, 0.15, 12);
-                riverMesh = new THREE.InstancedMesh(wodaGeo, streamMat, Math.max(1, tiles.length));
+                const woda = zLodem.length ? tiles : tiles.concat(podMostem);
+                riverMesh = new THREE.InstancedMesh(wodaGeo, streamMat, Math.max(1, woda.length));
                 const dummy = new THREE.Object3D();
-                tiles.forEach(([wx, wz], idx) => {
-                    const ty = getTerrainY(wx, wz);
+                woda.forEach(([wx, wz], idx) => {
+                    const ty = yDna(wx, wz);
                     dummy.position.set(wx, isChasm ? ty - 4.5 : ty + 0.05, wz);
                     if (isChasm) dummy.scale.set(1, 0.6, 1);
                     dummy.updateMatrix();
                     riverMesh.setMatrixAt(idx, dummy.matrix);
                 });
-                riverMesh.count = tiles.length;   // cała rzeka skuta lodem - bez wody
+                riverMesh.count = woda.length;   // cała rzeka skuta lodem - bez wody
                 riverMesh.instanceMatrix.needsUpdate = true;
                 scene.add(riverMesh);
 
@@ -12915,7 +12936,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function postawSkalyZboczy() {
             if (!currentCombatTheme) return 0;
-            const st = stylSkarpy();
+            // Plansza bez własnego stylu skarp dostaje przy rzece skały jak w Parowie
+            const st = (rzekaWKorycie && !STYL_SKARP[currentCombatTheme.id]) ? STYL_SKARP.parow : stylSkarpy();
             const ziarno = ziarnoGlazu;
             const ksztalty = [0, 1, 2].map(st.ksztalt === 'kopiec' ? ksztaltKopca
                 : st.ksztalt === 'plyta' ? () => new THREE.BoxGeometry(1, 1, 1) : ksztaltGlazu);
@@ -12933,12 +12955,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             };
             for (let mx = 0; mx < mapWidth; mx++) {
                 for (let mz = 0; mz < mapDepth; mz++) {
-                    const h = heightMap[mx][mz];
+                    const h = wysokoscGruntu(mx, mz);
                     const x = mx - offsetX, z = mz - offsetZ, pole = { x: x, z: z };
                     for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
                         const nx = mx + dx, nz = mz + dz;
                         if (nx < 0 || nx >= mapWidth || nz < 0 || nz >= mapDepth) continue;
-                        const spad = h - heightMap[nx][nz];
+                        const spad = h - wysokoscGruntu(nx, nz);
                         if (spad <= 0) continue;
                         // Ściana: dwa głazy obok siebie na każdą warstwę, warstwa co ~1.3
                         const warstw = Math.max(1, Math.ceil(spad / (st.warstwa || 1.3)));
@@ -22417,6 +22439,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 riverIsLava: riverIsLava,
                 rzekaKrwi: rzekaKrwi,
                 bridgePositions: bridgePositions,
+                polaPodMostem: [...polaPodMostem],
                 wyspyElipsy: wyspyElipsy,
                 skalnaKrawedz: skalnaKrawedz,
                 lodRzeki: [...lodNaRzece], tratwa: tratwa,
@@ -22536,6 +22559,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             riverIsLava = data.riverIsLava;
             rzekaKrwi = !!data.rzekaKrwi;
             bridgePositions = data.bridgePositions || [];
+            polaPodMostem = new Set(data.polaPodMostem || []);
             wyspyElipsy = data.wyspyElipsy || [];
             skalnaKrawedz = data.skalnaKrawedz || null;
             lodNaRzece = new Set(data.lodRzeki || []);
