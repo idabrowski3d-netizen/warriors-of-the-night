@@ -17650,6 +17650,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function speakAt(unit, text, graceNote) {
             if (!unit || !unit.mesh) return;
             const clean = String(text).replace(/\n+/g, ' ').trim();
+            // Kliknięty rozmówca odpowiada w oknie z twarzą, a nie w dymku
+            if (rozmowca && rozmowca.mesh === unit.mesh && !dialogueOpen) {
+                showDialogue(clean + (graceNote ? '\n' + graceNote : ''), 'OK', null);
+                return;
+            }
             const words = clean.split(/\s+/);
             const lines = [];
             let cur = '';
@@ -24452,9 +24457,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         // ===== KTO MÓWI =====
         // Każdy mieszkaniec dostaje przy pierwszej rozmowie imię, nazwisko i twarz z arkusza.
-        // Arkusz to równa siatka TWARZE_KOLUMNY x TWARZE_WIERSZE; pierwsza połowa pól to mężczyźni, druga kobiety.
+        // Arkusz: jedna kolumna na osobę, górny wiersz to twarz wesoła, dolny smutna.
+        // Smutną widać, dopóki ktoś czeka na pomoc, wesołą po wykonanym zleceniu.
         const TWARZE_PLIK = 'graphics/twarze.jpg';
-        const TWARZE_KOLUMNY = 6, TWARZE_WIERSZE = 4;
+        const TWARZE_OSOBY = [
+            { k: false, dziecko: true }, { k: true, dziecko: true }, { k: false, dziecko: true },
+            { k: true }, { k: false }, { k: true },
+            { k: true }, { k: false }, { k: true },
+            { k: true, dziecko: true }, { k: false, dziecko: true },
+            { k: true }, { k: false }, { k: false }
+        ];
         const IMIONA_M = ['Jan', 'Stanisław', 'Andrzej', 'Józef', 'Tadeusz', 'Marek', 'Piotr', 'Krzysztof', 'Tomasz', 'Paweł', 'Michał', 'Henryk', 'Adam', 'Marcin', 'Wojciech', 'Zbigniew'];
         const IMIONA_K = ['Maria', 'Anna', 'Barbara', 'Krystyna', 'Elżbieta', 'Teresa', 'Zofia', 'Helena', 'Agnieszka', 'Katarzyna', 'Halina', 'Danuta', 'Ewa', 'Jadwiga', 'Irena', 'Małgorzata'];
         const NAZWISKA = ['Kowalski', 'Nowicki', 'Wiśniewski', 'Zieliński', 'Szymański', 'Woźniak', 'Mazur', 'Kaczmarek', 'Wójcik', 'Lewandowski', 'Dąbrowski', 'Kozłowski', 'Jankowski', 'Pawlak', 'Sikora', 'Walczak', 'Baran', 'Michalski', 'Król', 'Wieczorek', 'Adamczyk', 'Dudek', 'Zając', 'Górski'];
@@ -24467,18 +24479,20 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const losujZ = (lista) => lista[Math.floor(Math.random() * lista.length)];
         function nowaTwarz() {
             if (!taliaTwarzy.length) {
-                for (let i = 0; i < TWARZE_KOLUMNY * TWARZE_WIERSZE; i++) taliaTwarzy.push(i);
+                TWARZE_OSOBY.forEach((_, i) => taliaTwarzy.push(i));
                 taliaTwarzy.sort(() => Math.random() - 0.5);
             }
             return taliaTwarzy.pop();
         }
         function tozsamoscNpc(n) {
             if (n.tozsamosc) return n.tozsamosc;
-            // Duchowny i inni z tytułem to mężczyźni - szukamy im męskiej twarzy
+            // Ksiądz, nauczyciel i aptekarz to dorośli mężczyźni, reszta bierze z talii
             let twarz = nowaTwarz();
-            const polowa = TWARZE_KOLUMNY * TWARZE_WIERSZE / 2;
-            if (TYTULY_ROL[n.role] && twarz >= polowa) twarz -= polowa;
-            const kobieta = twarz >= polowa;
+            if (TYTULY_ROL[n.role]) {
+                const dorosli = TWARZE_OSOBY.map((o, i) => (!o.k && !o.dziecko) ? i : -1).filter(i => i >= 0);
+                twarz = losujZ(dorosli);
+            }
+            const kobieta = TWARZE_OSOBY[twarz].k;
             let nazwisko = losujZ(NAZWISKA);
             if (kobieta) nazwisko = nazwisko.replace(/ski$/, 'ska').replace(/cki$/, 'cka');
             const tytul = TYTULY_ROL[n.role] ? TYTULY_ROL[n.role] + ' ' : '';
@@ -24492,9 +24506,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Dopóki arkusza nie ma, zamiast twarzy widać znak zapytania
             el.innerText = twarzeWczytane ? '' : '?';
             el.style.backgroundImage = twarzeWczytane ? `url(${TWARZE_PLIK})` : 'none';
-            el.style.backgroundSize = `${TWARZE_KOLUMNY * 100}% ${TWARZE_WIERSZE * 100}%`;
-            const kol = t.twarz % TWARZE_KOLUMNY, wiersz = Math.floor(t.twarz / TWARZE_KOLUMNY);
-            el.style.backgroundPosition = `${TWARZE_KOLUMNY > 1 ? kol / (TWARZE_KOLUMNY - 1) * 100 : 0}% ${TWARZE_WIERSZE > 1 ? wiersz / (TWARZE_WIERSZE - 1) * 100 : 0}%`;
+            el.style.backgroundSize = `${TWARZE_OSOBY.length * 100}% 200%`;
+            const smutny = !rozmowca.helped && (rozmowca.kind === 'suffering' || rozmowca.need || rozmowca.zawszeSmutny);
+            el.style.backgroundPosition = `${t.twarz / (TWARZE_OSOBY.length - 1) * 100}% ${smutny ? 100 : 0}%`;
             pole.style.display = 'flex';
         }
 
@@ -34290,6 +34304,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         const dist = Math.hypot(hero.mesh.position.x - target.mesh.position.x, hero.mesh.position.z - target.mesh.position.z);
                         if (dist <= 2.5) {
                             rozmowca = ['town', 'special', 'sleeping', 'patient'].includes(target.kind) ? target.data : null;
+                            if (target.kind === 'sleeping') target.data.zawszeSmutny = true;
                             if (target.kind === 'portal') interactWithPortal(target.data);
                             else if (target.kind === 'special') interactWithSpecialNPC(target.data);
                             else if (target.kind === 'town') interactWithTownNPC(target.data);
