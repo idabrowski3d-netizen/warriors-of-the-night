@@ -29773,6 +29773,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const minimapCanvas = document.getElementById('minimap-canvas');
         // Widoczny wycinek mapy - potrzebny też przy klikaniu w nią
         let minimapOkno = { x: 0, z: 0, w: 1, d: 1 };
+        const minimapSrodek = { x: mapWidth / 2, z: mapDepth / 2 };
         const minimapCtx = minimapCanvas.getContext('2d');
         const minimapDataCanvas = document.createElement('canvas');
         minimapDataCanvas.width = mapWidth; minimapDataCanvas.height = mapDepth;
@@ -29871,9 +29872,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 e.stopPropagation();
                 if (gameMode !== 'dream' || gameOver) return;
                 const r = cvs.getBoundingClientRect();
-                const ux = (e.clientX - r.left) / r.width;
-                const uz = (e.clientY - r.top) / r.height;
-                if (ux < 0 || ux > 1 || uz < 0 || uz > 1) return;
+                const ex = (e.clientX - r.left) / r.width - 0.5;
+                const ey = (e.clientY - r.top) / r.height - 0.5;
+                if (Math.abs(ex) > 0.5 || Math.abs(ey) > 0.5) return;
+                // Mapa jest obrócona razem z kamerą, więc kliknięcie obracamy z powrotem
+                const kat = katMinimapy();
+                const ux = 0.5 + ex * Math.cos(kat) + ey * Math.sin(kat);
+                const uz = 0.5 - ex * Math.sin(kat) + ey * Math.cos(kat);
 
                 // Przeliczenie na współrzędne planszy
                 // Mapa jest przybliżona i przesunięta, więc kliknięcie przeliczamy
@@ -29888,6 +29893,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 renderMinimap();
                 updateUI('Podgląd przesunięty. Kliknij mapę dwukrotnie, by wrócić do wojownika.');
             });
+        }
+
+        // Mapa obraca się z kamerą: "do przodu" w widoku to zawsze góra mapy
+        function katMinimapy() {
+            return Math.PI / 2 - cameraAngle;
         }
 
         function renderMinimap() {
@@ -29910,16 +29920,31 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (!kto) return { x: mapWidth / 2, z: mapDepth / 2 };
                 return { x: Math.round(kto.mesh.position.x) + offsetX, z: Math.round(kto.mesh.position.z) + offsetZ };
             })();
-            let okX = srodek.x - oknoW / 2, okZ = srodek.z - oknoD / 2;
+            // Wycinek rusza dopiero, gdy wojownik odejdzie od jego środka - dzięki temu
+            // znacznik naprawdę idzie po mapie w stronę marszu, a nie stoi w miejscu.
+            const luz = bokOkna * 0.25;
+            const odX = srodek.x - minimapSrodek.x, odZ = srodek.z - minimapSrodek.z;
+            const odl = Math.hypot(odX, odZ);
+            if (odl > luz) {
+                minimapSrodek.x += odX * (odl - luz) / odl;
+                minimapSrodek.z += odZ * (odl - luz) / odl;
+            }
+            let okX = minimapSrodek.x - oknoW / 2, okZ = minimapSrodek.z - oknoD / 2;
             okX = Math.max(0, Math.min(mapWidth - oknoW, okX));     // nie wyjeżdżamy poza planszę
             okZ = Math.max(0, Math.min(mapDepth - oknoD, okZ));
 
             minimapOkno = { x: okX, z: okZ, w: oknoW, d: oknoD };
-            minimapCtx.drawImage(minimapDataCanvas, okX, okZ, oknoW, oknoD,
-                                 0, 0, minimapCanvas.width, minimapCanvas.height);
-
             const scaleX = minimapCanvas.width / oknoW;
             const scaleZ = minimapCanvas.height / oknoD;
+            const katMapy = katMinimapy();
+            minimapCtx.save();
+            minimapCtx.translate(minimapCanvas.width / 2, minimapCanvas.height / 2);
+            minimapCtx.rotate(katMapy);
+            minimapCtx.translate(-minimapCanvas.width / 2, -minimapCanvas.height / 2);
+            // Cała plansza, nie sam wycinek - po obrocie jego rogi zostawałyby puste
+            minimapCtx.drawImage(minimapDataCanvas, -okX * scaleX, -okZ * scaleZ,
+                                 mapWidth * scaleX, mapDepth * scaleZ);
+
             // Znaczniki przeliczamy względem wycinka - inaczej rozjechałyby się z mapą
             const mapaX = (mx) => (mx - okX) * scaleX;
             const mapaZ = (mz) => (mz - okZ) * scaleZ;
@@ -30018,7 +30043,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     minimapCtx.fillStyle = '#ffffff';
                     minimapCtx.font = 'bold 9px sans-serif';
                     minimapCtx.textAlign = 'center'; minimapCtx.textBaseline = 'middle';
-                    minimapCtx.fillText(b.letter, mx, mz + 0.5);
+                    // Litera zostaje prosto mimo obrotu mapy
+                    minimapCtx.save();
+                    minimapCtx.translate(mx, mz + 0.5);
+                    minimapCtx.rotate(-katMapy);
+                    minimapCtx.fillText(b.letter, 0, 0);
+                    minimapCtx.restore();
                 });
                 if (hero) {
                     const mx = Math.round(hero.mesh.position.x) + offsetX, mz = Math.round(hero.mesh.position.z) + offsetZ;
@@ -30031,6 +30061,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
             }
 
+            minimapCtx.restore();
             drawMinimapViewport();
         }
 
@@ -30046,8 +30077,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const scaleZ = minimapCanvas.height / (minimapOkno.d || mapDepth);
 
             // Prostokąt widoku też liczymy względem wycinka mapy
-            const centerX = mapaX(cameraFollowTarget.x + cameraPanOffset.x + offsetX);
-            const centerZ = mapaZ(cameraFollowTarget.z + cameraPanOffset.z + offsetZ);
+            const kat = katMinimapy(), kos = Math.cos(kat), sn = Math.sin(kat);
+            const polW = minimapCanvas.width / 2, polH = minimapCanvas.height / 2;
+            const px = mapaX(cameraFollowTarget.x + cameraPanOffset.x + offsetX) - polW;
+            const pz = mapaZ(cameraFollowTarget.z + cameraPanOffset.z + offsetZ) - polH;
+            const centerX = polW + px * kos - pz * sn;
+            const centerZ = polH + px * sn + pz * kos;
             // Po przybliżeniu mapy skala wzrosła dwukrotnie, więc znacznik urósł
             // i zasłaniał mapkę. Zmniejszamy go znacznie.
             const halfSize = cameraRadius * 0.4 * ((scaleX + scaleZ) / 2);
@@ -30062,8 +30097,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             minimapCtx.globalAlpha = 0.85;
             minimapCtx.strokeRect(centerX - halfSize, centerZ - halfSize, halfSize * 2, halfSize * 2);
 
-            // Strzałka pokazująca w którą stronę patrzy kamera
-            const forwardX = -Math.cos(cameraAngle), forwardZ = -Math.sin(cameraAngle);
+            // Strzałka pokazuje, w którą stronę patrzy wojownik (przód modelu to +Z)
+            const kto = isExploreMode() && hero ? hero : getActiveSoldier();
+            const patrz = kto ? kto.mesh.getWorldDirection(new THREE.Vector3()) : new THREE.Vector3(-Math.cos(cameraAngle), 0, -Math.sin(cameraAngle));
+            const forwardX = patrz.x * kos - patrz.z * sn, forwardZ = patrz.x * sn + patrz.z * kos;
             const perpX = -forwardZ, perpZ = forwardX;
             const arrowLen = halfSize * 0.7, arrowWidth = halfSize * 0.26;
             const tipX = centerX + forwardX * arrowLen, tipZ = centerZ + forwardZ * arrowLen;
