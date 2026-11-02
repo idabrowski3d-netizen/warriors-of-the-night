@@ -1449,6 +1449,10 @@
     <div id="widziani-warstwa"></div>
 
     <div id="npc-dialogue">
+        <div id="npc-rozmowca" style="display:none;flex-direction:column;align-items:center;gap:6px">
+            <div id="npc-twarz" style="width:96px;height:96px;border:2px solid #aa66ff;border-radius:6px;background-color:#1a1626;background-repeat:no-repeat;display:flex;align-items:center;justify-content:center;color:#6a5a8a;font-size:44px"></div>
+            <div id="npc-nazwa" style="color:#e3c27a;font-weight:bold;font-size:15px"></div>
+        </div>
         <div id="npc-dialogue-text"></div>
         <div id="npc-dialogue-buttons">
             <button id="npc-dialogue-yes">Tak</button>
@@ -24446,6 +24450,54 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             else rozmowaZoom = Math.max(rozmowaZoomCel, rozmowaZoom - krok);
         }
 
+        // ===== KTO MÓWI =====
+        // Każdy mieszkaniec dostaje przy pierwszej rozmowie imię, nazwisko i twarz z arkusza.
+        // Arkusz to równa siatka TWARZE_KOLUMNY x TWARZE_WIERSZE; pierwsza połowa pól to mężczyźni, druga kobiety.
+        const TWARZE_PLIK = 'graphics/twarze.jpg';
+        const TWARZE_KOLUMNY = 6, TWARZE_WIERSZE = 4;
+        const IMIONA_M = ['Jan', 'Stanisław', 'Andrzej', 'Józef', 'Tadeusz', 'Marek', 'Piotr', 'Krzysztof', 'Tomasz', 'Paweł', 'Michał', 'Henryk', 'Adam', 'Marcin', 'Wojciech', 'Zbigniew'];
+        const IMIONA_K = ['Maria', 'Anna', 'Barbara', 'Krystyna', 'Elżbieta', 'Teresa', 'Zofia', 'Helena', 'Agnieszka', 'Katarzyna', 'Halina', 'Danuta', 'Ewa', 'Jadwiga', 'Irena', 'Małgorzata'];
+        const NAZWISKA = ['Kowalski', 'Nowicki', 'Wiśniewski', 'Zieliński', 'Szymański', 'Woźniak', 'Mazur', 'Kaczmarek', 'Wójcik', 'Lewandowski', 'Dąbrowski', 'Kozłowski', 'Jankowski', 'Pawlak', 'Sikora', 'Walczak', 'Baran', 'Michalski', 'Król', 'Wieczorek', 'Adamczyk', 'Dudek', 'Zając', 'Górski'];
+        const TYTULY_ROL = { priest: 'ks.', teacher: 'nauczyciel', pharmacist: 'aptekarz' };
+        let rozmowca = null;           // z kim właśnie trwa rozmowa; bez niego okno nie pokazuje twarzy
+        let taliaTwarzy = [];
+        let twarzeWczytane = false;
+        (function () { const i = new Image(); i.onload = () => { twarzeWczytane = true; }; i.src = TWARZE_PLIK; })();
+
+        const losujZ = (lista) => lista[Math.floor(Math.random() * lista.length)];
+        function nowaTwarz() {
+            if (!taliaTwarzy.length) {
+                for (let i = 0; i < TWARZE_KOLUMNY * TWARZE_WIERSZE; i++) taliaTwarzy.push(i);
+                taliaTwarzy.sort(() => Math.random() - 0.5);
+            }
+            return taliaTwarzy.pop();
+        }
+        function tozsamoscNpc(n) {
+            if (n.tozsamosc) return n.tozsamosc;
+            // Duchowny i inni z tytułem to mężczyźni - szukamy im męskiej twarzy
+            let twarz = nowaTwarz();
+            const polowa = TWARZE_KOLUMNY * TWARZE_WIERSZE / 2;
+            if (TYTULY_ROL[n.role] && twarz >= polowa) twarz -= polowa;
+            const kobieta = twarz >= polowa;
+            let nazwisko = losujZ(NAZWISKA);
+            if (kobieta) nazwisko = nazwisko.replace(/ski$/, 'ska').replace(/cki$/, 'cka');
+            const tytul = TYTULY_ROL[n.role] ? TYTULY_ROL[n.role] + ' ' : '';
+            return n.tozsamosc = { nazwa: tytul + losujZ(kobieta ? IMIONA_K : IMIONA_M) + ' ' + nazwisko, twarz: twarz };
+        }
+        function pokazRozmowce() {
+            const pole = document.getElementById('npc-rozmowca');
+            if (!rozmowca) { pole.style.display = 'none'; return; }
+            const t = tozsamoscNpc(rozmowca), el = document.getElementById('npc-twarz');
+            document.getElementById('npc-nazwa').innerText = t.nazwa;
+            // Dopóki arkusza nie ma, zamiast twarzy widać znak zapytania
+            el.innerText = twarzeWczytane ? '' : '?';
+            el.style.backgroundImage = twarzeWczytane ? `url(${TWARZE_PLIK})` : 'none';
+            el.style.backgroundSize = `${TWARZE_KOLUMNY * 100}% ${TWARZE_WIERSZE * 100}%`;
+            const kol = t.twarz % TWARZE_KOLUMNY, wiersz = Math.floor(t.twarz / TWARZE_KOLUMNY);
+            el.style.backgroundPosition = `${TWARZE_KOLUMNY > 1 ? kol / (TWARZE_KOLUMNY - 1) * 100 : 0}% ${TWARZE_WIERSZE > 1 ? wiersz / (TWARZE_WIERSZE - 1) * 100 : 0}%`;
+            pole.style.display = 'flex';
+        }
+
         function showDialogue(text, yesLabel, noLabel, onYes, onNo) {
             dialogueOpen = true;
             heroKeys.left = heroKeys.right = heroKeys.up = heroKeys.down = false;
@@ -24455,6 +24507,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
             zblizKamereNaRozmowe(true);
             document.getElementById('npc-dialogue-text').innerText = text;
+            pokazRozmowce();
             const yesBtn = document.getElementById('npc-dialogue-yes');
             const noBtn = document.getElementById('npc-dialogue-no');
             yesBtn.innerText = yesLabel || 'OK';
@@ -33153,6 +33206,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             zblizKamereNaRozmowe(false);
             const cb = dialogueYesCallback; dialogueYesCallback = null; dialogueNoCallback = null;
             if (cb) cb();
+            if (!dialogueOpen) rozmowca = null;   // rozmowa się skończyła, kolejne okno nie jest już od tej osoby
         });
         document.getElementById('npc-dialogue-no').addEventListener('click', () => {
             document.getElementById('npc-dialogue').style.display = 'none';
@@ -33160,6 +33214,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             zblizKamereNaRozmowe(false);
             const cb = dialogueNoCallback; dialogueYesCallback = null; dialogueNoCallback = null;
             if (cb) cb();
+            if (!dialogueOpen) rozmowca = null;
         });
 
         document.getElementById('btn-restart').addEventListener('click', () => {
@@ -34234,6 +34289,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (target) {
                         const dist = Math.hypot(hero.mesh.position.x - target.mesh.position.x, hero.mesh.position.z - target.mesh.position.z);
                         if (dist <= 2.5) {
+                            rozmowca = ['town', 'special', 'sleeping', 'patient'].includes(target.kind) ? target.data : null;
                             if (target.kind === 'portal') interactWithPortal(target.data);
                             else if (target.kind === 'special') interactWithSpecialNPC(target.data);
                             else if (target.kind === 'town') interactWithTownNPC(target.data);
@@ -34244,6 +34300,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             else if (target.kind === 'saint') interactWithSaint();
                             else if (target.kind === 'sleeping') interactWithSleepingNPC(target.data);
                             else if (target.kind === 'soul') interactWithDepartedSoul();
+                            if (!dialogueOpen) rozmowca = null;
                         }
                     }
                 }
