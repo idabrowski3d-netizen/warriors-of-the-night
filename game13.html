@@ -1375,6 +1375,7 @@
         <button id="btn-telekineza" style="border-color: #aa77dd; display: none;" title="Unieś wroga lub sprzęt i ciśnij nim we wroga [T]">Telekineza</button>
         <button id="btn-zapalajacy" style="border-color: #dd7744; display: none;" title="Następny strzał zostawi ogień na polu celu - parzy każdego, kto tam stanie lub tamtędy przejdzie">Zapalający (0)</button>
         <button id="btn-mrozacy" style="border-color: #66bbdd; display: none;" title="Następny strzał skuwa trafionego lodem na dwie rundy">Mrożący (0)</button>
+        <button id="btn-podwojny" style="border-color: #d9b46a; display: none;" title="Następny strzał to dwa pociski, każdy mniej celny. Najbardziej opłaca się z bliska">Podwójny strzał</button>
         <button id="btn-zadanie" style="border-color: #ffcc66; display: none;" title="Zapal kapliczkę albo zamknij przejście, przy którym stoisz [G]">Zadanie</button>
         <button id="btn-pochodnia" style="border-color: #ffa23a; display: none;" title="Zapal albo zgaś pochodnię. Zapalona rozprasza ciemność w promieniu 5 pól, ale płomień widzą też wrogowie" data-ap="1">Pochodnia</button>
         <button id="btn-ziolo-balsam" style="border-color: #8acc66; display: none;">Balsam (0)</button>
@@ -22089,6 +22090,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             telekinezaWyuczona = true;
             zapalajaceWyuczone = true;
             mrozaceWyuczone = true;
+            podwojnyWyuczony = true;
             naukaWToku = null;
             // Lęki przywiezione ze snu też zdejmujemy - inaczej wyszkolony wojownik
             // i tak zamiera na widok zjawy.
@@ -22301,7 +22303,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 zamowienieZiol: zamowienieZiol,
                 kaplicaCwiczen: kaplicaCwiczen, kaplicaOstatniDzien: kaplicaOstatniDzien,
                 telekinezaWyuczona: telekinezaWyuczona, naukaWToku: naukaWToku,
-                zapalajaceWyuczone: zapalajaceWyuczone, mrozaceWyuczone: mrozaceWyuczone,
+                zapalajaceWyuczone: zapalajaceWyuczone, mrozaceWyuczone: mrozaceWyuczone, podwojnyWyuczony: podwojnyWyuczony,
                 // Zwątpienie wojowników przeżywa zapis - to stan kampanii, nie misji
                 zwatpienieDruzyny: recruitedWarriors.map(w => ({ name: w.name, zw: w.zwatpienie || 0 })),
                 // Śledzenie przeżywa zapis; sami audytorzy nie - wracają z Naporem
@@ -22360,6 +22362,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             telekinezaWyuczona = !!data.telekinezaWyuczona;
             zapalajaceWyuczone = !!data.zapalajaceWyuczone;
             mrozaceWyuczone = !!data.mrozaceWyuczone;
+            podwojnyWyuczony = !!data.podwojnyWyuczony;
             naukaWToku = data.naukaWToku || null;
             sledzenieZakonu = data.sledzenieZakonu || 0;
             oblezenieOstoiCzeka = !!data.oblezenieOstoiCzeka;
@@ -22440,7 +22443,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // jako nieruchome "powidoki", w które nie dało się strzelić.
                 enemies: enemies.filter(e => !e.isDead).map(e => ({
                     x: e.mesh.position.x, z: e.mesh.position.z, type: e.type, hp: e.hp, maxHp: e.maxHp,
-                    ap: e.ap, maxAp: e.maxAp, accuracyBonus: e.accuracyBonus, isDead: e.isDead, facingAngle: e.facingAngle, level: e.level || 0, uspiony: !!e.uspiony, premiaOltarza: e.premiaOltarza || 0, zastygly: !!e.zastygly, wWodzie: !!e.wWodzie, gniazdoWody: e.gniazdoWody || null, kaplan: !!e.kaplan,
+                    ap: e.ap, maxAp: e.maxAp, accuracyBonus: e.accuracyBonus, isDead: e.isDead, facingAngle: e.facingAngle, level: e.level || 0, zmienny: !!e.zmienny, ucieczki: e.ucieczki || 0, hipnozaUzyta: !!e.hipnozaUzyta, uspiony: !!e.uspiony, premiaOltarza: e.premiaOltarza || 0, zastygly: !!e.zastygly, wWodzie: !!e.wWodzie, gniazdoWody: e.gniazdoWody || null, kaplan: !!e.kaplan,
                     isBoss: !!e.isBoss, bossTurn: e.bossTurn || 0, hasOpened: !!e.hasOpened,
                     blindedTurns: e.blindedTurns || 0, blindedFrom: e.blindedFrom || null,
                     gatunek: (e.gatunek === undefined ? null : e.gatunek), elita: !!e.elita, podZiemia: !!e.podZiemia, wAucie: !!e.wAucie,
@@ -22619,9 +22622,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const ty = getLevelY(Math.round(ed.x), Math.round(ed.z), ed.level || 0);
                 mesh.position.set(ed.x, ty + mesh.userData.yOffset, ed.z);
                 scene.add(mesh);
+                if (ed.zmienny) addAuraEffect(mesh, ZMIENNY_AURA);
                 const fa = ed.facingAngle || 0;
                 mesh.lookAt(mesh.position.x + Math.sin(fa), mesh.position.y, mesh.position.z + Math.cos(fa));
-                return { mesh: mesh, type: ed.type, hp: ed.hp, maxHp: ed.maxHp, ap: ed.ap, maxAp: ed.maxAp, accuracyBonus: ed.accuracyBonus, isDead: ed.isDead, facingAngle: fa, level: ed.level || 0, isBoss: !!ed.isBoss, bossTurn: ed.bossTurn || 0, hasOpened: !!ed.hasOpened, blindedTurns: ed.blindedTurns || 0, blindedFrom: ed.blindedFrom || null, gatunek: (ed.gatunek === undefined ? null : ed.gatunek), elita: !!ed.elita, podZiemia: !!ed.podZiemia, wAucie: !!ed.wAucie, glizdaPoprzedniDystans: (ed.glizdaPoprzedniDystans === undefined ? null : ed.glizdaPoprzedniDystans), glizdaZZaskoczenia: !!ed.glizdaZZaskoczenia, ujawniony: !!ed.ujawniony, podrobionyNaKim: ed.podrobionyNaKim || null, lup: ed.lup || [], ucieka: !!ed.ucieka, maZakladnika: !!ed.maZakladnika, zakladnikHp: ed.zakladnikHp || 0, przebrany: !!ed.przebrany, dmgBonus: ed.elita ? 1 : 0, uspiony: !!ed.uspiony, premiaOltarza: ed.premiaOltarza || 0, zastygly: !!ed.zastygly, wWodzie: !!ed.wWodzie, gniazdoWody: ed.gniazdoWody || null, kaplan: !!ed.kaplan };
+                return { mesh: mesh, type: ed.type, hp: ed.hp, maxHp: ed.maxHp, ap: ed.ap, maxAp: ed.maxAp, accuracyBonus: ed.accuracyBonus, isDead: ed.isDead, facingAngle: fa, level: ed.level || 0, isBoss: !!ed.isBoss, bossTurn: ed.bossTurn || 0, hasOpened: !!ed.hasOpened, blindedTurns: ed.blindedTurns || 0, blindedFrom: ed.blindedFrom || null, gatunek: (ed.gatunek === undefined ? null : ed.gatunek), elita: !!ed.elita, podZiemia: !!ed.podZiemia, wAucie: !!ed.wAucie, glizdaPoprzedniDystans: (ed.glizdaPoprzedniDystans === undefined ? null : ed.glizdaPoprzedniDystans), glizdaZZaskoczenia: !!ed.glizdaZZaskoczenia, ujawniony: !!ed.ujawniony, podrobionyNaKim: ed.podrobionyNaKim || null, lup: ed.lup || [], ucieka: !!ed.ucieka, maZakladnika: !!ed.maZakladnika, zakladnikHp: ed.zakladnikHp || 0, przebrany: !!ed.przebrany, dmgBonus: ed.elita ? 1 : 0, zmienny: !!ed.zmienny, ucieczki: ed.ucieczki || 0, hipnozaUzyta: !!ed.hipnozaUzyta, uspiony: !!ed.uspiony, premiaOltarza: ed.premiaOltarza || 0, zastygly: !!ed.zastygly, wWodzie: !!ed.wWodzie, gniazdoWody: ed.gniazdoWody || null, kaplan: !!ed.kaplan };
             });
 
             enemies.forEach(e => { if ((e.podZiemia || e.wAucie || e.wZasadzce || e.wWodzie) && e.mesh) e.mesh.visible = false; });
@@ -29420,12 +29424,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             blizniaki: 'BLIŹNIAKI',
             topielec: 'TOPIELEC',
             matrona: 'CZARNA MATRONA',
+            zmienny: 'ZMIENNOKSZTAŁTNY',
             spider_small: 'PAJĄK', spider_big: 'WIELKI PAJĄK', klaun: 'KLAUN', robak: 'ROBAK', general: 'GENERAŁ', femina: 'FEMINA',
             zakonnik: 'ZAKONNIK', inkwizytor: 'INKWIZYTOR'
         };
 
         function nazwaWroga(e) {
             if (!e) return '';
+            if (e.zmienny) return 'ZMIENNOKSZTAŁTNY';
             const przedrostek = e.elita ? 'ELITARNY ' : '';
             if (e.gatunek !== null && e.gatunek !== undefined && PAJAKI_GATUNKI[e.gatunek]) {
                 return przedrostek + PAJAKI_GATUNKI[e.gatunek].nazwa.toUpperCase();
@@ -30449,6 +30455,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // (razem z obstawą) i gotowe zadania poboczne, bo z tego liczy się
             // złożoność misji, a z niej wielkość patrolu.
             rozstawPatrole();
+            rozstawZmiennych();
             rozstawLuny();
             rozstawZrodlaBlasku();
             // Kopce po patrolach: glizdy już stoją, a kopiec musi trafić obok tej,
@@ -30631,6 +30638,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 b.innerText = `${nazwa} (${ladunkow(active, rodzaj)})`;
                 b.style.outline = (active.amunicja === rodzaj) ? '2px solid #ffdd88' : 'none';
             });
+            (function () {
+                const b = document.getElementById('btn-podwojny');
+                if (!b) return;
+                const widac = active && podwojnyWyuczony && zrecznoscStrzelca(active) >= AMU_ZRECZNOSC_MIN;
+                b.style.display = widac ? '' : 'none';
+                if (widac) b.style.outline = active.podwojny ? '2px solid #ffdd88' : 'none';
+            })();
             // Pochodnia: przycisk ma tylko ten, kto ją niesie
             (function () {
                 const b = document.getElementById('btn-pochodnia');
@@ -31891,6 +31905,98 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
         }
 
+        // ===================== ZMIENNOKSZTAŁTNY =====================
+        // Zawsze jest którymś ze zwykłych wrogów i walczy jego zwykłym AI. Na początku
+        // swojej tury raz wybiera postać, która najlepiej pasuje do sytuacji, i płaci za
+        // przemianę punktami ruchu. Zdradza go fioletowa poświata.
+        const ZMIENNY_SZANSA = 0.3;          // jak często zwykły wróg na planszy okazuje się zmiennokształtny
+        const ZMIENNY_KOSZT_AP = 2;
+        const ZMIENNY_AURA = 0x9933cc;
+        const ZMIENNY_UCIECZKI = 2;          // tyle razy na misję może uciec w postaci wampira
+        const ZMIENNY_POSTACIE = {
+            fast:    { hp: 10, ap: 10, celnosc: 10, nazwa: 'zwiadowcy', buduj: () => createCharacter(0xcc00ff, 0xddbbdd, 0x111111, 0.7, 'fast') },
+            brute:   { hp: 15, ap: 13, celnosc: 0,  nazwa: 'mięśniaka', buduj: () => createCharacter(0xff8800, 0xaa5555, 0x111111, 1.6, 'brute') },
+            stalker: { hp: 8,  ap: 20, celnosc: 0,  nazwa: 'pełzacza',  buduj: () => createStalkerMesh() },
+            vampire: { hp: 15, ap: 12, celnosc: 0,  nazwa: 'wampira',   buduj: () => createVampireMesh() }
+        };
+
+        // Co się teraz najbardziej opłaca. Kolejność warunków to kolejność ważności.
+        function postacDlaZmiennego(e) {
+            const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
+            const cele = soldiers.filter(s => !s.isDead && !s.isNPC && s.mesh).map(s => ({ s: s,
+                d: Math.max(Math.abs(Math.round(s.mesh.position.x) - ex), Math.abs(Math.round(s.mesh.position.z) - ez)) }));
+            if (!cele.length) return null;
+            const d = Math.min(...cele.map(c => c.d));
+            if (d > 25) return null;   // nikogo w pobliżu - nie ma po co się zdradzać
+            const obok = cele.filter(c => c.d <= 1).length;
+            const procentZycia = e.hp / e.maxHp;
+            // Ciężko ranny albo otoczony: wampir znika i pojawia się w bezpiecznej odległości
+            if ((procentZycia <= 0.35 || obok >= 2) && d <= 6 && (e.ucieczki || 0) < ZMIENNY_UCIECZKI)
+                return { typ: 'vampire', ucieczka: true };
+            // Ktoś tuż obok: mięśniak bije wręcz
+            if (d <= 2) return { typ: 'brute' };
+            // Ranny wojownik w zasięgu doskoku: pełzacz dobiega i kończy sprawę
+            if (cele.some(c => c.d <= 15 && c.s.hp <= c.s.maxHp * 0.35)) return { typ: 'stalker' };
+            // Zdrowy, a wojowników jest kilku: wampir odbiera oddziałowi jednego z nich hipnozą
+            if (cele.length >= 2 && !e.hipnozaUzyta && procentZycia > 0.5 && d <= VAMPIRE_HYPNO_RANGE &&
+                !soldiers.some(s => s.hypnotizedBy)) return { typ: 'vampire', hipnoza: true };
+            // Cel daleko: pełzacz szybko skraca dystans
+            if (d > 14) return { typ: 'stalker' };
+            // Średni dystans: zwiadowca strzela
+            return { typ: 'fast' };
+        }
+
+        function zmienPostacZmiennego(e, typ) {
+            const def = ZMIENNY_POSTACIE[typ], stary = e.mesh;
+            const nowy = buildEnemyModelInstance(typ) || def.buduj();
+            nowy.position.set(stary.position.x, stary.position.y - (stary.userData.yOffset || 0) + (nowy.userData.yOffset || 0), stary.position.z);
+            nowy.rotation.copy(stary.rotation);
+            nowy.visible = stary.visible;
+            scene.remove(stary);
+            scene.add(nowy);
+            addAuraEffect(nowy, ZMIENNY_AURA);
+            // Rany zostają: przenosimy procent życia, nie liczbę punktów
+            e.hp = Math.max(1, Math.round(e.hp / e.maxHp * def.hp));
+            e.ap = Math.round(e.ap / Math.max(1, e.maxAp) * def.ap);
+            e.mesh = nowy; e.type = typ; e.maxHp = def.hp; e.maxAp = def.ap; e.accuracyBonus = def.celnosc;
+        }
+
+        // Zwraca true, gdy przemiana zajęła całą turę
+        function turaZmiennego(e) {
+            const plan = postacDlaZmiennego(e);
+            if (!plan) return false;
+            if (plan.hipnoza) e.hipnozaUzyta = true;
+            if (plan.typ !== e.type) {
+                if (e.ap < ZMIENNY_KOSZT_AP) return false;
+                zmienPostacZmiennego(e, plan.typ);
+                e.ap = Math.max(0, e.ap - ZMIENNY_KOSZT_AP);
+                if (e.mesh.visible) {
+                    const p = e.mesh.position;
+                    kurzIGruz(p.x, p.z, p.y + 1, 0x6a3a8a);
+                    noteEnemyEncountered('zmienny');
+                    updateUI(`Zmiennokształtny przybiera postać ${ZMIENNY_POSTACIE[plan.typ].nazwa}!`);
+                    showFloatingWarning('Zmiennokształtny!');
+                }
+            }
+            if (!plan.ucieczka) return false;
+            e.ucieczki = (e.ucieczki || 0) + 1;
+            if (!vampireBlink(e)) return false;
+            updateUI('Zmiennokształtny znika i pojawia się w bezpiecznej odległości.');
+            updateFoW();
+            return true;
+        }
+
+        // Zamienia jednego zwykłego wroga na planszy - liczba przeciwników się nie zmienia
+        function rozstawZmiennych() {
+            if (Math.random() >= ZMIENNY_SZANSA) return;
+            const zwykli = enemies.filter(e => !e.isDead && !e.isBoss && !e.elita && !e.wZasadzce &&
+                                               ['standard', 'fast', 'brute'].indexOf(e.type) !== -1);
+            if (!zwykli.length) return;
+            const e = zwykli[Math.floor(Math.random() * zwykli.length)];
+            zmienPostacZmiennego(e, 'fast');
+            e.zmienny = true;
+        }
+
         function vampireBlink(e) {
             const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
             const lvl = e.level || 0;
@@ -32783,6 +32889,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 updateUI();
                 if (typeof updateAPBar === 'function') updateAPBar();
             });
+        });
+        document.getElementById('btn-podwojny').addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            if (gameOver || !isPlayerTurn) return;
+            const a = getActiveSoldier();
+            if (!a) return;
+            a.podwojny = !a.podwojny;
+            updateUI(a.podwojny ? `${a.name} szykuje podwójny strzał (+${PODWOJNY_DOPLATA_AP} PA, każdy pocisk mniej celny).` : 'Zwykły strzał.');
+            if (typeof updateAPBar === 'function') updateAPBar();
         });
         document.getElementById('btn-shield').addEventListener('click', shieldAction);
         document.getElementById('btn-end-soldier-turn').addEventListener('click', () => {
@@ -34106,19 +34221,29 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const clickedEnemy = enemies.find(e => !e.isDead && !e.przebrany && e.mesh.visible && Math.round(e.mesh.position.x) === targetX && Math.round(e.mesh.position.z) === targetZ);
                 if (clickedEnemy) {
                     // Ładunek specjalny kosztuje więcej - sprawdzamy to RAZEM z kosztem strzału
-                    const doplataAmu = doplataAmunicji(active);
+                    const podwojny = !!active.podwojny;
+                    const doplataAmu = doplataAmunicji(active) + (podwojny ? PODWOJNY_DOPLATA_AP : 0);
                     if (active.ap >= shootCost + doplataAmu) {
                         if (checkLineOfSight3D(startX, startY+1, startZ, targetX, targetY+0.5, targetZ) && !floorsBlockShot(startX, startZ, active.level || 0, targetX, targetZ, clickedEnemy.level || 0)) {
                             isPlayerTurn = false; active.ap -= shootCost + doplataAmu; highlightMesh.visible = false;
-                            const rodzajAmu = zuzyjLadunek(active);
-                            
-                            active.mesh.lookAt(targetX, active.mesh.position.y, targetZ); 
-                            
+                            active.podwojny = false;
+                            const pierwszyLadunek = zuzyjLadunek(active);
+
+                            active.mesh.lookAt(targetX, active.mesh.position.y, targetZ);
+
+                            // Ładunek specjalny idzie tylko w pierwszym pocisku
+                            const strzel = (nrPocisku) => {
+                            const rodzajAmu = nrPocisku === 1 ? pierwszyLadunek : null;
+                            const poStrzale = () => {
+                                if (podwojny && nrPocisku === 1 && !clickedEnemy.isDead && !gameOver) { setTimeout(() => strzel(2), 250); return; }
+                                checkGameOver(); if(!gameOver) { checkEnemyOverwatch(() => { isPlayerTurn = true; autoSelectActiveSoldier(); }, true); }
+                            };
                             let targetCover = getCoverObstacle(targetX, targetZ, startX, startZ);
                             let shooterCover = getCoverObstacle(startX, startZ, targetX, targetZ);
                             let cornPenalty3 = isCornfield(targetX, targetZ) ? -20 : 0;
                             let blindInCorn3 = isCornfield(startX, startZ) && active.isKneeling;
                             let hitChance = calculateHitChance(distanceXY, startY > targetY, targetCover !== null, shooterCover !== null, getPlayerAccuracyBonus(active, clickedEnemy) + cornPenalty3, blindInCorn3);
+                            if (podwojny) hitChance = Math.round(hitChance * PODWOJNY_CELNOSC);
                             updateUI(`Strzał do: ${clickedEnemy.type.toUpperCase()}... `);
                             lastShotEvent = { x: startX, z: startZ };
                             breakStealth(active, 'huk strzału zdradził pozycję');
@@ -34133,14 +34258,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                     active.shotsHit = (active.shotsHit || 0) + 1;
                                     const gainHit = awardHitBonus(active);
                                     if (pociskWRoj(clickedEnemy, rodzajAmu, targetX, targetZ)) {
-                                        checkGameOver(); if(!gameOver) { checkEnemyOverwatch(() => { isPlayerTurn = true; autoSelectActiveSoldier(); }, true); }
+                                        poStrzale();
                                         return;
                                     }
                                     // Ołtarznik zasłania się niesionym człowiekiem - część
                                     // pocisków trafia w zakładnika, a nie w niego.
                                     if (pociskWZakladnika(clickedEnemy)) {
                                         active.shotsHit = (active.shotsHit || 0) + 1;
-                                        checkGameOver(); if(!gameOver) { checkEnemyOverwatch(() => { isPlayerTurn = true; autoSelectActiveSoldier(); }, true); }
+                                        poStrzale();
                                         return;
                                     }
                                     clickedEnemy.hp -= 5; if (clickedEnemy.hp > 0) wrogOberwal(clickedEnemy); updateUI(`Trafienie! (Szansa: ${hitChance}%) +${gainHit}% celności dla ${active.name}!`);
@@ -34159,10 +34284,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                     chatter(active, CHATTER_MISS, 0.5);
                                     playFileSfx(AudioFiles.wallHit, 0.5);
                                 }
-                                checkGameOver(); if(!gameOver) { checkEnemyOverwatch(() => { isPlayerTurn = true; autoSelectActiveSoldier(); }, true); }
+                                poStrzale();
                             }, 'player');
+                            };
+                            strzel(1);
                         } else { updateUI("Brak linii strzału w 3D! Ściana zasłania."); }
-                    } else { updateUI(doplataAmu ? `Za mało PA - ładunek specjalny kosztuje ${shootCost + doplataAmu}.` : "Za mało AP!"); }
+                    } else { updateUI(doplataAmu ? `Za mało PA - ten strzał kosztuje ${shootCost + doplataAmu}.` : "Za mało AP!"); }
                     return;
                 }
 
@@ -35541,6 +35668,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // weźmie na misję, zależy od jego Zręczności.
         // ========================================================
         let zapalajaceWyuczone = false, mrozaceWyuczone = false;
+        // Podwójny strzał: dwa pociski za jednym razem, każdy mniej celny.
+        // Procent mnoży szansę, więc w punktach kara jest największa z bliska, ale tam oba pociski wciąż trafiają często.
+        let podwojnyWyuczony = false;
+        const PODWOJNY_DOPLATA_AP = 2;
+        const PODWOJNY_CELNOSC = 0.7;
         const NAUKA_AMU_DNI = 3;          // dni nauki w Kaplicy
         const NAUKA_AMU_KAPLICA = 2;      // minimalny poziom Kaplicy
         const AMU_ZRECZNOSC_MIN = 11;     // niżej ręka nie zrobi z tego użytku
@@ -41040,6 +41172,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Skuty lodem nie zrobi nic, dopóki lód nie puści
             if (czyZamrozony(e)) { e.ap = 0; currentEnemyIndex++; setTimeout(processNextEnemy, 15); return; }
 
+            // Ta funkcja wraca do tego samego wroga po każdym jego ruchu, a postać zmienia się raz na turę
+            if (e.zmienny && e.zmianaTura !== combatTurnCounter) {
+                e.zmianaTura = combatTurnCounter;
+                if (turaZmiennego(e)) { currentEnemyIndex++; setTimeout(processNextEnemy, 500); return; }
+            }
+
             // GARGULEC: zastygły w kamieniu stoi bezczynnie, obudzony ma własną
             // turę - lata i ciska ogniem, więc nie przechodzi zwykłą ścieżką AI.
             // TOPIELEC: nie strzela - ogłusza, wlecze i topi
@@ -44846,6 +44984,19 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         ['Styl walki', 'podszywanie się, potem wręcz (5 obr.)']]
             },
             {
+                id: 'zmienny', title: 'Zmiennokształtny',
+                text: 'Nie ma własnego kształtu, więc bierze ten, który akurat najbardziej się opłaca. ' +
+                      'Rozpoznasz go po fioletowej poświacie, która zostaje przy każdej postaci.\n\n' +
+                      'Z daleka jest zwiadowcą i strzela. Gdy podejdziesz, staje się mięśniakiem i bije wręcz. ' +
+                      'Ciężko ranny albo otoczony przybiera postać wampira, znika i pojawia się w bezpiecznej ' +
+                      'odległości, ale potrafi to tylko dwa razy. Rannego wojownika dopada jako szybki pełzacz, ' +
+                      'a gdy wojowników jest kilku, potrafi raz spróbować hipnozy.\n\n' +
+                      'Rany zostają przy nim w każdej postaci. Przemiana kosztuje go punkty ruchu, ' +
+                      'więc zmuszanie go do ciągłych zmian spowalnia go.',
+                stats: [['Punkty życia', 'zależnie od postaci (8-15)'], ['Punkty ruchu', 'zależnie od postaci (10-20)'],
+                        ['Przemiana', '2 punkty ruchu, raz na turę'], ['Styl walki', 'dobiera postać do sytuacji']]
+            },
+            {
                 id: 'glizda', title: 'Glizda',
                 text: 'Pierścieniowate cielisko grubości ludzkiego tułowia, zakończone lejem pełnym zębów ' +
                       'zawiniętych do wewnątrz. Oczu nie ma - nie potrzebuje ich.\n\n' +
@@ -46804,6 +46955,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             `${opis} ${NAUKA_AMU_DNI} dni. Bez Łaski.</span></button>`;
                 }
             });
+            html += '<br>';
+            if (podwojnyWyuczony) {
+                html += `<span style="color:#8aa87a;">Podwójny strzał - opanowany. Włada nim każdy o ${AMU_ZRECZNOSC_MIN} Zręczności.</span>`;
+            } else if (naukaWToku) {
+                html += '<span style="color:#8a8270;">Podwójny strzał - poczekaj, aż skończy się obecna nauka.</span>';
+            } else if (ostoja.kaplica < NAUKA_AMU_KAPLICA) {
+                html += `<span style="color:#8a8270;">Podwójny strzał - potrzebna Kaplica poziomu ${NAUKA_AMU_KAPLICA}.</span>`;
+            } else {
+                html += `<button class="start-btn" id="btn-nauka-podwojny" style="font-size:12px; text-align:left; padding:7px;">` +
+                        `<b>Ucz się: Podwójny strzał</b><br><span style="color:#9a8f70;">dwa pociski naraz, każdy mniej celny; ` +
+                        `najbardziej opłaca się z bliska. ${NAUKA_AMU_DNI} dni. Bez Łaski.</span></button>`;
+            }
             html += '</div>';
 
             // --- RYTUAŁY OCZYSZCZENIA: zdejmowanie lęków przywiezionych ze snu ---
@@ -46838,7 +47001,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     (ostoja.kaplica >= IZBY.kaplica.maxPoziom ? 'Kaplica w pełni wzniesiona'
                      : `Rozbuduj Kaplicę (${IZBY.kaplica.koszt(ostoja.kaplica)} Łaski)`) + '</button></div>';
             op.innerHTML = html;
-            [['zapalajacy', 'Pociski zapalające'], ['mrozacy', 'Pociski mrożące']].forEach(([klucz, nazwa]) => {
+            [['zapalajacy', 'Pociski zapalające'], ['mrozacy', 'Pociski mrożące'], ['podwojny', 'Podwójny strzał']].forEach(([klucz, nazwa]) => {
                 const b2 = document.getElementById('btn-nauka-' + klucz);
                 if (!b2) return;
                 b2.onclick = () => {
@@ -46924,6 +47087,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     updateUI(`${nazwa} - sztuka opanowana. Na każdą misję wojownik bierze tyle ładunków, ` +
                              `ile uniesie jego Zręczność: ${ladunkiNaMisje(AMU_PROG_3)} od ${AMU_PROG_3}, ` +
                              `${ladunkiNaMisje(AMU_PROG_2)} od ${AMU_PROG_2}, niżej jeden.`);
+                } else if (naukaWToku.co === 'podwojny') {
+                    podwojnyWyuczony = true;
+                    showFloatingWarning('Kaplica: Podwójny strzał');
+                    updateUI(`Podwójny strzał - sztuka opanowana. Potrzeba ${AMU_ZRECZNOSC_MIN} Zręczności. Dwa pociski naraz, ` +
+                             `każdy mniej celny, za ${PODWOJNY_DOPLATA_AP} PA więcej.`);
                 } else if (naukaWToku.co === 'telekineza') {
                     telekinezaWyuczona = true;
                     showFloatingWarning('Kaplica: Telekineza opanowana');
@@ -48319,7 +48487,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             zapasZiol = { balsam: 0, wyciag: 0, sokoleOko: 0 }; zielarniaOstatni = -1; zamowienieZiol = null;
             wspolneDzielo = null; golebnikOstatni = -1;
             analizyDemonow = {}; analizaWToku = null; ostojaBudowa = null;
-            telekinezaWyuczona = false; naukaWToku = null;
+            telekinezaWyuczona = false; podwojnyWyuczony = false; naukaWToku = null;
             kaplicaCwiczen = 0; kaplicaOstatniDzien = -1; ostojaWspomniana = false; skryptoriumOstatni = -1; tropArtefaktu = false; domyPogorzeliska = []; znakNaDrzwiach = false;
             poziomNamierzenia = 0; incydentyPrzebyte = []; domyPogorzeliska = [];
             document.getElementById('name-prompt-screen').style.display = 'none';
@@ -49090,6 +49258,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 'btn-ocuc': '<circle cx="5" cy="13" r="2"/><path d="M3 19h12M8 16h6M18 20V8M15 11l3-3 3 3"/>',
                 'btn-telekineza': '<circle cx="12" cy="9" r="4"/><path d="M6 21l3-6M18 21l-3-6M12 21v-6M4 9H2M22 9h-2"/>',
                 'btn-zapalajacy': '<path d="M12 3c1 4 6 6 6 11a6 6 0 0 1-12 0c0-3 2-4 3-6 1 2 2 2 3 2 0-3-1-5 0-7z"/>',
+                'btn-podwojny': '<path d="M3 8h14M13 4l4 4-4 4M3 16h14M13 12l4 4-4 4"/>',
                 'btn-mrozacy': '<path d="M12 2v20M3.5 7l17 10M20.5 7l-17 10M9 4l3 2 3-2M9 20l3-2 3 2"/>',
                 'btn-zadanie': '<path d="M12 3c1 2 2 3 0 5-2-2-1-3 0-5zM9 10h6v11H9zM6 21h12"/>',
                 'btn-pochodnia': '<path d="M12 3c2 2 3 3 3 5a3 3 0 0 1-6 0c0-2 1-3 3-5zM9 11h6l-2 10h-2z"/>',
