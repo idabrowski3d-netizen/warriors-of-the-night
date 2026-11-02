@@ -21413,6 +21413,118 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             enemies.forEach(e => { if (e.boundTurns > 0) e.boundTurns--; });
         }
 
+        // ===== MANNA Z NIEBA =====
+        // Wojownicy mają więcej punktów ruchu i co turę odzyskują życie, wrogowie tracą punkty.
+        // Czas zależy od Siły psychicznej. Spadanie widać jako płatki róż.
+        const MANNA_PROGI = [13, 15, 17];      // od tylu Siły psychicznej: 1, 2, 3 tury
+        const MANNA_AP_KOSZT = 4, MANNA_AP_WOJOWNIKA = 2, MANNA_AP_WROGA = 2, MANNA_HP = 1;
+        const PLATKI_ILE = 420, PLATKI_ZASIEG = 15, PLATKI_WYS = 14;
+        let manna = null;              // { zostalo }
+        let platkiRoz = null;          // { mesh, dane, gasnie }
+
+        function mannaTury(idx) {
+            const st = getWarriorStat(idx, 'silaPsychiczna');
+            return MANNA_PROGI.filter(p => st >= p).length;
+        }
+        function modyfikatorManny(unit) {
+            if (!manna || gameMode !== 'dream') return 0;
+            if (enemies.indexOf(unit) !== -1) return -MANNA_AP_WROGA;
+            return (soldiers.indexOf(unit) !== -1 && !unit.isNPC) ? MANNA_AP_WOJOWNIKA : 0;
+        }
+        function teksturaPlatka() {
+            const c = document.createElement('canvas'); c.width = c.height = 64;
+            const g = c.getContext('2d');
+            g.beginPath();
+            g.moveTo(32, 60);
+            g.bezierCurveTo(4, 44, 6, 12, 25, 6);
+            g.quadraticCurveTo(32, 12, 39, 6);
+            g.bezierCurveTo(58, 12, 60, 44, 32, 60);
+            const gr = g.createRadialGradient(32, 26, 3, 32, 34, 32);
+            gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.6, '#f4f4f4'); gr.addColorStop(1, '#a8a8a8');
+            g.fillStyle = gr; g.fill();
+            return new THREE.CanvasTexture(c);
+        }
+        function ustawPlatek(p, naGorze) {
+            const c = cameraFollowTarget;
+            p.x = c.x + (Math.random() - 0.5) * PLATKI_ZASIEG * 2;
+            p.z = c.z + (Math.random() - 0.5) * PLATKI_ZASIEG * 2;
+            p.y = c.y + (naGorze ? PLATKI_WYS : Math.random() * PLATKI_WYS);
+        }
+        function pokazPlatkiRoz() {
+            if (platkiRoz) { platkiRoz.gasnie = false; platkiRoz.mesh.material.opacity = 1; return; }
+            const mat = new THREE.MeshBasicMaterial({ map: teksturaPlatka(), transparent: true, opacity: 1, alphaTest: 0.2, side: THREE.DoubleSide, depthWrite: false });
+            const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.34, 0.34), mat, PLATKI_ILE);
+            mesh.frustumCulled = false;
+            mesh.userData.unitType = 'fx';
+            const barwy = [0xf7a8c0, 0xee7fa2, 0xfbd0dc, 0xd94f78];
+            const dane = [];
+            for (let i = 0; i < PLATKI_ILE; i++) {
+                const p = { faza: Math.random() * 6.28, v: 1 + Math.random() * 0.9, obrot: 0.6 + Math.random() * 1.6 };
+                ustawPlatek(p, false);
+                // Na początku płatki są wysoko i dopiero opadają
+                p.y += PLATKI_WYS;
+                dane.push(p);
+                mesh.setColorAt(i, new THREE.Color(barwy[i % barwy.length]));
+            }
+            scene.add(mesh);
+            platkiRoz = { mesh: mesh, dane: dane, gasnie: false };
+        }
+        function usunPlatkiRoz() {
+            if (!platkiRoz) return;
+            scene.remove(platkiRoz.mesh);
+            platkiRoz.mesh.geometry.dispose();
+            platkiRoz.mesh.material.map.dispose();
+            platkiRoz.mesh.material.dispose();
+            platkiRoz = null;
+        }
+        const _platekPom = new THREE.Object3D();
+        function animujPlatkiRoz(dt) {
+            if (!platkiRoz) return;
+            if (platkiRoz.gasnie) {
+                platkiRoz.mesh.material.opacity -= dt / 1.5;
+                if (platkiRoz.mesh.material.opacity <= 0) { usunPlatkiRoz(); return; }
+            }
+            const c = cameraFollowTarget, t = performance.now() / 1000;
+            platkiRoz.dane.forEach((p, i) => {
+                p.y -= p.v * dt;
+                if (p.y < c.y) ustawPlatek(p, true);
+                _platekPom.position.set(p.x + Math.sin(t * 0.9 + p.faza) * 0.7, p.y, p.z + Math.cos(t * 0.7 + p.faza) * 0.7);
+                _platekPom.rotation.set(t * p.obrot + p.faza, p.faza, Math.sin(t * p.obrot + p.faza) * 1.2);
+                _platekPom.updateMatrix();
+                platkiRoz.mesh.setMatrixAt(i, _platekPom.matrix);
+            });
+            platkiRoz.mesh.instanceMatrix.needsUpdate = true;
+        }
+        function zakonczManne() {
+            manna = null;
+            if (platkiRoz) platkiRoz.gasnie = true;
+        }
+        // Na początku tury gracza, zanim gra odnowi punkty ruchu
+        function tikManny() {
+            if (!manna || gameMode !== 'dream') return;
+            soldiers.forEach(s => { if (!s.isDead && !s.isNPC) s.hp = Math.min(s.maxHp, s.hp + MANNA_HP); });
+            manna.zostalo--;
+            if (manna.zostalo > 0) { updateUI(`Manna wciąż spada (tur: ${manna.zostalo}). Wojownicy odzyskują siły.`); return; }
+            zakonczManne();
+            updateUI('Ostatnie płatki opadają. Manna przestaje spadać.');
+        }
+        function mannaAction() {
+            const active = getActiveSoldier();
+            if (!active || gameOver || !isPlayerTurn) return;
+            const idx = soldiers.indexOf(active);
+            if (active.mannaUsed) { updateUI('Manna z nieba: ten wojownik wezwał ją już w tej misji.'); return; }
+            if (manna) { updateUI('Manna już spada.'); return; }
+            if (active.ap < MANNA_AP_KOSZT) { updateUI(`Za mało PA - Manna z nieba kosztuje ${MANNA_AP_KOSZT}.`); return; }
+            active.ap -= MANNA_AP_KOSZT;
+            active.mannaUsed = true;
+            manna = { zostalo: mannaTury(idx) };
+            soldiers.forEach(s => { if (!s.isDead && !s.isNPC) s.ap += MANNA_AP_WOJOWNIKA; });
+            pokazPlatkiRoz();
+            updateUI(`${active.name} przywołuje mannę z nieba! Tur: ${manna.zostalo}. Wojownicy: +${MANNA_AP_WOJOWNIKA} PA i +${MANNA_HP} życia na turę, wrogowie: -${MANNA_AP_WROGA} PA.`);
+            showFloatingWarning('Manna z nieba!');
+            if (typeof updateAPBar === 'function') updateAPBar();
+        }
+
         const SPIRITUAL_ABILITIES = [
             {
                 id: 'cross',
@@ -21484,6 +21596,20 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 available: (idx) => { const s = soldiers[idx]; return !!s && s.class === 'uniwersalna'; },
                 usesLeft: (s, idx) => Math.max(0, getAngelUses(idx) - (s.angelUsed || 0)),
                 run: () => summonAngelAction()
+            },
+            {
+                id: 'manna',
+                name: 'Manna z nieba',
+                describe: (idx) => {
+                    const t = mannaTury(idx);
+                    if (t === 0) return `Wymaga ${MANNA_PROGI[0]} Siły psychicznej (masz ${getWarriorStat(idx, 'silaPsychiczna')}).`;
+                    const nx = MANNA_PROGI[t];
+                    return `Koszt ${MANNA_AP_KOSZT} PA, trwa ${t} tur${t === 1 ? 'ę' : 'y'}. Wojownicy: +${MANNA_AP_WOJOWNIKA} PA i +${MANNA_HP} życia na turę, wrogowie: -${MANNA_AP_WROGA} PA.` +
+                           (nx ? ` Dłużej przy ${nx} Siły psychicznej.` : '');
+                },
+                available: (idx) => mannaTury(idx) > 0,
+                usesLeft: (s) => s.mannaUsed ? 0 : 1,
+                run: () => mannaAction()
             }
         ];
 
@@ -22424,7 +22550,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return {
                 isCombat: true,
                 combatTurnCounter: combatTurnCounter,
-                krwawyDeszcz: krwawyDeszcz, krwawyDeszczByl: krwawyDeszczByl,
+                krwawyDeszcz: krwawyDeszcz, krwawyDeszczByl: krwawyDeszczByl, manna: manna,
                 progress: buildSaveData(),
                 currentCombatTheme: currentCombatTheme,
                 currentTimeOfDay: currentTimeOfDay,
@@ -22460,7 +22586,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 soldiers: soldiers.filter(s => !s.isAngel).map(s => ({
                     x: s.mesh.position.x, z: s.mesh.position.z, hp: s.hp, maxHp: s.maxHp, ap: s.ap, maxAp: s.maxAp,
                     isDead: s.isDead, name: s.name, class: s.class, accuracyBonus: s.accuracyBonus,
-                    turnEnded: s.turnEnded, isKneeling: s.isKneeling, shieldHp: s.shieldHp, level: s.level || 0, crossUsed: s.crossUsed || 0, angelUsed: s.angelUsed || 0, rojTury: s.rojTury || 0, lampionDuszony: s.lampionDuszony || 0, wabiGo: s.wabiGo || null, nieprzytomny: !!s.nieprzytomny, infected: !!s.infected, infectionTick: s.infectionTick || 0, webbedTurns: s.webbedTurns || 0, venomTurns: s.venomTurns || 0, relicUses: { ...(s.relicUses || {}) }, levitateUsed: s.levitateUsed || 0, levitateTurns: s.levitateTurns || 0, stealthUsed: s.stealthUsed || 0, stealthActive: !!s.stealthActive, callUsed: s.callUsed || 0, summonedTurns: s.summonedTurns || 0,
+                    turnEnded: s.turnEnded, isKneeling: s.isKneeling, shieldHp: s.shieldHp, level: s.level || 0, mannaUsed: !!s.mannaUsed, crossUsed: s.crossUsed || 0, angelUsed: s.angelUsed || 0, rojTury: s.rojTury || 0, lampionDuszony: s.lampionDuszony || 0, wabiGo: s.wabiGo || null, nieprzytomny: !!s.nieprzytomny, infected: !!s.infected, infectionTick: s.infectionTick || 0, webbedTurns: s.webbedTurns || 0, venomTurns: s.venomTurns || 0, relicUses: { ...(s.relicUses || {}) }, levitateUsed: s.levitateUsed || 0, levitateTurns: s.levitateTurns || 0, stealthUsed: s.stealthUsed || 0, stealthActive: !!s.stealthActive, callUsed: s.callUsed || 0, summonedTurns: s.summonedTurns || 0,
                     shotsFired: s.shotsFired, shotsHit: s.shotsHit, kills: s.kills,
                     zabiciRodzaje: { ...(s.zabiciRodzaje || {}) }
                 })),
@@ -22531,6 +22657,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             currentCombatTheme = data.currentCombatTheme;
             if (typeof data.combatTurnCounter === 'number') combatTurnCounter = data.combatTurnCounter;
             krwawyDeszcz = data.krwawyDeszcz || null; krwawyDeszczByl = !!data.krwawyDeszczByl;
+            manna = data.manna || null; usunPlatkiRoz(); if (manna) pokazPlatkiRoz();
             applyTimeOfDay(data.currentTimeOfDay);
             currentSeason = data.currentSeason;
             foldZ = (typeof data.foldZ === 'number') ? data.foldZ : null;
@@ -22604,7 +22731,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 mesh.position.set(sd.x, ty + mesh.userData.yOffset, sd.z);
                 mesh.add(createNameSprite(sd.name));
                 scene.add(mesh);
-                const sObj = { mesh: mesh, hp: sd.hp, maxHp: sd.maxHp, ap: sd.ap, maxAp: sd.maxAp, isDead: sd.isDead, name: sd.name, class: sd.class, accuracyBonus: sd.accuracyBonus, turnEnded: sd.turnEnded, isKneeling: sd.isKneeling, shieldHp: sd.shieldHp, level: sd.level || 0, crossUsed: sd.crossUsed || 0, angelUsed: sd.angelUsed || 0, rojTury: sd.rojTury || 0, lampionDuszony: sd.lampionDuszony || 0, wabiGo: sd.wabiGo || null, nieprzytomny: !!sd.nieprzytomny, infected: !!sd.infected, infectionTick: sd.infectionTick || 0, webbedTurns: sd.webbedTurns || 0, venomTurns: sd.venomTurns || 0, relicUses: { ...(sd.relicUses || {}) }, levitateUsed: sd.levitateUsed || 0, levitateTurns: sd.levitateTurns || 0, stealthUsed: sd.stealthUsed || 0, stealthActive: !!sd.stealthActive, callUsed: sd.callUsed || 0, summonedTurns: sd.summonedTurns || 0, shotsFired: sd.shotsFired, shotsHit: sd.shotsHit, kills: sd.kills, zabiciRodzaje: { ...(sd.zabiciRodzaje || {}) } };
+                const sObj = { mesh: mesh, hp: sd.hp, maxHp: sd.maxHp, ap: sd.ap, maxAp: sd.maxAp, isDead: sd.isDead, name: sd.name, class: sd.class, accuracyBonus: sd.accuracyBonus, turnEnded: sd.turnEnded, isKneeling: sd.isKneeling, shieldHp: sd.shieldHp, level: sd.level || 0, mannaUsed: !!sd.mannaUsed, crossUsed: sd.crossUsed || 0, angelUsed: sd.angelUsed || 0, rojTury: sd.rojTury || 0, lampionDuszony: sd.lampionDuszony || 0, wabiGo: sd.wabiGo || null, nieprzytomny: !!sd.nieprzytomny, infected: !!sd.infected, infectionTick: sd.infectionTick || 0, webbedTurns: sd.webbedTurns || 0, venomTurns: sd.venomTurns || 0, relicUses: { ...(sd.relicUses || {}) }, levitateUsed: sd.levitateUsed || 0, levitateTurns: sd.levitateTurns || 0, stealthUsed: sd.stealthUsed || 0, stealthActive: !!sd.stealthActive, callUsed: sd.callUsed || 0, summonedTurns: sd.summonedTurns || 0, shotsFired: sd.shotsFired, shotsHit: sd.shotsHit, kills: sd.kills, zabiciRodzaje: { ...(sd.zabiciRodzaje || {}) } };
                 // Leżący bez przytomności wraca na planszę leżąc
                 if (sObj.nieprzytomny && sObj.mesh) { sObj.mesh.rotation.z = Math.PI / 2; sObj.mesh.position.y -= 0.35; }
                 if (sObj.levitateTurns > 0) attachLevitateAura(sObj); // przywróć poświatę lewitacji
@@ -24576,6 +24703,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         function returnToPresentFromDream() {
+            manna = null; usunPlatkiRoz();
             // Rany zapisujemy, ZANIM oddział zostanie usunięty ze sceny
             zapiszRanyPoMisji();
             soldiers.forEach(s => scene.remove(s.mesh));
@@ -30316,6 +30444,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             viewLevel = 0;
             combatTurnCounter = 1;
             krwawyDeszcz = null; krwawyDeszczByl = false;
+            manna = null; usunPlatkiRoz();
             clearMissionObjectives();
             sarcophagi = [];
             grobyRuszone = new Set();
@@ -30986,8 +31115,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const base = unit.maxAp || maxAP;
             const penalty = getWoundPenaltyPercent(unit);
             const poRanach = penalty === 0 ? base : Math.max(1, Math.round(base * (1 - penalty / 100)));
-            const deszcz = modyfikatorDeszczu(unit);
-            return deszcz ? Math.max(1, poRanach + deszcz) : poRanach;
+            const zmiana = modyfikatorDeszczu(unit) + modyfikatorManny(unit);
+            return zmiana ? Math.max(1, poRanach + zmiana) : poRanach;
         }
 
         // Czwarty argument mówi, SKĄD rana. Kopuła jest osłoną przed ciosem i
@@ -34516,6 +34645,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             clearTimeout(enemyTurnTimeout); currentEnemyIndex = 0; isPlayerTurn = true;
             turaWrogaNr++;   // unieważnia wartę rozpoczętą w kończącej się turze
             tikKrwawegoDeszczu();
+            tikManny();
             // Używamy s.maxAp, nie stałej maxAP - inaczej bonusy ze Zręczności i klasy znikają po pierwszej turze
             // Rany obniżają też pulę punktów ruchu
             soldiers.forEach(s => { if(!s.isDead) { s.ap = getEffectiveMaxAp(s); s.turnEnded = false; } });
@@ -44751,6 +44881,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             updateHeartPrison(time);
             updateWaterAmbience();
             updateWeatherParticles(dt);
+            animujPlatkiRoz(dt);
             updateCloudShadows(dt);
             if (gameMode === 'dream' && !gameOver) updateDustDevils(dt);
             applyFoldVisualTransform();
