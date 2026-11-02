@@ -17647,9 +17647,21 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         // Wypowiedź mieszkańca pokazywana w dymku nad nim, zamiast w oknie na środku ekranu.
         // Dłuższe kwestie łamiemy na kilka linii, żeby dymek nie rozjechał się w poziomie.
+        // Kwestie mieszkańców: {forma męska|forma żeńska}, a "#a " i "#d " na początku
+        // oznaczają kwestię tylko dla dorosłych albo tylko dla dzieci.
+        function odmienKwestie(text, unit) {
+            const t = (rozmowca && unit && rozmowca.mesh === unit.mesh) ? tozsamoscNpc(rozmowca) : null;
+            return String(text).replace(/\{([^|}]*)\|([^}]*)\}/g, (_, m, k) => (t && TWARZE_OSOBY[t.twarz].k) ? k : m);
+        }
+        function wybierzKwestie(lista) {
+            const dziecko = rozmowca && TWARZE_OSOBY[tozsamoscNpc(rozmowca).twarz].dziecko;
+            const pasujace = lista.filter(l => !l.startsWith(dziecko ? '#a ' : '#d '));
+            return pasujace[Math.floor(Math.random() * pasujace.length)].replace(/^#[ad] /, '');
+        }
+
         function speakAt(unit, text, graceNote) {
             if (!unit || !unit.mesh) return;
-            const clean = String(text).replace(/\n+/g, ' ').trim();
+            const clean = odmienKwestie(text, unit).replace(/\n+/g, ' ').trim();
             // Kliknięty rozmówca odpowiada w oknie z twarzą, a nie w dymku
             if (rozmowca && rozmowca.mesh === unit.mesh && !dialogueOpen) {
                 showDialogue(clean + (graceNote ? '\n' + graceNote : ''), 'OK', null);
@@ -24469,6 +24481,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         ];
         const IMIONA_M = ['Jan', 'Stanisław', 'Andrzej', 'Józef', 'Tadeusz', 'Marek', 'Piotr', 'Krzysztof', 'Tomasz', 'Paweł', 'Michał', 'Henryk', 'Adam', 'Marcin', 'Wojciech', 'Zbigniew'];
         const IMIONA_K = ['Maria', 'Anna', 'Barbara', 'Krystyna', 'Elżbieta', 'Teresa', 'Zofia', 'Helena', 'Agnieszka', 'Katarzyna', 'Halina', 'Danuta', 'Ewa', 'Jadwiga', 'Irena', 'Małgorzata'];
+        const IMIONA_CHLOPCY = ['Jaś', 'Staś', 'Antek', 'Franek', 'Kuba', 'Tomek', 'Michałek', 'Piotruś'];
+        const IMIONA_DZIEWCZYNKI = ['Zosia', 'Hania', 'Basia', 'Kasia', 'Ania', 'Marysia', 'Julka', 'Ola'];
         const NAZWISKA = ['Kowalski', 'Nowicki', 'Wiśniewski', 'Zieliński', 'Szymański', 'Woźniak', 'Mazur', 'Kaczmarek', 'Wójcik', 'Lewandowski', 'Dąbrowski', 'Kozłowski', 'Jankowski', 'Pawlak', 'Sikora', 'Walczak', 'Baran', 'Michalski', 'Król', 'Wieczorek', 'Adamczyk', 'Dudek', 'Zając', 'Górski'];
         const TYTULY_ROL = { priest: 'ks.', teacher: 'nauczyciel', pharmacist: 'aptekarz' };
         let rozmowca = null;           // z kim właśnie trwa rozmowa; bez niego okno nie pokazuje twarzy
@@ -24488,7 +24502,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (n.tozsamosc) return n.tozsamosc;
             // Ksiądz, nauczyciel i aptekarz to dorośli mężczyźni, reszta bierze z talii
             let twarz = nowaTwarz();
-            if (TYTULY_ROL[n.role]) {
+            // Audytor i ranny wojownik też nie mogą mieć twarzy dziecka
+            if (TYTULY_ROL[n.role] || n.wojownik || (typeof czyAudytor === 'function' && czyAudytor(n))) {
                 const dorosli = TWARZE_OSOBY.map((o, i) => (!o.k && !o.dziecko) ? i : -1).filter(i => i >= 0);
                 twarz = losujZ(dorosli);
             }
@@ -24496,7 +24511,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             let nazwisko = losujZ(NAZWISKA);
             if (kobieta) nazwisko = nazwisko.replace(/ski$/, 'ska').replace(/cki$/, 'cka');
             const tytul = TYTULY_ROL[n.role] ? TYTULY_ROL[n.role] + ' ' : '';
-            return n.tozsamosc = { nazwa: tytul + losujZ(kobieta ? IMIONA_K : IMIONA_M) + ' ' + nazwisko, twarz: twarz };
+            const imiona = TWARZE_OSOBY[twarz].dziecko ? (kobieta ? IMIONA_DZIEWCZYNKI : IMIONA_CHLOPCY) : (kobieta ? IMIONA_K : IMIONA_M);
+            // Ranny wojownik w szpitalu to ktoś z oddziału, więc zachowuje swoje imię
+            const nazwa = n.wojownik || (tytul + losujZ(imiona) + ' ' + nazwisko);
+            return n.tozsamosc = { nazwa: nazwa, twarz: twarz };
         }
         function pokazRozmowce() {
             const pole = document.getElementById('npc-rozmowca');
@@ -24590,42 +24608,45 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             "Nie mam siły nawet wstać... Potrzebuję lekarstw z apteki, ale nie dam rady tam dojść."
         ];
         const NEED_PRAYER_LINES = [
-            "Od dawna dręczą mnie ciężkie myśli... Może ksiądz w kościele zmówiłby za mnie modlitwę?",
+            "#a Od dawna dręczą mnie ciężkie myśli... Może ksiądz w kościele zmówiłby za mnie modlitwę?",
             "Potrzebuję duchowego wsparcia. Czy zapytasz księdza, czy pomodli się w mojej intencji?",
             "Czuję, że stało się coś złego w mojej rodzinie... Proszę, poproś księdza o modlitwę."
         ];
         const NEED_SCHOOL_LINES = [
-            "Chciałabym pożyczyć pewną książkę od nauczyciela, ale nie mam odwagi go o to poprosić. Zrobisz to za mnie?",
-            "Oblałem sprawdzian i bardzo wstyd mi o tym mówić... Mógłbyś zapytać nauczyciela, czy mogę go poprawić?",
+            "{Chciałbym|Chciałabym} pożyczyć pewną książkę od nauczyciela, ale nie mam odwagi go o to poprosić. Zrobisz to za mnie?",
+            "{Oblałem|Oblałam} sprawdzian i bardzo wstyd mi o tym mówić... Mógłbyś zapytać nauczyciela, czy mogę go poprawić?",
             "Potrzebuję pomocy nauczyciela w pewnej sprawie, ale się go trochę boję. Porozmawiasz z nim za mnie?"
         ];
         const NEED_HUNGER_LINES = [
-            "Od dwóch dni nic nie jadłem... Może masz coś do jedzenia w domu, czym mógłbyś się podzielić?",
+            "Od dwóch dni nic nie {jadłem|jadłam}... Może masz coś do jedzenia w domu, czym mógłbyś się podzielić?",
             "Burczy mi w brzuchu, a w kieszeni pusto. Przyniesiesz mi coś z jedzenia?",
-            "Dzieci nie jadły dziś śniadania... Błagam, przynieś nam cokolwiek do jedzenia."
+            "#a Dzieci nie jadły dziś śniadania... Błagam, przynieś nam cokolwiek do jedzenia.",
+            "#d Mama nie ma dziś z czego ugotować obiadu... Masz może coś do jedzenia?"
         ];
         const NEED_THIRST_LINES = [
-            "Od rana nie miałem w ustach kropli wody... Przyniesiesz mi coś do picia?",
+            "Od rana nie {miałem|miałam} w ustach kropli wody... Przyniesiesz mi coś do picia?",
             "Tak bardzo chce mi się pić, a studnia w pobliżu wyschła. Masz może wodę w domu?",
-            "Gardło mam suche jak pustynia... Byłbym wdzięczny za coś do picia."
+            "Gardło mam suche jak pustynia... {Byłbym wdzięczny|Byłabym wdzięczna} za coś do picia."
         ];
         const NEED_CLOTHING_LINES = [
             "Zima blisko, a moje ubranie już całe w dziurach... Masz może coś ciepłego do ubrania?",
             "Wstyd mi to mówić, ale nie mam się w co ubrać na jutrzejszy dzień. Pomożesz?",
-            "Moje dziecko marznie w tym starym ubranku... Znajdziesz dla nas coś w domu?"
+            "#a Moje dziecko marznie w tym starym ubranku... Znajdziesz dla nas coś w domu?",
+            "#d Mama mówi, że {wyrosłem|wyrosłam} ze wszystkiego, a nowych ubrań nie ma... Znajdziesz coś dla mnie?"
         ];
         const NEED_COMFORT_LINES = [
-            "Ostatnio wszystko idzie źle i czuję się bardzo samotny... Po prostu porozmawiasz ze mną chwilę?",
-            "Straciłem dziś nadzieję... Twoja obecność naprawdę wiele dla mnie znaczy.",
+            "Ostatnio wszystko idzie źle i czuję się {bardzo samotny|bardzo samotna}... Po prostu porozmawiasz ze mną chwilę?",
+            "{Straciłem|Straciłam} dziś nadzieję... Twoja obecność naprawdę wiele dla mnie znaczy.",
             "Nikt mnie dziś nie zapytał, jak się czuję... Dziękuję, że tu jesteś."
         ];
         const NEED_HOSPITALITY_LINES = [
-            "Jestem tu obcy, nikogo nie znam w tym mieście... Miło, że ktoś w ogóle się zatrzymał.",
-            "Podróżuję już wiele dni i czuję się nieswojo wśród obcych ludzi... Dziękuję za odrobinę życzliwości.",
-            "Nie mam gdzie się podziać na noc... Twoja dobroć znaczy dla mnie bardzo wiele."
+            "#a Jestem tu {obcy|obca}, nikogo nie znam w tym mieście... Miło, że ktoś w ogóle się zatrzymał.",
+            "#a Podróżuję już wiele dni i czuję się nieswojo wśród obcych ludzi... Dziękuję za odrobinę życzliwości.",
+            "#a Nie mam gdzie się podziać na noc... Twoja dobroć znaczy dla mnie bardzo wiele.",
+            "#d {Zgubiłem|Zgubiłam} się i nikogo tu nie znam... Dobrze, że ktoś się zatrzymał."
         ];
         const THANK_YOU_LINES = [
-            "Dziękuję ci z całego serca! Nie wiem, jak mogłabym się odwdzięczyć.",
+            "Dziękuję ci z całego serca! Nie wiem, jak {mógłbym|mogłabym} się odwdzięczyć.",
             "Naprawdę mi ulżyło. Dziękuję, że o mnie pomyślałeś.",
             "Jesteś dobrym człowiekiem. Dziękuję za pomoc!",
             "Nie zapomnę tego, co dla mnie zrobiłeś. Dziękuję!",
@@ -33695,7 +33716,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (!p.taskTaken) {
                 p.taskTaken = true;
                 p.requestedAt = performance.now();
-                const line = info.lines[Math.floor(Math.random() * info.lines.length)];
+                const line = wybierzKwestie(info.lines);
                 let hint = null;
                 if (p.need === 'thirst') hint = specialBuildingSpawns.fountain ? '(dom albo fontanna)' : '(dom)';
                 else if (p.need === 'hunger') hint = specialBuildingSpawns.soupKitchen ? '(dom albo jadłodajnia)' : '(dom)';
@@ -33711,7 +33732,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             else if (p.need === 'hunger') hasItem = Math.max(lastHomeVisitTime, lastSoupVisitTime) > p.requestedAt;
 
             if (!hasItem) {
-                speakAt(bubbleAt, 'Wciąż czekam... Wrócisz z tym, o co prosiłem?');
+                speakAt(bubbleAt, 'Wciąż czekam... Wrócisz z tym, o co {prosiłem|prosiłam}?');
                 return;
             }
 
@@ -33729,7 +33750,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const zdrowy = wyleczTowarzysza(w, LECZENIE_ZA_UCZYNEK);
                 if (zdrowy) {
                     p.helped = true;
-                    speakAt(bubbleAt, `Dziękuję! Czuję się silny jak nigdy. Mogę znów walczyć.`, '(+2 Łaski, w pełni zdrowy)');
+                    speakAt(bubbleAt, `Dziękuję! Czuję się {silny|silna} jak nigdy. Mogę znów walczyć.`, '(+2 Łaski, w pełni zdrowy)');
                 } else {
                     const POTRZEBY = ['comfort', 'thirst', 'prayer', 'hunger'];
                     p.need = POTRZEBY[Math.floor(Math.random() * POTRZEBY.length)];
@@ -34074,7 +34095,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             } else {
                 npc.taskTaken = true;
                 if ((info.mode === 'home' || info.mode === 'specialist') && !npc.requestedAt) npc.requestedAt = performance.now();
-                const line = info.lines[Math.floor(Math.random() * info.lines.length)];
+                const line = wybierzKwestie(info.lines);
                 // Podpowiedź, gdzie szukać - inaczej gracz nie wie o jadłodajni i studni
                 let hint = null;
                 if (npc.needType === 'medicine') hint = specialBuildingSpawns.hospital ? '(aptekarz albo szpital)' : '(aptekarz)';
