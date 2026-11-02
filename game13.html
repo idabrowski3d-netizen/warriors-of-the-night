@@ -4638,8 +4638,60 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 ile: 2, promien: 12, buduj: () => bryłaOsmalenia(),
                 mgliste: 'Osmalony krąg i popękany kamień - tu uderzył żar.',
                 znane: (n) => `Osmalony kamień - takim ogniem ciska ${n}.`
+            },
+            // Bez typów: układa je ulozTropyStop, wyłącznie do kryjówek zasadzek
+            stopy: {
+                typy: [],
+                mgliste: 'Świeże odciski stóp prowadzą w jedną stronę. Żadne nie wracają.',
+                znane: (n) => `Świeże odciski stóp prowadzą w jedną stronę. Tak chodzi ${n}.`
             }
         };
+
+        // Dwa odciski obok siebie. Ten sam wzór zostawia wróg na śniegu w trakcie walki.
+        function bryłaOdciskow(kolor, wielkosc) {
+            const g = new THREE.Group();
+            const mat = new THREE.MeshBasicMaterial({ color: kolor, transparent: true, opacity: 0.55, depthWrite: false });
+            [-0.12, 0.12].forEach((o, i) => {
+                const odcisk = new THREE.Mesh(new THREE.CircleGeometry(0.09 * wielkosc, 7), mat);
+                odcisk.rotation.x = -Math.PI / 2; odcisk.scale.set(1, 1.7, 1);
+                odcisk.position.set(o, 0.02, i ? 0.18 : -0.18); g.add(odcisk);
+            });
+            return g;
+        }
+
+        // Na śniegu i w błocie trop prowadzi do kryjówki tego, kto czeka w zasadzce.
+        // Kończy się przed nią, a zasadzka puszcza z ZASADZKA_ZASIEG pól - idący tropem w nią wchodzi.
+        const TROP_STOP_SNIEG = ['zamiec', 'jezioro'];
+        const TROP_STOP_BLOTO = ['bagno', 'las', 'amazonia', 'pobojowisko', 'cmentarzysko', 'alabama', 'powodz'];
+        const TROP_STOP_DLUGOSC = 14, TROP_STOP_MIN_POL = 6;
+        function ulozTropyStop() {
+            const id = currentCombatTheme && currentCombatTheme.id;
+            const snieg = TROP_STOP_SNIEG.indexOf(id) !== -1 || weatherType === 'snow';
+            if (!snieg && TROP_STOP_BLOTO.indexOf(id) === -1) return;
+            const kolor = snieg ? 0x5a6470 : 0x14100b;
+            enemies.filter(e => !e.isDead && e.wZasadzce).forEach(e => {
+                const gx = e.zasadzkaX, gz = e.zasadzkaZ;
+                // Spośród kierunków z dość wolnym przejściem bierzemy ten, który zaczyna się najbliżej oddziału
+                let naj = null;
+                for (let k = 0; k < 12; k++) {
+                    const kat = k / 12 * Math.PI * 2, pola = [];
+                    for (let d = 2; d <= TROP_STOP_DLUGOSC; d++) {
+                        const x = Math.round(gx + Math.cos(kat) * d), z = Math.round(gz + Math.sin(kat) * d);
+                        if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) continue;
+                        if (sladyWrogow.some(s => s.x === x && s.z === z)) continue;
+                        if (pola.some(p => p[0] === x && p[1] === z)) continue;
+                        pola.push([x, z]);
+                    }
+                    if (pola.length < TROP_STOP_MIN_POL) continue;
+                    const koniec = pola[pola.length - 1], dyst = dystansDoOddzialu(koniec[0], koniec[1]);
+                    if (!naj || dyst < naj.dyst) naj = { kat: kat, pola: pola, dyst: dyst };
+                }
+                if (!naj) return;
+                // Palce skierowane ku kryjówce
+                const obrot = Math.atan2(-Math.cos(naj.kat), -Math.sin(naj.kat));
+                naj.pola.forEach(p => dodajSlad('stopy', p[0], p[1], getTerrainY(p[0], p[1]), bryłaOdciskow(kolor, 1.4), e, obrot));
+            });
+        }
 
         function wyczyscSladyWrogow() {
             sladyWrogow.forEach(s => { if (s.mesh) scene.remove(s.mesh); });
@@ -4736,6 +4788,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     }
                 }
             });
+            ulozTropyStop();
             return sladyWrogow.length;
         }
 
@@ -26430,13 +26483,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (e.isDead || !e.mesh || e.podZiemia || e.wWodzie || e.wZasadzce || e.uspiony || e.zastygly) return;
                 const x = Math.round(e.mesh.position.x), z = Math.round(e.mesh.position.z), mx = x + offsetX, mz = z + offsetZ;
                 if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth || !exploredGrid[mx][mz]) return;
-                const g = new THREE.Group();
-                const mat = new THREE.MeshBasicMaterial({ color: 0x5a6470, transparent: true, opacity: 0.55, depthWrite: false });
-                [-0.12, 0.12].forEach((o, i) => {
-                    const odcisk = new THREE.Mesh(new THREE.CircleGeometry(0.09, 7), mat);
-                    odcisk.rotation.x = -Math.PI / 2; odcisk.scale.set(1, 1.7, 1);
-                    odcisk.position.set(o, 0.02, i ? 0.18 : -0.18); g.add(odcisk);
-                });
+                const g = bryłaOdciskow(0x5a6470, 1);
                 g.position.set(x, getTerrainY(x, z), z);
                 g.rotation.y = e.facingAngle || 0;
                 scene.add(g);
