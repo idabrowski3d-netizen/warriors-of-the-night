@@ -4958,7 +4958,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
 
             // 4. OKNA - ciepły blask z domów
-            const sciany = obstaclePositions.filter(o => o.type === 'house-wall');
+            // Stary obrys z kodu pod domem z modelu nie pokrywa się z bryłą - pomijamy go
+            const sciany = obstaclePositions.filter(o => o.type === 'house-wall' &&
+                (o.zModelu || !domyInstancje.some(d => d.houseId === o.houseId)));
             for (let i = 0; i < BLASK_ILE.okno && sciany.length; i++) {
                 const m = sciany[Math.floor(Math.random() * sciany.length)];
                 const strony = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -30702,7 +30704,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             rozstawPatrole();
             rozstawZmiennych();
             rozstawLuny();
-            rozstawZrodlaBlasku();
             // Kopce po patrolach: glizdy już stoją, a kopiec musi trafić obok tej,
             // która faktycznie leży pod ziemią na tej planszy.
             rozstawKopceKrecie();
@@ -30726,6 +30727,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Cele misji (zamek, loch) dostawiają przeszkody PO renderowaniu mapy,
             // więc bez tego ich mury byłyby niewidoczne mimo blokowania przejścia.
             renderObstacles();
+            // Po renderowaniu: każde stawia domy od nowa z losowym modelem i obrotem,
+            // a okna i neony muszą trafić w ściany, które zostały na planszy.
+            rozstawZrodlaBlasku();
             pendingDream = null;   // sen zużyty
             initSleepingVitalBar();
             moralePenalty = 0;
