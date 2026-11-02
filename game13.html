@@ -44682,76 +44682,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 scene.remove(sp); sp.material.map.dispose(); sp.material.dispose(); paskiZycia.delete(e);
             });
         }
-        // Efekty "na szybie": krople spływają po ekranie w deszczu, płatki topnieją w śniegu.
-        // Płótno leży nad planszą, ale pod interfejsem, i nie łapie kliknięć.
-        const EKRAN_KROPLE_MAX = 7, EKRAN_PLATKI_MAX = 22;
-        let ekranPlotno = null, ekranKropleLista = [], ekranPlatkiLista = [], ekranNastepny = 0;
-        function animujEfektyEkranu(dt) {
-            const deszcz = weatherType === 'rain' || weatherType === 'krew', snieg = weatherType === 'snow';
-            if (!deszcz && !snieg && !ekranKropleLista.length && !ekranPlatkiLista.length) return;
-            if (!ekranPlotno) {
-                ekranPlotno = document.createElement('canvas');
-                ekranPlotno.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none';
-                document.body.appendChild(ekranPlotno);
-            }
-            const w = innerWidth, h = innerHeight;
-            if (ekranPlotno.width !== w || ekranPlotno.height !== h) { ekranPlotno.width = w; ekranPlotno.height = h; }
-            const g = ekranPlotno.getContext('2d');
-            g.clearRect(0, 0, w, h);
-
-            ekranNastepny -= dt;
-            if (ekranNastepny <= 0) {
-                ekranNastepny = deszcz ? 0.35 + Math.random() * 0.9 : 0.1 + Math.random() * 0.25;
-                if (deszcz && ekranKropleLista.length < EKRAN_KROPLE_MAX) {
-                    ekranKropleLista.push({ x: Math.random() * w, y: -30, r: 1.5 + Math.random() * 2.2, v: 0, slad: [],
-                                            krew: weatherType === 'krew', postoj: Math.random() * 0.5 });
-                } else if (snieg && ekranPlatkiLista.length < EKRAN_PLATKI_MAX) {
-                    ekranPlatkiLista.push({ x: Math.random() * w, y: Math.random() * h, r: 2 + Math.random() * 5, t: 0, zycie: 1.5 + Math.random() * 2 });
-                }
-            }
-
-            // Kropla spływa skokami: przystaje, rusza, lekko zbacza i zostawia gasnący ślad
-            ekranKropleLista = ekranKropleLista.filter(k => {
-                if (k.postoj > 0) { k.postoj -= dt; k.v = 0; }
-                else {
-                    k.v = Math.min(420, k.v + 700 * dt);
-                    if (Math.random() < dt * 0.9) k.postoj = 0.1 + Math.random() * 0.35;
-                }
-                k.y += k.v * dt;
-                k.x += (Math.random() - 0.5) * 0.8;
-                if (k.y < h + 40) k.slad.push({ x: k.x, y: k.y, a: 1 });   // poza ekranem już tylko gaśnie
-                k.slad.forEach(p => { p.a -= dt * 0.9; });
-                k.slad = k.slad.filter(p => p.a > 0);
-                const barwa = k.krew ? '150,12,20' : '205,225,245';
-                g.lineCap = 'round';
-                for (let i = 1; i < k.slad.length; i++) {
-                    g.strokeStyle = `rgba(${barwa},${k.slad[i].a * (k.krew ? 0.45 : 0.22)})`;
-                    g.lineWidth = k.r * 0.8;
-                    g.beginPath(); g.moveTo(k.slad[i - 1].x, k.slad[i - 1].y); g.lineTo(k.slad[i].x, k.slad[i].y); g.stroke();
-                }
-                g.fillStyle = `rgba(${barwa},${k.krew ? 0.8 : 0.45})`;
-                g.beginPath(); g.ellipse(k.x, k.y, k.r, k.r * 1.5, 0, 0, Math.PI * 2); g.fill();
-                g.fillStyle = 'rgba(255,255,255,0.5)';   // odblask
-                g.beginPath(); g.arc(k.x - k.r * 0.3, k.y - k.r * 0.5, k.r * 0.28, 0, Math.PI * 2); g.fill();
-                return k.y < h + 40 || k.slad.length > 0;
-            });
-
-            // Płatek pojawia się szybko i powoli topnieje
-            ekranPlatkiLista = ekranPlatkiLista.filter(p => {
-                p.t += dt;
-                const f = p.t / p.zycie;
-                if (f >= 1) return false;
-                const a = (f < 0.15 ? f / 0.15 : (1 - f) / 0.85) * 0.75;
-                const gr = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
-                gr.addColorStop(0, `rgba(255,255,255,${a})`);
-                gr.addColorStop(1, 'rgba(235,245,255,0)');
-                g.fillStyle = gr;
-                g.beginPath(); g.arc(p.x, p.y, p.r, 0, Math.PI * 2); g.fill();
-                return true;
-            });
-        }
-
-        function animate(time) {
+        function animate(time) { 
             requestAnimationFrame(animate); 
             const dt = Math.min((time - lastFrameTime) / 1000, 0.1); 
             lastFrameTime = time;
@@ -44820,7 +44751,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             updateHeartPrison(time);
             updateWaterAmbience();
             updateWeatherParticles(dt);
-            animujEfektyEkranu(dt);
             updateCloudShadows(dt);
             if (gameMode === 'dream' && !gameOver) updateDustDevils(dt);
             applyFoldVisualTransform();
