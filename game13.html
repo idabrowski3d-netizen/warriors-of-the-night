@@ -48239,7 +48239,90 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             poziomNamierzenia = 0; incydentyPrzebyte = []; domyPogorzeliska = [];
             document.getElementById('name-prompt-screen').style.display = 'none';
             document.getElementById('title-screen').style.display = 'none';
-            pokazIntro(() => startPresentMode());
+            pokazIntro(() => {
+                ostojaWspomniana = true;   // o Ostoi mówi już wprowadzenie
+                startPresentMode();
+                wprowadzenieMiasta();
+            });
+        }
+
+        // Wprowadzenie po pierwszym wejściu do miasta: kamera przelatuje między miejscami i ludźmi.
+        // Nakładka łapie kliknięcia, a dialogueOpen zatrzymuje bohatera i klawisze paneli.
+        function wprowadzenieMiasta() {
+            const b = specialBuildingSpawns;
+            const rola = r => { const n = specialNPCs.find(s => s.role === r); return n && n.mesh; };
+            const mieszkaniec = k => { const n = townNPCs.find(t => t.kind === k); return n && n.mesh; };
+            const kroki = [
+                { cel: hero.mesh, zoom: 0.6, tytul: 'To ty', tekst: 'Chodzisz strzałkami albo klawiszami WASD. Klawisze Q i E obracają widok.' },
+                { cel: b.heroHouse, zoom: 0.85, tytul: 'Twój dom', tekst: 'Jest w nim Ostoja, miejsce modlitwy i przygotowań. Otworzysz ją przyciskiem ⌂ albo klawiszem O.' },
+                { cel: rola('priest'), zoom: 0.6, tytul: 'Kościół', tekst: 'Tutaj spotkasz księdza. Kliknij kogoś, żeby z nim porozmawiać.' },
+                { cel: rola('teacher'), zoom: 0.6, tytul: 'Szkoła', tekst: 'Nauczyciel zna tu wiele spraw. Warto do niego zajrzeć.' },
+                { cel: rola('pharmacist'), zoom: 0.6, tytul: 'Apteka', tekst: 'Tu kupisz leki dla tych, którzy ich potrzebują.' },
+                { cel: b.soupKitchen, zoom: 0.85, tytul: 'Jadłodajnia', tekst: 'Kucharka wie, komu w mieście jest najciężej.' },
+                { cel: b.hospital, zoom: 0.85, tytul: 'Szpital', tekst: 'Tu leżą chorzy. Oni także czekają na czyjąś pomoc.' },
+                { cel: mieszkaniec('suffering'), zoom: 0.5, napis: 'Cierpiący', tytul: 'Czerwona poświata', tekst: 'Ten człowiek ma problem. Porozmawiaj z nim i pomóż mu, a zdobędziesz Łaskę.' },
+                { cel: mieszkaniec('happy'), zoom: 0.5, napis: 'Spokojny', tytul: 'Niebieska poświata', tekst: 'Temu człowiekowi na razie nic nie dolega, ale to może się zmienić.' },
+                { cel: dreamPortals[0] && dreamPortals[0].mesh, zoom: 0.5, tytul: 'Nieznajomy', tekst: 'Ludzie toczą swoje walki także w snach. Tam zdobyta Łaska pomoże ci ich ocalić.' },
+                { cel: hero.mesh, zoom: 1, tytul: 'Powodzenia', tekst: 'Klawisz C otwiera postać, a I ekwipunek. Rozejrzyj się po mieście i znajdź kogoś, kto cię potrzebuje.' }
+            ].filter(k => k.cel);
+
+            const nakladka = document.createElement('div');
+            nakladka.style.cssText = 'position:absolute;inset:0;z-index:90;display:flex;align-items:flex-end;justify-content:center;padding:0 16px 40px;box-sizing:border-box;';
+            nakladka.innerHTML = '<div style="max-width:620px;width:100%;background:rgba(10,8,5,0.88);border:2px solid #7a7266;border-radius:8px;padding:16px 20px;color:#f0e6d0;font-family:monospace;">' +
+                '<div id="wpr-tytul" style="color:#ffd98a;font-size:20px;font-weight:bold;margin-bottom:8px;"></div>' +
+                '<div id="wpr-tekst" style="font-size:16px;line-height:1.4;margin-bottom:14px;"></div>' +
+                '<div style="display:flex;gap:12px;justify-content:flex-end;">' +
+                '<button id="wpr-pomin" class="start-btn" style="border-color:#7a7266;">Pomiń</button>' +
+                '<button id="wpr-dalej" class="start-btn">Dalej</button></div></div>';
+            document.body.appendChild(nakladka);
+
+            let nr = -1, aktywny = null, ozdoby = [];
+            const zdejmijOzdoby = () => {
+                ozdoby.forEach(o => { if (o.parent) o.parent.remove(o); if (o.geometry) o.geometry.dispose(); zwolnijMaterial(o); });
+                ozdoby = [];
+            };
+            const koniec = () => {
+                aktywny = null;
+                zdejmijOzdoby();
+                nakladka.remove();
+                dialogueOpen = false;
+                kameraZoom = 1;
+                cameraFollowTarget.copy(hero.mesh.position);
+                applyCameraPosition();
+            };
+            const pozycja = c => c.position || new THREE.Vector3(c.x, getTerrainY(c.x, c.z), c.z);
+            const dalej = () => {
+                zdejmijOzdoby();
+                if (++nr >= kroki.length) { koniec(); return; }
+                const krok = aktywny = kroki[nr];
+                document.getElementById('wpr-tytul').innerText = krok.tytul;
+                document.getElementById('wpr-tekst').innerText = krok.tekst;
+                document.getElementById('wpr-dalej').innerText = nr === kroki.length - 1 ? 'Zaczynamy' : 'Dalej';
+                if (krok.cel.isObject3D) {
+                    const slup = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.75, 7, 16, 1, true),
+                        new THREE.MeshBasicMaterial({ color: 0xffd98a, transparent: true, opacity: 0.14, side: THREE.DoubleSide, depthWrite: false }));
+                    slup.position.y = 3.5;
+                    krok.cel.add(slup); ozdoby.push(slup);
+                    if (krok.napis) {
+                        const s = createNameSprite(krok.napis);
+                        krok.cel.add(s); ozdoby.push(s);
+                    }
+                }
+                const start = performance.now(), od = cameraFollowTarget.clone(), zoomOd = kameraZoom;
+                activeAnimations.push(() => {
+                    if (aktywny !== krok) return true;
+                    const t = Math.min(1, (performance.now() - start) / 1000), e = t * t * (3 - 2 * t);
+                    // Cel czytamy co klatkę, bo mieszkańcy chodzą po mieście
+                    cameraFollowTarget.lerpVectors(od, pozycja(krok.cel), e);
+                    kameraZoom = zoomOd + (krok.zoom - zoomOd) * e;
+                    applyCameraPosition();
+                    return false;
+                });
+            };
+            document.getElementById('wpr-dalej').onclick = (e) => { e.stopPropagation(); dalej(); };
+            document.getElementById('wpr-pomin').onclick = (e) => { e.stopPropagation(); koniec(); };
+            dialogueOpen = true;
+            dalej();
         }
 
         // ===== GRA WE DWÓCH =====
