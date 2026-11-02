@@ -18440,7 +18440,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 animWroga(wrog, 'smierc');
                 const klip = wrogModele[u.enemyKind].klipy[cfg.smierc];
                 const dl = (klip ? klip.duration : 2) * 1000;
-                setTimeout(() => { scene.remove(wrog.mesh); refreshEnemyPositions(); if (poZgonie) poZgonie(); },
+                setTimeout(() => { if (!zostawZwloki(wrog)) scene.remove(wrog.mesh); refreshEnemyPositions(); if (poZgonie) poZgonie(); },
                            Math.min(3500, dl));
             } else {
                 scene.remove(wrog.mesh);
@@ -24460,6 +24460,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             soldiers.forEach(s => scene.remove(s.mesh));
             enemies.forEach(e => scene.remove(e.mesh));
             npcs.forEach(n => scene.remove(n.mesh));
+            wyczyscZwloki();
             soldiers = []; enemies = []; npcs = [];
             if (mp) { mpPoMisji(); return; }
 
