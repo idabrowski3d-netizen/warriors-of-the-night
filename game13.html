@@ -5225,6 +5225,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const blizzard = currentCombatTheme && currentCombatTheme.id === 'zamiec' && type === 'snow';
             let count = (type === 'snow' || type === 'ash') ? 400 : 600;
             if (blizzard) count *= 5;
+            if (type === 'krew') count *= 4;   // ma być widać, że pada co innego niż zwykle
             const spread = 50;
             const positions = new Float32Array(count * 3);
             const cx = cameraFollowTarget.x, cz = cameraFollowTarget.z;
@@ -5236,9 +5237,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const geo = new THREE.BufferGeometry();
             geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
             const mat = new THREE.PointsMaterial({
-                color: type === 'ash' ? 0x7a1505 : (type === 'snow' ? 0xffffff : 0xaaccee),
-                size: type === 'ash' ? 0.22 : (type === 'snow' ? 0.25 : 0.12),
-                transparent: true, opacity: type === 'ash' ? 0.75 : (type === 'snow' ? 0.9 : 0.55),
+                color: type === 'krew' ? 0xb00d16 : (type === 'ash' ? 0x7a1505 : (type === 'snow' ? 0xffffff : 0xaaccee)),
+                size: type === 'krew' ? 0.34 : (type === 'ash' ? 0.22 : (type === 'snow' ? 0.25 : 0.12)),
+                transparent: true, opacity: type === 'krew' ? 0.85 : (type === 'ash' ? 0.75 : (type === 'snow' ? 0.9 : 0.55)),
                 depthWrite: false
             });
             const points = new THREE.Points(geo, mat);
@@ -22423,6 +22424,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return {
                 isCombat: true,
                 combatTurnCounter: combatTurnCounter,
+                krwawyDeszcz: krwawyDeszcz, krwawyDeszczByl: krwawyDeszczByl,
                 progress: buildSaveData(),
                 currentCombatTheme: currentCombatTheme,
                 currentTimeOfDay: currentTimeOfDay,
@@ -22528,6 +22530,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             currentCombatTheme = data.currentCombatTheme;
             if (typeof data.combatTurnCounter === 'number') combatTurnCounter = data.combatTurnCounter;
+            krwawyDeszcz = data.krwawyDeszcz || null; krwawyDeszczByl = !!data.krwawyDeszczByl;
             applyTimeOfDay(data.currentTimeOfDay);
             currentSeason = data.currentSeason;
             foldZ = (typeof data.foldZ === 'number') ? data.foldZ : null;
@@ -30312,6 +30315,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             initDustDevils();
             viewLevel = 0;
             combatTurnCounter = 1;
+            krwawyDeszcz = null; krwawyDeszczByl = false;
             clearMissionObjectives();
             sarcophagi = [];
             grobyRuszone = new Set();
@@ -30932,11 +30936,58 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                      razem: ruch + wstanie + ciasnota };
         }
 
+        // ===== KRWAWY DESZCZ =====
+        // Raz na misję, przez kilka rund: wrogowie dostają punkty ruchu i odzyskują życie,
+        // wojownicy tracą część punktów ruchu. Działa w getEffectiveMaxAp, przez którą
+        // przechodzi każde odnowienie punktów. Pod dachem nie pada, więc wnętrza są pominięte.
+        const DESZCZ_OD_RUNDY = 3, DESZCZ_SZANSA = 0.15;   // szansa na rundę, od tej rundy
+        const DESZCZ_RUND_MIN = 3, DESZCZ_RUND_LOSOWO = 2; // trwa 3-4 rundy
+        const DESZCZ_AP_WROGA = 3, DESZCZ_AP_WOJOWNIKA = 2, DESZCZ_HP_WROGA = 2;
+        const DESZCZ_BEZ_PLANSZ = ['cyber', 'wyspy', 'katedra', 'dom', 'wieza', 'studnia', 'klaustrofobia', 'alcatraz', 'szpital', 'stacja', 'otchlan', 'wulkan'];
+        let krwawyDeszcz = null;       // { zostalo, poprzednia }
+        let krwawyDeszczByl = false;
+
+        function modyfikatorDeszczu(unit) {
+            if (!krwawyDeszcz || gameMode !== 'dream') return 0;
+            if (enemies.indexOf(unit) !== -1) return (unit.maxAp > 0 && !unit.zastygly && !unit.uspiony) ? DESZCZ_AP_WROGA : 0;
+            return (soldiers.indexOf(unit) !== -1 && !unit.isNPC) ? -DESZCZ_AP_WOJOWNIKA : 0;
+        }
+        function przywrocPogodePoDeszczu(typ) {
+            clearWeatherParticles();
+            if (typ === 'rain' || typ === 'snow' || typ === 'ash') createWeatherParticles(typ);
+            else weatherType = typ;
+        }
+        // Na początku tury gracza, zanim gra odnowi punkty ruchu
+        function tikKrwawegoDeszczu() {
+            if (gameOver || gameMode !== 'dream' || arenaAktywna) return;
+            if (krwawyDeszcz) {
+                krwawyDeszcz.zostalo--;
+                if (krwawyDeszcz.zostalo <= 0) {
+                    przywrocPogodePoDeszczu(krwawyDeszcz.poprzednia);
+                    krwawyDeszcz = null;
+                    updateUI('Krwawy deszcz ustaje.');
+                    showFloatingWarning('Krwawy deszcz ustaje');
+                    return;
+                }
+                updateUI(`Krwawy deszcz pada dalej (rund: ${krwawyDeszcz.zostalo}). Wrogowie nabierają sił.`);
+            } else {
+                if (krwawyDeszczByl || combatTurnCounter < DESZCZ_OD_RUNDY || Math.random() >= DESZCZ_SZANSA) return;
+                if (!currentCombatTheme || DESZCZ_BEZ_PLANSZ.indexOf(currentCombatTheme.id) !== -1) return;
+                krwawyDeszczByl = true;
+                krwawyDeszcz = { zostalo: DESZCZ_RUND_MIN + Math.floor(Math.random() * DESZCZ_RUND_LOSOWO), poprzednia: weatherType };
+                createWeatherParticles('krew');
+                updateUI(`Zły wzmaga wysiłki, żeby wam przeszkodzić, i zsyła krwawy deszcz! Wrogowie: +${DESZCZ_AP_WROGA} PR i leczenie, wojownicy: -${DESZCZ_AP_WOJOWNIKA} PR.`);
+                showFloatingWarning('Zły zsyła krwawy deszcz!');
+            }
+            enemies.forEach(e => { if (!e.isDead) e.hp = Math.min(e.maxHp, e.hp + DESZCZ_HP_WROGA); });
+        }
+
         function getEffectiveMaxAp(unit) {
             const base = unit.maxAp || maxAP;
             const penalty = getWoundPenaltyPercent(unit);
-            if (penalty === 0) return base;
-            return Math.max(1, Math.round(base * (1 - penalty / 100)));
+            const poRanach = penalty === 0 ? base : Math.max(1, Math.round(base * (1 - penalty / 100)));
+            const deszcz = modyfikatorDeszczu(unit);
+            return deszcz ? Math.max(1, poRanach + deszcz) : poRanach;
         }
 
         // Czwarty argument mówi, SKĄD rana. Kopuła jest osłoną przed ciosem i
@@ -34464,6 +34515,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function endEnemyTurn() {
             clearTimeout(enemyTurnTimeout); currentEnemyIndex = 0; isPlayerTurn = true;
             turaWrogaNr++;   // unieważnia wartę rozpoczętą w kończącej się turze
+            tikKrwawegoDeszczu();
             // Używamy s.maxAp, nie stałej maxAP - inaczej bonusy ze Zręczności i klasy znikają po pierwszej turze
             // Rany obniżają też pulę punktów ruchu
             soldiers.forEach(s => { if(!s.isDead) { s.ap = getEffectiveMaxAp(s); s.turnEnded = false; } });
