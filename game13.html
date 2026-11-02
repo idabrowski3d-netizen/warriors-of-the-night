@@ -12418,7 +12418,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 case 'alabama':      return ['zywoplot','zywoplot','lawka','kosz','kloda','krzak','kepa','slup','zagajnik','slup_energetyczny','stos_opon','stog_siana','paleta','wiatrak_pompa','skrzynia_pocztowa','strach_na_wroble'];
                 case 'kremlin':
                 case 'whitehouse':
-                case 'zhongnanhai':  return ['lawka','lawka','kosz','kosz','zywoplot','zywoplot','beczka','rock','hydrant','budka_telefoniczna','znak_drogowy','latarnia_uliczna','latarnia_uliczna','pomnik'];
+                case 'zhongnanhai':  return ['lawka','lawka','kosz','kosz','zywoplot','zywoplot','beczka','rock','hydrant','budka_telefoniczna','znak_drogowy','latarnia_uliczna','latarnia_uliczna','pomnik','fontanna','donica_zlota','maszt_flagowy'];
                 case 'pentagon':     return ['beczka','beczka','kosz','rock','rock','skrzynia_metal','skrzynia_metal','stos_beczek','beczka_prochu','kontener','paleta','znak_drogowy','radar'];
                 case 'wesole':       return ['beczka','kosz','kosz','lawka','lawka','beczka','zywoplot','kontener','hydrant','budka_telefoniczna','stragan','stragan','automat_biletowy','balony','balony','automat_z_napojami'];
                 case 'nekropolia':
@@ -12444,7 +12444,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // W labiryncie poza blokami leżą tylko rzeczy po tych, co nie wyszli
                 case 'klaustrofobia': return ['kosciotrup','skrzynia','beczka','kosciotrup','stos_czaszek','pal_z_kajdanami','pajeczyna'];
                 case 'stacja':       return ['regal','skrzynia','skrzynia','beczka','lawka','skrzynia_metal','skrzynia_metal','rusztowanie','stos_beczek','slup','beczka_prochu','paleta','kontener','slup_energetyczny','budka_telefoniczna','automat_biletowy','automat_biletowy','walizki','walizki'];
-                case 'newyork':      return ['hydrant','kosz','znak_drogowy','budka_telefoniczna','latarnia_uliczna','latarnia_uliczna','kiosk','skrzynia_pocztowa','lawka','pomnik','automat_z_napojami'];
+                case 'newyork':      return ['hydrant','kosz','znak_drogowy','budka_telefoniczna','latarnia_uliczna','latarnia_uliczna','kiosk','skrzynia_pocztowa','lawka','pomnik','automat_z_napojami','fontanna','donica_zlota','donica_zlota','limuzyna','limuzyna','maszt_flagowy'];
                 case 'sicario':
                 case 'ambush':       return ['kaktus','agawa','agawa','kepa','rock','krzak','czaszka_bydla','stos_opon','beczka','kolo_wozu'];
                 case 'parow':        return ['rock','rock','kloda','krzak','kepa','kamien_mech','czaszka_bydla','kolo_wozu'];
@@ -14144,6 +14144,45 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 return g;
             },
             // --- Miasta i pustynia ---
+            fontanna: () => {
+                const g = new THREE.Group();
+                const marmur = { shininess: 60 };
+                czesc(g, new THREE.CylinderGeometry(0.62, 0.68, 0.28, 16), 0xe6e2da, 0, 0.14, 0, marmur);
+                czesc(g, new THREE.CylinderGeometry(0.54, 0.54, 0.03, 16), 0x4aa8d8, 0, 0.28, 0, ZAR(0x1a4a66));
+                czesc(g, new THREE.CylinderGeometry(0.1, 0.15, 0.7, 10), 0xe6e2da, 0, 0.6, 0, marmur);
+                czesc(g, new THREE.CylinderGeometry(0.3, 0.14, 0.1, 12), 0xd4af37, 0, 0.98, 0, { shininess: 90 });
+                czesc(g, new THREE.SphereGeometry(0.1, 10, 7), 0xd4af37, 0, 1.15, 0, { shininess: 90 });
+                return g;
+            },
+            donica_zlota: () => {
+                const g = new THREE.Group();
+                czesc(g, new THREE.CylinderGeometry(0.3, 0.22, 0.42, 12), 0xd4af37, 0, 0.21, 0, { shininess: 90 });
+                czesc(g, new THREE.CylinderGeometry(0.03, 0.04, 0.45, 6), 0x4a2c1a, 0, 0.62, 0);
+                czesc(g, new THREE.SphereGeometry(0.34, 10, 8), 0x2f6b34, 0, 1.05, 0);
+                return g;
+            },
+            limuzyna: () => {
+                const g = new THREE.Group();
+                const lakier = { shininess: 110, specular: 0x8899aa };
+                czesc(g, new THREE.BoxGeometry(0.72, 0.3, 1.9), 0x0b0c10, 0, 0.3, 0, lakier);
+                czesc(g, new THREE.BoxGeometry(0.62, 0.24, 1.2), 0x1a2028, 0, 0.56, -0.1, lakier);
+                czesc(g, new THREE.BoxGeometry(0.74, 0.03, 1.92), 0xd4af37, 0, 0.32, 0, { shininess: 90 });
+                for (const s of [-1, 1]) for (const t of [-0.65, 0.65]) {
+                    const k = czesc(g, new THREE.CylinderGeometry(0.14, 0.14, 0.08, 10), 0x111111, s * 0.36, 0.14, t);
+                    k.rotation.z = Math.PI / 2;
+                }
+                for (const s of [-0.24, 0.24]) czesc(g, new THREE.BoxGeometry(0.14, 0.07, 0.02), 0xfff0c0, s, 0.34, 0.96, ZAR(0xaa9960));
+                return g;
+            },
+            maszt_flagowy: () => {
+                const g = new THREE.Group();
+                czesc(g, new THREE.CylinderGeometry(0.2, 0.26, 0.2, 10), 0xe6e2da, 0, 0.1, 0);
+                czesc(g, new THREE.CylinderGeometry(0.025, 0.035, 2.8, 8), 0xd4af37, 0, 1.5, 0, { shininess: 90 });
+                czesc(g, new THREE.SphereGeometry(0.06, 8, 6), 0xd4af37, 0, 2.92, 0, { shininess: 90 });
+                czesc(g, new THREE.BoxGeometry(0.75, 0.45, 0.02), 0x7a1426, 0.4, 2.55, 0);
+                czesc(g, new THREE.BoxGeometry(0.75, 0.05, 0.022), 0xd4af37, 0.4, 2.38, 0);
+                return g;
+            },
             pomnik: () => {
                 const g = new THREE.Group();
                 const kam = materialKamienia(0x8a8478, 1, 1);
@@ -22736,6 +22775,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             buildTerrainMeshes();
             renderObstacles();
             renderFloors();
+            urzadzKamienice();
             renderThemedLandmarkDecor();
             renderCornfields();
             palmyPozycje = [];   // odstępy liczymy od nowa dla każdej planszy
@@ -30804,6 +30844,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                          `${generatory.length} generatory - podejdź i kliknij, żeby odpalić ` +
                          `(${GEN_AP} AP, ${GEN_LASKA} Łaski). Światło sięga ${GEN_PROMIEN} pól i starcza na ${GEN_TURY} tur.`);
             }
+            urzadzKamienice();
             if (currentCombatTheme && currentCombatTheme.id === 'studnia') {
                 wykarczujStudnie();
                 przetrzyjStudnie();
@@ -33142,17 +33183,21 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (drab) { ax = drab.x; az = drab.z; }
             // W górę: musi być otwór w suficie nad nami. W dół: otwór w podłodze, na której stoimy.
             const flying = (active.levitateTurns || 0) > 0;
-            const ok = !!drab || flying || (delta > 0 ? hasHoleAt(ax, az, lvl) : hasHoleAt(ax, az, target));
+            // Winda bierze pierwszeństwo przed otworem, jeśli stoisz przy kabinie
+            const winda = !drab ? windaPrzy(ax, az, target) : null;
+            if (winda) { ax = winda.x; az = winda.z; }
+            const ok = !!drab || !!winda || flying || (delta > 0 ? hasHoleAt(ax, az, lvl) : hasHoleAt(ax, az, target));
             if (!ok) {
                 updateUI(czyPlanszaZDrabinami()
                     ? 'Stań przy drabince - to jedyne przejście między kondygnacjami.'
+                    : windyKamienic.length ? 'Stań przy windzie albo przy otworze w stropie.'
                     : (delta > 0 ? 'Musisz stanąć pod otworem w stropie (albo unieść się Lewitacją).'
                                  : 'Musisz stanąć przy otworze w podłodze.'));
                 return;
             }
             if (!canStandAt(ax, az, target)) { updateUI("Nie ma tam gdzie stanąć."); return; }
             if (isUnitAtLevel(ax, az, target, active)) { updateUI("Ktoś już tam stoi."); return; }
-            const lvlCost = flying ? 1 : LEVEL_CHANGE_COST; // unoszenie się w powietrzu jest tanie
+            const lvlCost = (flying || winda) ? 1 : LEVEL_CHANGE_COST; // unoszenie się i winda są tanie
             if (active.ap < lvlCost) { updateUI(`Za mało punktów ruchu (potrzeba ${lvlCost}).`); return; }
 
             active.ap -= lvlCost;
@@ -33165,7 +33210,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 updateFloorVisibility();
                 updateFoW();
                 updateCameraPosition();
-                updateUI(delta > 0 ? `${active.name} wspina się na wyższą kondygnację.` : `${active.name} zeskakuje niżej.`);
+                updateUI(winda ? `${active.name} jedzie windą: ${nazwaPoziomu(target)}.`
+                    : delta > 0 ? `${active.name} wspina się na wyższą kondygnację.` : `${active.name} zeskakuje niżej.`);
                 wezwijWindeWiezy(active, delta);
                 if (delta < 0) zamknijDrogePowrotna(target);
             });
@@ -37680,6 +37726,278 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 });
             });
             wiezaOzdoby = [];
+        }
+
+        // ===================== WYSTRÓJ PIĘTROWYCH BUDYNKÓW W MIASTACH =====================
+        // Każda kondygnacja dostaje własny motyw, a budynek windę. Budynki odczytujemy
+        // ze ścian i stropów, więc działa to tak samo po wczytaniu zapisu.
+        // Meble niczego nie blokują (jak w Wieży i Studni) i stoją pod ścianami.
+        const KAMIENICE_PLANSZE = ['newyork', 'whitehouse', 'kremlin', 'zhongnanhai', 'pentagon'];
+        const ZLOTO = 0xd4af37, MOSIADZ = 0xb08d45, ORZECH = 0x4a2c1a, MAHON = 0x5e2318, KREM = 0xe8dfc8,
+              BORDO = 0x7a1426, GRANAT = 0x1c2c55, MARMUR = 0xe6e2da, STAL = 0x8c939b, ZIELEN = 0x2f6b34;
+        let windyKamienic = [];   // { x, z, pieter }
+
+        // Zbiera bryły jednego piętra w jedną siatkę: setki mebli to wtedy tylko dwa rysowania
+        function zbieraczBryl() {
+            const czesci = [], swiecace = [];
+            const uklad = new THREE.Object3D(), kolor = new THREE.Color();
+            const dodaj = (geo, kol, x, y, z, swieci) => {
+                const g = geo.toNonIndexed();
+                geo.dispose();
+                const lok = new THREE.Matrix4().makeTranslation(x, y, z);
+                uklad.updateMatrix();
+                g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(uklad.matrix, lok));
+                kolor.setHex(kol);
+                const n = g.attributes.position.count, barwy = new Float32Array(n * 3);
+                for (let i = 0; i < n; i++) { barwy[i * 3] = kolor.r; barwy[i * 3 + 1] = kolor.g; barwy[i * 3 + 2] = kolor.b; }
+                g.setAttribute('color', new THREE.BufferAttribute(barwy, 3));
+                (swieci ? swiecace : czesci).push(g);
+            };
+            const sklej = (lista, material) => {
+                let ile = 0;
+                lista.forEach(g => { ile += g.attributes.position.count; });
+                const poz = new Float32Array(ile * 3), nor = new Float32Array(ile * 3), bar = new Float32Array(ile * 3);
+                let od = 0;
+                lista.forEach(g => {
+                    poz.set(g.attributes.position.array, od * 3);
+                    nor.set(g.attributes.normal.array, od * 3);
+                    bar.set(g.attributes.color.array, od * 3);
+                    od += g.attributes.position.count;
+                    g.dispose();
+                });
+                const wynik = new THREE.BufferGeometry();
+                wynik.setAttribute('position', new THREE.BufferAttribute(poz, 3));
+                wynik.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+                wynik.setAttribute('color', new THREE.BufferAttribute(bar, 3));
+                return new THREE.Mesh(wynik, material);
+            };
+            return {
+                // Układ mebla: przód patrzy w stronę (fx, fz)
+                ustaw(x, y, z, fx, fz) { uklad.position.set(x, y, z); uklad.rotation.set(0, Math.atan2(fx, fz), 0); },
+                // y to spód bryły - łatwiej stawiać jedną na drugiej
+                box(w, h, d, kol, x, y, z, swieci) { dodaj(new THREE.BoxGeometry(w, h, d), kol, x, y + h / 2, z, swieci); },
+                walec(r1, r2, h, kol, x, y, z, swieci) { dodaj(new THREE.CylinderGeometry(r1, r2, h, 10), kol, x, y + h / 2, z, swieci); },
+                kula(r, kol, x, y, z, swieci) { dodaj(new THREE.SphereGeometry(r, 10, 7), kol, x, y, z, swieci); },
+                siatka() {
+                    const grupa = new THREE.Group();
+                    if (czesci.length) grupa.add(sklej(czesci, new THREE.MeshLambertMaterial({ vertexColors: true })));
+                    if (swiecace.length) grupa.add(sklej(swiecace, new THREE.MeshBasicMaterial({ vertexColors: true })));
+                    return grupa;
+                }
+            };
+        }
+
+        // Meble stoją tyłem do ściany: tył to z = -0.45, przód patrzy w +z
+        const MEBLE_KAMIENIC = {
+            donica: (b) => { b.walec(0.2, 0.15, 0.35, MOSIADZ, 0, 0, 0); b.walec(0.03, 0.03, 0.4, ORZECH, 0, 0.35, 0); b.kula(0.3, ZIELEN, 0, 0.95, 0); },
+            kolumna: (b) => { b.box(0.5, 0.12, 0.5, ZLOTO, 0, 0, -0.1); b.walec(0.17, 0.2, 1.7, MARMUR, 0, 0.12, -0.1); b.box(0.5, 0.12, 0.5, ZLOTO, 0, 1.82, -0.1); },
+            recepcja: (b) => { b.box(0.95, 0.75, 0.42, MAHON, 0, 0, -0.1); b.box(1.0, 0.06, 0.5, MARMUR, 0, 0.75, -0.1); b.box(0.9, 0.05, 0.02, ZLOTO, 0, 0.5, 0.12); b.box(0.25, 0.1, 0.02, 0xffe9a8, 0.25, 0.81, -0.1, true); },
+            kanapa: (b, kol) => { b.box(0.95, 0.28, 0.45, kol, 0, 0.1, -0.1); b.box(0.95, 0.42, 0.14, kol, 0, 0.26, -0.3); b.box(0.12, 0.38, 0.5, kol, -0.45, 0.1, -0.1); b.box(0.12, 0.38, 0.5, kol, 0.45, 0.1, -0.1); b.box(0.28, 0.2, 0.1, ZLOTO, -0.2, 0.38, -0.2); b.box(0.28, 0.2, 0.1, KREM, 0.2, 0.38, -0.2); },
+            biurko: (b) => { b.box(0.95, 0.06, 0.5, ORZECH, 0, 0.62, -0.15); b.box(0.2, 0.62, 0.45, ORZECH, -0.36, 0, -0.15); b.box(0.2, 0.62, 0.45, ORZECH, 0.36, 0, -0.15); b.box(0.36, 0.25, 0.03, 0x15181d, 0, 0.72, -0.28); b.box(0.32, 0.2, 0.01, 0x66c8ff, 0, 0.745, -0.26, true); b.box(0.3, 0.02, 0.12, 0x22262c, 0, 0.68, -0.08); b.box(0.32, 0.45, 0.32, 0x20242a, 0, 0, 0.32); b.box(0.32, 0.4, 0.06, 0x20242a, 0, 0.45, 0.46); },
+            regal: (b) => {
+                const k = [0x7a2020, 0x214a7a, 0x2c6b3a, 0xb58b2a, 0x552a6e, 0xc0b090];
+                b.box(0.95, 1.8, 0.28, ORZECH, 0, 0, -0.3);
+                for (let p = 0; p < 4; p++) for (let i = 0; i < 6; i++) b.box(0.12, 0.3, 0.04, k[(i * 2 + p * 3) % 6], -0.36 + i * 0.145, 0.12 + p * 0.42, -0.15);
+            },
+            szafa_akta: (b) => { b.box(0.8, 1.5, 0.4, 0x6d747c, 0, 0, -0.24); for (let i = 0; i < 4; i++) { b.box(0.72, 0.3, 0.02, 0x858c94, 0, 0.1 + i * 0.35, -0.03); b.box(0.14, 0.03, 0.03, ZLOTO, 0, 0.26 + i * 0.35, -0.01); } },
+            ksero: (b) => { b.box(0.6, 0.75, 0.5, 0xd3d6d8, 0, 0, -0.15); b.box(0.6, 0.06, 0.5, 0x3b3f44, 0, 0.75, -0.15); b.box(0.1, 0.03, 0.02, 0x66ff88, 0.18, 0.79, 0.02, true); },
+            kominek: (b) => { b.box(0.98, 1.15, 0.3, MARMUR, 0, 0, -0.3); b.box(1.1, 0.08, 0.38, ZLOTO, 0, 1.15, -0.3); b.box(0.55, 0.55, 0.02, 0x161210, 0, 0.1, -0.14); b.box(0.42, 0.3, 0.02, 0xff8a2a, 0, 0.12, -0.12, true); b.box(0.5, 0.42, 0.03, ZLOTO, 0, 1.3, -0.42); b.box(0.42, 0.34, 0.01, 0xa8c4d4, 0, 1.34, -0.4); },
+            telewizor: (b) => { b.box(0.95, 0.42, 0.34, ORZECH, 0, 0, -0.28); b.box(0.85, 0.5, 0.04, 0x101216, 0, 0.55, -0.32); b.box(0.78, 0.43, 0.01, 0x3f7fb5, 0, 0.585, -0.29, true); },
+            lampa: (b) => { b.walec(0.14, 0.17, 0.05, MOSIADZ, 0, 0, 0); b.walec(0.02, 0.02, 1.25, MOSIADZ, 0, 0.05, 0); b.walec(0.1, 0.2, 0.26, 0xffe6b0, 0, 1.25, 0, true); },
+            stol_jadalny: (b) => {
+                b.box(0.95, 0.06, 0.7, MAHON, 0, 0.62, 0); b.walec(0.05, 0.08, 0.62, ZLOTO, 0, 0, 0);
+                b.walec(0.08, 0.1, 0.03, ZLOTO, 0, 0.68, 0); for (const s of [-1, 1]) { b.walec(0.015, 0.015, 0.2, KREM, s * 0.05, 0.71, 0); b.kula(0.025, 0xffc860, s * 0.05, 0.93, 0, true); }
+                for (const s of [-0.3, 0.3]) for (const t of [-0.5, 0.5]) { b.box(0.26, 0.04, 0.26, BORDO, s, 0.42, t); b.box(0.26, 0.42, 0.04, MAHON, s, 0.42, t + Math.sign(t) * 0.13); b.box(0.2, 0.42, 0.2, MAHON, s, 0, t); }
+            },
+            kredens: (b) => { b.box(0.95, 0.85, 0.34, MAHON, 0, 0, -0.27); b.box(0.98, 0.04, 0.38, MARMUR, 0, 0.85, -0.27); for (const s of [-0.28, 0, 0.28]) { b.walec(0.05, 0.03, 0.16, ZLOTO, s, 0.89, -0.27); b.box(0.22, 0.65, 0.01, 0x7a4326, s, 0.1, -0.09); } },
+            loze: (b, kol) => { b.box(0.95, 0.9, 0.08, MAHON, 0, 0, -0.42); b.box(0.92, 0.3, 0.85, ORZECH, 0, 0, 0.03); b.box(0.88, 0.14, 0.82, KREM, 0, 0.3, 0.03); b.box(0.9, 0.05, 0.5, kol, 0, 0.43, 0.18); for (const s of [-0.22, 0.22]) b.box(0.34, 0.1, 0.2, 0xfffaf0, s, 0.44, -0.24); },
+            szafa: (b) => { b.box(0.95, 1.7, 0.42, MAHON, 0, 0, -0.24); b.box(0.02, 1.55, 0.01, 0x241108, 0, 0.08, -0.025); for (const s of [-0.06, 0.06]) b.kula(0.025, ZLOTO, s, 0.85, -0.015); },
+            toaletka: (b) => { b.box(0.8, 0.65, 0.36, KREM, 0, 0, -0.27); b.box(0.5, 0.6, 0.03, ZLOTO, 0, 0.7, -0.42); b.box(0.42, 0.52, 0.01, 0xb7d3e0, 0, 0.74, -0.4); b.walec(0.14, 0.14, 0.4, BORDO, 0, 0, 0.2); },
+            obraz: (b, kol) => { b.box(0.8, 0.6, 0.04, ZLOTO, 0, 0.8, -0.44); b.box(0.68, 0.48, 0.01, kol, 0, 0.86, -0.415); b.kula(0.09, 0xf0c070, -0.14, 1.15, -0.41); b.box(0.68, 0.14, 0.012, 0x234a2a, 0, 0.86, -0.41); b.box(0.5, 0.03, 0.08, 0xffe6b0, 0, 1.42, -0.4, true); },
+            rzezba: (b) => { b.box(0.5, 0.75, 0.5, MARMUR, 0, 0, -0.05); b.box(0.56, 0.06, 0.56, ZLOTO, 0, 0.75, -0.05); b.walec(0.1, 0.16, 0.55, 0xd8d3c7, 0, 0.81, -0.05); b.kula(0.11, 0xd8d3c7, 0, 1.48, -0.05); },
+            lawka: (b) => { b.box(0.9, 0.08, 0.34, BORDO, 0, 0.32, -0.1); for (const s of [-0.38, 0.38]) b.box(0.08, 0.32, 0.3, ZLOTO, s, 0, -0.1); },
+            ruletka: (b) => { b.box(0.95, 0.68, 0.7, 0x1f5a35, 0, 0, 0); b.box(1, 0.04, 0.75, ORZECH, 0, 0.68, 0); b.walec(0.24, 0.24, 0.05, MAHON, -0.2, 0.72, 0); b.walec(0.1, 0.1, 0.06, ZLOTO, -0.2, 0.74, 0); for (let i = 0; i < 4; i++) b.walec(0.035, 0.035, 0.03 + i * 0.02, [0xc02020, 0x202020, 0x2050c0, 0xe0e0e0][i], 0.15 + (i % 2) * 0.12, 0.72, -0.1 + i * 0.08); },
+            automat: (b) => { b.box(0.6, 1.3, 0.42, BORDO, 0, 0, -0.2); b.box(0.5, 0.42, 0.01, 0xffd34a, 0, 0.72, 0.015, true); b.box(0.5, 0.16, 0.01, 0xff4ac0, 0, 1.18, 0.015, true); b.box(0.5, 0.05, 0.1, ZLOTO, 0, 0.55, 0.03); },
+            bar: (b) => { b.box(0.98, 1.65, 0.1, ORZECH, 0, 0, -0.42); for (let p = 0; p < 2; p++) { b.box(0.9, 0.03, 0.12, ZLOTO, 0, 0.9 + p * 0.38, -0.33); for (let i = 0; i < 6; i++) b.walec(0.03, 0.04, 0.26, [0x2c6b3a, 0x8a4a12, 0x8a1a2e][(i + p) % 3], -0.35 + i * 0.14, 0.93 + p * 0.38, -0.33); } b.box(0.95, 0.72, 0.28, MAHON, 0, 0, 0.1); b.box(1, 0.05, 0.34, MARMUR, 0, 0.72, 0.1); },
+            fortepian: (b) => { b.walec(0.48, 0.48, 0.1, 0x0c0c10, 0, 0.62, 0.05); b.box(0.8, 0.1, 0.2, 0xf4f4f0, 0, 0.62, 0.42); for (const [x, z] of [[-0.3, 0.3], [0.3, 0.3], [0, -0.3]]) b.walec(0.03, 0.03, 0.62, ZLOTO, x, 0, z); },
+            globus: (b) => { b.walec(0.14, 0.17, 0.05, ORZECH, 0, 0, 0); b.walec(0.025, 0.025, 0.55, ZLOTO, 0, 0.05, 0); b.kula(0.22, 0x2f6d9c, 0, 0.82, 0); }
+        };
+        const MOTYWY_KAMIENIC = {
+            lobby:      { dywan: BORDO,  meble: [['recepcja'], ['donica'], ['kolumna'], ['kanapa', GRANAT], ['obraz', 0x38506e], ['kolumna'], ['donica'], ['lawka']] },
+            biuro:      { dywan: 0x46505c, meble: [['biurko'], ['szafa_akta'], ['biurko'], ['donica'], ['ksero'], ['biurko'], ['szafa_akta'], ['obraz', 0x5a6e80]] },
+            salon:      { dywan: 0x8a5a2b, meble: [['kominek'], ['kanapa', 0x7c5a30], ['lampa'], ['telewizor'], ['regal'], ['kanapa', BORDO], ['donica'], ['obraz', 0x9c6a42]] },
+            biblioteka: { dywan: 0x24452c, meble: [['regal'], ['regal'], ['globus'], ['regal'], ['lampa'], ['kanapa', 0x3d2413], ['regal'], ['rzezba']] },
+            jadalnia:   { dywan: 0x6e1f2c, meble: [['stol_jadalny'], ['kredens'], ['obraz', 0xa86a4a], ['stol_jadalny'], ['kolumna'], ['kredens'], ['stol_jadalny'], ['donica']] },
+            sypialnia:  { dywan: 0x6c4a78, meble: [['loze', 0x7a2a4e], ['szafa'], ['toaletka'], ['loze', GRANAT], ['lampa'], ['szafa'], ['obraz', 0xc098a8], ['donica']] },
+            galeria:    { dywan: 0x2a2a30, meble: [['obraz', 0xb04a30], ['rzezba'], ['obraz', 0x3a6ea0], ['lawka'], ['obraz', 0xc8a030], ['rzezba'], ['obraz', 0x6a3a90], ['lawka']] },
+            kasyno:     { dywan: 0x7c1020, meble: [['ruletka'], ['automat'], ['automat'], ['bar'], ['ruletka'], ['automat'], ['kolumna'], ['automat']] },
+            apartament: { dywan: KREM,   meble: [['fortepian'], ['bar'], ['kolumna'], ['kanapa', KREM], ['rzezba'], ['kominek'], ['donica'], ['obraz', 0xd0a060]] }
+        };
+
+        function odczytajBudynkiPietrowe() {
+            const obrysy = {};
+            obstaclePositions.forEach(p => {
+                if (p.houseId === undefined || (p.type !== 'house-wall' && p.type !== 'house-door' && p.type !== 'house-window')) return;
+                const o = obrysy[p.houseId] || (obrysy[p.houseId] = { minX: p.x, maxX: p.x, minZ: p.z, maxZ: p.z, drzwi: [] });
+                o.minX = Math.min(o.minX, p.x); o.maxX = Math.max(o.maxX, p.x);
+                o.minZ = Math.min(o.minZ, p.z); o.maxZ = Math.max(o.maxZ, p.z);
+                if (p.type === 'house-door') o.drzwi.push(p);
+            });
+            return Object.values(obrysy).filter(o => {
+                if (o.maxX - o.minX < 4 || o.maxZ - o.minZ < 4) return false;
+                const sx = Math.round((o.minX + o.maxX) / 2), sz = Math.round((o.minZ + o.maxZ) / 2);
+                o.pieter = 1;
+                while (o.pieter < MAX_LEVELS && [[sx, sz], [o.minX + 1, o.minZ + 1], [o.maxX - 1, o.maxZ - 1]]
+                    .some(([x, z]) => hasFloorAt(x, z, o.pieter))) o.pieter++;
+                return o.pieter > 1;
+            });
+        }
+
+        // Pola tuż przy ścianach, z kierunkiem w głąb budynku
+        function polaPrzyScianach(o) {
+            // Po kolei dookoła: co drugie pole daje wtedy meble równo przy każdej ścianie
+            const pola = [];
+            for (let x = o.minX + 1; x < o.maxX; x++) pola.push({ x: x, z: o.minZ + 1, fx: 0, fz: 1 });
+            for (let z = o.minZ + 2; z < o.maxZ - 1; z++) pola.push({ x: o.maxX - 1, z: z, fx: -1, fz: 0 });
+            for (let x = o.maxX - 1; x > o.minX; x--) pola.push({ x: x, z: o.maxZ - 1, fx: 0, fz: -1 });
+            for (let z = o.maxZ - 2; z > o.minZ + 1; z--) pola.push({ x: o.minX + 1, z: z, fx: 1, fz: 0 });
+            return pola;
+        }
+
+        function poleBudynkuWolne(x, z, o) {
+            for (let L = 0; L < o.pieter; L++) {
+                if (hasHoleAt(x, z, L)) return false;
+                if (L > 0 && !hasFloorAt(x, z, L)) return false;
+            }
+            return !isObstacle(x, z);
+        }
+
+        function kabinaWindy(b, nrPietra, pieter) {
+            b.box(0.92, 0.04, 0.92, 0x3a3f46, 0, 0.01, 0);
+            b.box(0.92, 1.85, 0.05, STAL, 0, 0, -0.45);
+            for (const s of [-1, 1]) {
+                b.box(0.05, 1.85, 0.92, STAL, s * 0.45, 0, 0);
+                b.box(0.09, 1.9, 0.09, ZLOTO, s * 0.45, 0, 0.45);
+                b.box(0.09, 1.9, 0.09, ZLOTO, s * 0.45, 0, -0.45);
+            }
+            b.box(1.0, 0.1, 1.0, ZLOTO, 0, 1.87, 0);
+            b.box(0.5, 0.03, 0.5, 0xfff0c8, 0, 1.83, 0, true);
+            // Tablica z numerem piętra: pali się lampka bieżącego
+            for (let i = 0; i < pieter; i++) {
+                b.box(0.05, 0.05, 0.02, i === nrPietra ? 0xffc040 : 0x4a4030, -0.2 + i * 0.09, 1.72, -0.41, i === nrPietra);
+            }
+            b.box(0.1, 0.3, 0.02, 0x1a1c20, 0.36, 0.9, -0.41);
+            b.box(0.04, 0.04, 0.02, 0x66ff88, 0.36, 1.08, -0.4, true);
+        }
+
+        function wejscieBudynku(o) {
+            const d = o.drzwi[Math.floor(o.drzwi.length / 2)];
+            if (!d) return;
+            const fx = d.x === o.minX ? -1 : d.x === o.maxX ? 1 : 0;
+            const fz = fx ? 0 : (d.z === o.minZ ? -1 : 1);
+            const b = zbieraczBryl();
+            b.ustaw(d.x, getTerrainY(d.x, d.z), d.z, fx, fz);
+            // Czerwony chodnik, baldachim na złotych słupkach i przystrzyżone krzewy
+            b.box(1.1, 0.03, 3.4, BORDO, 0, 0.02, 2.2);
+            b.box(1.5, 0.08, 2.6, BORDO, 0, 2.05, 1.8);
+            b.box(1.56, 0.04, 2.66, ZLOTO, 0, 2.02, 1.8);
+            for (const s of [-1, 1]) {
+                for (const t of [0.8, 3.0]) b.walec(0.04, 0.04, 2.02, ZLOTO, s * 0.7, 0, t);
+                b.box(0.34, 0.3, 0.34, MOSIADZ, s * 1.5, 0, 0.8);
+                b.kula(0.32, ZIELEN, s * 1.5, 0.66, 0.8);
+                b.kula(0.2, ZIELEN, s * 1.5, 1.08, 0.8);
+                b.kula(0.09, 0xffe6b0, s * 0.45, 1.92, 1.2, true);
+                b.kula(0.09, 0xffe6b0, s * 0.45, 1.92, 2.6, true);
+            }
+            const g = b.siatka();
+            g.userData.pietro = 0;
+            g.userData.mglaProbki = [{ x: d.x + fx * 2, z: d.z + fz * 2 }, { x: d.x, z: d.z }];
+            scene.add(g);
+            wiezaOzdoby.push(g);
+        }
+
+        function urzadzKamienice() {
+            windyKamienic = [];
+            if (!currentCombatTheme || KAMIENICE_PLANSZE.indexOf(currentCombatTheme.id) === -1) return;
+            wyczyscOzdobyWiezy();
+            odczytajBudynkiPietrowe().forEach(o => {
+                const pola = polaPrzyScianach(o);
+                const przyDrzwiach = (p) => o.drzwi.some(d => Math.abs(d.x - p.x) <= 1 && Math.abs(d.z - p.z) <= 1);
+                const wolne = pola.filter(p => !przyDrzwiach(p) && poleBudynkuWolne(p.x, p.z, o));
+                const szyb = wolne[Math.floor(Math.random() * wolne.length)];
+                if (szyb) windyKamienic.push({ x: szyb.x, z: szyb.z, pieter: o.pieter });
+
+                // Parter to hol, reszta bez powtórek; najwyżej apartament
+                const reszta = ['biuro', 'salon', 'biblioteka', 'jadalnia', 'sypialnia', 'galeria', 'kasyno'];
+                for (let i = reszta.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [reszta[i], reszta[j]] = [reszta[j], reszta[i]];
+                }
+                const sx = Math.round((o.minX + o.maxX) / 2), sz = Math.round((o.minZ + o.maxZ) / 2);
+                const probki = [];
+                for (let x = o.minX + 1; x < o.maxX; x += 2) for (let z = o.minZ + 1; z < o.maxZ; z += 2) probki.push({ x: x, z: z });
+
+                for (let L = 0; L < o.pieter; L++) {
+                    const nazwa = L === 0 ? 'lobby' : (L === o.pieter - 1 ? 'apartament' : reszta[L - 1]);
+                    const motyw = MOTYWY_KAMIENIC[nazwa];
+                    const b = zbieraczBryl();
+                    const y = getLevelY(sx, sz, L);
+                    if (szyb) {
+                        b.ustaw(szyb.x, y, szyb.z, szyb.fx, szyb.fz);
+                        kabinaWindy(b, L, o.pieter);
+                    }
+                    // Mieszamy pola, żeby meble nie stały w każdym budynku tak samo
+                    const miejsca = pola.filter(p => !przyDrzwiach(p) && !hasHoleAt(p.x, p.z, L) && !hasHoleAt(p.x, p.z, L - 1) &&
+                        !(szyb && Math.abs(szyb.x - p.x) <= 1 && Math.abs(szyb.z - p.z) <= 1) &&
+                        (L > 0 ? hasFloorAt(p.x, p.z, L) : !isObstacle(p.x, p.z)));
+                    const start = Math.floor(Math.random() * Math.max(1, miejsca.length));
+                    let nr = 0;
+                    for (let i = 0; i < miejsca.length; i += 2) {
+                        const p = miejsca[(start + i) % miejsca.length];
+                        const [rodzaj, barwa] = motyw.meble[nr++ % motyw.meble.length];
+                        b.ustaw(p.x, y, p.z, p.fx, p.fz);
+                        MEBLE_KAMIENIC[rodzaj](b, barwa);
+                    }
+                    // Złota barierka wokół otworów w podłodze tej kondygnacji
+                    if (L > 0) {
+                        b.ustaw(0, y, 0, 0, 1);
+                        for (let x = o.minX + 1; x < o.maxX; x++) for (let z = o.minZ + 1; z < o.maxZ; z++) {
+                            if (!hasHoleAt(x, z, L - 1)) continue;
+                            for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+                                if (hasHoleAt(x + dx, z + dz, L - 1)) continue;
+                                const rx = x + dx * 0.5, rz = z + dz * 0.5;
+                                b.box(dx ? 0.04 : 1, 0.04, dz ? 0.04 : 1, ZLOTO, rx, 0.62, rz);
+                                b.walec(0.025, 0.025, 0.62, MOSIADZ, rx, 0, rz);
+                            }
+                        }
+                    }
+                    // Dywan i żyrandol pośrodku sali
+                    b.ustaw(sx, y, sz, 0, 1);
+                    const dx = Math.max(1, o.maxX - o.minX - 5), dz = Math.max(1, o.maxZ - o.minZ - 5);
+                    if (!hasHoleAt(sx, sz, L) && !hasHoleAt(sx, sz, L - 1)) {
+                        b.box(dx + 0.3, 0.015, dz + 0.3, ZLOTO, 0, 0.008, 0);
+                        b.box(dx, 0.02, dz, motyw.dywan, 0, 0.01, 0);
+                    }
+                    b.walec(0.02, 0.02, 0.3, ZLOTO, 0, 1.68, 0);
+                    b.walec(0.34, 0.2, 0.08, ZLOTO, 0, 1.6, 0);
+                    for (let k = 0; k < 6; k++) {
+                        const a = k * Math.PI / 3;
+                        b.kula(0.06, 0xfff2c4, Math.cos(a) * 0.3, 1.56, Math.sin(a) * 0.3, true);
+                    }
+                    const g = b.siatka();
+                    g.userData.pietro = L;
+                    g.userData.mglaProbki = probki;
+                    scene.add(g);
+                    wiezaOzdoby.push(g);
+                }
+                wejscieBudynku(o);
+            });
+            updateFloorVisibility();
+        }
+
+        // Winda na polu wojownika albo tuż obok, sięgająca docelowego piętra
+        function windaPrzy(x, z, naPoziom) {
+            return windyKamienic.find(w => Math.max(Math.abs(w.x - x), Math.abs(w.z - z)) <= 1 && naPoziom < w.pieter) || null;
         }
 
         function swieca(wys) {
