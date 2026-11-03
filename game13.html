@@ -7796,16 +7796,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             }
                         }
                     }
-
-                    // Umeblowanie biur: regały, skrzynie, ławy - osłony na każdym piętrze
-                    for (let i = 0; i < 70; i++) {
-                        const x = Math.floor(Math.random() * (B * 2 - 4)) - B + 2;
-                        const z = Math.floor(Math.random() * (B * 2 - 4)) - B + 2;
-                        if (Math.max(Math.abs(x - wiezaSzyb.x), Math.abs(z - wiezaSzyb.z)) <= WIEZA_SZYB + 1) continue;
-                        if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) continue;
-                        const los = Math.random();
-                        addObstacle(x, z, los < 0.45 ? 'regal' : (los < 0.75 ? 'skrzynia' : 'lawka'));
-                    }
                 }
 
                 // MOST: pomost biegnący przez całą długość planszy, po bokach pustka
@@ -17511,7 +17501,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         // Osłony, których pudło nie niszczy
-        const NIEZNISZCZALNE_OSLONY = ['wall-resistant', 'skrzynia_metal', 'rumowisko', 'wrak_osobowy', 'wrak_ciezarowy', 'wrak-czesc', 'kontener', 'pal', 'mebel_wiezy'];
+        const NIEZNISZCZALNE_OSLONY = ['wall-resistant', 'skrzynia_metal', 'rumowisko', 'wrak_osobowy', 'wrak_ciezarowy', 'wrak-czesc', 'kontener', 'pal', 'mebel_wiezy', 'mebel_wiezy_sciana'];
 
         // ===================== CO SIĘ PRZEWRACA =====================
         // Wysokie konstrukcje nie znikają po pudle - walą się na sąsiednie pole
@@ -30170,7 +30160,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Mury "na pełną wysokość" - przez nie nie widać i nie przestrzelisz ich,
         // dopóki nie zrobisz w nich wyrwy.
         const PELNE_MURY = ['wall-resistant', 'wall-destructible', 'house-wall',
-                            'wagon-sciana', 'blok', 'wrota'];
+                            'wagon-sciana', 'blok', 'wrota', 'mebel_wiezy_sciana'];
 
         function czyNiskaPrzeszkoda(obs) {
             if (!obs) return false;
@@ -30198,7 +30188,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (checkX === x1 && checkZ === z1) break; 
                 if (Math.round(y) < terrainY) return false;
 
-                // Meble Wieży na piętrach: ta sama zasada co niska osłona na parterze
+                // Meble Wieży na piętrach: ściany komnat zasłaniają jak mur, reszta jak niska osłona na parterze
+                if (currentCombatTheme && currentCombatTheme.id === 'wieza' &&
+                    wiezaSciany.has(Math.floor((y - terrainY) / FLOOR_HEIGHT) + ',' + checkX + ',' + checkZ)) return false;
                 if (!tylkoWidocznosc && currentCombatTheme && currentCombatTheme.id === 'wieza' &&
                     mebelNaPietrze(checkX, checkZ, Math.floor((y - terrainY) / FLOOR_HEIGHT)) &&
                     Math.max(Math.abs(checkX - x0), Math.abs(checkZ - z0)) > 1 && Math.max(Math.abs(checkX - x1), Math.abs(checkZ - z1)) > 1) return false;
@@ -38202,6 +38194,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
               BORDO = 0x7a1426, GRANAT = 0x1c2c55, MARMUR = 0xe6e2da, STAL = 0x8c939b, ZIELEN = 0x2f6b34;
         let windyKamienic = [];   // { x, z, pieter }
         let drabinyDachow = [];   // { x, z, dachX, dachZ, dach } - stopa drabiny i pole na dachu
+        const wiezaSciany = new Set();   // "L,x,z" - meble Wieży tworzące ściany komnat
         const mebleNaPietrach = new Set();   // "L,x,z" - pola zajęte przez meble powyżej parteru
         function mebelNaPietrze(x, z, L) {
             return mebleNaPietrach.has(L + ',' + Math.round(x) + ',' + Math.round(z));
@@ -41200,14 +41193,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const WIEZA_POSADZKI = [0x8a8478, 0x6e7680, 0x7a6a58, 0x5e6a5e, 0x75566a, 0x5a5a70, 0x704a4a, 0x5a3a44];
         const WIEZA_BARWY_MUROW = [0x6a645a, 0x5a6068, 0x62564a, 0x4e584e, 0x5e4a58, 0x484a5c, 0x5a3e3e, 0x4a2c34];
         const WIEZA_PIETRA = [
-            { sprzet: ['recepcja', 'kanapa', 'donica', 'kolumna', 'lawka'], dywan: 0x7a1426 },
-            { sprzet: ['biurko', 'biurko', 'szafa_akta', 'ksero', 'kanapa'], dywan: 0x2a3a50 },
-            { sprzet: ['szafa_akta', 'regal', 'szafa_akta', 'regal', 'biurko'], dywan: 0x4a3a2a },
-            { sprzet: ['regal', 'regal', 'biurko', 'biurko', 'kanapa'], dywan: 0x24452c },
-            { sprzet: ['stol_jadalny', 'kredens', 'kolumna', 'stol_jadalny', 'bar'], dywan: 0x6e1f2c },
-            { sprzet: ['kredens', 'rzezba', 'lawka', 'kolumna', 'fortepian'], dywan: 0x2a2a44 },
-            { sprzet: ['kanapa', 'kominek', 'bar', 'rzezba', 'oltarz'], dywan: 0x4a1a4a },
-            { sprzet: ['oltarz', 'kociol', 'runy', 'czaszki', 'krysztaly'], dywan: 0x3a0a14 }
+            { sciana: ['szafa', 'regal'], sprzet: ['recepcja', 'kanapa', 'donica', 'kolumna', 'lawka'], dywan: 0x7a1426 },
+            { sciana: ['szafa_akta'], sprzet: ['biurko', 'biurko', 'szafa_akta', 'ksero', 'kanapa'], dywan: 0x2a3a50 },
+            { sciana: ['szafa_akta', 'regal'], sprzet: ['szafa_akta', 'regal', 'szafa_akta', 'regal', 'biurko'], dywan: 0x4a3a2a },
+            { sciana: ['regal'], sprzet: ['regal', 'regal', 'biurko', 'biurko', 'kanapa'], dywan: 0x24452c },
+            { sciana: ['szafa', 'bar'], sprzet: ['stol_jadalny', 'kredens', 'kolumna', 'stol_jadalny', 'bar'], dywan: 0x6e1f2c },
+            { sciana: ['szafa'], sprzet: ['kredens', 'rzezba', 'lawka', 'kolumna', 'fortepian'], dywan: 0x2a2a44 },
+            { sciana: ['szafa', 'regal'], sprzet: ['kanapa', 'kominek', 'bar', 'rzezba', 'oltarz'], dywan: 0x4a1a4a },
+            { sciana: ['szafa', 'kolumna'], sprzet: ['oltarz', 'kociol', 'runy', 'czaszki', 'krysztaly'], dywan: 0x3a0a14 }
         ];
 
         const WIEZA_BEZ_OSLONY = ['runy'];   // znak na posadzce nie zasłania
@@ -41276,21 +41269,39 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     b.walec(0.42, 0.26, 0.07, 0xb8963c, cx, 1.66, cz);
                     for (let k = 0; k < 6; k++) b.kula(0.06, 0xfff0c0, cx + Math.cos(k * 1.047) * 0.36, 1.62, cz + Math.sin(k * 1.047) * 0.36, true);
                 }
-                // Sprzęt piętra to osłony w walce. Parter ma już swoje, więc tam tylko dopełniamy
-                const rzedy = L === 0 ? 7 : 4;
-                for (let x = -B + 3; x < B - 2; x += rzedy) for (let z = -B + 3; z < B - 2; z += rzedy) {
-                    if (Math.max(Math.abs(x), Math.abs(z)) <= SZ + 3 || Math.min(Math.abs(x), Math.abs(z)) <= 2) continue;
-                    if ((L === 0 && isObstacle(x, z)) || isUnitAtLevel(x, z, L, null)) continue;
-                    const nazwa = plan.sprzet[Math.floor(Math.random() * plan.sprzet.length)];
+                // Komnaty: w każdej ćwiartce dwie sale, a ich ściany to rzędy szaf i regałów z przejściami
+                const postawMebel = (x, z, nazwa, fx, fz, sciana) => {
+                    if ((L === 0 && isObstacle(x, z)) || isUnitAtLevel(x, z, L, null)) return;
                     if (WIEZA_BEZ_OSLONY.indexOf(nazwa) === -1) {
-                        if (L > 0) mebleNaPietrach.add(L + ',' + x + ',' + z);
-                        else obstacleGrid[x + offsetX][z + offsetZ] = { x: x, z: z, type: 'mebel_wiezy' };
+                        if (L > 0) { mebleNaPietrach.add(L + ',' + x + ',' + z); if (sciana) wiezaSciany.add(L + ',' + x + ',' + z); }
+                        else obstacleGrid[x + offsetX][z + offsetZ] = { x: x, z: z, type: sciana ? 'mebel_wiezy_sciana' : 'mebel_wiezy' };
                     }
-                    const os = Math.random() < 0.5;
-                    const zn = Math.random() < 0.5 ? 1 : -1;
-                    b.ustaw(x, y, z, os ? zn : 0, os ? 0 : zn);
+                    b.ustaw(x, y, z, fx, fz);
                     const rys = MEBLE_KAMIENIC[nazwa] || PRZEDMIOTY_STUDNI[nazwa];
                     rys(b, nazwa === 'krysztaly' || nazwa === 'runy' ? 0xff3050 : plan.dywan);
+                };
+                for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+                    // u, v to współrzędne w ćwiartce; zamiana osi daje różne układy sal
+                    const zamiana = Math.random() < 0.5;
+                    const mebel = (u, v, nazwa, fu, fv, sciana) => zamiana
+                        ? postawMebel(sx * v, sz * u, nazwa, sx * fv, sz * fu, sciana)
+                        : postawMebel(sx * u, sz * v, nazwa, sx * fu, sz * fv, sciana);
+                    const d = 9 + Math.floor(Math.random() * 2);
+                    const drzwiA = 8 + Math.floor(Math.random() * 5), drzwiB = d + 1 + Math.floor(Math.random() * 3), drzwiD = 7 + Math.floor(Math.random() * 6);
+                    const sciana = () => plan.sciana[Math.floor(Math.random() * plan.sciana.length)];
+                    for (let t = 6; t < B; t++) {
+                        if (t !== drzwiA && t !== drzwiA + 1) mebel(3, t, sciana(), 1, 0, true);
+                        if (t !== drzwiB && t !== drzwiB + 1) mebel(t, 3, sciana(), 0, 1, true);
+                    }
+                    // Przedsionek przy szybie zostaje wolny
+                    for (let t = 3; t < 6; t++) { if (t > 3) mebel(t, 6, sciana(), 0, 1, true); if (t > 3) mebel(6, t, sciana(), 1, 0, true); }
+                    mebel(6, 6, sciana(), 1, 0, true);
+                    for (let t = 4; t < B; t++) if (t !== drzwiD && t !== drzwiD + 1) mebel(d, t, sciana(), -1, 0, true);
+                    // Każda sala ma jeden rodzaj sprzętu, ustawiony w równych rzędach
+                    for (const [u0, u1, v0, fu, fv] of [[5, d - 2, 8, 0, 1], [d + 2, B - 2, 5, -1, 0]]) {
+                        const nazwa = plan.sprzet[Math.floor(Math.random() * plan.sprzet.length)];
+                        for (let u = u0; u <= u1; u += 3) for (let v = v0; v <= B - 2; v += 3) mebel(u, v, nazwa, fu, fv, false);
+                    }
                 }
                 const g = b.siatka();
                 g.userData.pietro = L;
@@ -41303,6 +41314,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function ozdobWieze() {
             wyczyscOzdobyWiezy();
             if (!currentCombatTheme || currentCombatTheme.id !== 'wieza') return 0;
+            wiezaSciany.clear();
+            wystrojWiezy();
             const B = WIEZA_BOK;
             let postawione = 0;
             const wolnePole = (L) => {
@@ -41311,7 +41324,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const z = Math.floor(Math.random() * (B * 2 - 6)) - B + 3;
                     if (Math.max(Math.abs(x - wiezaSzyb.x), Math.abs(z - wiezaSzyb.z)) <= WIEZA_SZYB + 2) continue;
                     if (!isWithinPlayBounds(x, z)) continue;
-                    if (L === 0 && isObstacle(x, z)) continue;
+                    if (!canStandAt(x, z, L)) continue;
                     return [x, z];
                 }
                 return null;
@@ -41363,7 +41376,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const szczyt = MAX_LEVELS - 1;
             const wielki = kragPrzyzywania(4.2, 6);
             postaw(wielki, wiezaSzyb.x, wiezaSzyb.z + WIEZA_SZYB + 5, szczyt);
-            wystrojWiezy();
             zapalLampyPochodni();
             return postawione;
         }
