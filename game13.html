@@ -8853,6 +8853,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         const roofObj = obstaclePositions.find(p => p.type === 'house-roof' && p.x === b.x && p.z === b.z);
                         if (roofObj) roofObj.flatRoof = true; // płaski dach - da się po nim chodzić
                         const bMinX = b.x - Math.round((w - 1) / 2), bMinZ = b.z - Math.round((d - 1) / 2);
+                        // Każda kamienica z innej cegły albo tynku, widać to też od środka
+                        const cegla = [0xaa5555, 0x8a4a3c, 0xb8775a, 0x6e5a50, 0xc2a888, 0x5a6470, 0x9a8a78][Math.floor(Math.random() * 7)];
+                        obstaclePositions.forEach(p => { if (p.houseId === houses.length - 1 && p.type !== 'house-roof') p.wallColor = cegla; });
                         const interior = [];
                         for (let x = bMinX + 1; x < bMinX + w - 1; x++) {
                             for (let z = bMinZ + 1; z < bMinZ + d - 1; z++) {
@@ -37879,10 +37882,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         // Zbiera bryły jednego piętra w jedną siatkę: setki mebli to wtedy tylko dwa rysowania
-        function zbieraczBryl() {
+        function zbieraczBryl(zamiana) {
             const czesci = [], swiecace = [];
             const uklad = new THREE.Object3D(), kolor = new THREE.Color();
             const dodaj = (geo, kol, x, y, z, swieci) => {
+                if (zamiana && zamiana[kol] !== undefined) kol = zamiana[kol];
                 const g = geo.toNonIndexed();
                 geo.dispose();
                 const lok = new THREE.Matrix4().makeTranslation(x, y, z);
@@ -37997,6 +38001,20 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
         }
 
+        // Każdy budynek ma własne wykończenie, żeby wnętrza nie były klonami
+        const PALETY_WNETRZ = [
+            { [ZLOTO]: 0xd4af37, [MAHON]: 0x5e2318, [ORZECH]: 0x4a2c1a, [MARMUR]: 0xe6e2da, [BORDO]: 0x7a1426, [GRANAT]: 0x1c2c55 },
+            { [ZLOTO]: 0xb8c4cc, [MAHON]: 0x20242a, [ORZECH]: 0x2c3036, [MARMUR]: 0xf2f4f6, [BORDO]: 0x1f6f78, [GRANAT]: 0x39424e },   // chłodny chrom i czerń
+            { [ZLOTO]: 0xb5693a, [MAHON]: 0x9a6a3c, [ORZECH]: 0x7d5730, [MARMUR]: 0xe2cfae, [BORDO]: 0xa8562a, [GRANAT]: 0x3f5a3a },   // miedź i dąb
+            { [ZLOTO]: 0xe0c070, [MAHON]: 0xd8d2c4, [ORZECH]: 0xbfb6a4, [MARMUR]: 0xfafaf4, [BORDO]: 0x5f7fa0, [GRANAT]: 0x8aa4b8 },   // jasny, pastelowy
+            { [ZLOTO]: 0x9a7bd0, [MAHON]: 0x35204a, [ORZECH]: 0x281a38, [MARMUR]: 0xd8d0e4, [BORDO]: 0x6a2a7a, [GRANAT]: 0x2a2a60 },   // fiolet art déco
+            { [ZLOTO]: 0x8fb050, [MAHON]: 0x3f4a26, [ORZECH]: 0x56431f, [MARMUR]: 0xdfe4cc, [BORDO]: 0x2f6b4a, [GRANAT]: 0x6b5a2a }    // zieleń i oliwka
+        ];
+        const DYWANY = [0x7a1426, 0x1c2c55, 0x24452c, 0x6c4a78, 0x8a5a2b, 0x2a6a70, 0xb0683a, 0x46505c, 0xc8b89a, 0x5a1e4a];
+        const POSADZKI = [[0x8a6a44, 0x7a5c3a], [0xd8d4cc, 0x3a3a40], [0xc8c2b4, 0xb4ad9c], [0x4a5560, 0x3e4852],
+                          [0xa04a30, 0x8c3f28], [0x6a8a8a, 0x5c7a7a], [0xe0d8c8, 0xc8a878], [0x3a2a24, 0x4a362e]];
+        const wylosuj = (lista) => lista[Math.floor(Math.random() * lista.length)];
+
         // Pola tuż przy ścianach, z kierunkiem w głąb budynku
         function polaPrzyScianach(o) {
             // Po kolei dookoła: co drugie pole daje wtedy meble równo przy każdej ścianie
@@ -38102,6 +38120,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             wyczyscOzdobyWiezy();
             odczytajBudynkiPietrowe().forEach(o => {
                 const pola = polaPrzyScianach(o);
+                const paleta = wylosuj(PALETY_WNETRZ);
                 const przyDrzwiach = (p) => o.drzwi.some(d => Math.abs(d.x - p.x) <= 1 && Math.abs(d.z - p.z) <= 1);
                 const wolne = pola.filter(p => !przyDrzwiach(p) && poleBudynkuWolne(p.x, p.z, o));
                 const szyb = wolne[Math.floor(Math.random() * wolne.length)];
@@ -38126,8 +38145,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 for (let L = 0; L < o.pieter; L++) {
                     const nazwa = L === 0 ? 'lobby' : (L === o.pieter - 1 ? 'apartament' : reszta[L - 1]);
                     const motyw = MOTYWY_KAMIENIC[nazwa];
-                    const b = zbieraczBryl();
+                    const b = zbieraczBryl(paleta);
                     const y = getLevelY(sx, sz, L);
+                    // Posadzka w dwubarwną szachownicę, inna na każdej kondygnacji
+                    const [pos1, pos2] = wylosuj(POSADZKI), dywan = wylosuj(DYWANY);
+                    b.ustaw(0, y, 0, 0, 1);
+                    for (let x = o.minX + 1; x < o.maxX; x++) for (let z = o.minZ + 1; z < o.maxZ; z++) {
+                        if (hasHoleAt(x, z, L) || hasHoleAt(x, z, L - 1)) continue;
+                        b.box(1, 0.006, 1, (x + z) % 2 ? pos1 : pos2, x, 0.002, z);
+                    }
                     if (szyb) {
                         b.ustaw(szyb.x, y, szyb.z, szyb.fx, szyb.fz);
                         kabinaWindy(b, L, o.pieter);
@@ -38169,7 +38195,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const promX = Math.floor((o.maxX - o.minX - 5) / 2), promZ = Math.floor((o.maxZ - o.minZ - 5) / 2);
                     for (let dx = -promX; dx <= promX; dx++) for (let dz = -promZ; dz <= promZ; dz++) {
                         if (hasHoleAt(sx + dx, sz + dz, L) || hasHoleAt(sx + dx, sz + dz, L - 1)) continue;
-                        b.box(1, 0.02, 1, motyw.dywan, dx, 0.01, dz);
+                        b.box(1, 0.02, 1, dywan, dx, 0.01, dz);
                         // Wąska złota lamówka na zewnętrznym brzegu
                         if (Math.abs(dx) === promX && dx) b.box(0.08, 0.025, 1, ZLOTO, dx + Math.sign(dx) * 0.42, 0.01, dz);
                         if (Math.abs(dz) === promZ && dz) b.box(1, 0.025, 0.08, ZLOTO, dx, 0.01, dz + Math.sign(dz) * 0.42);
