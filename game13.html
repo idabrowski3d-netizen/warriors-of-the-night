@@ -29766,8 +29766,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             brute:    { kolor: 0xff8800, poswiata: 0xffbb55, ksztalt: 'glaz' },
             fast:     { kolor: 0xcc00ff, poswiata: 0xe090ff, ksztalt: 'iglica' },
             summoner: { kolor: 0x66ffcc, poswiata: 0xaaffee, ksztalt: 'fala' },
-            koszmar:  { kolor: 0xff5511, poswiata: 0xffaa44, ksztalt: 'ogien' },
-            gargulec: { kolor: 0xff6611, poswiata: 0xffcc55, ksztalt: 'ogien' },
+            koszmar:  { kolor: 0xff5511, poswiata: 0xffaa44, ksztalt: 'ogien', dym: true },
+            gargulec: { kolor: 0xff6611, poswiata: 0xffcc55, ksztalt: 'ogien', dym: true },
+            zapalajacy: { kolor: 0xff7a1a, poswiata: 0xffc060, ksztalt: 'ogien', dym: true },
             blizniaki: { kolor: 0xffd24a, poswiata: 0xb98cff, ksztalt: 'fala' },
             vampire:  { kolor: 0x8c1020, poswiata: 0xdd4466, ksztalt: 'nietoperz' },
             wisp:     { kolor: 0xaaddff, poswiata: 0xddf0ff, ksztalt: 'iskra' },
@@ -29835,6 +29836,51 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return g;
         }
 
+        // Kłąb dymu: sprite, który unosi się, rośnie i blednie. Limit chroni płynność.
+        const DYM_LIMIT = 120;
+        let ileDymu = 0, teksturaDymu = null;
+        function klabDymu(x, y, z, barwa, rozmiar, czas) {
+            if (ileDymu >= DYM_LIMIT) return;
+            if (!teksturaDymu) {
+                const c = document.createElement('canvas'); c.width = c.height = 64;
+                const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 2, 32, 32, 31);
+                gr.addColorStop(0, 'rgba(255,255,255,0.75)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.3)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+                g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+                teksturaDymu = new THREE.CanvasTexture(c);
+            }
+            const mat = new THREE.SpriteMaterial({ map: teksturaDymu, color: barwa, transparent: true, depthWrite: false, opacity: 0.8 });
+            const sp = new THREE.Sprite(mat);
+            sp.position.set(x + (Math.random() - 0.5) * 0.15, y, z + (Math.random() - 0.5) * 0.15);
+            sp.scale.setScalar(rozmiar);
+            sp.userData.unitType = 'fx';
+            sp.raycast = () => {};
+            scene.add(sp);
+            ileDymu++;
+            const t0 = performance.now(), dryfX = (Math.random() - 0.5) * 0.5, y0 = sp.position.y, x0 = sp.position.x;
+            activeAnimations.push(function (time) {
+                const p = (time - t0) / czas;
+                if (p >= 1) { scene.remove(sp); mat.dispose(); ileDymu--; return true; }
+                sp.position.y = y0 + p * 0.9;
+                sp.position.x = x0 + p * dryfX;
+                sp.scale.setScalar(rozmiar * (1 + p * 1.6));
+                mat.opacity = 0.8 * (1 - p);
+                return false;
+            });
+        }
+
+        // Wampir ciągnie za sobą smugę: nowy kłąb co kawałek przebytej drogi
+        function updateDymPostaci() {
+            enemies.forEach(e => {
+                if (e.type !== 'vampire' || e.isDead || !e.mesh || !e.mesh.visible) return;
+                const p = e.mesh.position, o = e.ostatniDym;
+                if (!o) { e.ostatniDym = { x: p.x, z: p.z }; return; }
+                if (Math.hypot(p.x - o.x, p.z - o.z) < 0.3) return;
+                o.x = p.x; o.z = p.z;
+                klabDymu(p.x, p.y + 0.5, p.z, 0x241a2a, 1.0, 1400);
+                klabDymu(p.x, p.y + 1.1, p.z, 0x3a2438, 0.7, 1000);
+            });
+        }
+
         function createProjectile(startX, startY, startZ, targetX, targetY, targetZ, isHit, hitObstacle, callback, shooterType) {
             SoundEngine.playShoot(); 
 
@@ -29848,6 +29894,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 else { endX += (Math.random() > 0.5 ? 1 : -1) * 2; endZ += (Math.random() > 0.5 ? 1 : -1) * 2; endY += (Math.random() > 0.5 ? 1 : -1) * 1; }
             }
             projectile.lookAt(endX, endY, endZ);
+            // Pocisk zapalający i ognisty ciągnie smugę dymu
+            if (styl.dym) {
+                let ostatni = 0;
+                activeAnimations.push(function (time) {
+                    if (!projectile.parent) return true;
+                    if (time - ostatni < 28) return false;
+                    ostatni = time;
+                    const p = projectile.position;
+                    klabDymu(p.x, p.y, p.z, 0x4a4238, 0.42, 800);
+                    return false;
+                });
+            }
             // Drobny ruch własny pocisku - fale pulsują, ogień i głaz wirują
             const ksztalt = projectile.userData.shotShape;
             if (ksztalt === 'fala' || ksztalt === 'ogien' || ksztalt === 'glaz' || ksztalt === 'nietoperz') {
@@ -33521,6 +33579,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // DRABINKA: nie trzeba stać dokładnie w otworze - wystarczy pole obok.
             // Wojownik przechodzi wtedy na pole drabiny i po niej zmienia kondygnację.
             const drab = drabinaPrzy(ax, az, lvl, target);
+            if (drab && delta < 0 && !zejscieOtwarte(lvl) && !(active.levitateTurns > 0)) {
+                updateUI('Drabinę zamyka krata. Znajdź mechanizm w jednej z bocznych sal tego poziomu i stań przy nim.');
+                showFloatingWarning('Krata zamknięta - szukaj mechanizmu w bocznej sali.');
+                return;
+            }
             if (drab) { ax = drab.x; az = drab.z; }
             // W górę: musi być otwór w suficie nad nami. W dół: otwór w podłodze, na której stoimy.
             const flying = (active.levitateTurns || 0) > 0;
@@ -35024,7 +35087,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                     playFileSfx(AudioFiles.wallHit, 0.5);
                                 }
                                 poStrzale();
-                            }, 'player');
+                            }, rodzajAmu === 'zapalajacy' ? 'zapalajacy' : 'player');
                             };
                             strzel(1);
                         } else { updateUI("Brak linii strzału w 3D! Ściana zasłania."); }
@@ -38081,6 +38144,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 });
             });
             wiezaOzdoby = [];
+            zgasLampyPochodni();
         }
 
         // ===================== WYSTRÓJ PIĘTROWYCH BUDYNKÓW W MIASTACH =====================
@@ -38897,7 +38961,176 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         ];
         const BARWY_ZARU_STUDNI = [0xc040ff, 0x40c8ff, 0x60ffa0, 0xff4060];
 
+        // Światło z cieniem jest drogie, więc pali się przy kilku pochodniach najbliżej
+        // widoku: te same lampy przeskakują między nimi, reszta tylko żarzy się bryłą.
+        let pochodnieStudni = [], lampyPochodni = [], nastepnyWyborPochodni = 0;
+        // Cień postaci od najbliższej pochodni: ciemny pas na posadzce, odchodzący od płomienia
+        let cienieOdPochodni = [], teksturaCienia = null, geometriaCienia = null;
+        function cienOdPochodni(i) {
+            if (cienieOdPochodni[i]) return cienieOdPochodni[i];
+            if (!teksturaCienia) {
+                const c = document.createElement('canvas'); c.width = 32; c.height = 64;
+                const g = c.getContext('2d'), gr = g.createLinearGradient(0, 64, 0, 0);
+                gr.addColorStop(0, 'rgba(0,0,0,0.85)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+                g.fillStyle = gr; g.fillRect(0, 0, 32, 64);
+                g.globalCompositeOperation = 'destination-in';
+                const bok = g.createLinearGradient(0, 0, 32, 0);
+                bok.addColorStop(0, 'rgba(0,0,0,0)'); bok.addColorStop(0.5, 'rgba(0,0,0,1)'); bok.addColorStop(1, 'rgba(0,0,0,0)');
+                g.fillStyle = bok; g.fillRect(0, 0, 32, 64);
+                teksturaCienia = new THREE.CanvasTexture(c);
+                geometriaCienia = new THREE.PlaneGeometry(1, 1);
+                geometriaCienia.rotateX(-Math.PI / 2);
+                geometriaCienia.translate(0, 0, -0.5);
+            }
+            const m = new THREE.Mesh(geometriaCienia, new THREE.MeshBasicMaterial({ map: teksturaCienia, transparent: true, depthWrite: false }));
+            m.userData.unitType = 'fx';
+            m.userData.bezCienia = true;
+            m.raycast = () => {};
+            scene.add(m);
+            return cienieOdPochodni[i] = m;
+        }
+        function updateCieniePochodni() {
+            let n = 0;
+            const lista = pochodnieStudni.filter(p => p.L === viewLevel);
+            [...soldiers, ...enemies].forEach(u => {
+                if (u.isDead || !u.mesh || !u.mesh.visible || (u.level || 0) !== viewLevel) return;
+                const px = u.mesh.position.x, pz = u.mesh.position.z;
+                let naj = null, d = 13;
+                lista.forEach(t => { const o = Math.hypot(px - t.x, pz - t.z); if (o < d) { d = o; naj = t; } });
+                if (!naj) return;
+                const c = cienOdPochodni(n++);
+                c.visible = true;
+                c.position.set(px, getLevelY(px, pz, viewLevel) + 0.035, pz);
+                // Płaszczyzna leży na -z, a pas ma biec od pochodni, czyli dalej za postać
+                c.rotation.y = Math.atan2(naj.x - px, naj.z - pz);
+                c.scale.set(0.9, 1, 1.1 + d * 0.28);
+                c.material.opacity = Math.min(1, 1.15 - d / 14);
+            });
+            for (let i = n; i < cienieOdPochodni.length; i++) cienieOdPochodni[i].visible = false;
+        }
+        function zgasLampyPochodni() {
+            lampyPochodni.forEach(l => scene.remove(l));
+            lampyPochodni = [];
+            cienieOdPochodni.forEach(c => scene.remove(c));
+            cienieOdPochodni = []; pochodnieStudni = []; dzwignieStudni = [];
+        }
+        function zapalLampyPochodni() {
+            const ile = trybOszczedny ? 2 : 3;
+            for (let i = 0; i < ile; i++) {
+                const l = new THREE.PointLight(0xffa050, 0, 15, 1.5);
+                l.userData.faza = i * 2.1;
+                scene.add(l);
+                lampyPochodni.push(l);
+            }
+        }
+        function updatePochodnieStudni(time) {
+            if (!lampyPochodni.length) return;
+            updateCieniePochodni();
+            if (time >= nastepnyWyborPochodni) {
+                nastepnyWyborPochodni = time + 500;
+                const cx = cameraFollowTarget.x, cz = cameraFollowTarget.z;
+                const blisko = pochodnieStudni.filter(p => p.L === viewLevel)
+                    .sort((a, b) => Math.hypot(a.x - cx, a.z - cz) - Math.hypot(b.x - cx, b.z - cz));
+                lampyPochodni.forEach((l, i) => {
+                    const p = blisko[i];
+                    l.visible = !!p;
+                    if (p) l.position.set(p.x, p.y, p.z);
+                });
+            }
+            // Płomień drga: dwie fale o różnym tempie, żeby cienie żyły
+            lampyPochodni.forEach(l => {
+                l.intensity = 1.25 + Math.sin(time * 0.011 + l.userData.faza) * 0.25 + Math.sin(time * 0.027 + l.userData.faza * 2) * 0.2;
+            });
+        }
+
+        // ===================== DŹWIGNIE W BOCZNYCH SALACH =====================
+        // Zejście niżej zamyka krata, a podnosi ją mechanizm w jednej z bocznych sal.
+        // Dzięki temu do sal trzeba wejść. Wojownik uruchamia go, stając tuż obok.
+        let dzwignieStudni = [];   // { L, x, z, wajcha, lampka, krata, wlaczona }
+        function mechanizmStudni(rodzaj) {
+            const g = new THREE.Group();
+            const kamien = new THREE.MeshLambertMaterial({ color: 0x5a564c });
+            const metal = new THREE.MeshLambertMaterial({ color: 0x46464c });
+            const lampka = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff3020 }));
+            const wajcha = new THREE.Group();
+            if (rodzaj === 0) {          // dźwignia w kamiennym cokole
+                const cokol = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.5), kamien); cokol.position.y = 0.35; g.add(cokol);
+                const drag = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.8, 6), metal); drag.position.y = 0.4; wajcha.add(drag);
+                const galka = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), new THREE.MeshLambertMaterial({ color: 0x8a2a20 })); galka.position.y = 0.82; wajcha.add(galka);
+                wajcha.position.y = 0.7; wajcha.rotation.z = 0.6;
+                lampka.position.set(0, 0.55, 0.28);
+            } else if (rodzaj === 1) {   // koło kołowrotu z łańcuchem
+                const slup = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.3, 0.3), kamien); slup.position.y = 0.65; g.add(slup);
+                const kolo = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.05, 6, 14), metal); wajcha.add(kolo);
+                for (let i = 0; i < 3; i++) { const sz = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.05, 0.05), metal); sz.rotation.z = i * 1.047; wajcha.add(sz); }
+                wajcha.position.set(0, 1.0, 0.2);
+                lampka.position.set(0, 1.42, 0);
+            } else {                     // zębata przekładnia z korbą
+                const skrzynia = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.9, 0.55), new THREE.MeshLambertMaterial({ color: 0x4a3a28 })); skrzynia.position.y = 0.45; g.add(skrzynia);
+                const tryb = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.1, 10), metal); tryb.rotation.x = Math.PI / 2; wajcha.add(tryb);
+                const korba = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.5, 0.06), metal); korba.position.set(0, 0.22, 0.08); wajcha.add(korba);
+                wajcha.position.set(0, 0.55, 0.32);
+                lampka.position.set(0.32, 0.98, 0);
+            }
+            g.add(wajcha); g.add(lampka);
+            g.add(new THREE.PointLight(0xff5030, 0.7, 5, 1.6));
+            g.children[g.children.length - 1].position.y = 1.2;
+            g.userData.wajcha = wajcha; g.userData.lampka = lampka; g.userData.rodzajMechanizmu = rodzaj;
+            g.userData.swiatelko = g.children[g.children.length - 1];
+            return g;
+        }
+
+        function postawDzwignieStudni(dodaj) {
+            dzwignieStudni = [];
+            for (let L = 1; L < MAX_LEVELS; L++) {
+                const zejscie = studniaDrabiny.find(d => d.gora === L);
+                const sale = studniaKorytarze.filter(k => k.L === L);
+                if (!zejscie || !sale.length) continue;
+                const sala = sale[Math.floor(Math.random() * sale.length)];
+                const mech = mechanizmStudni(L % 3);
+                mech.position.set(sala.x, getLevelY(sala.x, sala.z, L), sala.z);
+                mech.userData.mglaProbki = [{ x: sala.x, z: sala.z }];
+                dodaj(mech, L);
+                const krata = new THREE.Group();
+                const pret = new THREE.MeshLambertMaterial({ color: 0x3a3a40 });
+                for (let i = -2; i <= 2; i++) {
+                    const a = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.06, 0.06), pret); a.position.set(0, 0.06, i * 0.22); krata.add(a);
+                    const b = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 1.1), pret); b.position.set(i * 0.22, 0.09, 0); krata.add(b);
+                }
+                krata.position.set(zejscie.x, getLevelY(zejscie.x, zejscie.z, L), zejscie.z);
+                krata.userData.mglaProbki = [{ x: zejscie.x, z: zejscie.z }];
+                dodaj(krata, L);
+                dzwignieStudni.push({ L, x: sala.x, z: sala.z, mech, krata, wlaczona: false });
+            }
+        }
+
+        function zejscieOtwarte(L) {
+            const d = dzwignieStudni.find(m => m.L === L);
+            return !d || d.wlaczona;
+        }
+
+        function updateDzwignieStudni() {
+            if (!dzwignieStudni.length || gameOver) return;
+            dzwignieStudni.forEach(d => {
+                if (d.wlaczona) return;
+                const kto = soldiers.find(s => !s.isDead && s.mesh && (s.level || 0) === d.L &&
+                    Math.max(Math.abs(Math.round(s.mesh.position.x) - d.x), Math.abs(Math.round(s.mesh.position.z) - d.z)) <= 1);
+                if (!kto) return;
+                d.wlaczona = true;
+                const u = d.mech.userData;
+                if (u.rodzajMechanizmu === 0) u.wajcha.rotation.z = -0.6; else u.wajcha.rotation.z = 1.6;
+                u.lampka.material.color.setHex(0x40ff70);
+                u.swiatelko.color.setHex(0x40ff70);
+                scene.remove(d.krata);
+                wiezaOzdoby = wiezaOzdoby.filter(m => m !== d.krata);
+                playFileSfx(AudioFiles.wallHit, 0.7);
+                showFloatingWarning('W głębi zgrzytnęła krata - zejście otwarte.');
+                updateUI(`${kto.name} uruchamia mechanizm. Krata nad drabiną na tym poziomie podniosła się.`);
+            });
+        }
+
         function wystrojStudni(dodaj) {
+            zgasLampyPochodni();
             for (let L = 0; L < MAX_LEVELS; L++) {
                 const r = STUDNIA_PROMIEN_BAZA + L * 2, y = getLevelY(0, 0, L);
                 const zestaw = ZESTAWY_STUDNI[L % ZESTAWY_STUDNI.length];
@@ -38918,9 +39151,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     sek.probki.push({ x: Math.round(Math.cos(a) * (r - 1)), z: Math.round(Math.sin(a) * (r - 1)) });
                     if (i % 2) PRZEDMIOTY_STUDNI.kolumna(sek.b);
                     else {
-                        sek.b.box(0.06, 0.5, 0.06, 0x3a2e22, 0, 0.95, 0.08);
-                        sek.b.walec(0.09, 0.05, 0.14, 0x46464a, 0, 1.42, 0.08);
-                        sek.b.kula(0.1, 0xffa040, 0, 1.62, 0.08, true);
+                        sek.b.box(0.1, 0.1, 0.5, 0x2e2e32, 0, 1.0, 0.2);
+                        sek.b.box(0.09, 0.62, 0.09, 0x3a2e22, 0, 1.0, 0.42);
+                        sek.b.walec(0.13, 0.07, 0.18, 0x46464a, 0, 1.58, 0.42);
+                        sek.b.kula(0.15, 0xff9030, 0, 1.84, 0.42, true);
+                        sek.b.kula(0.08, 0xffe080, 0, 1.92, 0.42, true);
+                        pochodnieStudni.push({ L: L, x: Math.cos(a) * (r - 0.35), y: y + 1.85, z: Math.sin(a) * (r - 0.35) });
                     }
                 }
                 // W głębi komory: gęsto, ale z dala od drabin, żeby przejścia były czytelne
@@ -38941,6 +39177,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 sektory.forEach(s => {
                     if (!s.probki.length) return;
                     const g = s.b.siatka();
+                    g.children.forEach(m => { m.castShadow = true; m.receiveShadow = true; });
                     g.userData.mglaProbki = s.probki;
                     dodaj(g, L);
                 });
@@ -38954,6 +39191,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const dodaj = (bryla, L) => {
                 bryla.userData.pietro = L;
                 bryla.userData.bezCienia = true;
+                bryla.traverse(ch => { if (ch.isMesh) ch.receiveShadow = true; });
                 // Mgła wojny nie ruszała wiezaOzdoby - cała kondygnacja razem
                 // z komnatami była widoczna od pierwszej klatki. Każda bryła
                 // dostaje listę pól, których odkrycie ją odsłania; długa ściana
@@ -38999,6 +39237,31 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     plaszcz.position.set(0, y + FLOOR_HEIGHT / 2, 0);
                     plaszcz.userData.mglaProbki = probkiLuku(r, od, dl);
                     dodaj(plaszcz, L);
+                    // Gruby mur: lico zewnętrzne, korona na górze i czoła przy wejściach
+                    const GRUBOSC_SZYBU = 1.2, rZew = r + 0.6 + GRUBOSC_SZYBU;
+                    const kawalki = [];
+                    const lico = new THREE.Mesh(
+                        new THREE.CylinderGeometry(rZew, rZew, FLOOR_HEIGHT,
+                            Math.max(3, Math.round(28 * dl / (Math.PI * 2))), 1, true, od, dl),
+                        materialMuru(przyciemnij(barwa, 0.8), Math.max(1, Math.round(r * dl / 3)), 1, { side: THREE.DoubleSide }));
+                    lico.position.set(0, y + FLOOR_HEIGHT / 2, 0);
+                    kawalki.push(lico);
+                    // Pierścień leży w XY, a walec liczy kąt od osi Z: stąd pi/2 - kąt i obrót o +pi/2
+                    const korona = new THREE.Mesh(
+                        new THREE.RingGeometry(r + 0.6, rZew, Math.max(3, Math.round(28 * dl / (Math.PI * 2))), 1, Math.PI / 2 - od - dl, dl),
+                        materialMuru(przyciemnij(barwa, 1.25), Math.max(1, Math.round(r * dl / 2)), 1, { side: THREE.DoubleSide }));
+                    korona.rotation.x = Math.PI / 2;
+                    korona.position.set(0, y + FLOOR_HEIGHT, 0);
+                    kawalki.push(korona);
+                    [od, od + dl].forEach(kat => {
+                        const czolo = new THREE.Mesh(new THREE.BoxGeometry(0.12, FLOOR_HEIGHT, GRUBOSC_SZYBU),
+                            materialMuru(przyciemnij(barwa, 1.1), 1, 1));
+                        const sr = r + 0.6 + GRUBOSC_SZYBU / 2;
+                        czolo.position.set(Math.sin(kat) * sr, y + FLOOR_HEIGHT / 2, Math.cos(kat) * sr);
+                        czolo.rotation.y = kat;
+                        kawalki.push(czolo);
+                    });
+                    kawalki.forEach(m => { m.userData.mglaProbki = probkiLuku(r, od, dl); dodaj(m, L); });
                     const obrecz = new THREE.Mesh(
                         new THREE.CylinderGeometry(r + 0.75, r + 0.75, 0.28,
                             Math.max(3, Math.round(28 * dl / (Math.PI * 2))), 1, true, od, dl),
@@ -39156,6 +39419,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
 
             wystrojStudni(dodaj);
+            zapalLampyPochodni();
+            postawDzwignieStudni(dodaj);
 
             // DRABINKI - widoczne na obu stykających się kondygnacjach, żeby było
             // jasne, że to przejście, a nie dekoracja.
@@ -44254,7 +44519,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             if (bestTarget.isNPC) applyMoralePenalty(); else refreshPlayerPositions();
                         }
                         checkGameOver(); if (!gameOver) { checkPlayerOverwatch(e, () => { if(!gameOver) setTimeout(processNextEnemy, 500); }); }
-                    }, e.type);
+                    }, zapalajacy ? 'zapalajacy' : e.type);
                     return;
                 }
             }
@@ -44528,12 +44793,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // pojawiało się naraz. Pola zapamiętujemy, żeby dało się
                 // przyciemnić te, których gracz jeszcze nie widział.
                 inst.userData.pola = tiles;
+                if (wStudni) inst.receiveShadow = true;
                 if (wStudni) inst.userData.odcienie = tiles.map(([x, z]) => {
                     const krag = Math.floor(Math.hypot(x, z)) % 4 === 0 ? 0.68 : 1;
                     const kamien = Math.random() < 0.08 ? 0.62 : 0.84 + Math.random() * 0.3;
                     return krag * kamien;
                 });
                 scene.add(inst);
+                if (wStudni) inst.castShadow = false;
                 floorMeshes.push(inst);
             }
             updateFloorVisibility();
@@ -45948,6 +46215,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             updateWodaPlynie(dt);
             animujOgnieOltarzy(time);
             updateStrachy(time);
+            updatePochodnieStudni(time);
+            updateDzwignieStudni();
+            updateDymPostaci();
             updateCampfires(time);
             updateWarriorMixers(dt * spowolnienieCzasu);
             updateThemeMusic();
