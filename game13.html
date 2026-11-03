@@ -9330,7 +9330,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
 
             kapliczkaPositions = [];
-            const kapliczkaCount = 3;
+            const kapliczkaCount = (currentCombatTheme && currentCombatTheme.id === 'newyork') ? 0 : 3;
             for (let i = 0; i < kapliczkaCount; i++) {
                 let placed = false, attempts = 0;
                 while (!placed && attempts < 200) {
@@ -9348,6 +9348,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Pola kukurydzy - kilka płatów wysokich upraw, nie blokują ruchu ani widoczności całkowicie,
             // ale utrudniają celowanie (patrz calculateHitChance / isCornfield)
             const isNYMap = currentCombatTheme && currentCombatTheme.id === 'newyork';
+            // Nowy Jork bez szarych bloków: mury celów misji dochodzą dopiero później
+            if (isNYMap) {
+                obstaclePositions = obstaclePositions.filter(p => {
+                    if (p.type !== 'wall-resistant' && p.type !== 'wall-destructible') return true;
+                    obstacleGrid[p.x + offsetX][p.z + offsetZ] = null;
+                    obstacleMap.delete(`${p.x},${p.z}`);
+                    return false;
+                });
+            }
             // Wyposażenie chodników w miastach: równy rytm co 12 pól między lampami,
             // kosze i skrzynki tylko gdzieniegdzie, a przy krawężniku zaparkowane auta.
             if (currentCombatTheme && KAMIENICE_PLANSZE.indexOf(currentCombatTheme.id) !== -1) {
