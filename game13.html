@@ -28753,6 +28753,23 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return g;
         }
 
+        // Od jakiego etapu rozwoju pojawia się dany wróg. Czego tu nie ma, pojawia się od początku.
+        const ETAP_WROGA = {
+            stalker: 2, summoner: 2, skorpion: 2, roj: 2, ogar: 2, strzyga: 2, robot: 2,
+            brute: 3, glizda: 3, spider_big: 3, gargulec: 3, poborca: 3, lustrzak: 3,
+            vampire: 4, obzeracz: 4, gasiciel: 4, zalobnica: 4, wydrazony: 4, matrona: 4, skorpion_duzy: 4,
+            oltarznik: 5, bluznierca: 5, blizniaki: 5, bezimienny: 5
+        };
+        // Etap rośnie z poziomem postaci albo z aktem kampanii, co wyższe: kto
+        // tylko walczy i nie zbiera dobrych uczynków, też w końcu spotka silniejszych.
+        function etapRozwoju() {
+            return Math.max(playerStats.level || 1, 1 + aktualnyAkt());
+        }
+        function wrogOdblokowany(typ) {
+            if (forcedThemeId) return true;   // panel testowy pokazuje wszystkich
+            return etapRozwoju() >= (ETAP_WROGA[typ] || 1);
+        }
+
         function spawnEnemies() {
             if(enemies.length > 0) {
                 enemies.forEach(e => {
@@ -29098,7 +29115,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     mesh = createVampireMesh(); 
                 } else { 
                     type = 'standard'; maxHp = 10; maxAp = 10; 
-                    mesh = createCharacter(0xff4444, 0xaaffaa, 0x111111, 1, type); 
+                    mesh = createCharacter(0xff4444, 0xaaffaa, 0x111111, 1, type);
+                }
+                // Na początku drogi silniejsi wrogowie ustępują miejsca słabszym
+                if (!wrogOdblokowany(type)) {
+                    gatunekTegoWroga = null; podrobionyNaKim = null; accuracyBonus = 0;
+                    if (Math.random() < 0.6) { type = 'standard'; maxHp = 10; maxAp = 10; mesh = createCharacter(0xff4444, 0xaaffaa, 0x111111, 1, type); }
+                    else { type = 'fast'; maxHp = 7; maxAp = 10; accuracyBonus = 10; mesh = createCharacter(0xcc00ff, 0xddbbdd, 0x111111, 0.7, type); }
                 }
 
                 mesh.position.set(ex, ey + mesh.userData.yOffset, ez);
