@@ -17457,10 +17457,26 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return obstacleGrid[mx][mz] !== null;
         }
 
+        // Poziom, na którym toczy się wymiana ognia. Wywołania znają tylko pola, więc szukamy,
+        // kto na nich stoi. Na jednym polu mogą stać jednostki z różnych pięter.
+        function poziomWymiany(x, z, ax, az) {
+            const naPolu = (px, pz) => [...soldiers, ...enemies]
+                .filter(u => !u.isDead && u.mesh && Math.round(u.mesh.position.x) === Math.round(px) && Math.round(u.mesh.position.z) === Math.round(pz))
+                .map(u => u.level || 0);
+            const cel = naPolu(x, z), strzelec = naPolu(ax, az);
+            const wspolny = cel.find(l => strzelec.includes(l));
+            return wspolny !== undefined ? wspolny : (cel.length ? cel[0] : (strzelec[0] || 0));
+        }
+
         function getCoverObstacle(unitX, unitZ, attackerX, attackerZ) {
             let dx = attackerX - unitX, dz = attackerZ - unitZ;
             if (dx === 0 && dz === 0) return null;
             let steps = Math.max(Math.abs(dx), Math.abs(dz)), checkX = Math.round(unitX + (dx / steps)), checkZ = Math.round(unitZ + (dz / steps));
+            // W Wieży na piętrach osłaniają meble tego piętra, a nie to, co stoi na parterze
+            if (currentCombatTheme && currentCombatTheme.id === 'wieza') {
+                const L = poziomWymiany(unitX, unitZ, attackerX, attackerZ);
+                if (L > 0) return mebelNaPietrze(checkX, checkZ, L) ? { x: checkX, z: checkZ, type: 'mebel_wiezy', poziom: L } : null;
+            }
             let mx = checkX + offsetX, mz = checkZ + offsetZ;
             if (mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth) return obstacleGrid[mx][mz];
             return null;
@@ -17495,7 +17511,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         // Osłony, których pudło nie niszczy
-        const NIEZNISZCZALNE_OSLONY = ['wall-resistant', 'skrzynia_metal', 'rumowisko', 'wrak_osobowy', 'wrak_ciezarowy', 'wrak-czesc', 'kontener', 'pal'];
+        const NIEZNISZCZALNE_OSLONY = ['wall-resistant', 'skrzynia_metal', 'rumowisko', 'wrak_osobowy', 'wrak_ciezarowy', 'wrak-czesc', 'kontener', 'pal', 'mebel_wiezy'];
 
         // ===================== CO SIĘ PRZEWRACA =====================
         // Wysokie konstrukcje nie znikają po pudle - walą się na sąsiednie pole
@@ -29915,7 +29931,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             projectile.position.set(startX, startY + 0.5, startZ); scene.add(projectile);
             let endX = targetX, endY = targetY + 0.5, endZ = targetZ;
             if (!isHit) {
-                if (hitObstacle) { endX = hitObstacle.x; endZ = hitObstacle.z; endY = getTerrainY(endX, endZ) + 0.5; } 
+                if (hitObstacle) { endX = hitObstacle.x; endZ = hitObstacle.z; endY = getLevelY(endX, endZ, hitObstacle.poziom) + 0.5; }
                 else { endX += (Math.random() > 0.5 ? 1 : -1) * 2; endZ += (Math.random() > 0.5 ? 1 : -1) * 2; endY += (Math.random() > 0.5 ? 1 : -1) * 1; }
             }
             projectile.lookAt(endX, endY, endZ);
@@ -30140,7 +30156,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return przedrostek + (NAZWY_WROGOW[e.type] || (e.type || '').toUpperCase());
         }
 
-        const NISKIE_PRZESZKODY = ['lozko', 'wozek', 'kroplowka', 'kra', 'wlocznie', 'balustrada', 'skrzynia', 'skrzynia_metal', 'rumowisko', 'tor', 'krata', 'prycza', 'kibel', 'ruina', 'zachod-weranda', 'koniowiaz', 'woz',
+        const NISKIE_PRZESZKODY = ['mebel_wiezy', 'lozko','wozek', 'kroplowka', 'kra', 'wlocznie', 'balustrada', 'skrzynia', 'skrzynia_metal', 'rumowisko', 'tor', 'krata', 'prycza', 'kibel', 'ruina', 'zachod-weranda', 'koniowiaz', 'woz',
                                    'rock', 'kloda', 'lawka', 'kosz', 'zywoplot', 'beczka', 'beczka_prochu',
                                    'stos_opon', 'hydrant', 'paleta', 'stos_drewna',
                                    'nagrobek', 'crate', 'barrel', 'bush', 'grave', 'tombstone'];
@@ -30180,8 +30196,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 
                 let terrainY = heightMap[mx][mz];
                 if (checkX === x1 && checkZ === z1) break; 
-                if (Math.round(y) < terrainY) return false; 
-                
+                if (Math.round(y) < terrainY) return false;
+
+                // Meble Wieży na piętrach: ta sama zasada co niska osłona na parterze
+                if (!tylkoWidocznosc && currentCombatTheme && currentCombatTheme.id === 'wieza' &&
+                    mebelNaPietrze(checkX, checkZ, Math.floor((y - terrainY) / FLOOR_HEIGHT)) &&
+                    Math.max(Math.abs(checkX - x0), Math.abs(checkZ - z0)) > 1 && Math.max(Math.abs(checkX - x1), Math.abs(checkZ - z1)) > 1) return false;
+
                 let obs = obstacleGrid[mx][mz];
                 if (obs !== null) {
                     // Rzeka i lawa leżą na poziomie gruntu - blokują przejście, ale nie strzał
@@ -41180,14 +41201,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const WIEZA_BARWY_MUROW = [0x6a645a, 0x5a6068, 0x62564a, 0x4e584e, 0x5e4a58, 0x484a5c, 0x5a3e3e, 0x4a2c34];
         const WIEZA_PIETRA = [
             { sprzet: ['recepcja', 'kanapa', 'donica', 'kolumna', 'lawka'], dywan: 0x7a1426 },
-            { sprzet: ['biurko', 'biurko', 'szafa_akta', 'ksero', 'donica'], dywan: 0x2a3a50 },
-            { sprzet: ['szafa_akta', 'regal', 'szafa_akta', 'regal', 'lampa'], dywan: 0x4a3a2a },
-            { sprzet: ['regal', 'regal', 'globus', 'lampa', 'kanapa'], dywan: 0x24452c },
-            { sprzet: ['stol_jadalny', 'kredens', 'kolumna', 'lampa', 'bar'], dywan: 0x6e1f2c },
-            { sprzet: ['obraz', 'rzezba', 'lawka', 'kolumna', 'fortepian'], dywan: 0x2a2a44 },
+            { sprzet: ['biurko', 'biurko', 'szafa_akta', 'ksero', 'kanapa'], dywan: 0x2a3a50 },
+            { sprzet: ['szafa_akta', 'regal', 'szafa_akta', 'regal', 'biurko'], dywan: 0x4a3a2a },
+            { sprzet: ['regal', 'regal', 'biurko', 'biurko', 'kanapa'], dywan: 0x24452c },
+            { sprzet: ['stol_jadalny', 'kredens', 'kolumna', 'stol_jadalny', 'bar'], dywan: 0x6e1f2c },
+            { sprzet: ['kredens', 'rzezba', 'lawka', 'kolumna', 'fortepian'], dywan: 0x2a2a44 },
             { sprzet: ['kanapa', 'kominek', 'bar', 'rzezba', 'oltarz'], dywan: 0x4a1a4a },
             { sprzet: ['oltarz', 'kociol', 'runy', 'czaszki', 'krysztaly'], dywan: 0x3a0a14 }
         ];
+
+        const WIEZA_BEZ_OSLONY = ['runy'];   // znak na posadzce nie zasłania
 
         function wystrojWiezy() {
             const B = WIEZA_BOK, SZ = WIEZA_SZYB;
@@ -41253,12 +41276,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     b.walec(0.42, 0.26, 0.07, 0xb8963c, cx, 1.66, cz);
                     for (let k = 0; k < 6; k++) b.kula(0.06, 0xfff0c0, cx + Math.cos(k * 1.047) * 0.36, 1.62, cz + Math.sin(k * 1.047) * 0.36, true);
                 }
-                // Sprzęt piętra. Parter ma już swoje osłony, więc tam tylko dopełniamy
+                // Sprzęt piętra to osłony w walce. Parter ma już swoje, więc tam tylko dopełniamy
                 const rzedy = L === 0 ? 7 : 4;
                 for (let x = -B + 3; x < B - 2; x += rzedy) for (let z = -B + 3; z < B - 2; z += rzedy) {
                     if (Math.max(Math.abs(x), Math.abs(z)) <= SZ + 3 || Math.min(Math.abs(x), Math.abs(z)) <= 2) continue;
-                    if (L === 0 && isObstacle(x, z)) continue;
+                    if ((L === 0 && isObstacle(x, z)) || isUnitAtLevel(x, z, L, null)) continue;
                     const nazwa = plan.sprzet[Math.floor(Math.random() * plan.sprzet.length)];
+                    if (WIEZA_BEZ_OSLONY.indexOf(nazwa) === -1) {
+                        if (L > 0) mebleNaPietrach.add(L + ',' + x + ',' + z);
+                        else obstacleGrid[x + offsetX][z + offsetZ] = { x: x, z: z, type: 'mebel_wiezy' };
+                    }
                     const os = Math.random() < 0.5;
                     const zn = Math.random() < 0.5 ? 1 : -1;
                     b.ustaw(x, y, z, os ? zn : 0, os ? 0 : zn);
