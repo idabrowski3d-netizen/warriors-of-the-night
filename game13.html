@@ -5363,7 +5363,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function updateWeatherParticles(dt) {
             if (!weatherParticles) return;
             // W głębi szybu nie pada
-            weatherParticles.visible = !(currentCombatTheme && currentCombatTheme.id === 'studnia');
+            weatherParticles.visible = !(currentCombatTheme && ['studnia', 'wieza'].includes(currentCombatTheme.id));
             const posAttr = weatherParticles.geometry.attributes.position;
             const vel = weatherParticles.userData.velocities;
             const t = weatherParticles.userData.type;
@@ -9365,6 +9365,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             // Pola kukurydzy - kilka płatów wysokich upraw, nie blokują ruchu ani widoczności całkowicie,
             // ale utrudniają celowanie (patrz calculateHitChance / isCornfield)
+            if (currentCombatTheme && currentCombatTheme.id === 'wieza') {
+                const B = WIEZA_BOK;
+                const wGmachu = (x, z) => Math.abs(x) <= B && Math.abs(z) <= B;
+                obstaclePositions = obstaclePositions.filter(p => wGmachu(p.x, p.z));
+                houses = [];
+                themedLandmarkDecor = themedLandmarkDecor.filter(d => wGmachu(d.x, d.z));
+                for (let mx = 0; mx < mapWidth; mx++) for (let mz = 0; mz < mapDepth; mz++) {
+                    if (wGmachu(mx - offsetX, mz - offsetZ)) continue;
+                    obstacleGrid[mx][mz] = { type: 'przepasc', x: mx - offsetX, z: mz - offsetZ };
+                    cornfieldGrid[mx][mz] = 0;
+                }
+            }
             const isNYMap = currentCombatTheme && currentCombatTheme.id === 'newyork';
             // Nowy Jork bez szarych bloków: mury celów misji dochodzą dopiero później
             if (isNYMap) {
@@ -14824,6 +14836,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             obstacleMeshes.forEach(m => scene.remove(m));
             obstacleMeshes = [];
             strachy = [];
+            kominyWulkanu = [];
             wyczyscDrzewaZbiorcze();   // stare drzewa zbiorcze znikają razem z planszą
             wyczyscNakladkiPodlog();   // posadzki też - inaczej zostają po poprzedniej misji
             wyczyscWrotaIzb();
@@ -16939,6 +16952,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     g.position.set(pos.x, ty, pos.z);
                     g.rotation.y = Math.random() * Math.PI * 2;
                     scene.add(g); obstacleMeshes.push(g);
+                    if (pos.type === 'komin_wulkaniczny') kominyWulkanu.push({ mesh: g, x: pos.x, z: pos.z, y: ty, nastepny: Math.random() * 600 });
                     if (pos.type === 'strach_na_wroble') strachy.push({ mesh: g, x: pos.x, z: pos.z, nastepnie: 0, isDead: false });
                 }
                 else if (pos.type === 'gravestone') {
@@ -29839,7 +29853,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Kłąb dymu: sprite, który unosi się, rośnie i blednie. Limit chroni płynność.
         const DYM_LIMIT = 120;
         let ileDymu = 0, teksturaDymu = null;
-        function klabDymu(x, y, z, barwa, rozmiar, czas) {
+        function klabDymu(x, y, z, barwa, rozmiar, czas, wznos) {
             if (ileDymu >= DYM_LIMIT) return;
             if (!teksturaDymu) {
                 const c = document.createElement('canvas'); c.width = c.height = 64;
@@ -29860,11 +29874,22 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             activeAnimations.push(function (time) {
                 const p = (time - t0) / czas;
                 if (p >= 1) { scene.remove(sp); mat.dispose(); ileDymu--; return true; }
-                sp.position.y = y0 + p * 0.9;
+                sp.position.y = y0 + p * (wznos || 0.9);
                 sp.position.x = x0 + p * dryfX;
                 sp.scale.setScalar(rozmiar * (1 + p * 1.6));
                 mat.opacity = 0.8 * (1 - p);
                 return false;
+            });
+        }
+
+        // Kominy wulkanu dymią bez przerwy, ale tylko te widoczne i blisko kamery
+        let kominyWulkanu = [];
+        function updateDymKominow(time) {
+            kominyWulkanu.forEach(k => {
+                if (time < k.nastepny || !k.mesh.parent || !k.mesh.visible) return;
+                if (Math.hypot(k.x - cameraFollowTarget.x, k.z - cameraFollowTarget.z) > 22) return;
+                k.nastepny = time + 420 + Math.random() * 300;
+                klabDymu(k.x, k.y + 1.0, k.z, Math.random() < 0.25 ? 0xb06030 : 0x6e665e, 0.9 + Math.random() * 0.5, 2600, 3.2);
             });
         }
 
@@ -37928,7 +37953,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Za mgłą była czerń. Teraz każda plansza ma w oddali swoją sylwetkę: ścianę
         // drzew, góry, panoramę miasta, dalekie wyspy. Bez mgły sceny (stoi dalej, niż
         // sięga mgła), za to w barwach zmieszanych z mgłą - ma wyglądać na daleką.
-        const HORYZONT_BEZ = ['studnia', 'katedra', 'dom', 'wieza', 'studnia', 'klaustrofobia', 'alcatraz'];
+        const HORYZONT_BEZ = ['wieza', 'studnia', 'katedra', 'dom', 'wieza', 'studnia', 'klaustrofobia', 'alcatraz'];
         const HORYZONT = {
             las:      [{ f: 'stozek', barwa: 0x16301c, h: [8, 16], r: [2, 3.5], ile: 140 }],
             amazonia: [{ f: 'kula', barwa: 0x1e4a22, h: [6, 12], r: [3, 5], ile: 110 }, { f: 'stozek', barwa: 0x16361a, h: [10, 18], r: [1.5, 2.5], ile: 40 }],
@@ -41150,6 +41175,104 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return usunietych;
         }
 
+        // Każde piętro ma inną rolę: im wyżej, tym bliżej tajemnicy gmachu
+        const WIEZA_POSADZKI = [0x8a8478, 0x6e7680, 0x7a6a58, 0x5e6a5e, 0x75566a, 0x5a5a70, 0x704a4a, 0x5a3a44];
+        const WIEZA_BARWY_MUROW = [0x6a645a, 0x5a6068, 0x62564a, 0x4e584e, 0x5e4a58, 0x484a5c, 0x5a3e3e, 0x4a2c34];
+        const WIEZA_PIETRA = [
+            { sprzet: ['recepcja', 'kanapa', 'donica', 'kolumna', 'lawka'], dywan: 0x7a1426 },
+            { sprzet: ['biurko', 'biurko', 'szafa_akta', 'ksero', 'donica'], dywan: 0x2a3a50 },
+            { sprzet: ['szafa_akta', 'regal', 'szafa_akta', 'regal', 'lampa'], dywan: 0x4a3a2a },
+            { sprzet: ['regal', 'regal', 'globus', 'lampa', 'kanapa'], dywan: 0x24452c },
+            { sprzet: ['stol_jadalny', 'kredens', 'kolumna', 'lampa', 'bar'], dywan: 0x6e1f2c },
+            { sprzet: ['obraz', 'rzezba', 'lawka', 'kolumna', 'fortepian'], dywan: 0x2a2a44 },
+            { sprzet: ['kanapa', 'kominek', 'bar', 'rzezba', 'oltarz'], dywan: 0x4a1a4a },
+            { sprzet: ['oltarz', 'kociol', 'runy', 'czaszki', 'krysztaly'], dywan: 0x3a0a14 }
+        ];
+
+        function wystrojWiezy() {
+            const B = WIEZA_BOK, SZ = WIEZA_SZYB;
+            for (let L = 0; L < MAX_LEVELS; L++) {
+                const y = getLevelY(0, 0, L), plan = WIEZA_PIETRA[L], mur = WIEZA_BARWY_MUROW[L];
+                const b = zbieraczBryl(), probki = [];
+                for (let x = -B + 2; x < B; x += 5) for (let z = -B + 2; z < B; z += 5) probki.push({ x, z });
+                b.ustaw(0, y, 0, 0, 1);
+                // Parter nie ma stropu pod spodem, więc dostaje własną posadzkę
+                if (L === 0) {
+                    for (let x = -B + 1; x < B; x++) for (let z = -B + 1; z < B; z++) {
+                        const ciemna = (Math.floor(x / 2) + Math.floor(z / 2)) % 2;
+                        b.box(1, 0.02, 1, ciemna ? 0x5a564e : 0x8e887a, x, -0.012, z);
+                    }
+                }
+                // Mury zewnętrzne z oknami: na parterze stoi już prawdziwy mur
+                if (L > 0) for (const s of [-1, 1]) {
+                    b.box(B * 2 + 1.8, FLOOR_HEIGHT, 0.9, mur, 0, 0, s * (B + 0.1));
+                    b.box(0.9, FLOOR_HEIGHT, B * 2 + 1.8, mur, s * (B + 0.1), 0, 0);
+                    b.box(B * 2 + 1.8, 0.1, 1.0, 0x8a7440, 0, FLOOR_HEIGHT - 0.1, s * (B + 0.1));
+                    b.box(1.0, 0.1, B * 2 + 1.8, 0x8a7440, s * (B + 0.1), FLOOR_HEIGHT - 0.1, 0);
+                }
+                for (let t = -B + 3; t < B; t += 4) for (const s of [-1, 1]) {
+                    if (L > 0) {
+                        b.box(1.1, 1.15, 0.05, 0x20283c, t, 0.5, s * (B - 0.37), false);
+                        b.box(0.9, 0.95, 0.03, 0x4f6a96, t, 0.6, s * (B - 0.4), true);
+                        b.box(0.06, 0.95, 0.04, 0x20283c, t, 0.6, s * (B - 0.42));
+                        b.box(0.05, 1.15, 1.1, 0x20283c, s * (B - 0.37), 0.5, t);
+                        b.box(0.03, 0.95, 0.9, 0x4f6a96, s * (B - 0.4), 0.6, t, true);
+                        b.box(0.04, 0.95, 0.06, 0x20283c, s * (B - 0.42), 0.6, t);
+                    }
+                    // Pilastry między oknami
+                    b.box(0.32, FLOOR_HEIGHT, 0.2, przyciemnij(mur, 1.25), t + 2, 0, s * (B - 0.45));
+                    b.box(0.2, FLOOR_HEIGHT, 0.32, przyciemnij(mur, 1.25), s * (B - 0.45), 0, t + 2);
+                }
+                // Kinkiety: te najbliżej widoku naprawdę świecą
+                for (let t = -B + 5; t < B; t += 8) for (const [kx, kz] of [[t, -B + 0.7], [t, B - 0.7], [-B + 0.7, t], [B - 0.7, t]]) {
+                    b.box(0.12, 0.3, 0.12, 0x8a7440, kx, 1.2, kz);
+                    b.kula(0.13, 0xffc070, kx, 1.58, kz, true);
+                    pochodnieStudni.push({ L: L, x: kx * 0.96, y: y + 1.6, z: kz * 0.96 });
+                }
+                // Ochronna balustrada i złote słupy szybu windy
+                if (L > 0) for (const s of [-1, 1]) {
+                    b.box(SZ * 2 + 1.4, 0.06, 0.08, 0xc8a040, 0, 0.72, s * (SZ + 0.6));
+                    b.box(0.08, 0.06, SZ * 2 + 1.4, 0xc8a040, s * (SZ + 0.6), 0.72, 0);
+                    for (let t = -SZ; t <= SZ; t += 1) {
+                        b.box(0.04, 0.72, 0.04, 0x8a7440, t, 0, s * (SZ + 0.6));
+                        b.box(0.04, 0.72, 0.04, 0x8a7440, s * (SZ + 0.6), 0, t);
+                    }
+                }
+                for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box(0.3, FLOOR_HEIGHT, 0.3, 0xb8963c, sx * (SZ + 0.6), 0, sz * (SZ + 0.6));
+                // Dywany wiodące od ścian do szybu
+                for (let t = SZ + 1.5; t < B - 1; t += 1) for (const [dx, dz] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+                    const wx = dx * t, wz = dz * t;
+                    b.box(dx ? 1 : 2.4, 0.015, dz ? 1 : 2.4, plan.dywan, wx, 0.01, wz);
+                    b.box(dx ? 1 : 0.08, 0.018, dz ? 1 : 0.08, 0xb8963c, wx + (dz ? 1.12 : 0), 0.01, wz + (dx ? 1.12 : 0));
+                    b.box(dx ? 1 : 0.08, 0.018, dz ? 1 : 0.08, 0xb8963c, wx - (dz ? 1.12 : 0), 0.01, wz - (dx ? 1.12 : 0));
+                }
+                // Żyrandole w czterech ćwiartkach sali
+                for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+                    const cx = sx * Math.round(B * 0.55), cz = sz * Math.round(B * 0.55);
+                    b.walec(0.02, 0.02, 0.25, 0x8a7440, cx, 1.72, cz);
+                    b.walec(0.42, 0.26, 0.07, 0xb8963c, cx, 1.66, cz);
+                    for (let k = 0; k < 6; k++) b.kula(0.06, 0xfff0c0, cx + Math.cos(k * 1.047) * 0.36, 1.62, cz + Math.sin(k * 1.047) * 0.36, true);
+                }
+                // Sprzęt piętra. Parter ma już swoje osłony, więc tam tylko dopełniamy
+                const rzedy = L === 0 ? 7 : 4;
+                for (let x = -B + 3; x < B - 2; x += rzedy) for (let z = -B + 3; z < B - 2; z += rzedy) {
+                    if (Math.max(Math.abs(x), Math.abs(z)) <= SZ + 3 || Math.min(Math.abs(x), Math.abs(z)) <= 2) continue;
+                    if (L === 0 && isObstacle(x, z)) continue;
+                    const nazwa = plan.sprzet[Math.floor(Math.random() * plan.sprzet.length)];
+                    const os = Math.random() < 0.5;
+                    const zn = Math.random() < 0.5 ? 1 : -1;
+                    b.ustaw(x, y, z, os ? zn : 0, os ? 0 : zn);
+                    const rys = MEBLE_KAMIENIC[nazwa] || PRZEDMIOTY_STUDNI[nazwa];
+                    rys(b, nazwa === 'krysztaly' || nazwa === 'runy' ? 0xff3050 : plan.dywan);
+                }
+                const g = b.siatka();
+                g.userData.pietro = L;
+                g.userData.mglaProbki = probki;
+                scene.add(g);
+                wiezaOzdoby.push(g);
+            }
+        }
+
         function ozdobWieze() {
             wyczyscOzdobyWiezy();
             if (!currentCombatTheme || currentCombatTheme.id !== 'wieza') return 0;
@@ -41213,6 +41336,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const szczyt = MAX_LEVELS - 1;
             const wielki = kragPrzyzywania(4.2, 6);
             postaw(wielki, wiezaSzyb.x, wiezaSzyb.z + WIEZA_SZYB + 5, szczyt);
+            wystrojWiezy();
+            zapalLampyPochodni();
             return postawione;
         }
 
@@ -44776,9 +44901,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (tiles.length === 0) continue;
                 const geo = new THREE.BoxGeometry(1, 0.14, 1);
                 // Strop też dostaje teksturę - dotąd był jednolitą płytą koloru
+                const wWiezy = !!(currentCombatTheme && currentCombatTheme.id === 'wieza');
                 const wStudni = !!(currentCombatTheme && currentCombatTheme.id === 'studnia');
                 const matStropu = (typeof materialPosadzki === 'function')
-                    ? materialPosadzki(wStudni ? STUDNIA_POSADZKI[L] : (FLOOR_COLORS[L] || 0x8a7f70), 1, { transparent: true, opacity: 1 })
+                    ? materialPosadzki(wStudni ? STUDNIA_POSADZKI[L] : wWiezy ? WIEZA_POSADZKI[L] : (FLOOR_COLORS[L] || 0x8a7f70), 1, { transparent: true, opacity: 1 })
                     : new THREE.MeshLambertMaterial({ color: FLOOR_COLORS[L] || 0x8a7f70, transparent: true, opacity: 1 });
                 const inst = new THREE.InstancedMesh(geo, matStropu, tiles.length);
                 const dummy = new THREE.Object3D();
@@ -44794,6 +44920,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // przyciemnić te, których gracz jeszcze nie widział.
                 inst.userData.pola = tiles;
                 if (wStudni) inst.receiveShadow = true;
+                if (wWiezy) inst.userData.odcienie = tiles.map(([x, z]) =>
+                    ((Math.floor(x / 2) + Math.floor(z / 2)) % 2 ? 1 : 0.62) * (0.92 + Math.random() * 0.16));
                 if (wStudni) inst.userData.odcienie = tiles.map(([x, z]) => {
                     const krag = Math.floor(Math.hypot(x, z)) % 4 === 0 ? 0.68 : 1;
                     const kamien = Math.random() < 0.08 ? 0.62 : 0.84 + Math.random() * 0.3;
@@ -45030,6 +45158,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             floorMeshes.forEach(m => {
                 m.visible = widacPoziom(m.userData.floorLevel);
             });
+            if (currentCombatTheme && currentCombatTheme.id === 'wieza') {
+                // Wnętrze gmachu: czerń za oknami, a posadzkę parteru rysuje wystrój
+                if (scene.background && scene.background.setHex) scene.background.setHex(0x040408);
+                terrainMeshes.forEach(m => { m.visible = false; });
+                nakladkiPodlog.forEach(m => { m.visible = false; });
+            }
             if (tylkoTenPoziom) {
                 // Pod ziemią nie ma nieba: czarne tło zamiast pory dnia
                 if (scene.background && scene.background.setHex) scene.background.setHex(0x050507);
@@ -46218,6 +46352,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             updatePochodnieStudni(time);
             updateDzwignieStudni();
             updateDymPostaci();
+            updateDymKominow(time);
             updateCampfires(time);
             updateWarriorMixers(dt * spowolnienieCzasu);
             updateThemeMusic();
