@@ -31243,7 +31243,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const urzadzonych = urzadzStudnie();
                 updateFloorVisibility();
                 postawOddzialNaSzczycieStudni();
-                const zaloga = zaludnijKomnatyStudni();
+                const zaloga = obsadzStudnie();
                 updateFloorVisibility();
                 showFloatingWarning('W dół. Tylko w dół.');
                 updateUI(`Studnia ma ${MAX_LEVELS} okrągłych kondygnacji, każda ciaśniejsza od poprzedniej. ` +
@@ -49687,6 +49687,111 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Tutaj kazda komnata dostaje wlasna zaloge.
         const STUDNIA_SZANSA_ZALOGI = 0.65;
         const STUDNIA_ZALOGA_TYPY = ['wydrazony', 'bezimienny', 'roj', 'strzyga', 'robak', 'oltarznik'];
+        // ===================== OBSADA STUDNI =====================
+        // Każdej kondygnacji bronią dwie rasy: jedna strzela, druga bije wręcz. Schodzi się
+        // od poziomu 7 do 0, więc im niższy numer, tym wrogów więcej i tym są twardsi.
+        const STUDNIA_WROGOWIE = {
+            standard:   { hp: 10, ap: 10, buduj: () => createCharacter(0xff4444, 0xaaffaa, 0x111111, 1, 'standard') },
+            fast:       { hp: 7,  ap: 10, celnosc: 10, buduj: () => createCharacter(0xcc00ff, 0xddbbdd, 0x111111, 0.7, 'fast') },
+            droid:      { hp: 8,  ap: 12, buduj: () => createDroidMesh() },
+            vampire:    { hp: 15, ap: 12, buduj: () => createVampireMesh() },
+            gargulec:   { hp: GARGULEC_HP, ap: GARGULEC_AP, buduj: () => createGargulecMesh() },
+            blizniaki:  { hp: BLIZNIAKI_HP, ap: BLIZNIAKI_AP, buduj: () => createBlizniakiMesh() },
+            zombie:     { hp: 4,  ap: 8,  buduj: () => createZombieMesh() },
+            stalker:    { hp: 8,  ap: 20, buduj: () => createStalkerMesh() },
+            ogar:       { hp: 9,  ap: 18, buduj: () => createHellhoundMesh() },
+            strzyga:    { hp: 9,  ap: 18, buduj: () => createStrzygaMesh() },
+            brute:      { hp: 15, ap: 13, buduj: () => createCharacter(0xff8800, 0xaa5555, 0x111111, 1.6, 'brute') },
+            wydrazony:  { hp: 13, ap: 12, buduj: () => createWydrazonyMesh() },
+            obzeracz:   { hp: 22, ap: 7,  buduj: () => createObzeraczMesh() },
+            bezimienny: { hp: 26, ap: 6,  buduj: () => createBezimiennyMesh() }
+        };
+        // Indeks to numer kondygnacji: [strzelający, walczący wręcz, strażnik mechanizmu]
+        const STUDNIA_OBSADA = [
+            ['blizniaki', 'bezimienny', 'bezimienny'],   // dno
+            ['gargulec', 'obzeracz', 'bezimienny'],
+            ['blizniaki', 'wydrazony', 'obzeracz'],
+            ['gargulec', 'brute', 'obzeracz'],
+            ['vampire', 'strzyga', 'obzeracz'],
+            ['droid', 'ogar', 'brute'],
+            ['fast', 'stalker', 'brute'],
+            ['standard', 'zombie', 'brute']              // tu się wchodzi
+        ];
+
+        function wstawWrogaStudni(typ, x, z, L, sila) {
+            const szb = STUDNIA_WROGOWIE[typ];
+            const mesh = buildEnemyModelInstance(typ) || szb.buduj();
+            mesh.position.set(x, getLevelY(x, z, L) + (mesh.userData.yOffset || 0), z);
+            scene.add(mesh);
+            const hp = Math.round(szb.hp * sila);
+            const e = { mesh: mesh, type: typ, hp: hp, maxHp: hp, ap: szb.ap, maxAp: szb.ap,
+                accuracyBonus: (szb.celnosc || 0) + Math.round((sila - 1) * 20), isDead: false, facingAngle: Math.PI, level: L,
+                gatunek: null, nieDoZabicia: false, podZiemia: false, wAucie: false,
+                isBoss: false, bossTurn: 0, hasOpened: false };
+            enemies.push(e);
+            return e;
+        }
+
+        function obsadzStudnie() {
+            if (!currentCombatTheme || currentCombatTheme.id !== 'studnia') return 0;
+            // Zwykła obsada planszy ustępuje: bossa i wrogów związanych z celem misji nie ruszamy
+            enemies = enemies.filter(e => {
+                if (e.isBoss || e.nieDoZabicia) return true;
+                scene.remove(e.mesh);
+                return false;
+            });
+            let dodanych = 0;
+            for (let L = 0; L < MAX_LEVELS; L++) {
+                const glebia = MAX_LEVELS - 1 - L;
+                const [strzelec, wrecz, straznik] = STUDNIA_OBSADA[L];
+                const sila = 1 + glebia * 0.1;
+                const r = STUDNIA_PROMIEN_BAZA + L * 2;
+                const zajete = (x, z) => !canStandAt(x, z, L) || isUnitAtLevel(x, z, L, null) ||
+                    studniaDrabiny.some(d => Math.max(Math.abs(d.x - x), Math.abs(d.z - z)) <= 2) ||
+                    soldiers.some(q => (q.level || 0) === L && Math.hypot(q.mesh.position.x - x, q.mesh.position.z - z) < 8);
+                const sale = studniaKorytarze.filter(k => k.L === L);
+                const wolnePole = () => {
+                    for (let t = 0; t < 80; t++) {
+                        let x, z;
+                        // Połowa w komorze, połowa w bocznych salach
+                        if (sale.length && t % 2) {
+                            const k = sale[Math.floor(Math.random() * sale.length)];
+                            x = k.x + Math.floor(Math.random() * (k.pw * 2 - 1)) - k.pw + 1;
+                            z = k.z + Math.floor(Math.random() * (k.ph * 2 - 1)) - k.ph + 1;
+                        } else {
+                            const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * (r - 1.5);
+                            x = Math.round(Math.cos(a) * d); z = Math.round(Math.sin(a) * d);
+                        }
+                        if (isWithinPlayBounds(x, z) && !zajete(x, z)) return [x, z];
+                    }
+                    return null;
+                };
+                const ile = 2 + Math.round(glebia * 0.9);
+                for (let i = 0; i < ile; i++) {
+                    const p = wolnePole();
+                    if (!p) continue;
+                    wstawWrogaStudni(i % 2 ? wrecz : strzelec, p[0], p[1], L, sila);
+                    dodanych++;
+                }
+                // Strażnik mechanizmu: silniejszy, z poświatą, stoi tuż przy nim
+                const mech = dzwignieStudni.find(d => d.L === L);
+                if (mech) {
+                    for (const [dx, dz] of [[1, 1], [-1, 1], [1, -1], [-1, -1], [2, 0], [-2, 0], [0, 2], [0, -2]]) {
+                        const x = mech.x + dx, z = mech.z + dz;
+                        if (!canStandAt(x, z, L) || isUnitAtLevel(x, z, L, null)) continue;
+                        const e = wstawWrogaStudni(straznik, x, z, L, sila * 1.7);
+                        e.elita = true; e.dmgBonus = 1 + Math.floor(glebia / 3); e.straznikMechanizmu = true;
+                        e.mesh.scale.multiplyScalar(1.2);
+                        nadajPoswiate(e.mesh, (ENEMY_MODELS[straznik] && ENEMY_MODELS[straznik].wysokosc) || 2);
+                        dodanych++;
+                        break;
+                    }
+                }
+            }
+            refreshEnemyPositions();
+            return dodanych;
+        }
+
         function zaludnijKomnatyStudni() {
             if (!currentCombatTheme || currentCombatTheme.id !== 'studnia') return 0;
             let dodanych = 0;
