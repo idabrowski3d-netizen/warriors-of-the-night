@@ -8868,6 +8868,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                 }
                             }
                         }
+                        // Płyta dachu sięga po zewnętrzne lico murów, bez szpar
+                        for (let x = bMinX; x < bMinX + w; x++) for (let z = bMinZ; z < bMinZ + d; z++) floorGrid[storeys][x + offsetX][z + offsetZ] = 1;
                         // Otwory 2x2 - dużo łatwiej je znaleźć niż pojedynczy kafelek
                         for (let L = 0; L < storeys - 1; L++) {
                             for (let attempt = 0; attempt < 30; attempt++) {
@@ -44273,6 +44275,19 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function odswiezMgleStropow() {
             if (!floorMeshes.length || !fowExplored || !fowExplored.length) return;
             if (!kolorStropu) kolorStropu = new THREE.Color(1, 1, 1);
+            // Z dachu widać okolicę: sąsiednie dachy nie mogą być czarne
+            const zDachu = soldiers.filter(s => !s.isDead && s.mesh && (s.level || 0) > 0 &&
+                drabinyDachow.some(d => d.dach === s.level) &&
+                !hasFloorAt(s.mesh.position.x, s.mesh.position.z, s.level + 1));
+            const zasiegZDachu = getVisionRange();
+            // Z góry poznaje się też ulice i budynki w zasięgu wzroku, na każdej wysokości
+            zDachu.forEach(s => {
+                const sx = Math.round(s.mesh.position.x) + offsetX, sz = Math.round(s.mesh.position.z) + offsetZ;
+                for (let mx = Math.max(0, sx - zasiegZDachu); mx <= Math.min(mapWidth - 1, sx + zasiegZDachu); mx++)
+                    for (let mz = Math.max(0, sz - zasiegZDachu); mz <= Math.min(mapDepth - 1, sz + zasiegZDachu); mz++)
+                        if (Math.hypot(mx - sx, mz - sz) <= zasiegZDachu)
+                            for (let L = 0; L <= s.level && L < fowExplored.length; L++) fowExplored[L][mx][mz] = 1;
+            });
             floorMeshes.forEach(inst => {
                 const pola = inst.userData.pola;
                 if (!pola || !inst.setColorAt) return;
@@ -44282,7 +44297,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     let j = STROP_JASNOSC_UKRYTY;
                     if (mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth) {
                         if (fowVisible[L] && fowVisible[L][mx][mz] === 1) j = STROP_JASNOSC_WIDOCZNY;
-                        else if (fowExplored[L][mx][mz] === 1) j = STROP_JASNOSC_ZBADANY;
+                        else if (zDachu.some(s => Math.hypot(s.mesh.position.x - pola[i][0], s.mesh.position.z - pola[i][1]) <= zasiegZDachu)) j = STROP_JASNOSC_WIDOCZNY;
+                        else if (fowExplored[L][mx][mz] === 1 || (windyKamienic.length && fowExplored[0][mx][mz] === 1)) j = STROP_JASNOSC_ZBADANY;
                     }
                     kolorStropu.setRGB(j, j, j);
                     inst.setColorAt(i, kolorStropu);
