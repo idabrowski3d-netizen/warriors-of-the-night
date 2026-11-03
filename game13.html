@@ -4627,7 +4627,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 znane: (n) => `Kokony w kątach - na tej planszy poluje ${n}.`
             },
             padlina: {
-                typy: ['zombie', 'strzyga', 'vampire', 'roj', 'ogar', 'smierc', 'topielec'],
+                typy: ['obzeracz', 'zombie', 'strzyga', 'vampire', 'roj', 'ogar', 'smierc', 'topielec'],
                 ile: 2, promien: 12, buduj: () => bryłaPadliny(),
                 mgliste: 'Nadgryziona padlina - ktoś się tu karmił i niedawno.',
                 znane: (n) => `Nadgryziona padlina - tak żywi się ${n}.`
@@ -18146,6 +18146,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                        idleAlt: 'man_idle', walkAlt: 'man_run', smiercAlt: 'man_death' },
             wisp:     { plik: 'models/skull.glb', idle: null, walk: null,
                        atak: null, smierc: null, cios: null, wysokosc: 0.3 },   // czaszka bez animacji, 3x mniejsza
+            obzeracz: { plik: 'models/obzeracz.glb', idle: 'obzeracz_idle', walk: 'obzeracz_walk',
+                       atak: 'obzeracz_attack', smierc: 'obzeracz_death', cios: 'obzeracz_hit', wysokosc: 2.2 },
             robak:    { plik: 'models/robak.glb', idle: 'robak_idle', walk: 'robak_walk',
                        atak: 'robak_attack', smierc: 'robak_death', cios: 'robak_hit',
                        specjalna: 'robak_wake_up', wysokosc: 2.0 },
@@ -21411,7 +21413,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     // natychmiastowy cios, jeśli starczy punktów
                     if (s.ap >= 3) {
                         s.ap -= 3;
-                        const dmg = getMeleeDamage(s);
+                        const dmg = getMeleeDamage(s, cel);
                         const traf = Math.random() * 100 < getMeleeHitChance(s);
                         playFileSfx(AudioFiles.swordHit, 0.7);
                         if (traf) {
@@ -22007,6 +22009,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 { typ: 'roj',        hp: 9,  ap: 6,  opis: 'Rój' },
                 { typ: 'wydrazony',  hp: 13, ap: 12, opis: 'Wydrążony' },
                 { typ: 'gasiciel',   hp: 16, ap: 8,  opis: 'Gasiciel' },
+                { typ: 'obzeracz',   hp: 22, ap: 7,  opis: 'Obżeracz' },
                 { typ: 'zalobnica',  hp: 15, ap: 4,  opis: 'Żałobnica' },
                 { typ: 'koszmar',   hp: 20, ap: 10, opis: 'Koszmar (boss)', boss: true },
                 { typ: 'general',   hp: 55, ap: 12, opis: 'Generał (boss)', boss: true },
@@ -22040,7 +22043,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 oltarznik: createOltarznikMesh,
                 roj: createRojMesh,
                 wydrazony: createWydrazonyMesh,
-                gasiciel: createGasicielMesh,
+                obzeracz: createObzeraczMesh, gasiciel: createGasicielMesh,
                 zalobnica: createZalobnicaMesh,
                 skorpion_maly: () => createScorpionMesh('maly'),
                 skorpion: () => createScorpionMesh('sredni'),
@@ -22907,7 +22910,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                         lustrzak: () => createLustrzakMesh(soldiers[0] ? soldiers[0].name : 'WOJOWNIK', soldiers[0] ? soldiers[0].class : null),
                                         bezimienny: createBezimiennyMesh, bluznierca: createBluzniercaMesh, poborca: createPoborcaMesh,
                                         oltarznik: createOltarznikMesh, roj: createRojMesh, wydrazony: createWydrazonyMesh,
-                                        gasiciel: createGasicielMesh, zalobnica: createZalobnicaMesh, smierc: createDeathMesh,
+                                        obzeracz: createObzeraczMesh, gasiciel: createGasicielMesh, zalobnica: createZalobnicaMesh, smierc: createDeathMesh,
                                         skorpion_maly: () => createScorpionMesh('maly'), skorpion: () => createScorpionMesh('sredni'),
                                         skorpion_duzy: () => createScorpionMesh('duzy') };
             enemies = (data.enemies || []).filter(ed => !ed.isDead).map(ed => {
@@ -28218,8 +28221,24 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // ========================================================
         const GASICIEL_PROMIEN = 9;       // w tym promieniu gasi wszystko
         const GASICIEL_DUSZENIE = 7;      // do tylu pól spada wzrok w jego pobliżu
+        const OBZERACZ_CIOS = 6;
+        const OBZERACZ_ODPORNOSC_WRECZ = 0.5;   // tyle obrażeń z ciosu wręcz przechodzi przez tłuszcz
         const GASICIEL_CIOS = 3;
         const GASICIEL_LAMPION_TURY = 3;  // na tyle tur dusi też Lampion
+        // Bryła zastępcza, gdy model się nie wczyta
+        function createObzeraczMesh() {
+            const model = buildEnemyModelInstance('obzeracz');
+            if (model) return model;
+            const g = new THREE.Group();
+            const skora = new THREE.MeshLambertMaterial({ color: 0xb98a7a });
+            const brzuch = new THREE.Mesh(new THREE.SphereGeometry(0.62, 12, 10), skora);
+            brzuch.scale.set(1, 1.05, 0.9); brzuch.position.y = 0.72; g.add(brzuch);
+            const glowa = new THREE.Mesh(new THREE.SphereGeometry(0.24, 10, 8), skora);
+            glowa.position.y = 1.5; g.add(glowa);
+            g.userData.unitType = 'obzeracz';
+            return g;
+        }
+
 
         function createGasicielMesh() {
             const g = new THREE.Group();
@@ -28963,6 +28982,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     ['cyber', 'whitehouse', 'zhongnanhai'].includes(currentCombatTheme.id);
                 if (robakWypadl) {
                     type = 'robak'; maxHp = 10; maxAp = 15; mesh = createWormMesh();
+                } else if (!glizdaWypadla && Math.random() < 0.1) {
+                    type = 'obzeracz'; maxHp = 22; maxAp = 7;
+                    mesh = createObzeraczMesh();
                 } else if (wydrazonyWypadl) {
                     type = 'wydrazony'; maxHp = 13; maxAp = 12;
                     mesh = createWydrazonyMesh();
@@ -29791,7 +29813,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             skorpion_maly: 'SKORPION ZWINNY', skorpion: 'SKORPION', skorpion_duzy: 'SKORPION PANCERNY',
             koszmar: 'KOSZMAR', smierc: 'ŚMIERĆ', glizda: 'GLIZDA', lustrzak: 'LUSTRZAK',
             bezimienny: 'BEZIMIENNY', bluznierca: 'BLUŹNIERCA', poborca: 'POBORCA',
-            oltarznik: 'OŁTARZNIK', roj: 'RÓJ', wydrazony: 'WYDRĄŻONY', gasiciel: 'GASICIEL',
+            oltarznik: 'OŁTARZNIK', roj: 'RÓJ', wydrazony: 'WYDRĄŻONY', gasiciel: 'GASICIEL', obzeracz: 'OBŻERACZ',
             zalobnica: 'ŻAŁOBNICA',
             gargulec: 'GARGULEC',
             bozek: 'KAMIENNY BOŻEK',
@@ -30550,7 +30572,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         // Siła ciosu rośnie z Witalnością - tężyzna przekłada się na moc uderzenia
-        function getMeleeDamage(soldier) {
+        function getMeleeDamage(soldier, cel) {
+            // Warstwa tłuszczu obżeracza amortyzuje cios
+            if (cel && cel.type === 'obzeracz') return Math.max(1, Math.ceil(getMeleeDamage(soldier) * OBZERACZ_ODPORNOSC_WRECZ));
             if (soldier && soldier.isAngel) return 9;   // miecz patrona tnie potężnie
             const idx = soldiers.indexOf(soldier);
             const cls = WARRIOR_CLASSES[soldier.class] || WARRIOR_CLASSES.uniwersalna;
@@ -30576,7 +30600,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             victim.ap -= meleeCost;
             playWarriorAnim(victim.mesh, 'attack', true);
-            const dmg = getMeleeDamage(victim);
+            const dmg = getMeleeDamage(victim, enemy);
             const hit = Math.random() * 100 < getMeleeHitChance(victim);
             victim.mesh.lookAt(enemy.mesh.position.x, victim.mesh.position.y, enemy.mesh.position.z);
             victim.shotsFired = (victim.shotsFired || 0) + 1;
@@ -33147,7 +33171,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 Math.max(Math.abs(Math.round(en.mesh.position.x) - ax), Math.abs(Math.round(en.mesh.position.z) - az)) <= 1);
             if (!target) { updateUI("Brak wroga w zasięgu ataku wręcz (musisz stać obok)."); return; }
             active.ap -= meleeCost;
-            const damage = getMeleeDamage(active);
+            const damage = getMeleeDamage(active, target);
             const isHit = Math.random() * 100 < getMeleeHitChance(active);
             active.mesh.lookAt(target.mesh.position.x, active.mesh.position.y, target.mesh.position.z);
             playWarriorAnim(active.mesh, 'attack', true);
@@ -35194,7 +35218,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     s.ap -= 3;
                     s.mesh.lookAt(obok.mesh.position.x, s.mesh.position.y, obok.mesh.position.z);
                     playWarriorAnim(s.mesh, 'attack', true);
-                    const dmg = getMeleeDamage(s);
+                    const dmg = getMeleeDamage(s, obok);
                     if (Math.random() * 100 < getMeleeHitChance(s)) {
                         obok.hp -= dmg; if (obok.hp > 0) wrogOberwal(obok);
                         playFileSfx(AudioFiles.swordHit, 0.7);
@@ -35260,10 +35284,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             a.shotsFired = (a.shotsFired || 0) + 1;
             if (Math.random() * 100 < getMeleeHitChance(a)) {
                 a.shotsHit = (a.shotsHit || 0) + 1;
-                prey.hp -= getMeleeDamage(a);
+                prey.hp -= getMeleeDamage(a, prey);
                 SoundEngine.playHit();
                 try { playFileSfx(AudioFiles.swordHit, 0.75); } catch (e) {}
-                updateUI(`Patron tnie mieczem! (-${getMeleeDamage(a)} HP)`);
+                updateUI(`Patron tnie mieczem! (-${getMeleeDamage(a, prey)} HP)`);
                 if (prey.hp <= 0) {
                     prey.isDead = true; scene.remove(prey.mesh);
                     a.kills = (a.kills || 0) + 1;
@@ -43757,7 +43781,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
             }
 
-            if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'zombie' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big' || e.type === 'smierc' || e.type === 'ogar' || e.type === 'robak' || e.type === 'glizda' || e.type === 'lustrzak' || e.type === 'bezimienny' || e.type === 'oltarznik' || e.type === 'wydrazony' || e.type === 'gasiciel' || e.type === 'zalobnica' || e.type === 'bozek') {
+            if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'zombie' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big' || e.type === 'smierc' || e.type === 'ogar' || e.type === 'robak' || e.type === 'glizda' || e.type === 'lustrzak' || e.type === 'bezimienny' || e.type === 'oltarznik' || e.type === 'wydrazony' || e.type === 'gasiciel' || e.type === 'obzeracz' || e.type === 'zalobnica' || e.type === 'bozek') {
                 const meleeCostE = (e.type === 'brute') ? shootCost : 3; // szybsze rasy uderzają taniej
                 const chebDystans = Math.max(Math.abs(px - ex), Math.abs(pz - ez));
                 if (e.ap >= meleeCostE && tLvl === eLvl && chebDystans === 1 && Math.abs(ey - py) <= 1) {
@@ -43805,6 +43829,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         else if (e.type === 'oltarznik') meleeDmgBaza = 5;
                         else if (e.type === 'wydrazony') meleeDmgBaza = WYDRAZONY_CIOS;
                         else if (e.type === 'gasiciel') meleeDmgBaza = GASICIEL_CIOS;
+                        else if (e.type === 'obzeracz') meleeDmgBaza = OBZERACZ_CIOS;
                         else if (e.type === 'zalobnica') meleeDmgBaza = ZALOBNICA_CIOS;
                         else if (e.type === 'bozek') meleeDmgBaza = BOZEK_CIOS;
                         let meleeDmg = meleeDmgBaza + (e.dmgBonus || 0);   // elita uderza mocniej
@@ -43899,7 +43924,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // a strzelec dodatkowo pozycji z boku, nie na wprost.
                 // ========================================================
                 const walczyWrecz = ['brute', 'stalker', 'wisp', 'zombie', 'robot', 'spider_small', 'spider_big', 'robak',
-                                     'smierc', 'ogar', 'glizda', 'lustrzak', 'bezimienny', 'oltarznik', 'wydrazony', 'gasiciel'].includes(e.type) ||
+                                     'smierc', 'ogar', 'glizda', 'lustrzak', 'bezimienny', 'oltarznik', 'wydrazony', 'gasiciel', 'obzeracz'].includes(e.type) ||
                                     (e.gatunek !== null && e.gatunek !== undefined && PAJAKI_GATUNKI[e.gatunek]);
                 const kosztAkcji = walczyWrecz ? 3 : shootCost;
 
@@ -45719,6 +45744,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         ['Zasięg płaczu', '18 pól, przez ściany'],
                         ['Opór', 'Siła Psychiczna - pełny przy 21'],
                         ['Styl walki', 'wabienie, potem wręcz (8 obr.)']]
+            },
+            {
+                id: 'obzeracz', title: 'Obżeracz',
+                text: 'Wcielony grzech obżarstwa: ogromne, rozlane cielsko, które nigdy nie jest syte.\n\n' +
+                      'Jest powolny i wytrzymały, a walczy tylko wręcz. Gruba warstwa tłuszczu amortyzuje ciosy, ' +
+                      'więc miecz robi mu połowę szkody. Lepiej trzymać go na dystans i strzelać.',
+                stats: [['Punkty życia', '22'], ['Punkty ruchu', '7'], ['Odporność', 'ciosy wręcz -50%'],
+                        ['Styl walki', 'wręcz (6 obr.)']]
             },
             {
                 id: 'gasiciel', title: 'Gasiciel',
@@ -48964,6 +48997,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             roj:        { hp: 9,  ap: 6,  buduj: () => createRojMesh() },
             wydrazony:  { hp: 13, ap: 12, buduj: () => createWydrazonyMesh() },
             gasiciel:   { hp: 16, ap: 8,  buduj: () => createGasicielMesh() },
+            obzeracz:   { hp: 22, ap: 7,  buduj: () => createObzeraczMesh() },
             robak:      { hp: 10, ap: 15, buduj: () => createWormMesh() },
             ogar:       { hp: 9,  ap: 18, buduj: () => createHellhoundMesh() },
             strzyga:    { hp: 9,  ap: 18, buduj: () => createStrzygaMesh() },
