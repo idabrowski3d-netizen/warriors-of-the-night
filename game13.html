@@ -5362,6 +5362,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function updateWeatherParticles(dt) {
             if (!weatherParticles) return;
+            // W głębi szybu nie pada
+            weatherParticles.visible = !(currentCombatTheme && currentCombatTheme.id === 'studnia');
             const posAttr = weatherParticles.geometry.attributes.position;
             const vel = weatherParticles.userData.velocities;
             const t = weatherParticles.userData.type;
@@ -9732,7 +9734,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (gameMode !== 'dream' || ['alabama', 'wesole'].includes(id)) return ['pszenica', 'zyto', 'jeczmien', 'owies', 'kukurydza', 'slonecznik', 'rzepak', 'lawenda', 'mak'];
             if (['amazonia', 'bagno'].includes(id)) return ['paproc', 'trzcina', 'krzak', 'jagodnik', 'trawa'];
             if (['las', 'jezioro', 'wyspy'].includes(id)) return ['paproc', 'krzak', 'krzak_rudy', 'jagodnik', 'wrzos', 'trawa', 'trzcina'];
-            if (['cmentarzysko', 'nekropolia', 'pobojowisko', 'parow', 'otchlan', 'sicario', 'ambush', 'zamiec'].includes(id)) return ['suchostoj', 'ostrozen', 'krzak_rudy', 'wrzos'];
+            if (['studnia', 'cmentarzysko', 'nekropolia', 'pobojowisko', 'parow', 'otchlan', 'sicario', 'ambush', 'zamiec'].includes(id)) return ['suchostoj', 'ostrozen', 'krzak_rudy', 'wrzos'];
             return ['trawa', 'suchostoj', 'mak', 'ostrozen', 'krzak', 'owies', 'pszenica', 'wrzos'];
         }
 
@@ -13598,6 +13600,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return bazaMuru();
         }
 
+        const _muryStudni = new Map();
         function postawBrylePrzeszkody(pos, ty, twarda) {
             const g = new THREE.Group();
             const idM = currentCombatTheme ? currentCombatTheme.id : '';
@@ -13659,6 +13662,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     material = (kierunekSciany(rx, rz) === 'x')
                         ? [kamien, kamien, kamien, kamien, ozdobny, ozdobny]
                         : [ozdobny, ozdobny, kamien, kamien, kamien, kamien];
+                }
+                if (idM === 'studnia') {
+                    const ciemny = (m) => {
+                        if (!_muryStudni.has(m)) { const k = m.clone(); k.color.setHex(0xa09080); _muryStudni.set(m, k); }
+                        return _muryStudni.get(m);
+                    };
+                    material = Array.isArray(material) ? material.map(ciemny) : ciemny(material);
                 }
                 const sciana = new THREE.Mesh(new THREE.BoxGeometry(1.0, h, 1.0), material);
                 sciana.position.y = h / 2;
@@ -37855,7 +37865,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Za mgłą była czerń. Teraz każda plansza ma w oddali swoją sylwetkę: ścianę
         // drzew, góry, panoramę miasta, dalekie wyspy. Bez mgły sceny (stoi dalej, niż
         // sięga mgła), za to w barwach zmieszanych z mgłą - ma wyglądać na daleką.
-        const HORYZONT_BEZ = ['katedra', 'dom', 'wieza', 'studnia', 'klaustrofobia', 'alcatraz'];
+        const HORYZONT_BEZ = ['studnia', 'katedra', 'dom', 'wieza', 'studnia', 'klaustrofobia', 'alcatraz'];
         const HORYZONT = {
             las:      [{ f: 'stozek', barwa: 0x16301c, h: [8, 16], r: [2, 3.5], ile: 140 }],
             amazonia: [{ f: 'kula', barwa: 0x1e4a22, h: [6, 12], r: [3, 5], ile: 110 }, { f: 'stozek', barwa: 0x16361a, h: [10, 18], r: [1.5, 2.5], ile: 40 }],
@@ -38843,8 +38853,101 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return luki;
         }
 
-        function urzadzStudnie() {
-            if (!currentCombatTheme || currentCombatTheme.id !== 'studnia') return 0;
+        // ===================== WYSTRÓJ STUDNI =====================
+        // Każda kondygnacja ma własną posadzkę, a im głębiej, tym dziwniej: u góry
+        // szalunki i górnicze rupiecie, w środku krypta, na dnie kryształy i ołtarze.
+        const STUDNIA_POSADZKI = [0x8a6e58, 0x9c8468, 0x84907a, 0xa08c70, 0x808a96, 0xac9670, 0x9a7c62, 0xb4a488];
+        const PRZEDMIOTY_STUDNI = {
+            stempel: (b) => { for (const s of [-0.3, 0.3]) b.box(0.13, 1.95, 0.13, 0x4f3a24, s, 0, 0); b.box(0.85, 0.14, 0.16, 0x4f3a24, 0, 1.82, 0); },
+            wozek: (b) => { b.box(0.62, 0.34, 0.42, 0x4a4a4e, 0, 0.16, 0); for (const s of [-0.22, 0.22]) b.walec(0.09, 0.09, 0.48, 0x2a2a2c, s, 0, -0.24); for (let i = 0; i < 4; i++) b.kula(0.1, 0x38322c, -0.15 + i * 0.1, 0.52, (i % 2) * 0.1 - 0.05); },
+            kilof: (b) => { b.box(0.05, 0.05, 0.85, 0x6a4a2a, 0, 0.05, 0); b.box(0.5, 0.05, 0.06, 0x70747a, 0, 0.06, 0.4); },
+            belki: (b) => { for (let i = 0; i < 3; i++) b.box(1.0, 0.11, 0.13, 0x5a4228, 0, 0.02 + (i === 2 ? 0.11 : 0), i === 2 ? 0 : (i - 0.5) * 0.17); },
+            stalagmit: (b) => { b.walec(0.01, 0.2, 0.9, 0x6a6258, 0, 0, 0); b.walec(0.01, 0.12, 0.5, 0x5a5248, 0.2, 0, 0.12); b.walec(0.01, 0.09, 0.32, 0x7a7266, -0.16, 0, -0.1); },
+            soplowy: (b) => { for (let i = 0; i < 3; i++) b.walec(0.11 - i * 0.02, 0.01, 0.55 - i * 0.1, 0x6a6258, (i - 1) * 0.2, 1.42 + i * 0.1, (i % 2) * 0.15); },
+            gruz: (b) => { for (let i = 0; i < 6; i++) b.kula(0.11 + (i % 3) * 0.05, 0x6e6658, Math.cos(i * 2.1) * 0.3, 0.09, Math.sin(i * 2.1) * 0.3); },
+            lancuch: (b) => { for (let i = 0; i < 9; i++) b.box(i % 2 ? 0.03 : 0.07, 0.13, i % 2 ? 0.07 : 0.03, 0x46464a, 0, 1.92 - i * 0.12, 0); },
+            klatka: (b) => { b.walec(0.02, 0.02, 0.62, 0x46464a, 0, 1.38, 0); b.walec(0.28, 0.28, 0.03, 0x38383c, 0, 0.82, 0); b.walec(0.28, 0.28, 0.03, 0x38383c, 0, 1.36, 0); for (let i = 0; i < 8; i++) b.walec(0.012, 0.012, 0.54, 0x46464a, Math.cos(i * 0.785) * 0.27, 0.82, Math.sin(i * 0.785) * 0.27); b.kula(0.09, 0xd8d0b8, 0, 0.95, 0); },
+            czaszki: (b) => { [[0, 0.11, 0], [0.2, 0.11, 0.08], [-0.17, 0.11, 0.12], [0.03, 0.29, 0.05]].forEach(([x, y, z]) => { b.kula(0.11, 0xd8d0b8, x, y, z); b.box(0.03, 0.03, 0.01, 0x1a1410, x - 0.04, y, z + 0.1); b.box(0.03, 0.03, 0.01, 0x1a1410, x + 0.04, y, z + 0.1); }); },
+            kosci: (b) => { for (let i = 0; i < 5; i++) b.box(0.42, 0.035, 0.045, 0xcfc6ac, (i - 2) * 0.1, 0.02, (i % 2) * 0.22 - 0.1); },
+            nagrobek: (b) => { b.box(0.52, 0.72, 0.13, 0x5a564e, 0, 0, 0); b.box(0.66, 0.1, 0.3, 0x4a463e, 0, 0, 0); b.box(0.06, 0.26, 0.015, 0x2a2822, 0, 0.36, 0.07); b.box(0.2, 0.06, 0.015, 0x2a2822, 0, 0.47, 0.07); },
+            urna: (b) => { b.walec(0.12, 0.17, 0.34, 0x7a4a30, 0, 0, 0); b.walec(0.18, 0.12, 0.15, 0x8a5636, 0, 0.34, 0); b.walec(0.09, 0.15, 0.06, 0x5a3622, 0, 0.49, 0); },
+            sarkofag: (b) => { b.box(0.72, 0.5, 1.3, 0x5e5a50, 0, 0, 0); b.box(0.82, 0.1, 1.4, 0x6e6a60, 0, 0.5, 0); b.box(0.28, 0.05, 0.75, 0x7a766a, 0, 0.6, 0); },
+            posag: (b) => { b.box(0.52, 0.3, 0.52, 0x56524a, 0, 0, 0); b.walec(0.13, 0.22, 0.85, 0x6a665c, 0, 0.3, 0); b.kula(0.13, 0x6a665c, 0, 1.28, 0); for (const s of [-1, 1]) b.box(0.42, 0.1, 0.03, 0x5a564c, s * 0.26, 1.02, -0.1); },
+            kolumna: (b) => { b.walec(0.26, 0.3, 0.14, 0x5a564c, 0, 0, 0); b.walec(0.2, 0.23, 1.72, 0x6e685c, 0, 0.14, 0); b.walec(0.3, 0.22, 0.14, 0x5a564c, 0, 1.86, 0); },
+            grzyby: (b) => { [[0, 0, 0.18, 0x7ae0c0], [0.2, 0.1, 0.12, 0x60c8e0], [-0.17, 0.13, 0.1, 0x90e8a0]].forEach(([x, z, r, k]) => { b.walec(0.03, 0.05, r * 1.6, 0xc8c0a8, x, 0, z); b.walec(0.01, r, r * 0.65, k, x, r * 1.6, z, true); }); },
+            krysztaly: (b, k) => { [[0, 0, 0.16, 1.05], [0.22, 0.1, 0.1, 0.65], [-0.18, 0.14, 0.11, 0.75], [0.05, -0.2, 0.08, 0.5]].forEach(([x, z, r, h]) => { b.walec(0.01, r, h, k, x, 0.1, z, true); b.walec(r * 0.8, r, 0.12, 0x38324a, x, 0, z); }); },
+            oltarz: (b) => { b.box(1.0, 0.65, 0.58, 0x38302c, 0, 0, 0); b.box(1.14, 0.1, 0.7, 0x56483e, 0, 0.65, 0); for (const s of [-0.38, 0.38]) { b.walec(0.04, 0.05, 0.22, 0xd8d0b0, s, 0.75, 0); b.kula(0.05, 0xffb050, s, 1.03, 0, true); } b.kula(0.09, 0x801820, 0, 0.84, 0); },
+            kociol: (b) => { b.walec(0.34, 0.22, 0.42, 0x1e1e22, 0, 0.1, 0); b.walec(0.3, 0.3, 0.03, 0x60e070, 0, 0.5, 0, true); for (let i = 0; i < 3; i++) b.box(0.05, 0.14, 0.05, 0x1e1e22, Math.cos(i * 2.09) * 0.2, 0, Math.sin(i * 2.09) * 0.2); },
+            runy: (b, k) => { for (let i = 0; i < 6; i++) { const a = i * 1.047; b.box(0.26, 0.012, 0.05, k, Math.cos(a) * 0.52, 0.015, Math.sin(a) * 0.52, true); } b.walec(0.2, 0.2, 0.012, k, 0, 0.015, 0, true); },
+            skrzynia: (b) => { b.box(0.7, 0.42, 0.46, 0x4e3820, 0, 0, 0); b.box(0.74, 0.12, 0.5, 0x5e4426, 0, 0.42, 0); for (const s of [-0.24, 0.24]) b.box(0.05, 0.56, 0.5, 0x6a6a70, s, 0, 0); },
+            beczki: (b) => { [[-0.2, 0], [0.2, 0.08]].forEach(([x, z]) => { b.walec(0.2, 0.2, 0.62, 0x5a3f24, x, 0, z); b.walec(0.215, 0.215, 0.05, 0x46464a, x, 0.1, z); b.walec(0.215, 0.215, 0.05, 0x46464a, x, 0.46, z); }); },
+            korzenie: (b) => { for (let i = 0; i < 6; i++) { const a = i * 1.1; b.box(0.72 - i * 0.07, 0.07, 0.07, 0x3e2e1e, Math.cos(a) * 0.24, 0.03, Math.sin(a) * 0.24); } b.walec(0.08, 0.15, 0.4, 0x3e2e1e, 0, 0, 0); },
+            kaluza: (b, k) => { b.walec(0.48, 0.48, 0.012, k, 0, 0.01, 0); }
+        };
+        // Od góry (L7) do dna (L0): kopalnia, krypta, a na dole coś gorszego
+        const ZESTAWY_STUDNI = [
+            ['krysztaly', 'krysztaly', 'oltarz', 'kociol', 'runy', 'runy', 'czaszki', 'grzyby', 'stalagmit', 'lancuch'],
+            ['krysztaly', 'oltarz', 'runy', 'kociol', 'czaszki', 'klatka', 'lancuch', 'grzyby', 'stalagmit'],
+            ['sarkofag', 'posag', 'czaszki', 'kosci', 'klatka', 'lancuch', 'grzyby', 'urna', 'runy'],
+            ['sarkofag', 'nagrobek', 'nagrobek', 'urna', 'czaszki', 'kosci', 'posag', 'soplowy', 'lancuch'],
+            ['nagrobek', 'urna', 'kosci', 'stalagmit', 'soplowy', 'korzenie', 'grzyby', 'beczki', 'gruz'],
+            ['stalagmit', 'soplowy', 'korzenie', 'gruz', 'grzyby', 'skrzynia', 'beczki', 'kaluza', 'kosci'],
+            ['stempel', 'wozek', 'kilof', 'belki', 'gruz', 'korzenie', 'beczki', 'kaluza', 'skrzynia'],
+            ['stempel', 'stempel', 'wozek', 'kilof', 'belki', 'skrzynia', 'beczki', 'gruz', 'kaluza']
+        ];
+        const BARWY_ZARU_STUDNI = [0xc040ff, 0x40c8ff, 0x60ffa0, 0xff4060];
+
+        function wystrojStudni(dodaj) {
+            for (let L = 0; L < MAX_LEVELS; L++) {
+                const r = STUDNIA_PROMIEN_BAZA + L * 2, y = getLevelY(0, 0, L);
+                const zestaw = ZESTAWY_STUDNI[L % ZESTAWY_STUDNI.length];
+                const zar = BARWY_ZARU_STUDNI[L % BARWY_ZARU_STUDNI.length];
+                const kaluza = L > 3 ? 0x24404a : 0x401418;
+                const SEKTOROW = 8;
+                const sektory = [];
+                for (let s = 0; s < SEKTOROW; s++) sektory.push({ b: zbieraczBryl(), probki: [] });
+                const doSektora = (x, z) => sektory[Math.floor(((Math.atan2(z, x) + Math.PI) / (Math.PI * 2)) * SEKTOROW) % SEKTOROW];
+                const bramy = studniaKorytarze.filter(k => k.L === L).map(k => Math.atan2(k.kz, k.kx));
+                // Przy ścianie: filary na zmianę z pochodniami, poza wejściami do tuneli
+                const ileFilarow = Math.max(6, Math.round(r * 1.1));
+                for (let i = 0; i < ileFilarow; i++) {
+                    const a = (i / ileFilarow) * Math.PI * 2 - Math.PI;
+                    if (bramy.some(k => { let d = Math.abs(a - k); if (d > Math.PI) d = Math.PI * 2 - d; return d < Math.atan2(3.2, r); })) continue;
+                    const x = Math.cos(a) * (r + 0.1), z = Math.sin(a) * (r + 0.1), sek = doSektora(x, z);
+                    sek.b.ustaw(x, y, z, -Math.cos(a), -Math.sin(a));
+                    sek.probki.push({ x: Math.round(Math.cos(a) * (r - 1)), z: Math.round(Math.sin(a) * (r - 1)) });
+                    if (i % 2) PRZEDMIOTY_STUDNI.kolumna(sek.b);
+                    else {
+                        sek.b.box(0.06, 0.5, 0.06, 0x3a2e22, 0, 0.95, 0.08);
+                        sek.b.walec(0.09, 0.05, 0.14, 0x46464a, 0, 1.42, 0.08);
+                        sek.b.kula(0.1, 0xffa040, 0, 1.62, 0.08, true);
+                    }
+                }
+                // W głębi komory: gęsto, ale z dala od drabin, żeby przejścia były czytelne
+                const ile = Math.round(r * r * 0.42);
+                for (let i = 0; i < ile; i++) {
+                    const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * (r - 1.2);
+                    const x = Math.cos(a) * d, z = Math.sin(a) * d;
+                    if (studniaDrabiny.some(q => Math.max(Math.abs(q.x - x), Math.abs(q.z - z)) <= 1.5)) continue;
+                    const rx = Math.round(x), rz = Math.round(z);
+                    if (L === 0 && isObstacle(rx, rz)) continue;
+                    if (bramy.some(k => Math.hypot(x - Math.cos(k) * r, z - Math.sin(k) * r) < 2.5)) continue;
+                    const nazwa = zestaw[Math.floor(Math.random() * zestaw.length)];
+                    const sek = doSektora(x, z), obr = Math.random() * Math.PI * 2;
+                    sek.b.ustaw(x, y, z, Math.sin(obr), Math.cos(obr));
+                    PRZEDMIOTY_STUDNI[nazwa](sek.b, nazwa === 'kaluza' ? kaluza : zar);
+                    sek.probki.push({ x: rx, z: rz });
+                }
+                sektory.forEach(s => {
+                    if (!s.probki.length) return;
+                    const g = s.b.siatka();
+                    g.userData.mglaProbki = s.probki;
+                    dodaj(g, L);
+                });
+            }
+        }
+
+        function urzadzStudnie() {            if (!currentCombatTheme || currentCombatTheme.id !== 'studnia') return 0;
             const R = (L) => STUDNIA_PROMIEN_BAZA + L * 2;
             let postawionych = 0;
 
@@ -38871,7 +38974,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // podłogi domyka tę szparę: od wnętrza ostatnich kafli aż pod ścianę.
                 const obrzeze = new THREE.Mesh(
                     new THREE.RingGeometry(Math.max(0.5, r - 1.3), r + 0.62, 40),
-                    materialPosadzki(FLOOR_COLORS[L] || 0x8a7f70, Math.max(2, Math.round(r / 3)),
+                    materialPosadzki(przyciemnij(STUDNIA_POSADZKI[L], 0.5), Math.max(2, Math.round(r / 3)),
                                      { side: THREE.DoubleSide }));
                 obrzeze.rotation.x = -Math.PI / 2;
                 obrzeze.position.set(0, getLevelY(0, 0, L) - 0.02, 0);
@@ -39051,6 +39154,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     dodaj(rupiecStudni(x, getLevelY(x, z, L), z, barwa), L);
                 }
             }
+
+            wystrojStudni(dodaj);
 
             // DRABINKI - widoczne na obu stykających się kondygnacjach, żeby było
             // jasne, że to przejście, a nie dekoracja.
@@ -44406,8 +44511,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (tiles.length === 0) continue;
                 const geo = new THREE.BoxGeometry(1, 0.14, 1);
                 // Strop też dostaje teksturę - dotąd był jednolitą płytą koloru
+                const wStudni = !!(currentCombatTheme && currentCombatTheme.id === 'studnia');
                 const matStropu = (typeof materialPosadzki === 'function')
-                    ? materialPosadzki(FLOOR_COLORS[L] || 0x8a7f70, 1, { transparent: true, opacity: 1 })
+                    ? materialPosadzki(wStudni ? STUDNIA_POSADZKI[L] : (FLOOR_COLORS[L] || 0x8a7f70), 1, { transparent: true, opacity: 1 })
                     : new THREE.MeshLambertMaterial({ color: FLOOR_COLORS[L] || 0x8a7f70, transparent: true, opacity: 1 });
                 const inst = new THREE.InstancedMesh(geo, matStropu, tiles.length);
                 const dummy = new THREE.Object3D();
@@ -44422,6 +44528,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // pojawiało się naraz. Pola zapamiętujemy, żeby dało się
                 // przyciemnić te, których gracz jeszcze nie widział.
                 inst.userData.pola = tiles;
+                if (wStudni) inst.userData.odcienie = tiles.map(([x, z]) => {
+                    const krag = Math.floor(Math.hypot(x, z)) % 4 === 0 ? 0.68 : 1;
+                    const kamien = Math.random() < 0.08 ? 0.62 : 0.84 + Math.random() * 0.3;
+                    return krag * kamien;
+                });
                 scene.add(inst);
                 floorMeshes.push(inst);
             }
@@ -44538,6 +44649,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         else if (zDachu.some(s => Math.hypot(s.mesh.position.x - pola[i][0], s.mesh.position.z - pola[i][1]) <= zasiegZDachu)) j = STROP_JASNOSC_WIDOCZNY;
                         else if (fowExplored[L][mx][mz] === 1 || (windyKamienic.length && fowExplored[0][mx][mz] === 1)) j = STROP_JASNOSC_ZBADANY;
                     }
+                    if (inst.userData.odcienie) j *= inst.userData.odcienie[i];
                     kolorStropu.setRGB(j, j, j);
                     inst.setColorAt(i, kolorStropu);
                 }
@@ -44651,6 +44763,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             floorMeshes.forEach(m => {
                 m.visible = widacPoziom(m.userData.floorLevel);
             });
+            if (tylkoTenPoziom) {
+                // Pod ziemią nie ma nieba: czarne tło zamiast pory dnia
+                if (scene.background && scene.background.setHex) scene.background.setHex(0x050507);
+                terrainMeshes.forEach(m => { m.visible = lvl === 0; });
+                nakladkiPodlog.forEach(m => { m.visible = lvl === 0; });
+                streetLamps.forEach(m => { m.visible = lvl === 0; });
+                obstacleMeshes.forEach(m => { if (m.userData) m.userData.hiddenByLevel = lvl > 0; });
+            }
             odswiezMgleStropow();
             // Ściany i dachy powyżej oglądanego poziomu chowamy, żeby było widać wnętrze
             obstacleMeshes.forEach(m => {
