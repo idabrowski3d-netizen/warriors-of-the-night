@@ -17116,7 +17116,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function canStandAt(x, z, level) {
             if (!level) return !isObstacle(x, z);
-            return hasFloorAt(x, z, level);
+            return hasFloorAt(x, z, level) && !mebelNaPietrze(x, z, level);
         }
 
         // Wysokość, na jakiej stoi jednostka danego poziomu
@@ -29170,7 +29170,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         // Ruch po skosie nie może "przecinać rogu" - obie sąsiednie kratki w poprzek muszą być wolne
                         if (dir.dx !== 0 && dir.dz !== 0 && level > 0) {
                             // Na piętrze: skos wymaga podłogi po obu stronach rogu
-                            if (!hasFloorAt(curr.x + dir.dx, curr.z, level) || !hasFloorAt(curr.x, curr.z + dir.dz, level)) continue;
+                            if (!canStandAt(curr.x + dir.dx, curr.z, level) || !canStandAt(curr.x, curr.z + dir.dz, level)) continue;
                         } else if (dir.dx !== 0 && dir.dz !== 0) {
                             const sideAx = curr.x + dir.dx + offsetX, sideAz = curr.z + offsetZ;
                             const sideBx = curr.x + offsetX, sideBz = curr.z + dir.dz + offsetZ;
@@ -29183,7 +29183,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
                         if (level > 0) {
                             // Ruch po piętrze: liczy się podłoga, nie teren. Piętro jest płaskie.
-                            if (!visited.has(key) && hasFloorAt(nx, nz, level) && !isUnitAtLevel(nx, nz, level, pathIgnoreUnit)) {
+                            if (!visited.has(key) && canStandAt(nx, nz, level) && !isUnitAtLevel(nx, nz, level, pathIgnoreUnit)) {
                                 let newCost = curr.cost + 1;
                                 let h = Math.max(Math.abs(nx - targetX), Math.abs(nz - targetZ));
                                 // Rozstrzyganie remisów: wolimy iść dalej w tę samą stronę.
@@ -33207,7 +33207,21 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             setViewLevel(target);
             if (shieldBubble && shieldBubble.caster === active) clearShieldBubble("Osłona znika - rzucający zmienił kondygnację.");
             const ny = getLevelY(ax, az, target) + active.mesh.userData.yOffset;
-            slideObject(active.mesh, ax, ny, az, 260, () => {
+            // Winda jedzie wolniej: podłoga kabiny sunie razem z wojownikiem, a na końcu dzwonek
+            let platforma = null;
+            if (winda) {
+                active.mesh.position.x = ax; active.mesh.position.z = az;
+                platforma = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.06, 0.95), new THREE.MeshLambertMaterial({ color: ZLOTO }));
+                platforma.position.set(ax, getLevelY(ax, az, lvl) + 0.03, az);
+                scene.add(platforma);
+                slideObject(platforma, ax, getLevelY(ax, az, target) + 0.03, az, 850);
+                SoundEngine.playTone(110, 'sawtooth', 0.8, 0.04);
+            }
+            slideObject(active.mesh, ax, ny, az, winda ? 850 : 260, () => {
+                if (platforma) {
+                    scene.remove(platforma); platforma.geometry.dispose(); platforma.material.dispose();
+                    SoundEngine.playTone(880, 'sine', 0.3, 0.12);
+                }
                 refreshPlayerPositions();
                 updateFloorVisibility();
                 updateFoW();
@@ -37738,6 +37752,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const ZLOTO = 0xd4af37, MOSIADZ = 0xb08d45, ORZECH = 0x4a2c1a, MAHON = 0x5e2318, KREM = 0xe8dfc8,
               BORDO = 0x7a1426, GRANAT = 0x1c2c55, MARMUR = 0xe6e2da, STAL = 0x8c939b, ZIELEN = 0x2f6b34;
         let windyKamienic = [];   // { x, z, pieter }
+        const mebleNaPietrach = new Set();   // "L,x,z" - pola zajęte przez meble powyżej parteru
+        function mebelNaPietrze(x, z, L) {
+            return mebleNaPietrach.has(L + ',' + Math.round(x) + ',' + Math.round(z));
+        }
 
         // Zbiera bryły jednego piętra w jedną siatkę: setki mebli to wtedy tylko dwa rysowania
         function zbieraczBryl() {
@@ -37920,6 +37938,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function urzadzKamienice() {
             windyKamienic = [];
+            mebleNaPietrach.clear();
             if (!currentCombatTheme || KAMIENICE_PLANSZE.indexOf(currentCombatTheme.id) === -1) return;
             wyczyscOzdobyWiezy();
             odczytajBudynkiPietrowe().forEach(o => {
@@ -37957,7 +37976,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     let nr = 0;
                     for (let i = 0; i < miejsca.length; i += 2) {
                         const p = miejsca[(start + i) % miejsca.length];
+                        if (isUnitAtLevel(p.x, p.z, L, null)) continue;
                         const [rodzaj, barwa] = motyw.meble[nr++ % motyw.meble.length];
+                        // Mebel zajmuje pole: co drugie przy ścianie, więc przejścia zostają
+                        if (L > 0) mebleNaPietrach.add(L + ',' + p.x + ',' + p.z);
+                        else obstacleGrid[p.x + offsetX][p.z + offsetZ] = { x: p.x, z: p.z, type: 'mebel' };
                         b.ustaw(p.x, y, p.z, p.fx, p.fz);
                         MEBLE_KAMIENIC[rodzaj](b, barwa);
                     }
