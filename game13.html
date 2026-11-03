@@ -9003,7 +9003,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                 // Bruzdy: co drugi rząd ciemniejszy
                                 terrainTypeMap[mx][mz] = (zz % 2 === 0) ? 1 : 5;
                                 heightMap[mx][mz] = 0;
+                                // Uprawa rośnie na zagonach, bruzdy zostają puste
+                                if (zz % 2 === 0 && obstacleGrid[mx][mz] === null) cornfieldGrid[mx][mz] = 1;
                             }
+                        }
+                        // Strach na wróble pośrodku pola, a na większym drugi
+                        const ileStrachow = szer > 19 ? 2 : 1;
+                        for (let n = 0; n < ileStrachow; n++) {
+                            const sx = polX + Math.round(szer * (n + 1) / (ileStrachow + 1)), sz = zg.z;
+                            if (!isWithinPlayBounds(sx, sz) || isObstacle(sx, sz)) continue;
+                            addObstacle(sx, sz, 'strach_na_wroble');
+                            cornfieldGrid[sx + offsetX][sz + offsetZ] = 0;
                         }
                         // Miedza - rząd kamieni zebranych z pola, na jego skraju
                         for (let zz = zg.z - Math.floor(gleb / 2); zz < zg.z + Math.ceil(gleb / 2); zz += 2) {
@@ -9748,6 +9758,55 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             cornfieldMeshes.push(inst);
         }
 
+        // ===================== STRACHY NA WRÓBLE =====================
+        // Zawsze zwracają się ku najbliższemu wojownikowi, a gdy podejdzie, straszą go.
+        const STRACH_ZASIEG_MOWY = 9;
+        const STRACH_KWESTIE = [
+            'Strzeż się, młodzieńcze... zły na ciebie czyha.',
+            'Już po ciebie idą...',
+            'Słyszysz? To za tobą.',
+            'Nie obracaj się. Lepiej nie wiedzieć.',
+            'Ci, co szli tędy przed tobą, wiszą teraz obok mnie.',
+            'Ziemia pamięta każdego, kto po niej stąpał. Ciebie też zapamięta.',
+            'Wrony już wiedzą, jak smakujesz.',
+            'Zawróć. Póki jeszcze masz nogi.',
+            'Widziałem, jak skończy się ta noc. Nie płacz.',
+            'Oni nie śpią. Czekają, aż ty zaśniesz.',
+            'Czemu tak drżysz? Przecież jestem tylko ze słomy...',
+            'Policzyłem was. Jutro będzie mniej.',
+            'Na tym polu nic nie rośnie bez krwi.',
+            'Patrzę na ciebie. Oni też.',
+            'Niedługo będziesz stał tu ze mną.'
+        ];
+        let strachy = [];
+
+        function updateStrachy(time) {
+            if (!strachy.length) return;
+            const zywi = soldiers.filter(s => !s.isDead && s.mesh && !s.isNPC);
+            strachy.forEach(st => {
+                if (!st.mesh.parent) return;   // zniszczony
+                let naj = null, dyst = Infinity;
+                zywi.forEach(s => {
+                    const d = Math.hypot(s.mesh.position.x - st.x, s.mesh.position.z - st.z);
+                    if (d < dyst) { dyst = d; naj = s; }
+                });
+                if (!naj) return;
+                // Obraca się powoli, najkrótszą drogą - widać, że śledzi wojownika
+                const cel = Math.atan2(naj.mesh.position.x - st.x, naj.mesh.position.z - st.z);
+                let roznica = (cel - st.mesh.rotation.y) % (Math.PI * 2);
+                if (roznica > Math.PI) roznica -= Math.PI * 2;
+                if (roznica < -Math.PI) roznica += Math.PI * 2;
+                st.mesh.rotation.y += roznica * 0.06;
+                if (gameOver || dyst > STRACH_ZASIEG_MOWY || !st.mesh.visible || time < st.nastepnie) return;
+                st.nastepnie = time + 9000 + Math.random() * 9000;
+                let kwestia;
+                do { kwestia = STRACH_KWESTIE[Math.floor(Math.random() * STRACH_KWESTIE.length)]; } while (kwestia === strachOstatnia);
+                strachOstatnia = kwestia;
+                showSpeechBubble(st, kwestia);
+            });
+        }
+        let strachOstatnia = null;
+
         function renderCornfields() {
             cornfieldMeshes.forEach(m => { scene.remove(m); m.geometry.dispose(); });
             cornfieldMeshes = [];
@@ -9761,7 +9820,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 while (stos.length) {
                     const [x, z] = stos.pop();
                     (zebrane[nazwa] = zebrane[nazwa] || []).push([x - offsetX, z - offsetZ]);
-                    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+                    // Skok o 2: rzędy w zagonach, rozdzielone bruzdą, to wciąż ta sama uprawa
+                    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [0, 2], [0, -2]]) {
                         const nx = x + dx, nz = z + dz, k = nx + ',' + nz;
                         if (nx < 0 || nz < 0 || nx >= mapWidth || nz >= mapDepth || cornfieldGrid[nx][nz] !== 1 || byl.has(k)) continue;
                         byl.add(k); stos.push([nx, nz]);
@@ -14753,6 +14813,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // zostawały przeszkody z poprzedniej planszy.
             obstacleMeshes.forEach(m => scene.remove(m));
             obstacleMeshes = [];
+            strachy = [];
             wyczyscDrzewaZbiorcze();   // stare drzewa zbiorcze znikają razem z planszą
             wyczyscNakladkiPodlog();   // posadzki też - inaczej zostają po poprzedniej misji
             wyczyscWrotaIzb();
@@ -16868,6 +16929,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     g.position.set(pos.x, ty, pos.z);
                     g.rotation.y = Math.random() * Math.PI * 2;
                     scene.add(g); obstacleMeshes.push(g);
+                    if (pos.type === 'strach_na_wroble') strachy.push({ mesh: g, x: pos.x, z: pos.z, nastepnie: 0, isDead: false });
                 }
                 else if (pos.type === 'gravestone') {
                     const stoneMat = new THREE.MeshLambertMaterial({ color: 0x9a9a9a });
@@ -45765,6 +45827,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             updateCloudSea(dt);
             updateWodaPlynie(dt);
             animujOgnieOltarzy(time);
+            updateStrachy(time);
             updateCampfires(time);
             updateWarriorMixers(dt * spowolnienieCzasu);
             updateThemeMusic();
