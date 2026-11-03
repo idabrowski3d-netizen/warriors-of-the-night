@@ -9384,7 +9384,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (terrainTypeMap[x + offsetX][mz] === 2 && !isObstacle(x, z)) addObstacle(x, z, 'limuzyna');
                 }
             }
-            const cornfieldPatchCount = (isVolcanoMap || isSaharaMap || isNYMap || isKatedraMap || isFloodMap || isCyberMap) ? 0 : 4;
+            const cornfieldPatchCount = (isVolcanoMap || isSaharaMap || isNYMap || isKatedraMap || isFloodMap || isCyberMap) ? 0 : 7;
             for (let p = 0; p < cornfieldPatchCount; p++) {
                 let centerX = Math.floor(Math.random() * mapWidth) - offsetX;
                 let centerZ = Math.floor(Math.random() * mapDepth) - offsetZ;
@@ -9648,42 +9648,127 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return group;
         }
 
-        let cornfieldMesh = null;
+        let cornfieldMeshes = [];
 
-        function renderCornfields() {
-            if (cornfieldMesh) { scene.remove(cornfieldMesh); cornfieldMesh.geometry.dispose(); cornfieldMesh = null; }
-
-            const tiles = [];
-            for (let mx = 0; mx < mapWidth; mx++) {
-                for (let mz = 0; mz < mapDepth; mz++) {
-                    if (cornfieldGrid[mx][mz] === 1) tiles.push([mx - offsetX, mz - offsetZ]);
+        // Gatunki roślin rysowane na płótnie: wspólna kępa źdźbeł plus własne zakończenie.
+        // Nowy gatunek to jeden wpis tutaj - bez plików graficznych.
+        const GATUNKI_ROSLIN = {
+            pszenica:   { lodyga: '#b89a3a', szczyt: 'klos',   barwa: '#d8b84a', wys: 1.0 },
+            zyto:       { lodyga: '#9aa04a', szczyt: 'klos',   barwa: '#b8b060', wys: 1.25 },
+            jeczmien:   { lodyga: '#c2a850', szczyt: 'osc',    barwa: '#e0c870', wys: 0.9 },
+            owies:      { lodyga: '#a8a858', szczyt: 'wiecha', barwa: '#d8d090', wys: 1.05 },
+            kukurydza:  { lodyga: '#4f7f2a', szczyt: 'kolba',  barwa: '#e8c83a', wys: 1.7, liscie: true, ile: 12 },
+            slonecznik: { lodyga: '#4a7a30', szczyt: 'kwiat',  barwa: '#f0c020', srodek: '#3a2410', wys: 1.6, liscie: true, ile: 8, r: 7 },
+            rzepak:     { lodyga: '#6a9a38', szczyt: 'kropki', barwa: '#f0e030', wys: 0.95 },
+            lawenda:    { lodyga: '#6a8a60', szczyt: 'klos',   barwa: '#8a60c8', wys: 0.65 },
+            mak:        { lodyga: '#5f8f3a', szczyt: 'kwiat',  barwa: '#d82a20', srodek: '#1a1010', wys: 0.8, ile: 16, r: 4 },
+            trawa:      { lodyga: '#6b8f3a', wys: 1.0 },
+            suchostoj:  { lodyga: '#b09a68', wys: 0.85 },
+            trzcina:    { lodyga: '#7a8a48', szczyt: 'kolba',  barwa: '#5a3a20', wys: 1.8, ile: 16 },
+            paproc:     { lodyga: '#2f7a35', szczyt: 'lisc',   barwa: '#3a9a40', wys: 0.8, ile: 10 },
+            krzak:      { lodyga: '#3f6a2a', szczyt: 'lisc',   barwa: '#4f8a38', wys: 0.95, ile: 28 },
+            krzak_rudy: { lodyga: '#6a4a24', szczyt: 'lisc',   barwa: '#b8622a', wys: 0.9, ile: 28 },
+            wrzos:      { lodyga: '#5a6a48', szczyt: 'kropki', barwa: '#c060b0', wys: 0.5 },
+            ostrozen:   { lodyga: '#5a7a50', szczyt: 'kwiat',  barwa: '#a050c0', srodek: '#6a3a80', wys: 1.1, ile: 16, r: 4 },
+            jagodnik:   { lodyga: '#3a6a30', szczyt: 'kropki', barwa: '#c02040', wys: 0.7, ile: 24 }
+        };
+        const _materialyGatunkow = {};
+        function materialGatunku(nazwa) {
+            if (_materialyGatunkow[nazwa]) return _materialyGatunkow[nazwa];
+            const def = GATUNKI_ROSLIN[nazwa];
+            const c = document.createElement('canvas'); c.width = c.height = 128;
+            const g = c.getContext('2d'), baza = new THREE.Color(def.lodyga);
+            const ile = def.ile || 40;
+            for (let i = 0; i < ile; i++) {
+                const x = 12 + Math.random() * 104, h = 56 + Math.random() * 68, wychyl = (Math.random() - 0.5) * 40;
+                const k = baza.clone().multiplyScalar(0.7 + Math.random() * 0.5);
+                const tx = x + wychyl, ty = 128 - h;
+                g.strokeStyle = '#' + k.getHexString(); g.lineWidth = 1.5 + Math.random() * 2; g.lineCap = 'round';
+                g.beginPath(); g.moveTo(x, 128); g.quadraticCurveTo(x + wychyl * 0.3, 128 - h * 0.6, tx, ty); g.stroke();
+                if (def.liscie) {
+                    g.lineWidth = 3;
+                    g.beginPath(); g.moveTo(x + wychyl * 0.2, 128 - h * 0.45); g.quadraticCurveTo(x + 14, 128 - h * 0.65, x + 20 * (i % 2 ? 1 : -1), 128 - h * 0.4); g.stroke();
+                }
+                if (!def.szczyt) continue;
+                g.fillStyle = def.barwa; g.strokeStyle = def.barwa;
+                if (def.szczyt === 'klos' || def.szczyt === 'osc') {
+                    for (let j = 0; j < 6; j++) { g.beginPath(); g.ellipse(tx + (j % 2 ? 2 : -2), ty + j * 3, 2, 3, 0, 0, 6.3); g.fill(); }
+                    if (def.szczyt === 'osc') { g.lineWidth = 1; for (let j = -1; j <= 1; j++) { g.beginPath(); g.moveTo(tx, ty); g.lineTo(tx + j * 6, ty - 12); g.stroke(); } }
+                } else if (def.szczyt === 'wiecha') {
+                    g.lineWidth = 1;
+                    for (let j = 0; j < 6; j++) { const wx = tx + (j - 2.5) * 4; g.beginPath(); g.moveTo(tx, ty); g.quadraticCurveTo(wx, ty - 3, wx, ty + 7); g.stroke(); g.beginPath(); g.arc(wx, ty + 8, 1.8, 0, 6.3); g.fill(); }
+                } else if (def.szczyt === 'kolba') {
+                    g.beginPath(); g.ellipse(tx, ty + 6, 3.5, 8, 0, 0, 6.3); g.fill();
+                } else if (def.szczyt === 'kwiat') {
+                    const r = def.r || 5;
+                    for (let j = 0; j < 8; j++) { const a = j * 0.785; g.beginPath(); g.ellipse(tx + Math.cos(a) * r, ty + Math.sin(a) * r, r * 0.7, r * 0.45, a, 0, 6.3); g.fill(); }
+                    g.fillStyle = def.srodek; g.beginPath(); g.arc(tx, ty, r * 0.6, 0, 6.3); g.fill();
+                } else if (def.szczyt === 'kropki') {
+                    for (let j = 0; j < 5; j++) { g.beginPath(); g.arc(tx + (Math.random() - 0.5) * 9, ty + Math.random() * 12, 2.2, 0, 6.3); g.fill(); }
+                } else if (def.szczyt === 'lisc') {
+                    for (let j = 0; j < 5; j++) {
+                        g.fillStyle = '#' + new THREE.Color(def.barwa).multiplyScalar(0.7 + Math.random() * 0.5).getHexString();
+                        g.beginPath(); g.ellipse(tx + (Math.random() - 0.5) * 22, ty + Math.random() * 24, 7, 3.5, Math.random() * 3, 0, 6.3); g.fill();
+                    }
                 }
             }
-            if (tiles.length === 0) return;
+            return _materialyGatunkow[nazwa] = new THREE.MeshLambertMaterial({ map: new THREE.CanvasTexture(c), transparent: true,
+                alphaTest: 0.35, side: THREE.DoubleSide });
+        }
 
-            // Zboże z gęstych kęp narysowanych źdźbeł (płaszczyzny na krzyż), nie ze stożków
-            const stalksPerTile = 3;
-            const stalkGeo = geometriaKepki(0.9, 1.2, 0);
-            const stalkMat = materialTrawy('#6b8f3a', true);
-            cornfieldMesh = new THREE.InstancedMesh(stalkGeo, stalkMat, tiles.length * stalksPerTile);
+        // Co rośnie na danej planszy. Każdy płat dostaje jeden gatunek.
+        function gatunkiPlanszy() {
+            const id = currentCombatTheme ? currentCombatTheme.id : '';
+            if (gameMode !== 'dream' || ['alabama', 'wesole'].includes(id)) return ['pszenica', 'zyto', 'jeczmien', 'owies', 'kukurydza', 'slonecznik', 'rzepak', 'lawenda', 'mak'];
+            if (['amazonia', 'bagno'].includes(id)) return ['paproc', 'trzcina', 'krzak', 'jagodnik', 'trawa'];
+            if (['las', 'jezioro', 'wyspy'].includes(id)) return ['paproc', 'krzak', 'krzak_rudy', 'jagodnik', 'wrzos', 'trawa', 'trzcina'];
+            if (['cmentarzysko', 'nekropolia', 'pobojowisko', 'parow', 'otchlan', 'sicario', 'ambush', 'zamiec'].includes(id)) return ['suchostoj', 'ostrozen', 'krzak_rudy', 'wrzos'];
+            return ['trawa', 'suchostoj', 'mak', 'ostrozen', 'krzak', 'owies', 'pszenica', 'wrzos'];
+        }
 
+        function postawGatunek(nazwa, tiles) {
+            const def = GATUNKI_ROSLIN[nazwa], naPole = 3;
+            const geo = geometriaKepki(0.9, 1.2, 0);
+            const inst = new THREE.InstancedMesh(geo, materialGatunku(nazwa), tiles.length * naPole);
             const dummy = new THREE.Object3D();
             let idx = 0;
             tiles.forEach(([wx, wz]) => {
                 const ty = getTerrainY(wx, wz);
-                for (let s = 0; s < stalksPerTile; s++) {
-                    const jx = wx + (Math.random() - 0.5) * 0.7;
-                    const jz = wz + (Math.random() - 0.5) * 0.7;
-                    dummy.position.set(jx, ty + 0.55, jz);
+                for (let s = 0; s < naPole; s++) {
+                    const sy = (0.9 + Math.random() * 0.3) * def.wys;
+                    dummy.position.set(wx + (Math.random() - 0.5) * 0.7, ty + 0.6 * sy - 0.05, wz + (Math.random() - 0.5) * 0.7);
                     dummy.rotation.y = Math.random() * Math.PI * 2;
-                    dummy.scale.set(0.8 + Math.random() * 0.4, 0.9 + Math.random() * 0.3, 0.8 + Math.random() * 0.4);
+                    dummy.scale.set(0.8 + Math.random() * 0.4, sy, 0.8 + Math.random() * 0.4);
                     dummy.updateMatrix();
-                    cornfieldMesh.setMatrixAt(idx, dummy.matrix);
-                    idx++;
+                    inst.setMatrixAt(idx++, dummy.matrix);
                 }
             });
-            cornfieldMesh.instanceMatrix.needsUpdate = true;
-            scene.add(cornfieldMesh);
+            inst.instanceMatrix.needsUpdate = true;
+            scene.add(inst);
+            cornfieldMeshes.push(inst);
+        }
+
+        function renderCornfields() {
+            cornfieldMeshes.forEach(m => { scene.remove(m); m.geometry.dispose(); });
+            cornfieldMeshes = [];
+            // Spójny płat pól dostaje jeden gatunek, więc obok siebie rosną różne uprawy
+            const lista = gatunkiPlanszy(), byl = new Set(), zebrane = {};
+            for (let mx = 0; mx < mapWidth; mx++) for (let mz = 0; mz < mapDepth; mz++) {
+                if (cornfieldGrid[mx][mz] !== 1 || byl.has(mx + ',' + mz)) continue;
+                const nazwa = lista[Math.floor(Math.random() * lista.length)];
+                const stos = [[mx, mz]];
+                byl.add(mx + ',' + mz);
+                while (stos.length) {
+                    const [x, z] = stos.pop();
+                    (zebrane[nazwa] = zebrane[nazwa] || []).push([x - offsetX, z - offsetZ]);
+                    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+                        const nx = x + dx, nz = z + dz, k = nx + ',' + nz;
+                        if (nx < 0 || nz < 0 || nx >= mapWidth || nz >= mapDepth || cornfieldGrid[nx][nz] !== 1 || byl.has(k)) continue;
+                        byl.add(k); stos.push([nx, nz]);
+                    }
+                }
+            }
+            Object.keys(zebrane).forEach(n => postawGatunek(n, zebrane[n]));
         }
 
         let riverMesh = null;
