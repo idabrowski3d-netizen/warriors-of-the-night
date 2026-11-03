@@ -38013,6 +38013,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const DYWANY = [0x7a1426, 0x1c2c55, 0x24452c, 0x6c4a78, 0x8a5a2b, 0x2a6a70, 0xb0683a, 0x46505c, 0xc8b89a, 0x5a1e4a];
         const POSADZKI = [[0x8a6a44, 0x7a5c3a], [0xd8d4cc, 0x3a3a40], [0xc8c2b4, 0xb4ad9c], [0x4a5560, 0x3e4852],
                           [0xa04a30, 0x8c3f28], [0x6a8a8a, 0x5c7a7a], [0xe0d8c8, 0xc8a878], [0x3a2a24, 0x4a362e]];
+        const BALDACHIMY = [[0x7a1426, 0xd4af37], [0x1c2c55, 0xc8ccd2], [0x24552f, 0xd4af37], [0x2a2a30, 0xb5693a], [0xe0d8c8, 0x3a3a40],
+                            [0xb0562a, 0x2a2a30], [0x5a2a78, 0xe0c070], [0x1f6f78, 0xe6e2da], [0xc89a2a, 0x2a2a30]];
         const wylosuj = (lista) => lista[Math.floor(Math.random() * lista.length)];
 
         // Pola tuż przy ścianach, z kierunkiem w głąb budynku
@@ -38082,16 +38084,20 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const b = zbieraczBryl();
             b.ustaw(d.x, getTerrainY(d.x, d.z), d.z, fx, fz);
             // Czerwony chodnik, baldachim na złotych słupkach i przystrzyżone krzewy
-            b.box(1.1, 0.03, 3.4, BORDO, 0, 0.02, 2.2);
-            b.box(1.5, 0.08, 2.6, BORDO, 0, 2.05, 1.8);
-            b.box(1.56, 0.04, 2.66, ZLOTO, 0, 2.02, 1.8);
+            // Każdy baldachim ma własny rozmiar i barwę
+            const [plotno, okucie] = wylosuj(BALDACHIMY);
+            const szer = 1.2 + Math.random() * 1.1, dl = 1.4 + Math.random() * 1.5, wys = 1.85 + Math.random() * 0.35;
+            const sr = 0.5 + dl / 2, koniec = 0.5 + dl;
+            b.box(szer * 0.7, 0.03, dl + 0.8, plotno, 0, 0.02, sr + 0.4);
+            b.box(szer, 0.08, dl, plotno, 0, wys + 0.03, sr);
+            b.box(szer + 0.06, 0.04, dl + 0.06, okucie, 0, wys, sr);
             for (const s of [-1, 1]) {
-                for (const t of [0.8, 3.0]) b.walec(0.04, 0.04, 2.02, ZLOTO, s * 0.7, 0, t);
-                b.box(0.34, 0.3, 0.34, MOSIADZ, s * 1.5, 0, 0.8);
-                b.kula(0.32, ZIELEN, s * 1.5, 0.66, 0.8);
-                b.kula(0.2, ZIELEN, s * 1.5, 1.08, 0.8);
-                b.kula(0.09, 0xffe6b0, s * 0.45, 1.92, 1.2, true);
-                b.kula(0.09, 0xffe6b0, s * 0.45, 1.92, 2.6, true);
+                for (const t of [0.8, koniec]) b.walec(0.04, 0.04, wys, okucie, s * (szer / 2 - 0.05), 0, t);
+                b.box(0.34, 0.3, 0.34, MOSIADZ, s * (szer / 2 + 0.75), 0, 0.8);
+                b.kula(0.32, ZIELEN, s * (szer / 2 + 0.75), 0.66, 0.8);
+                b.kula(0.2, ZIELEN, s * (szer / 2 + 0.75), 1.08, 0.8);
+                b.kula(0.09, 0xffe6b0, s * szer * 0.3, wys - 0.1, 1.2, true);
+                b.kula(0.09, 0xffe6b0, s * szer * 0.3, wys - 0.1, koniec - 0.4, true);
             }
             const g = b.siatka();
             // Neony: szyld płasko na ścianie i pionowy, odstający od muru
