@@ -29930,10 +29930,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 let ostatni = 0;
                 activeAnimations.push(function (time) {
                     if (!projectile.parent) return true;
-                    if (time - ostatni < 28) return false;
+                    if (time - ostatni < 45) return false;
                     ostatni = time;
                     const p = projectile.position;
-                    klabDymu(p.x, p.y, p.z, 0x4a4238, 0.42, 800);
+                    klabDymu(p.x, p.y, p.z, 0x8a8074, 0.6, 2600);
                     return false;
                 });
             }
@@ -29963,7 +29963,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     return false;
                 });
             }
-            slideObject(projectile, endX, endY, endZ, 400, () => { 
+            // Pocisk z dymem leci wolniej, żeby smugę było widać
+            slideObject(projectile, endX, endY, endZ, styl.dym ? 1100 : 400, () => {
                 // Pocisk, który dolatuje w okolicę lampy czy neonu, zbija szkło
                 if (typeof stluczSwiatla === 'function') stluczSwiatla(endX, endZ, SZKLO_PROMIEN, false);
                 scene.remove(projectile); 
