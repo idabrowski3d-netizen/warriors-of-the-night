@@ -3723,7 +3723,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Tam woda nie ma sensu albo psuje tożsamość planszy: cyberprzestrzeń,
         // wulkan, a przede wszystkim labirynt klaustrofobii - tam ściany
         // przesuwają się po polach i rozlewisko zablokowałoby cały mechanizm.
-        const ZBIORNIK_BEZ_WODY = ['cyber', 'wulkan', 'klaustrofobia', 'stacja',
+        const ZBIORNIK_BEZ_WODY = ['newyork', 'cyber', 'wulkan', 'klaustrofobia', 'stacja',
                                    'archiwum', 'alcatraz', 'wieza', 'studnia', 'ostoja'];
         const ZBIORNIK_BRZEG_SZER = [8, 16];
         const ZBIORNIK_BRZEG_GLEB = [3, 6];
@@ -6023,7 +6023,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             } else if (gameMode === 'dream' &&
                        // Labirynt i Ostoja też są zabudową - rzeka przecinałaby
                        // korytarze i zostawiała w nich pas trawy.
-                       !(currentCombatTheme && ['alcatraz', 'stacja', 'most', 'dom', 'wieza', 'jezioro', 'studnia', 'szpital', 'klaustrofobia', 'ostoja'].includes(currentCombatTheme.id)) &&
+                       !(currentCombatTheme && ['newyork', 'alcatraz', 'stacja', 'most', 'dom', 'wieza', 'jezioro', 'studnia', 'szpital', 'klaustrofobia', 'ostoja'].includes(currentCombatTheme.id)) &&
                        (isVolcanoTheme ||
                        (currentCombatTheme && currentCombatTheme.id === 'otchlan') ||
                        Math.random() < 0.45)) {
@@ -6188,8 +6188,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // innego miejsca: albo dom stanie tutaj, albo nigdzie.
                 if (wymusz) {
                     startX = wymusz.x; startZ = wymusz.z;
-                    isOverlap = overlapsExistingHouses(startX, startX + W - 1, startZ, startZ + D - 1);
-                    for (let x = -1; x <= W && !isOverlap; x++)
+                    // styk: kamienica w pierzei dotyka sąsiadki i stoi przy chodniku
+                    isOverlap = !wymusz.styk && overlapsExistingHouses(startX, startX + W - 1, startZ, startZ + D - 1);
+                    for (let x = -1; x <= W && !isOverlap && !wymusz.styk; x++)
                         for (let z = -1; z <= D && !isOverlap; z++) {
                             const mx = startX + x + offsetX, mz = startZ + z + offsetZ;
                             if (mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth) {
@@ -6225,7 +6226,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     for(let z = -1; z <= D; z++) {
                         let mx = startX + x + offsetX, mz = startZ + z + offsetZ;
                         heightMap[mx][mz] = 0;
-                        if (terrainTypeMap[mx][mz] < 2) terrainTypeMap[mx][mz] = 1; 
+                        if (terrainTypeMap[mx][mz] < 2 && !(wymusz && wymusz.styk)) terrainTypeMap[mx][mz] = 1;
                     }
                 }
                 // Pierwsze wejście z listy musi leżeć na ścianie południowej (z=0) - to ono łączy się z drogą
@@ -6667,7 +6668,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // się chować w drodze do oddziału.
                 // Cmentarzysko ma wlasny uklad kwater i alejek - ogolne posypanie
                 // glazami po losowych polach rozbijaloby go na konfetti.
-                if (currentCombatTheme && !['cyber', 'katedra', 'cmentarzysko', 'stacja', 'pobojowisko', 'alabama', 'ostoja', 'klaustrofobia'].includes(currentCombatTheme.id)) {
+                if (currentCombatTheme && !['newyork', 'cyber', 'katedra', 'cmentarzysko', 'stacja', 'pobojowisko', 'alabama', 'ostoja', 'klaustrofobia'].includes(currentCombatTheme.id)) {
                     // Więcej osłon = wrogowie mają czym się zasłaniać w drodze do oddziału
                     const ile = 170 + Math.floor(Math.random() * 110);
                     for (let t = 0; t < ile; t++) {
@@ -6676,8 +6677,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         if (!isWithinPlayBounds(gx, gz) || isObstacle(gx, gz)) continue;
                         if (terrainTypeMap[gx + offsetX][gz + offsetZ] >= 2) continue;   // nie na wodzie
                         // Grupki po 1-3 głazy, żeby tworzyły osłony, a nie kropki
-                        const wielkosc = 1 + Math.floor(Math.random() * 3);
+                        // W mieście sprzęt stoi pojedynczo i w odstępach: cztery znaki
+                        // albo latarnie w rzędzie nie mają sensu. Latarnie stawia oprawa planszy.
+                        const miasto = KAMIENICE_PLANSZE.indexOf(currentCombatTheme.id) !== -1;
+                        const wielkosc = miasto ? 1 : 1 + Math.floor(Math.random() * 3);
                         const rodzajGrupy = losowaOslona();   // cała grupka z jednego rodzaju
+                        if (miasto) {
+                            if (rodzajGrupy === 'latarnia_uliczna') continue;
+                            const odstep = rodzajGrupy === 'znak_drogowy' ? 14 : 7;
+                            if (obstaclePositions.some(p => p.type === rodzajGrupy && Math.abs(p.x - gx) < odstep && Math.abs(p.z - gz) < odstep)) continue;
+                        }
                         for (let k = 0; k < wielkosc; k++) {
                             const ox = gx + (k === 0 ? 0 : Math.round(Math.random() * 2 - 1));
                             const oz = gz + (k === 0 ? 0 : Math.round(Math.random() * 2 - 1));
@@ -8188,7 +8197,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // Pojedyncze głazy dają osłonę punktową, te - całe odcinki do przebiegnięcia.
                 // Cmentarzysko: pasma murkow laduja w poprzek alejek i kwater,
                 // wiec tam rumowisko ustawia wlasny uklad.
-                if (currentCombatTheme && !['cyber', 'katedra', 'cmentarzysko', 'stacja', 'pobojowisko', 'alabama', 'ostoja', 'klaustrofobia'].includes(currentCombatTheme.id)) {
+                if (currentCombatTheme && !['newyork', 'cyber', 'katedra', 'cmentarzysko', 'stacja', 'pobojowisko', 'alabama', 'ostoja', 'klaustrofobia'].includes(currentCombatTheme.id)) {
                     const ilePasm = 16 + Math.floor(Math.random() * 14);
                     for (let t = 0; t < ilePasm; t++) {
                         const sx = Math.floor(Math.random() * (mapWidth - 24)) + 12 - offsetX;
@@ -8200,6 +8209,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         let przerwa = Math.floor(Math.random() * dlugosc);   // luka do przejścia
                         // Pasmo z jednego rodzaju - mur z mieszanych rzeczy wyglądałby dziwnie
                         const rodzajPasma = (() => {
+                            // W mieście rząd tworzy tylko żywopłot - nie znaki ani latarnie
+                            if (KAMIENICE_PLANSZE.indexOf(currentCombatTheme.id) !== -1) return 'zywoplot';
                             const p = losowaOslona();
                             // We wnętrzach żywopłot nie ma czego szukać - tam rzędy regałów
                             const wnetrze = currentCombatTheme && ['alcatraz', 'stacja'].includes(currentCombatTheme.id);
@@ -8805,24 +8816,56 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         }
                     }
                 } else if (currentCombatTheme.id === 'newyork') {
-                    // Nowy Jork: wyłącznie kamienice 2-, 3- i 4-piętrowe, z płaskimi dachami
-                    for (let i = 0; i < 9; i++) {
-                        const w = 8 + Math.floor(Math.random() * 4), d = 8 + Math.floor(Math.random() * 4);
+                    // Nowy Jork: ulica jak z fotografii. Jezdnia, szerokie chodniki, przecznice,
+                    // a wzdłuż nich pierzeje kamienic stykających się ścianami, frontem do drogi.
+                    const PRZECZNICE = [-48, 0, 48];
+                    for (let x = 0; x < mapWidth; x++) for (let z = 0; z < mapDepth; z++) {
+                        const wx = x - offsetX, wz = z - offsetZ;
+                        if (terrainTypeMap[x][z] >= 2) continue;
+                        const odPrzecznicy = Math.min(...PRZECZNICE.map(c => wz >= c ? wz - c : c - wz - 1));
+                        // Reszta to jednolite podwórza, bez łat ziemi
+                        terrainTypeMap[x][z] = odPrzecznicy < 3 ? 2 : (odPrzecznicy < 5 || (wx >= -6 && wx <= 5)) ? 3 : 0;
+                    }
+                    const plan = [];
+                    for (const strona of [-1, 1]) {
+                        [[-85, -54], [-42, -6], [6, 42], [54, 85]].forEach(([od, doZ]) => {
+                            let z0 = od;
+                            while (true) {
+                                const w = 8 + Math.floor(Math.random() * 3), d = 8 + Math.floor(Math.random() * 4);
+                                if (z0 + d - 1 > doZ) break;
+                                plan.push({ w, d, x0: strona < 0 ? -7 - (w - 1) : 6, z0,
+                                            drzwi: [[strona < 0 ? w - 1 : 0, Math.floor(d / 2)]] });
+                                z0 += d;
+                                // Czasem zaułek albo skwerek z fontanną, reszta kamienic się styka
+                                if (Math.random() < 0.3) {
+                                    const luka = 6;
+                                    addObstacle(strona < 0 ? -10 : 9, z0 + 3, 'fontanna');
+                                    z0 += luka;
+                                }
+                            }
+                        });
+                    }
+                    for (let i = 0; i < plan.length; i++) {
+                        const { w, d, x0, z0, drzwi } = plan[i];
                         const storeys = 2 + Math.floor(Math.random() * 3); // 2, 3 albo 4
-                        const b = placeSpecialBuilding(w, d, 0x6b5a4a, null, storeys, [[Math.floor(w / 2), 0]], []);
+                        const b = placeSpecialBuilding(w, d, 0x6b5a4a, null, storeys, drzwi, [], undefined, { x: x0, z: z0, styk: true });
                         if (!b) continue;
                         const roofObj = obstaclePositions.find(p => p.type === 'house-roof' && p.x === b.x && p.z === b.z);
                         if (roofObj) roofObj.flatRoof = true; // płaski dach - da się po nim chodzić
                         const bMinX = b.x - Math.round((w - 1) / 2), bMinZ = b.z - Math.round((d - 1) / 2);
-                        // Fontanna na placyku przed co drugim budynkiem, z boku od wejścia
-                        if (i % 2 === 0 && isWithinPlayBounds(b.x + 4, bMinZ - 3) && !isObstacle(b.x + 4, bMinZ - 3)) addObstacle(b.x + 4, bMinZ - 3, 'fontanna');
                         const interior = [];
                         for (let x = bMinX + 1; x < bMinX + w - 1; x++) {
                             for (let z = bMinZ + 1; z < bMinZ + d - 1; z++) {
                                 const mx = x + offsetX, mz = z + offsetZ;
                                 if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
                                 interior.push([x, z, mx, mz]);
+                                terrainTypeMap[mx][mz] = 3;
                                 for (let L = 1; L < storeys; L++) floorGrid[L][mx][mz] = 1;
+                                // Sprzęt z ulicy nie może zostać w środku i odcinać części parteru
+                                if (obstacleGrid[mx][mz]) {
+                                    obstacleGrid[mx][mz] = null;
+                                    obstaclePositions = obstaclePositions.filter(p => p.x !== x || p.z !== z);
+                                }
                             }
                         }
                         // Otwory 2x2 - dużo łatwiej je znaleźć niż pojedynczy kafelek
@@ -9260,11 +9303,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // W więzieniu i na stacji drzew prawie nie ma - to beton i tłuczeń
                 const malozielone = currentCombatTheme &&
                     ['alcatraz', 'stacja'].includes(currentCombatTheme.id);
-                const treeTries = malozielone ? 6 : (wNowymJorku ? 28 : 150);
+                const treeTries = malozielone ? 6 : (wNowymJorku ? 0 : 150);
 
                 // ZAGAJNIKI: około połowy drzew rośnie w skupiskach, reszta pojedynczo.
                 // Sam rozrzut po całej planszy dawał równomierny "sad", a nie las.
-                const zagajnikow = malozielone ? 0 : (wNowymJorku ? 2 : (4 + Math.floor(Math.random() * 4)));
+                const zagajnikow = malozielone ? 0 : (wNowymJorku ? 0 : (4 + Math.floor(Math.random() * 4)));
                 let wZagajnikach = 0;
                 for (let g = 0; g < zagajnikow; g++) {
                     const cx = Math.floor(Math.random() * (mapWidth - 20)) + 10 - offsetX;
@@ -9305,6 +9348,27 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Pola kukurydzy - kilka płatów wysokich upraw, nie blokują ruchu ani widoczności całkowicie,
             // ale utrudniają celowanie (patrz calculateHitChance / isCornfield)
             const isNYMap = currentCombatTheme && currentCombatTheme.id === 'newyork';
+            // Wyposażenie chodników w miastach: równy rytm co 12 pól między lampami,
+            // kosze i skrzynki tylko gdzieniegdzie, a przy krawężniku zaparkowane auta.
+            if (currentCombatTheme && KAMIENICE_PLANSZE.indexOf(currentCombatTheme.id) !== -1) {
+                const naChodniku = (x, z, typ) => {
+                    const mx = x + offsetX, mz = z + offsetZ;
+                    if (!isWithinPlayBounds(x, z) || isObstacle(x, z) || terrainTypeMap[mx][mz] !== 3) return;
+                    addObstacle(x, z, typ);
+                };
+                [-4, 3].forEach(x => {
+                    let nr = 0;
+                    for (let z = -84; z < 86; z += 12, nr++) {
+                        naChodniku(x, z + 6, 'tree');
+                        if (nr % 2 === 0) naChodniku(x, z + 3, 'hydrant');
+                        else if (Math.random() < 0.6) naChodniku(x, z + 9, Math.random() < 0.6 ? 'kosz' : 'skrzynia_pocztowa');
+                    }
+                });
+                for (let z = -80; z < 84; z += 22) {
+                    const x = (z % 4 === 0) ? -3 : 2, mz = z + offsetZ;
+                    if (terrainTypeMap[x + offsetX][mz] === 2 && !isObstacle(x, z)) addObstacle(x, z, 'limuzyna');
+                }
+            }
             const cornfieldPatchCount = (isVolcanoMap || isSaharaMap || isNYMap || isKatedraMap || isFloodMap || isCyberMap) ? 0 : 4;
             for (let p = 0; p < cornfieldPatchCount; p++) {
                 let centerX = Math.floor(Math.random() * mapWidth) - offsetX;
@@ -10948,9 +11012,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // rozstaw: 'droga' wzdłuż głównej drogi, 'rozsyp' po planszy,
         //          'domy' przy budynkach, 'sciezka' wzdłuż ubitej ziemi
         const SWIATLO_PLANSZY = {
-            whitehouse:   { oprawa: 'latarnia',  barwa: 0xfff2d0, wys: 3.2, rozstaw: 'droga',  gestosc: 14 },
-            pentagon:     { oprawa: 'neon',      barwa: 0xbfe8ff, wys: 3.0, rozstaw: 'droga',  gestosc: 16 },
-            kremlin:      { oprawa: 'latarnia',  barwa: 0xffd48a, wys: 3.6, rozstaw: 'droga',  gestosc: 13 },
+            whitehouse:   { oprawa: 'latarnia',  barwa: 0xfff2d0, wys: 3.2, rozstaw: 'ulica',  gestosc: 12 },
+            pentagon:     { oprawa: 'neon',      barwa: 0xbfe8ff, wys: 3.0, rozstaw: 'ulica',  gestosc: 12 },
+            kremlin:      { oprawa: 'latarnia',  barwa: 0xffd48a, wys: 3.6, rozstaw: 'ulica',  gestosc: 12 },
             zhongnanhai:  { oprawa: 'lampion',   barwa: 0xff5a4a, wys: 2.8, rozstaw: 'domy',   gestosc: 12 },
             sahara:       { oprawa: 'ognisko',   barwa: 0xff8a3a, wys: 0.6, rozstaw: 'rozsyp', gestosc: 18 },
             powodz:       { oprawa: 'zarowka',   barwa: 0xffe0a0, wys: 2.4, rozstaw: 'domy',   gestosc: 15 },
@@ -10980,7 +11044,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             katedra:      { oprawa: 'swieca',    barwa: 0xffb45a, wys: 1.2, rozstaw: 'rozsyp', gestosc: 11 },
             wyspy:        { oprawa: 'pochodnia', barwa: 0xffc060, wys: 1.9, rozstaw: 'rozsyp', gestosc: 18 },
             zamiec:       { oprawa: 'kaganek',   barwa: 0xa8c8ff, wys: 1.5, rozstaw: 'rozsyp', gestosc: 17 },
-            newyork:      { oprawa: 'latarnia',  barwa: 0xffe8b0, wys: 4.0, rozstaw: 'droga',  gestosc: 11 },
+            newyork:      { oprawa: 'latarnia',  barwa: 0xffe8b0, wys: 4.0, rozstaw: 'ulica',  gestosc: 12 },
             alabama:      { oprawa: 'kaganek',   barwa: 0xffd090, wys: 1.6, rozstaw: 'domy',   gestosc: 14 },
             wulkan:       { oprawa: 'kaganek',   barwa: 0xff4a20, wys: 1.3, rozstaw: 'rozsyp', gestosc: 12 },
             // Własna Ostoja: pochodnie na murach i świece w izbach
@@ -11067,6 +11131,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function miejscaOpraw(def) {
             const miejsca = [];
             const krok = def.gestosc || 14;
+            // Lampy równo na krawędzi chodnika, drzewa i hydranty stoją między nimi
+            if (def.rozstaw === 'ulica') {
+                for (let z = -84; z < 86; z += krok) miejsca.push([-4, z], [3, z]);
+                return miejsca;
+            }
             if (def.rozstaw === 'droga') {
                 const osX = Math.floor(mapWidth / 2) - offsetX;
                 for (let z = -offsetZ + 6; z < offsetZ - 6; z += krok)
@@ -11100,6 +11169,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                           'dom', 'alcatraz', 'katedra', 'stacja', 'klaustrofobia'];
         function dobreMiejsceNaOprawe(lx, lz) {
             if (!isWithinPlayBounds(lx, lz)) return false;
+            const opr = currentCombatTheme && SWIATLO_PLANSZY[currentCombatTheme.id];
+            if (opr && opr.rozstaw === 'ulica') return !isObstacle(lx, lz);
             if (currentCombatTheme && PLANSZE_SWIATLO_WSZEDZIE.indexOf(currentCombatTheme.id) !== -1) {
                 if (isObstacle(lx, lz) || isNearTree(lx, lz, 1)) return false;
                 const mx = Math.round(lx) + offsetX, mz = Math.round(lz) + offsetZ;
@@ -11121,7 +11192,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const miejsca = miejscaOpraw(def);
             // Dosypujemy losowych prób, bo na ciasnych planszach większość
             // zaplanowanych miejsc odpada i oświetlenie zostawało puste.
-            for (let i = 0; i < 300 && miejsca.length < limit * 20; i++) {
+            for (let i = 0; def.rozstaw !== 'ulica' && i < 300 && miejsca.length < limit * 20; i++) {
                 miejsca.push([Math.floor(Math.random() * (mapWidth - 12)) + 6 - offsetX,
                               Math.floor(Math.random() * (mapDepth - 12)) + 6 - offsetZ]);
             }
@@ -13268,7 +13339,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const PODLOGI_WNETRZ = ['plyty', 'wytarte', 'deski'];
         function ozdobPodlogiWnetrz() {
             const id = currentCombatTheme ? currentCombatTheme.id : '';
-            if (!id || id === 'ostoja') return 0;
+            // Ulice pod gołym niebem to nie wnętrza - łaty desek i płyt robiły tam chaos
+            if (!id || id === 'ostoja' || id === 'newyork' || id === 'pozar') return 0;
             if (MURY_ZAMIAST_GLAZOW.indexOf(id) === -1) return 0;
             let polozonych = 0;
             for (let i = 0; i < 70 && polozonych < 30; i++) {
@@ -16723,8 +16795,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             zawias.add(skrzydlo); cz.push(zawias);
                         });
                         const floors = pos.floors || 1;
-                        for (let f = 1; f < floors; f++) cz.push(...naBokach(bokiD, pos, 1, 2, GRUBOSC_MURU, ty + f * 2 + 1, doorMat));
                         cz.forEach(m => { if (m.material) m.userData = { type: 'house-wall', x: pos.x, z: pos.z, houseId: pos.houseId }; scene.add(m); obstacleMeshes.push(m); });
+                        // Mur nad drzwiami chowa się z kondygnacją, inaczej stoi jak słup nad parterem
+                        for (let f = 1; f < floors; f++) naBokach(bokiD, pos, 1, 2, GRUBOSC_MURU, ty + f * 2 + 1, doorMat).forEach(m => {
+                            m.userData = { type: 'house-wall', x: pos.x, z: pos.z, houseId: pos.houseId, wallLevel: f };
+                            scene.add(m); obstacleMeshes.push(m);
+                        });
                         return;
                     }
                     const topDoor = new THREE.Mesh(new THREE.BoxGeometry(1, 0.4, 1), doorMat);
@@ -16733,7 +16809,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     for (let f = 1; f < floors; f++) {
                         const wall = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), doorMat);
                         wall.position.set(pos.x, ty + f * 2 + 1, pos.z);
-                        wall.userData = { type: 'house-wall', x: pos.x, z: pos.z, houseId: pos.houseId };
+                        wall.userData = { type: 'house-wall', x: pos.x, z: pos.z, houseId: pos.houseId, wallLevel: f };
                         scene.add(wall); obstacleMeshes.push(wall);
                     }
                 }
@@ -33207,7 +33283,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             setViewLevel(target);
             if (shieldBubble && shieldBubble.caster === active) clearShieldBubble("Osłona znika - rzucający zmienił kondygnację.");
             const ny = getLevelY(ax, az, target) + active.mesh.userData.yOffset;
-            // Winda jedzie wolniej: podłoga kabiny sunie razem z wojownikiem, a na końcu dzwonek
+            // Winda jedzie wolniej: podłoga kabiny sunie razem z wojownikiem, gra dźwięk windy
             let platforma = null;
             if (winda) {
                 active.mesh.position.x = ax; active.mesh.position.z = az;
@@ -33215,12 +33291,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 platforma.position.set(ax, getLevelY(ax, az, lvl) + 0.03, az);
                 scene.add(platforma);
                 slideObject(platforma, ax, getLevelY(ax, az, target) + 0.03, az, 850);
-                SoundEngine.playTone(110, 'sawtooth', 0.8, 0.04);
+                playFileSfx('audio/elevator.ogg', 0.8);
             }
             slideObject(active.mesh, ax, ny, az, winda ? 850 : 260, () => {
                 if (platforma) {
                     scene.remove(platforma); platforma.geometry.dispose(); platforma.material.dispose();
-                    SoundEngine.playTone(880, 'sine', 0.3, 0.12);
                 }
                 refreshPlayerPositions();
                 updateFloorVisibility();
@@ -37910,6 +37985,28 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             b.box(0.04, 0.04, 0.02, 0x66ff88, 0.36, 1.08, -0.4, true);
         }
 
+        const NEONY = [['HOTEL', '#9ff4ff'], ['COFFEE', '#ff7ad0'], ['BAR', '#ffd24a'], ['PIZZA', '#ff5a3a'], ['KINO', '#7ab8ff'],
+                       ['JAZZ', '#c88aff'], ['DINER', '#6affb0'], ['CLUB', '#ff4a8a'], ['SKLEP', '#ffe9a0'], ['TEATR', '#ffb14a']];
+        const _teksturyNeonow = {};
+        function neon(napis, barwa, pionowo) {
+            const klucz = napis + (pionowo ? '|' : '-');
+            let t = _teksturyNeonow[klucz];
+            if (!t) {
+                const c = document.createElement('canvas');
+                c.width = pionowo ? 64 : 256; c.height = pionowo ? 64 * napis.length : 64;
+                const g = c.getContext('2d');
+                g.fillStyle = '#0b0d14'; g.fillRect(0, 0, c.width, c.height);
+                g.font = 'bold 46px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+                g.fillStyle = barwa; g.shadowColor = barwa; g.shadowBlur = 14;
+                if (pionowo) [...napis].forEach((l, i) => g.fillText(l, 32, 32 + i * 64));
+                else g.fillText(napis, 128, 34);
+                t = _teksturyNeonow[klucz] = new THREE.CanvasTexture(c);
+            }
+            const szer = pionowo ? 0.3 : 1.7, wys = pionowo ? 0.3 * napis.length : 0.42;
+            return new THREE.Mesh(new THREE.PlaneGeometry(szer, wys),
+                new THREE.MeshBasicMaterial({ map: t, side: THREE.DoubleSide }));
+        }
+
         function wejscieBudynku(o) {
             const d = o.drzwi[Math.floor(o.drzwi.length / 2)];
             if (!d) return;
@@ -37930,6 +38027,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 b.kula(0.09, 0xffe6b0, s * 0.45, 1.92, 2.6, true);
             }
             const g = b.siatka();
+            // Neony: szyld płasko na ścianie i pionowy, odstający od muru
+            const [napis, barwa] = NEONY[Math.floor(Math.random() * NEONY.length)];
+            const szyld = neon(napis, barwa, false);
+            const tx = fz, tz = fx, y = getTerrainY(d.x, d.z);
+            szyld.position.set(d.x + fx * 0.54 - tx * 2.5, y + 1.55, d.z + fz * 0.54 - tz * 2.5);
+            szyld.rotation.y = Math.atan2(fx, fz);
+            g.add(szyld);
+            const [napis2, barwa2] = NEONY[Math.floor(Math.random() * NEONY.length)];
+            const pion = neon(napis2, barwa2, true);
+            pion.position.set(d.x + fx * 0.95 + tx * 3, y + 1.15, d.z + fz * 0.95 + tz * 3);
+            pion.rotation.y = Math.atan2(tx, tz);
+            g.add(pion);
             g.userData.pietro = 0;
             g.userData.mglaProbki = [{ x: d.x + fx * 2, z: d.z + fz * 2 }, { x: d.x, z: d.z }];
             scene.add(g);
@@ -37969,7 +38078,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         kabinaWindy(b, L, o.pieter);
                     }
                     // Mieszamy pola, żeby meble nie stały w każdym budynku tak samo
-                    const miejsca = pola.filter(p => !przyDrzwiach(p) && !hasHoleAt(p.x, p.z, L) && !hasHoleAt(p.x, p.z, L - 1) &&
+                    // Pola tuż przy narożniku zostają wolne - dwa meble odcinałyby sam kąt
+                    const przyRogu = (p) => (p.x <= o.minX + 2 || p.x >= o.maxX - 2) && (p.z <= o.minZ + 2 || p.z >= o.maxZ - 2);
+                    const miejsca = pola.filter(p => !przyRogu(p) && !przyDrzwiach(p) && !hasHoleAt(p.x, p.z, L) && !hasHoleAt(p.x, p.z, L - 1) &&
                         !(szyb && Math.abs(szyb.x - p.x) <= 1 && Math.abs(szyb.z - p.z) <= 1) &&
                         (L > 0 ? hasFloorAt(p.x, p.z, L) : !isObstacle(p.x, p.z)));
                     const start = Math.floor(Math.random() * Math.max(1, miejsca.length));
