@@ -8860,7 +8860,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                 if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
                                 interior.push([x, z, mx, mz]);
                                 terrainTypeMap[mx][mz] = 3;
-                                for (let L = 1; L < storeys; L++) floorGrid[L][mx][mz] = 1;
+                                for (let L = 1; L <= storeys; L++) floorGrid[L][mx][mz] = 1;   // ostatni poziom to dach
                                 // Sprzęt z ulicy nie może zostać w środku i odcinać części parteru
                                 if (obstacleGrid[mx][mz]) {
                                     obstacleGrid[mx][mz] = null;
@@ -11210,6 +11210,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (!dobreMiejsceNaOprawe(lx, lz)) return;
                 const g = stworzOprawe(def, noc);
                 g.position.set(lx, getTerrainY(lx, lz), lz);
+                // Ramię bryły patrzy w +x: wschodni chodnik obracamy głowicą ku jezdni
+                if (def.rozstaw === 'ulica' && lx > 0) g.rotation.y = Math.PI;
                 scene.add(g);
                 streetLamps.push(g);
                 registerLampObstacle(lx, lz);
@@ -16876,7 +16878,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     } else {
                         roof.scale.set(pos.roofScaleX || 1, 0.85 + ((pos.roofScaleX || 1) + (pos.roofScaleZ || 1)) * 0.075, pos.roofScaleZ || 1);
                     }
-                    let roofY = pos.domeRoof ? (ty + floors * 2 - 0.9) : pos.flatRoof ? (ty + floors * FLOOR_HEIGHT + 0.15) : (ty + floors * 2 + 1);
+                    let roofY = pos.domeRoof ? (ty + floors * 2 - 0.9) : pos.flatRoof ? (ty + floors * FLOOR_HEIGHT - 0.17) : (ty + floors * 2 + 1);
                     roof.position.set(pos.x, roofY, pos.z);
                     const dom = houses[pos.houseId];
                     if (!pos.domeRoof && !pos.flatRoof && dom && dom.maxX > dom.minX && dom.maxZ > dom.minZ) {
@@ -33260,10 +33262,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (!active || active.isDead) return;
             if (active.turnEnded) { updateUI("Ten wojownik zakończył już ruch w tej turze."); return; }
             const lvl = active.level || 0;
-            const target = lvl + delta;
+            let target = lvl + delta;
             if (target < 0 || target >= MAX_LEVELS) { updateUI("Nie ma tam kolejnej kondygnacji."); return; }
 
             let ax = Math.round(active.mesh.position.x), az = Math.round(active.mesh.position.z);
+            // Drabina z boku budynku prowadzi od razu z ziemi na dach i z powrotem
+            const naDach = drabinaNaDachPrzy(ax, az, lvl, delta);
+            if (naDach) {
+                target = delta > 0 ? naDach.dach : 0;
+                ax = delta > 0 ? naDach.dachX : naDach.x + naDach.fx;
+                az = delta > 0 ? naDach.dachZ : naDach.z + naDach.fz;
+            }
             // DRABINKA: nie trzeba stać dokładnie w otworze - wystarczy pole obok.
             // Wojownik przechodzi wtedy na pole drabiny i po niej zmienia kondygnację.
             const drab = drabinaPrzy(ax, az, lvl, target);
@@ -33271,9 +33280,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // W górę: musi być otwór w suficie nad nami. W dół: otwór w podłodze, na której stoimy.
             const flying = (active.levitateTurns || 0) > 0;
             // Winda bierze pierwszeństwo przed otworem, jeśli stoisz przy kabinie
-            const winda = !drab ? windaPrzy(ax, az, target) : null;
+            const winda = (!drab && !naDach) ? windaPrzy(ax, az, target) : null;
             if (winda) { ax = winda.x; az = winda.z; }
-            const ok = !!drab || !!winda || flying || (delta > 0 ? hasHoleAt(ax, az, lvl) : hasHoleAt(ax, az, target));
+            const ok = !!naDach || !!drab || !!winda || flying || (delta > 0 ? hasHoleAt(ax, az, lvl) : hasHoleAt(ax, az, target));
             if (!ok) {
                 updateUI(czyPlanszaZDrabinami()
                     ? 'Stań przy drabince - to jedyne przejście między kondygnacjami.'
@@ -33310,7 +33319,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 updateFloorVisibility();
                 updateFoW();
                 updateCameraPosition();
-                updateUI(winda ? `${active.name} jedzie windą: ${nazwaPoziomu(target)}.`
+                updateUI(naDach ? (delta > 0 ? `${active.name} wchodzi po drabinie na dach.` : `${active.name} schodzi po drabinie na ziemię.`)
+                    : winda ? `${active.name} jedzie windą: ${nazwaPoziomu(target)}.`
                     : delta > 0 ? `${active.name} wspina się na wyższą kondygnację.` : `${active.name} zeskakuje niżej.`);
                 wezwijWindeWiezy(active, delta);
                 if (delta < 0) zamknijDrogePowrotna(target);
@@ -37836,6 +37846,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const ZLOTO = 0xd4af37, MOSIADZ = 0xb08d45, ORZECH = 0x4a2c1a, MAHON = 0x5e2318, KREM = 0xe8dfc8,
               BORDO = 0x7a1426, GRANAT = 0x1c2c55, MARMUR = 0xe6e2da, STAL = 0x8c939b, ZIELEN = 0x2f6b34;
         let windyKamienic = [];   // { x, z, pieter }
+        let drabinyDachow = [];   // { x, z, dachX, dachZ, dach } - stopa drabiny i pole na dachu
         const mebleNaPietrach = new Set();   // "L,x,z" - pola zajęte przez meble powyżej parteru
         function mebelNaPietrze(x, z, L) {
             return mebleNaPietrach.has(L + ',' + Math.round(x) + ',' + Math.round(z));
@@ -37939,10 +37950,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         };
 
         function odczytajBudynkiPietrowe() {
-            const obrysy = {};
+            const obrysy = {}, dachy = {};
             obstaclePositions.forEach(p => {
+                if (p.type === 'house-roof' && p.houseId !== undefined) dachy[p.houseId] = p;
                 if (p.houseId === undefined || (p.type !== 'house-wall' && p.type !== 'house-door' && p.type !== 'house-window')) return;
-                const o = obrysy[p.houseId] || (obrysy[p.houseId] = { minX: p.x, maxX: p.x, minZ: p.z, maxZ: p.z, drzwi: [] });
+                const o = obrysy[p.houseId] || (obrysy[p.houseId] = { id: p.houseId, minX: p.x, maxX: p.x, minZ: p.z, maxZ: p.z, drzwi: [] });
                 o.minX = Math.min(o.minX, p.x); o.maxX = Math.max(o.maxX, p.x);
                 o.minZ = Math.min(o.minZ, p.z); o.maxZ = Math.max(o.maxZ, p.z);
                 if (p.type === 'house-door') o.drzwi.push(p);
@@ -37953,6 +37965,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 o.pieter = 1;
                 while (o.pieter < MAX_LEVELS && [[sx, sz], [o.minX + 1, o.minZ + 1], [o.maxX - 1, o.maxZ - 1]]
                     .some(([x, z]) => hasFloorAt(x, z, o.pieter))) o.pieter++;
+                // Dach to nie kondygnacja: nie ma na nim mebli ani windy
+                if (dachy[o.id] && dachy[o.id].floors < o.pieter) { o.pieter = dachy[o.id].floors; o.dach = true; }
                 return o.pieter > 1;
             });
         }
@@ -38056,6 +38070,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function urzadzKamienice() {
             windyKamienic = [];
+            drabinyDachow = [];
             mebleNaPietrach.clear();
             if (!currentCombatTheme || KAMIENICE_PLANSZE.indexOf(currentCombatTheme.id) === -1) return;
             wyczyscOzdobyWiezy();
@@ -38065,6 +38080,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const wolne = pola.filter(p => !przyDrzwiach(p) && poleBudynkuWolne(p.x, p.z, o));
                 const szyb = wolne[Math.floor(Math.random() * wolne.length)];
                 if (szyb) windyKamienic.push({ x: szyb.x, z: szyb.z, pieter: o.pieter });
+                const drab = miejsceDrabiny(o);
+                if (drab) {
+                    drabinyDachow.push(drab);
+                    obstacleGrid[drab.x + offsetX][drab.z + offsetZ] = { x: drab.x, z: drab.z, type: 'mebel' };
+                }
 
                 // Parter to hol, reszta bez powtórek; najwyżej apartament
                 const reszta = ['biuro', 'salon', 'biblioteka', 'jadalnia', 'sypialnia', 'galeria', 'kasyno'];
@@ -38134,6 +38154,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         const a = k * Math.PI / 3;
                         b.kula(0.06, 0xfff2c4, Math.cos(a) * 0.3, 1.56, Math.sin(a) * 0.3, true);
                     }
+                    if (drab) {
+                        b.ustaw(drab.x, y, drab.z, drab.fx, drab.fz);
+                        drabinaNaDach(b, y, L, o.pieter);
+                    }
                     // Fasada: złoty gzyms nad kondygnacją i rozświetlone okna z parapetem
                     b.ustaw((o.minX + o.maxX) / 2, y, (o.minZ + o.maxZ) / 2, 0, 1);
                     const szer = o.maxX - o.minX + 1, gleb = o.maxZ - o.minZ + 1;
@@ -38162,6 +38186,36 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 wejscieBudynku(o);
             });
             updateFloorVisibility();
+        }
+
+        // Miejsce na drabinę: pod ścianą naprzeciw wejścia, żeby nie stała na chodniku
+        function miejsceDrabiny(o) {
+            const d = o.drzwi[0];
+            if (!o.dach || !d) return null;
+            const sx = Math.round((o.minX + o.maxX) / 2), sz = Math.round((o.minZ + o.maxZ) / 2);
+            const fx = d.x === o.minX ? 1 : d.x === o.maxX ? -1 : 0;
+            const fz = fx ? 0 : (d.z === o.minZ ? 1 : -1);
+            for (const t of [0, 1, -1, 2, -2, 3, -3]) {
+                const x = fx ? (fx > 0 ? o.maxX + 1 : o.minX - 1) : sx + t;
+                const z = fx ? sz + t : (fz > 0 ? o.maxZ + 1 : o.minZ - 1);
+                if (isWithinPlayBounds(x, z) && !isObstacle(x, z) && hasFloorAt(x - fx * 2, z - fz * 2, o.pieter))
+                    return { x, z, fx, fz, dachX: x - fx * 2, dachZ: z - fz * 2, dach: o.pieter };
+            }
+            return null;
+        }
+
+        function drabinaNaDach(b, y, nrPietra, pieter) {
+            for (const s of [-0.22, 0.22]) b.box(0.05, 2, 0.05, STAL, s, 0, -0.42);
+            for (let k = 0.2; k < 2; k += 0.3) b.box(0.44, 0.04, 0.04, 0xb8bec4, 0, k, -0.42);
+            // Na ostatniej kondygnacji poręcze wystają nad dach, żeby było za co złapać
+            if (nrPietra === pieter - 1) for (const s of [-0.22, 0.22]) b.box(0.05, 0.6, 0.05, ZLOTO, s, 2, -0.42);
+        }
+
+        // Drabina przy wojowniku: z ziemi na dach albo z dachu na ziemię
+        function drabinaNaDachPrzy(x, z, lvl, delta) {
+            return drabinyDachow.find(d => delta > 0
+                ? lvl === 0 && Math.max(Math.abs(d.x - x), Math.abs(d.z - z)) <= 1
+                : lvl === d.dach && Math.max(Math.abs(d.dachX - x), Math.abs(d.dachZ - z)) <= 1) || null;
         }
 
         // Winda na polu wojownika albo tuż obok, sięgająca docelowego piętra
