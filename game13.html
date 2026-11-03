@@ -33442,7 +33442,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 updateUI(`${active.name} wstaje.`);
             }
             const px = Math.round(active.mesh.position.x), pz = Math.round(active.mesh.position.z);
-            active.mesh.position.y = getTerrainY(px, pz) + active.mesh.userData.yOffset;
+            active.mesh.position.y = getLevelY(px, pz, active.level) + active.mesh.userData.yOffset;
         }
         document.getElementById('btn-next').addEventListener('click', selectNextSoldier);
         function meleeAttack() {
