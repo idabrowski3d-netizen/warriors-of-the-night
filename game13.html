@@ -6043,9 +6043,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // zakola zamiast linijki przez całą planszę. Mostki trzymamy na prostych
                 // odcinkach, więc ich położenie liczymy z tego samego przesunięcia.
                 const kreta = Math.random() < 0.6;
-                const amp1 = kreta ? (3 + Math.random() * 5) : 0;
-                const amp2 = kreta ? (1.5 + Math.random() * 3) : 0;
-                const okres1 = 45 + Math.random() * 50, okres2 = 17 + Math.random() * 20;
+                // Łagodne fale: krótkie i wysokie dawały brzeg ze schodów o kilku polach
+                const amp1 = kreta ? (3 + Math.random() * 4) : 0;
+                const amp2 = kreta ? (0.5 + Math.random() * 1) : 0;
+                const okres1 = 70 + Math.random() * 50, okres2 = 32 + Math.random() * 20;
                 const faza1 = Math.random() * Math.PI * 2, faza2 = Math.random() * Math.PI * 2;
                 const zakole = (x) => Math.round(Math.sin(x / okres1 * Math.PI * 2 + faza1) * amp1 +
                                                  Math.sin(x / okres2 * Math.PI * 2 + faza2) * amp2);
@@ -10116,7 +10117,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const yDna = (wx, wz) => wysokoscGruntu(wx + offsetX, wz + offsetZ);
                 if (zLodem.length) {
                     tiles = tiles.filter(([wx, wz]) => !lodNaRzece.has((wx + offsetX) + ',' + (wz + offsetZ)));
-                    const lod = new THREE.InstancedMesh(streamGeo, new THREE.MeshPhongMaterial({ color: 0xd4e8f4, shininess: 90, specular: 0xffffff }), zLodem.length);
+                    const lod = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.74, 0.74, 0.15, 12), new THREE.MeshPhongMaterial({ color: 0xd4e8f4, shininess: 90, specular: 0xffffff }), zLodem.length);
                     const dl = new THREE.Object3D();
                     zLodem.forEach(([wx, wz], i) => { dl.position.set(wx, yDna(wx, wz) + 0.06, wz); dl.updateMatrix(); lod.setMatrixAt(i, dl.matrix); });
                     lod.userData.unitType = 'fx';
@@ -10151,7 +10152,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // Płycizna (bród) jaśnieje - widać, którędy da się przejść
                 const brod = tiles.filter(([wx, wz]) => !isChasm && !isObstacle(wx, wz));
                 if (brod.length && !riverIsLava) {
-                    const tafla = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1),
+                    const tafla = new THREE.InstancedMesh(new THREE.CircleGeometry(0.62, 12),
                         new THREE.MeshBasicMaterial({ color: rzekaKrwi ? 0xc04050 : 0x9fd8f4, map: teksturaNurtu,
                             transparent: true, opacity: 0.4, depthWrite: false }), brod.length);
                     brod.forEach(([wx, wz], i) => {
@@ -13192,6 +13193,41 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                 d.updateMatrix();
                                 trzcina.push({ pole: { x: x + dx, z: z + dz }, m: d.matrix.clone() });
                             }
+                        }
+                    }
+                }
+            }
+            // Koryto stoi na kratce, więc brzeg ma schodki. Prowadzimy wzdłuż niego kamienie
+            // po wygładzonej linii: uśredniamy skraj rzeki z sąsiednich kolumn.
+            if (rzekaWKorycie) {
+                const skraj = [];
+                for (let mx = 0; mx < mapWidth; mx++) {
+                    let od = -1, doZ = -1;
+                    for (let mz = 0; mz < mapDepth; mz++) {
+                        if (riverGrid[mx][mz] !== 1 && !polaPodMostem.has(mx + ',' + mz)) continue;
+                        if (od < 0) od = mz;
+                        doZ = mz;
+                    }
+                    skraj.push(od < 0 ? null : [od, doZ]);
+                }
+                const gladki = (mx, k) => {
+                    let suma = 0, n = 0;
+                    for (let i = -3; i <= 3; i++) if (skraj[mx + i]) { suma += skraj[mx + i][k]; n++; }
+                    return n ? suma / n : null;
+                };
+                for (let mx = 1; mx < mapWidth - 2; mx++) {
+                    if (!skraj[mx] || !skraj[mx + 1] || polaPodMostem.has(mx + ',' + skraj[mx][0])) continue;
+                    for (const [k, znak] of [[0, -1], [1, 1]]) {
+                        const z0 = gladki(mx, k), z1 = gladki(mx + 1, k);
+                        for (let t = 0; t < 1; t += 0.34) {
+                            const mz = z0 + (z1 - z0) * t + znak * (0.45 + Math.random() * 0.2);
+                            const px = mx - offsetX + t, pz = mz - offsetZ;
+                            d.position.set(px, 0.02, pz);
+                            d.rotation.set(0, Math.random() * 6.28, 0);
+                            const s = 0.42 + Math.random() * 0.3;
+                            d.scale.set(s, s * 0.5, s);
+                            d.updateMatrix();
+                            brzeg.push({ pole: { x: Math.round(px), z: Math.round(pz) }, m: d.matrix.clone() });
                         }
                     }
                 }
