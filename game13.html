@@ -2660,7 +2660,7 @@
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x111111);
 
-        const mapWidth = 100; const mapDepth = 200;
+        const mapWidth = 150; const mapDepth = 226;   // tylko parzyste: offset to połowa, a pola muszą mieć całkowite indeksy
         const offsetX = mapWidth / 2; const offsetZ = mapDepth / 2;
         
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -15272,6 +15272,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             wulkan: { kamienny_oltarz_ognia: [['b',.9,.5,.6,0x2a2422,0,.25,0],['k',.16,0xff6a18,0,.62,0,'z']], siarkowy_komin: [['c',.08,.3,.8,0xc8b830,0,.4,0],['k',.1,0xe8d850,0,.84,0]], stos_pumeksu: [['k',.22,0x5a504a,-.18,.18,0],['k',.18,0x6a5e58,.2,.15,.1],['k',.14,0x4a423e,0,.38,0]] }
         };
         Object.keys(NOWE_REKWIZYTY_2).forEach(p => Object.assign(NOWE_REKWIZYTY[p], NOWE_REKWIZYTY_2[p]));
+        const NOWE_REKWIZYTY_3 = {
+            whitehouse: {lawka_parkowa: [['b',.95,.07,.32,5913120,0,.45,0],['b',.95,.3,.05,5913120,0,.72,-.14],['b',.07,.45,.3,2763310,-.4,.22,0],['b',.07,.45,.3,2763310,.4,.22,0]],kamera_ochrony: [['c',.04,.06,1.9,3816000,0,.95,0],['b',.34,.14,.14,14737632,.1,1.92,0],['k',.04,16724000,.28,1.92,0,'z']],kwietnik_rozany: [['c',.42,.46,.3,14210248,0,.15,0],['k',.33,2779690,0,.42,0],['k',.08,13115450,.15,.62,.1],['k',.08,15261904,-.15,.58,-.1],['k',.08,13115450,0,.68,-.15]]},
+        };
+        Object.keys(NOWE_REKWIZYTY_3).forEach(p => Object.assign(NOWE_REKWIZYTY[p], NOWE_REKWIZYTY_3[p]));
         // Wyposażenie domów Zachodu. Stoi tylko we wnętrzach - klucz nie jest nazwą planszy, więc nie trafia do rozsiewania.
         NOWE_REKWIZYTY.wnetrza_zachodu = {
             lada_baru: [['b',.8,.95,1,0x5a3418,0,.48,0],['b',.95,.07,1,0x8a5a2c,0,.98,0],['k',.07,0x7a3a1a,.1,1.08,.25],['c',.04,.05,.2,0x2a6a3a,-.1,1.11,-.2]],
@@ -23532,6 +23536,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         function restoreCombatFromSave(data) {
+            // Zapis bitwy sprzed powiększenia planszy ma siatki innego rozmiaru: ratujemy postęp, bitwa przepada
+            if (!data.heightMap || data.heightMap.length !== mapWidth || data.heightMap[0].length !== mapDepth) {
+                alert("Ten zapis bitwy powstał na planszy starego rozmiaru. Postęp został wczytany, wracasz do miasta.");
+                applySaveData(data.progress);
+                document.getElementById("title-screen").style.display = "none";
+                document.getElementById("name-prompt-screen").style.display = "none";
+                startPresentMode();
+                return;
+            }
             applySaveData(data.progress);
 
             gameMode = 'dream';
@@ -29546,7 +29559,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Im więcej wojowników w oddziale, tym więcej wrogów - żeby walka skalowała się z siłą drużyny.
             const squadBonus = Math.max(0, soldiers.length - 1) * 2; // +2 wrogów za każdego wojownika ponad pierwszego
             // Na planszach z dużym, zwiedzanym budynkiem (Kreml, Biały Dom itd.) wrogów jest więcej - garnizon broniący obiektu.
-            const enemyCount = (combatLandmarkPos ? (6 + Math.floor(Math.random() * 7)) : 6) + squadBonus; // 6-12 z budynkiem, 6 bez, + bonus za oddział
+            const enemyCount = Math.round(((combatLandmarkPos ? (6 + Math.floor(Math.random() * 7)) : 6) + squadBonus) * 1.7); // 6-12 z budynkiem, 6 bez, + bonus za oddział; x1,7 tyle co powierzchnia planszy
             const mainForceCount = combatLandmarkPos ? Math.ceil(enemyCount * 0.65) : 0; // ok. 2/3 to garnizon przy budynku, reszta to patrole
             // ===== GNIAZDA ZAMIAST POSYPU =====
             // Pomiar: wrogowie stali średnio 45-79 pól od oddziału przy zasięgu
