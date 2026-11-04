@@ -13636,7 +13636,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function ozdobPodlogiWnetrz() {
             const id = currentCombatTheme ? currentCombatTheme.id : '';
             // Ulice pod gołym niebem to nie wnętrza - łaty desek i płyt robiły tam chaos
-            if (!id || id === 'ostoja' || id === 'newyork' || id === 'pozar' || id === 'katedra') return 0;
+            if (!id || id === 'ostoja' || id === 'newyork' || id === 'pozar' || id === 'katedra' || id === 'cyber') return 0;
             if (MURY_ZAMIAST_GLAZOW.indexOf(id) === -1) return 0;
             let polozonych = 0;
             for (let i = 0; i < 70 && polozonych < 30; i++) {
