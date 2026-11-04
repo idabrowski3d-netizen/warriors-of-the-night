@@ -6566,21 +6566,33 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const h = { specjalny: true, id: houses.length, minX: cx - radius, maxX: cx + radius, minZ: cz - radius, maxZ: cz + radius, centerX: cx, centerZ: cz, zabytek: true };
                     houses.push(h);
                     // Jasny wapień. wall-resistant na tej planszy wygląda jak głazy
-                    const murGmachu = (x, z) => addObstacle(x, z, 'house-wall', { houseId: h.id, wallColor: 0xc8c4b4, destructible: false, floors: 1 });
+                    // Kolizja zostaje na polach siatki, a widać jeden prosty mur na każdy ciągły odcinek
+                    const murProsty = (cells, przejscie) => {
+                        let start = null;
+                        cells.forEach((c, idx) => {
+                            const wolne = przejscie(idx);
+                            if (!wolne) {
+                                addObstacle(c[0], c[1], 'house-wall', { houseId: h.id, wallColor: 0xc8c4b4, destructible: false, floors: 1, bezBryly: true });
+                                if (start === null) start = c;
+                            }
+                            if (start && (wolne || idx === cells.length - 1)) {
+                                const koniec = wolne ? cells[idx - 1] : c;
+                                themedLandmarkDecor.push({ type: 'mur_prosty', x: (start[0] + koniec[0]) / 2, z: (start[1] + koniec[1]) / 2, x0: start[0], z0: start[1], x1: koniec[0], z1: koniec[1], color: 0xc8c4b4, houseId: h.id });
+                                start = null;
+                            }
+                        });
+                    };
                     const doorEdge = Math.floor(Math.random() * 5);
                     for (let e = 0; e < 5; e++) {
                         const [x0, z0] = verts[e], [x1, z1] = verts[(e + 1) % 5];
                         const cells = bresenhamLine(x0, z0, x1, z1);
-                        cells.forEach((c, idx) => {
-                            const isDoorGap = e === doorEdge && idx > 2 && idx < cells.length - 3 && idx % 4 === 0;
-                            if (!isDoorGap) murGmachu(c[0], c[1]);
-                        });
+                        murProsty(cells, idx => e === doorEdge && idx > 2 && idx < cells.length - 3 && idx % 4 === 0);
                     }
                     // Drugi pierścień wokół dziedzińca, z przejściem na każdym boku
                     const wew = [0,1,2,3,4].map(i => { const a = -Math.PI / 2 + i * (2 * Math.PI / 5); return [Math.round(cx + Math.cos(a) * radiusDziedzinca), Math.round(cz + Math.sin(a) * radiusDziedzinca)]; });
                     for (let e = 0; e < 5; e++) {
                         const cells = bresenhamLine(wew[e][0], wew[e][1], wew[(e + 1) % 5][0], wew[(e + 1) % 5][1]), srodek = Math.floor(cells.length / 2);
-                        cells.forEach((c, idx) => { if (idx !== srodek) murGmachu(c[0], c[1]); });
+                        murProsty(cells, idx => idx === srodek);
                     }
                     // Biura między pierścieniami, zwrócone ku dziedzińcowi: [kąt od środka boku, promień, typ]
                     const biura = [[-.32,10,'biurko_sztabu'], [-.12,10,'biurko_sztabu'], [.12,10,'biurko_sztabu'], [.32,10,'biurko_sztabu'], [-.2,12,'szafa_akt'], [.2,12,'monitor_sztabu'], [0,12,'stol_mapy']];
@@ -9848,7 +9860,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function renderThemedLandmarkDecor() {
             themedLandmarkDecor.forEach(d => {
                 const ty = getTerrainY(Math.round(d.x), Math.round(d.z));
-                if (d.type === 'dywan') {
+                if (d.type === 'mur_prosty') {
+                    const dl = Math.hypot(d.x1 - d.x0, d.z1 - d.z0) + 1;
+                    const tekstura = teksturaScianyBud(d.color).clone();
+                    tekstura.wrapS = THREE.RepeatWrapping; tekstura.repeat.set(dl, 1); tekstura.needsUpdate = true;
+                    [[dl, 2, .8, 1, new THREE.MeshLambertMaterial({ map: tekstura, transparent: true })], [dl + .1, .14, .95, 2.05, new THREE.MeshLambertMaterial({ color: d.color, transparent: true })]].forEach(([w, g, gr, y, mat]) => {
+                        const m = new THREE.Mesh(new THREE.BoxGeometry(w, g, gr), mat);
+                        m.position.set(d.x, ty + y, d.z); m.rotation.y = -Math.atan2(d.z1 - d.z0, d.x1 - d.x0);
+                        m.userData = { type: 'house-wall', x: d.x, z: d.z, houseId: d.houseId };
+                        scene.add(m); obstacleMeshes.push(m);
+                    });
+                } else if (d.type === 'dywan') {
                     [[d.w, d.d, d.rim, .02], [d.w - .3, d.d - .3, d.color, .03]].forEach(([w, g, kolor, y]) => {
                         const m = new THREE.Mesh(new THREE.BoxGeometry(w, .02, g), new THREE.MeshLambertMaterial({ color: kolor }));
                         m.position.set(d.x, ty + .03 + y, d.z); scene.add(m); obstacleMeshes.push(m);
@@ -17690,6 +17712,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     scene.add(crossH); obstacleMeshes.push(crossH);
                 }
                 else if (pos.type === 'house-wall') {
+                    if (pos.bezBryly) return;   // mur rysuje dekoracja mur_prosty
                     const floors = pos.floors || 1;
                     const barwaSciany = pos.wallColor !== undefined ? pos.wallColor : 0xaa5555;
                     for (let f = 0; f < floors; f++) {
