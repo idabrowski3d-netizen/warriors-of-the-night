@@ -15087,6 +15087,45 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 kamienny_totem_ognia: [['b',.5,.3,.5,0x2a2422,0,.15,0],['b',.36,.5,.36,0x352e2a,0,.55,0],['c',.2,.14,.14,0x1a1614,0,.86,0],['k',.1,0xff6a10,0,.95,0,'z']]
             }
         };
+        // Drugi obieg: kolejne po 3 obiekty na planszę
+        const NOWE_REKWIZYTY_2 = {
+            whitehouse: { fontanna_ogrodowa: [['c',.48,.52,.25,0xd8d4c8,0,.12,0],['c',.4,.4,.03,0x5a9ac8,0,.25,0],['c',.07,.1,.6,0xd8d4c8,0,.5,0],['k',.1,0xd8d4c8,0,.85,0]], woz_ochrony: [['b',.95,.35,.5,0x15151a,0,.32,0],['b',.55,.25,.46,0x22242c,0,.62,0]], tablica_historyczna: [['b',.06,.9,.06,0x2a2a2a,0,.45,0],['b',.65,.45,.05,0x3a4a2a,0,1.05,0]] },
+            pentagon: { antena_satelitarna: [['c',.1,.16,.8,0x8a8a8a,0,.4,0],['c',.5,.14,.12,0xd8d8d8,0,.9,0]], skrzynia_sygnalowa: [['b',.6,.9,.45,0x5a6048,0,.45,0],['b',.14,.08,.02,0x40ff60,0,.75,.235,'z']], zapora_stalowa: [['b',.95,.1,.1,0xd8c020,0,.55,0],['b',.1,.6,.1,0x2a2a2a,-.42,.3,0],['b',.1,.6,.1,0x2a2a2a,.42,.3,0]] },
+            kremlin: { dzwon_carski: [['c',.2,.48,.75,0x7a6a3a,0,.48,0],['k',.16,0x7a6a3a,0,.9,0],['b',.8,.1,.8,0x77776f,0,.05,0]], armata_brazowa: [['c',.09,.15,.95,0x8a6a2a,0,.55,0],['b',.7,.2,.4,0x4a2c18,0,.2,0]], skrzynia_kupiecka: [['b',.8,.5,.5,0x6a2a1a,0,.25,0],['b',.84,.06,.54,0xc8a838,0,.5,0]] },
+            zhongnanhai: { brama_mala: [['c',.07,.07,1.4,0xaa2018,-.42,.7,0],['c',.07,.07,1.4,0xaa2018,.42,.7,0],['b',1.05,.12,.2,0x2a6a4a,0,1.45,0]], kadzielnica: [['c',.3,.22,.4,0x6a5a2a,0,.25,0],['k',.14,0x6a5a2a,0,.55,0],['b',.1,.06,.1,0xff9040,0,.68,0,'z']], kamien_uczonego: [['b',.5,.14,.5,0x5a5a60,0,.07,0],['c',.14,.26,1,0x6a6a72,.02,.65,0],['k',.2,0x7a7a82,-.04,1.15,0]] },
+            sahara: { studnia_pustynna: [['c',.45,.48,.5,0xb09868,0,.25,0],['c',.36,.36,.02,0x1a1a20,0,.5,0],['b',.06,.9,.06,0x5a3a22,-.4,.75,0],['b',.06,.9,.06,0x5a3a22,.4,.75,0],['b',.9,.06,.06,0x5a3a22,0,1.2,0]], kolumna_zlamana: [['c',.26,.3,.75,0xc8b48a,0,.38,0],['c',.3,.3,.14,0xbca878,.3,.1,.25]], dywan_kupca: [['b',.9,.05,.65,0x8a2a2a,0,.03,0],['b',.65,.06,.4,0xc8a048,0,.04,0],['c',.14,.18,.4,0xa86a38,.32,.25,.2]] },
+            powodz: { lodz_ratunkowa: [['b',.95,.22,.45,0xd86a20,0,.15,0],['b',.8,.05,.32,0x3a2a1a,0,.26,0]], slup_zalany: [['c',.07,.1,1.6,0x4a3a2a,0,.8,0],['b',.6,.06,.06,0x4a3a2a,0,1.4,0]], pompa_spalinowa: [['b',.65,.45,.4,0xb02a20,0,.28,0],['c',.08,.08,.8,0x2a2a2a,.2,.25,.35]] },
+            bagno: { kladka_zgnila: [['b',.95,.06,.4,0x4a3a22,0,.12,0],['c',.05,.05,.3,0x2a2016,-.35,.1,.15],['c',.05,.05,.3,0x2a2016,.35,.1,-.15]], pulapka_na_raki: [['c',.26,.26,.6,0x6a5a34,0,.3,0],['k',.08,0x8a3020,0,.2,.1]], blotna_latarnia: [['b',.06,1.2,.06,0x2a2016,0,.6,0],['k',.16,0x90ff90,0,1.3,0,'z']] },
+            stacja: { lawka_peronowa: [['b',.95,.07,.32,0x6a4a2a,0,.42,0],['b',.95,.3,.05,0x6a4a2a,0,.65,-.14],['b',.06,.4,.3,0x24242a,-.4,.2,0],['b',.06,.4,.3,0x24242a,.4,.2,0]], kasownik_peronowy: [['b',.5,1.2,.35,0x2a4a7a,0,.6,0],['b',.3,.22,.02,0x90d0ff,0,.95,.185,'z']], wozek_bagazowy: [['b',.8,.08,.45,0x4a4a4a,0,.22,0],['b',.45,.35,.35,0x6a4a2a,-.1,.45,0],['c',.08,.08,.5,0x1a1a1a,0,.08,0]] },
+            szpital: { wozek_szpitalny_stary: [['b',.45,.07,.45,0x2a2a2a,0,.42,0],['b',.45,.45,.05,0x2a2a2a,0,.68,-.2],['c',.26,.26,.05,0x8a8a8a,-.26,.26,0],['c',.26,.26,.05,0x8a8a8a,.26,.26,0]], parawan_szpitalny: [['b',.95,1.2,.05,0xc8d4c8,0,.7,0],['b',.06,1.3,.3,0x8a8a8a,-.46,.65,0],['b',.06,1.3,.3,0x8a8a8a,.46,.65,0]], szafka_lekow: [['b',.6,1.1,.3,0xe8e8e0,0,.55,0],['b',.14,.14,.02,0xd02020,0,.85,.16]] },
+            las: { szalas_mysliwski: [['b',.9,.5,.7,0x5a3e22,0,.25,0],['b',1,.08,.8,0x3a4a2a,0,.55,0]], pasnik: [['b',.8,.5,.3,0x6a4a2a,0,.45,0],['b',.06,.6,.06,0x3a2a16,-.36,.3,0],['b',.06,.6,.06,0x3a2a16,.36,.3,0],['b',.9,.06,.5,0x3a2a16,0,.85,0]], kamienny_krag: [['k',.18,0x6a6a60,-.3,.15,0],['k',.18,0x72726a,.3,.15,0],['k',.18,0x66665c,0,.15,.3],['k',.18,0x70706a,0,.15,-.3]] },
+            studnia: { kolowrot_kopalniany: [['c',.16,.16,.9,0x4a3018,0,.6,0],['b',.08,.6,.08,0x2a1a10,-.44,.3,0],['b',.08,.6,.08,0x2a1a10,.44,.3,0]], wagonik_kopalniany: [['b',.75,.45,.5,0x4a3a2a,0,.38,0],['b',.65,.14,.4,0x1a1a1e,0,.58,0],['c',.09,.09,.55,0x222222,0,.1,0]], pochodnia_scienna: [['c',.05,.04,1.3,0x3a2414,0,.65,0],['k',.13,0xff9030,0,1.4,0,'z']] },
+            jezioro: { pomost_lodowy: [['b',.95,.08,.5,0x7a6a50,0,.12,0],['c',.05,.05,.25,0x3a2a1a,-.4,.08,0],['c',.05,.05,.25,0x3a2a1a,.4,.08,0]], kra_z_foka: [['b',.9,.14,.7,0xdcecf4,0,.07,0],['k',.2,0x5a5a62,.05,.3,0]], sanki_rybackie: [['b',.8,.06,.35,0x6a4a2a,0,.2,0],['b',.85,.05,.05,0x2a2a2a,0,.05,.15],['b',.85,.05,.05,0x2a2a2a,0,.05,-.15],['b',.3,.2,.25,0x3a5a6a,-.1,.32,0]] },
+            pobojowisko: { woz_taborowy: [['b',.9,.3,.5,0x5a3e22,0,.45,0],['c',.25,.25,.05,0x3a2a16,-.3,.25,.27],['c',.25,.25,.05,0x3a2a16,.3,.25,-.27]], palisada_zlamana: [['c',.06,.09,1,0x4a3018,-.3,.5,0],['c',.06,.09,.7,0x4a3018,0,.35,0],['c',.06,.09,1.2,0x4a3018,.3,.6,0]], stos_helmow: [['k',.15,0x6a6a6a,-.2,.14,0],['k',.15,0x5a5a5a,.2,.14,0],['k',.15,0x747474,0,.14,.25],['k',.15,0x6a6a6a,0,.38,.08]] },
+            pozar: { hydrant_otwarty: [['c',.1,.13,.6,0xc82818,0,.3,0],['k',.1,0xc82818,0,.65,0],['b',.3,.05,.3,0x5a5a5a,0,.03,0]], belka_plonaca: [['b',.95,.18,.18,0x1a1208,0,.2,0],['b',.4,.04,.15,0xff6a18,.2,.31,0,'z']], beczka_z_ogniem: [['c',.28,.28,.7,0x3a2a22,0,.35,0],['k',.2,0xff7a20,0,.72,0,'z']] },
+            klaustrofobia: { zawor_przemyslowy: [['c',.1,.1,.8,0x5a5a5e,0,.4,0],['c',.24,.24,.05,0xb02a20,0,.85,0]], kratownica: [['b',.9,.06,.06,0x4a4a4e,0,.9,0],['b',.9,.06,.06,0x4a4a4e,0,.1,0],['b',.06,.9,.06,0x4a4a4e,-.42,.5,0],['b',.06,.9,.06,0x4a4a4e,.42,.5,0],['b',.06,.06,1,0x3a3a3e,0,.5,0]], lampa_alarmowa: [['b',.18,.9,.18,0x2a2a2a,0,.45,0],['k',.13,0xff2a18,0,1,0,'z']] },
+            ostoja: { pniak_z_siekiera: [['c',.3,.34,.45,0x5a3e22,0,.22,0],['b',.05,.3,.05,0x8a6a3a,.1,.58,0],['b',.2,.1,.04,0x8a8a8a,.1,.72,0]], stol_warsztatowy: [['b',.95,.07,.5,0x6a4a2a,0,.65,0],['b',.08,.6,.08,0x4a3018,-.4,.3,.18],['b',.08,.6,.08,0x4a3018,.4,.3,-.18]], plot_wiklinowy: [['b',.95,.6,.1,0x7a6038,0,.35,0],['c',.04,.04,.75,0x4a3018,-.44,.37,0],['c',.04,.04,.75,0x4a3018,.44,.37,0]] },
+            wieza: { oltarz_kultu: [['b',.9,.55,.5,0x241a2e,0,.28,0],['b',.95,.05,.55,0x7a1a2a,0,.58,0],['k',.09,0xb060ff,0,.72,0,'z']], stos_ksiag_kultu: [['b',.55,.14,.4,0x3a1a1a,0,.07,0],['b',.5,.14,.36,0x1a2a3a,.03,.21,0],['b',.42,.14,.3,0x2a1a3a,-.02,.35,0]], kula_wrozebna: [['c',.1,.22,.6,0x2a2030,0,.3,0],['k',.2,0x60a0ff,0,.75,0,'z']] },
+            most: { lina_cumownicza: [['c',.3,.32,.14,0x9a8a60,0,.07,0],['c',.24,.26,.14,0x8a7a50,0,.21,0],['c',.08,.1,.7,0x4a3018,0,.35,0]], kosz_rybny: [['c',.32,.24,.45,0x8a6a3a,0,.23,0],['k',.1,0x90a0a8,0,.45,0]], skrzynia_mytnika: [['b',.65,.5,.45,0x4a3018,0,.25,0],['b',.15,.15,.03,0xc8a838,0,.3,.235]] },
+            dom: { rower_dzieciecy: [['c',.17,.17,.04,0x2a2a2a,-.28,.17,0],['c',.17,.17,.04,0x2a2a2a,.28,.17,0],['b',.56,.05,.05,0xc02a2a,0,.38,0],['b',.05,.4,.05,0xc02a2a,.2,.55,0]], kosz_na_smieci_domowy: [['c',.26,.2,.75,0x4a5a4a,0,.38,0],['c',.28,.28,.05,0x3a4a3a,0,.77,0]], grill_ogrodowy: [['c',.3,.22,.3,0x1a1a1a,0,.68,0],['b',.05,.55,.05,0x3a3a3a,-.2,.27,0],['b',.05,.55,.05,0x3a3a3a,.2,.27,0]] },
+            alcatraz: { krata_celi: [['b',.95,.06,.08,0x4a4a4e,0,1.1,0],['b',.95,.06,.08,0x4a4a4e,0,.08,0],['c',.03,.03,1,0x5a5a5e,-.3,.6,0],['c',.03,.03,1,0x5a5a5e,0,.6,0],['c',.03,.03,1,0x5a5a5e,.3,.6,0]], stolik_wiezienny: [['b',.75,.06,.45,0x8a8a84,0,.6,0],['b',.1,.55,.1,0x5a5a5e,0,.28,0],['c',.1,.1,.03,0xb0b0b0,.15,.64,0]], kosz_prania_wiezienny: [['b',.75,.65,.5,0x7a7a70,0,.38,0],['b',.65,.14,.42,0xc8c0a8,0,.72,0]] },
+            parow: { osuwisko: [['k',.26,0x6b5f4a,-.2,.2,0],['k',.2,0x5a4f3d,.22,.16,.1],['k',.14,0x786a52,0,.12,-.28]], stary_most_deska: [['b',.95,.05,.2,0x4a3a22,0,.08,.12],['b',.8,.05,.2,0x3e301c,.08,.09,-.12]], kopczyk_wedrowca: [['b',.5,.14,.42,0x786a52,0,.07,0],['b',.34,.14,.28,0x6b5f4a,.02,.21,0],['b',.2,.14,.16,0x5a4f3d,-.01,.35,0]] },
+            otchlan: { kociol_krwi: [['c',.42,.28,.45,0x1a1412,0,.3,0],['c',.36,.36,.02,0xb01410,0,.52,0,'z']], lancuch_piekielny: [['c',.05,.05,1.5,0x3a3030,0,.75,0],['k',.09,0x4a4040,0,.3,0],['k',.09,0x4a4040,0,.7,0],['k',.09,0x4a4040,0,1.1,0]], tron_z_kosci: [['b',.6,.5,.55,0xc8bca0,0,.25,0],['b',.6,.8,.1,0xb8ac90,0,.85,-.24],['k',.11,0xd8ccb0,0,1.3,-.24]] },
+            ambush: { wrak_pickupa: [['b',.95,.3,.55,0x8a5a30,0,.28,0],['b',.4,.28,.5,0x7a4a26,-.2,.58,0]], tablica_ostrzegawcza: [['b',.06,.9,.06,0x4a3a2a,0,.45,0],['b',.6,.4,.04,0xc8a820,0,1,0]], bidon_wojskowy: [['c',.2,.22,.55,0x4a5a38,-.14,.28,0],['c',.2,.22,.55,0x3e4e30,.2,.28,.1]] },
+            sicario: { furgonetka_spalona: [['b',.95,.6,.55,0x24201c,0,.42,0],['b',.3,.3,.5,0x161412,.33,.8,0]], stragan_bazarowy: [['b',.9,.06,.5,0x6a4a2a,0,.6,0],['b',.95,.05,.6,0xc05030,0,1.15,0],['b',.05,1.15,.05,0x3a2a1a,-.42,.58,0],['b',.05,1.15,.05,0x3a2a1a,.42,.58,0]], beczka_graffiti: [['c',.28,.28,.8,0x3a7a8a,0,.4,0],['c',.29,.29,.1,0xc84a7a,0,.5,0]] },
+            wesole: { wozek_lodow: [['b',.75,.5,.45,0xe8a0b0,0,.5,0],['c',.14,.14,.04,0x2a2a2a,-.3,.14,0],['k',.18,0xf4e8c8,0,.88,0]], kon_karuzelowy: [['c',.03,.03,1.5,0xc8a838,0,.75,0],['b',.55,.25,.18,0xe8e0d0,0,.75,0],['b',.14,.3,.14,0xe8e0d0,.25,1,0]], budka_biletowa_zlota: [['b',.7,1,.6,0x8a2a4a,0,.5,0],['b',.45,.28,.02,0xffe090,0,.7,.31,'z'],['b',.8,.1,.7,0xc8a838,0,1.05,0]] },
+            amazonia: { kajak_dlubany: [['b',.95,.2,.28,0x5a3e22,0,.12,0],['b',.75,.05,.18,0x24180c,0,.23,0]], palma_niska: [['c',.06,.1,1,0x5a4426,0,.5,0],['k',.32,0x2a7a34,0,1.1,0]], glinowe_naczynia: [['c',.18,.13,.35,0xa85a30,-.2,.18,0],['c',.14,.2,.3,0x8a4a26,.2,.15,.1],['k',.13,0xb86a3a,0,.13,-.22]] },
+            cyber: { serwer_stojak: [['b',.55,1.3,.45,0x14181e,0,.65,0],['b',.4,.04,.02,0x20e0ff,0,.9,.235,'z'],['b',.4,.04,.02,0xff30a0,0,.6,.235,'z']], slup_holograficzny: [['c',.1,.16,1,0x22262e,0,.5,0],['k',.16,0x30f0d0,0,1.2,0,'z']], terminal_uliczny: [['b',.4,.9,.3,0x2a3038,0,.45,0],['b',.3,.25,.02,0x40ff90,0,.75,.16,'z']] },
+            cmentarzysko: { lawka_zalobna: [['b',.9,.07,.3,0x5a5a56,0,.4,0],['b',.14,.38,.25,0x4a4a46,-.34,.19,0],['b',.14,.38,.25,0x4a4a46,.34,.19,0]], furta_cmentarna: [['b',.08,1.2,.08,0x24242a,-.42,.6,0],['b',.08,1.2,.08,0x24242a,.42,.6,0],['b',.8,.05,.04,0x24242a,0,1,0],['b',.8,.05,.04,0x24242a,0,.3,0]], kaganek_grobowy: [['b',.3,.3,.3,0x6a6c66,0,.15,0],['k',.1,0xff8a30,0,.38,0,'z']] },
+            nekropolia: { kanopa: [['c',.13,.18,.4,0xc8b48a,0,.2,0],['k',.12,0xd4a838,0,.48,0]], posag_anubisa: [['b',.5,.25,.5,0x24242a,0,.12,0],['b',.3,.75,.3,0x1a1a20,0,.62,0],['b',.1,.26,.1,0xd4a838,0,1.12,0]], kosz_papirusow: [['c',.28,.22,.5,0x9a7a48,0,.25,0],['c',.05,.05,.7,0xd8ccb0,.08,.45,0]] },
+            katedra: { konfesjonal_debowy: [['b',.9,1.3,.6,0x3a2412,0,.65,0],['b',.95,.1,.65,0x4e3219,0,1.35,0]], chrzcielnica: [['c',.14,.2,.6,0x9a9486,0,.3,0],['c',.4,.22,.28,0xaaa496,0,.72,0]], pulpit_z_kodeksem: [['c',.06,.14,.85,0x4a2c18,0,.42,0],['b',.55,.05,.4,0x4a2c18,0,.88,0],['b',.42,.07,.3,0x7a1a1a,0,.94,0]] },
+            wyspy: { skrzynia_podniebna: [['b',.65,.45,.45,0x6a7a8a,0,.25,0],['k',.09,0x80e0ff,0,.58,0,'z']], fragment_mostu: [['b',.9,.1,.45,0x8a8a90,0,.12,0],['b',.08,.45,.08,0x6a6a72,-.38,.38,.18]], wiatrowskaz: [['c',.03,.04,1.4,0x8a7a4a,0,.7,0],['b',.65,.05,.05,0xc8a838,0,1.3,0],['k',.07,0xc8a838,.32,1.3,0]] },
+            zamiec: { sznur_sygnalowy: [['c',.04,.05,1.4,0x4a3018,0,.7,0],['b',.3,.2,.02,0xd02a20,.16,1.2,0]], ognisko_polarne: [['c',.32,.36,.12,0x4a3a2a,0,.06,0],['k',.16,0xff8a30,0,.25,0,'z']], stacja_pomiarowa: [['b',.5,.5,.5,0xe0e8e8,0,.8,0],['b',.06,.6,.06,0x4a4a4a,-.2,.3,0],['b',.06,.6,.06,0x4a4a4a,.2,.3,0]] },
+            newyork: { budka_hot_dog: [['b',.9,.55,.5,0xb8bcc0,0,.45,0],['b',1,.05,.6,0xe8b820,0,1.1,0],['b',.05,.4,.05,0x5a5a5a,0,.9,0]], znak_metra: [['c',.05,.05,1.4,0x24282c,0,.7,0],['k',.16,0x30b050,0,1.5,0,'z']], stos_workow_smieci: [['k',.24,0x14161a,-.18,.2,0],['k',.22,0x1c1e24,.2,.18,.1],['k',.18,0x24262c,0,.42,0]] },
+            alabama: { traktor_stary: [['b',.65,.35,.35,0xa82a1a,0,.45,0],['c',.3,.3,.08,0x1a1a1a,-.26,.3,.25],['c',.3,.3,.08,0x1a1a1a,-.26,.3,-.25],['c',.05,.05,.4,0x1a1a1a,.15,.8,0]], bela_bawelny: [['b',.75,.5,.5,0xe8e4d8,0,.25,0],['b',.77,.03,.52,0x5a4426,0,.3,0]], plot_rancza: [['b',.95,.07,.05,0xc8c0ac,0,.72,0],['b',.95,.07,.05,0xc8c0ac,0,.42,0],['b',.08,.9,.08,0x8a8270,-.42,.45,0],['b',.08,.9,.08,0x8a8270,.42,.45,0]] },
+            wulkan: { kamienny_oltarz_ognia: [['b',.9,.5,.6,0x2a2422,0,.25,0],['k',.16,0xff6a18,0,.62,0,'z']], siarkowy_komin: [['c',.08,.3,.8,0xc8b830,0,.4,0],['k',.1,0xe8d850,0,.84,0]], stos_pumeksu: [['k',.22,0x5a504a,-.18,.18,0],['k',.18,0x6a5e58,.2,.15,.1],['k',.14,0x4a423e,0,.38,0]] }
+        };
+        Object.keys(NOWE_REKWIZYTY_2).forEach(p => Object.assign(NOWE_REKWIZYTY[p], NOWE_REKWIZYTY_2[p]));
         Object.keys(NOWE_REKWIZYTY).forEach(plansza => Object.keys(NOWE_REKWIZYTY[plansza]).forEach(nazwa => {
             if (REKWIZYTY_Z_KODU[nazwa]) throw new Error('Powtórzony rekwizyt: ' + nazwa);
             REKWIZYTY_Z_KODU[nazwa] = () => {
@@ -15134,7 +15173,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Zapamiętujemy, które domy zostały obsłużone - ich ściany i dach pomijamy.
             const domyZModelu = new Set();
             // Na Wulkanie "domy" to formacje skalne - współczesny model nie ma tam czego szukać
-            if (czyJestModelDomu() && typeof houses !== 'undefined' && !(currentCombatTheme && currentCombatTheme.id === 'wulkan')) {
+            if (czyJestModelDomu() && typeof houses !== 'undefined' && !(currentCombatTheme && (currentCombatTheme.id === 'wulkan' || currentCombatTheme.id === 'katedra'))) {
                 houses.forEach(h => {
                     if (h.specjalny) return;   // budynki specjalne mają własny wygląd i wnętrza
                     if (postawDomZModelu(h)) domyZModelu.add(h.id);
@@ -36046,9 +36085,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             tikLodowychOkow(enemies);
             zbudujMapeZagrozenia();
             npcs.forEach(n => { if(!n.isDead) n.ap = getEffectiveMaxAp(n); });
+            uzbrojStraznikaTury();
+            processNPCTurn(0, () => { setTimeout(processNextEnemy, 500); });
+        }
+
+        // Liczy czas od ostatniego ruchu, nie od początku tury: przy wielu wrogach
+        // zwykła długa tura nie może zostać uznana za zawieszoną.
+        function uzbrojStraznikaTury() {
             clearTimeout(enemyTurnTimeout);
             enemyTurnTimeout = setTimeout(() => { if (!isPlayerTurn && !gameOver) { console.warn("Watchdog!"); updateUI("AI utknęło! Awaryjny powrót tury."); endEnemyTurn(); } }, 15000);
-            processNPCTurn(0, () => { setTimeout(processNextEnemy, 500); });
         }
         
         let sleepingVitalSegments = 0;
@@ -43147,7 +43192,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         function processNextEnemy() {
-            if (gameOver || isPlayerTurn) return; 
+            if (gameOver || isPlayerTurn) return;
+            uzbrojStraznikaTury();
             while(currentEnemyIndex < enemies.length && enemies[currentEnemyIndex].isDead) currentEnemyIndex++;
             if (currentEnemyIndex >= enemies.length) { endEnemyTurn(); return; }
             

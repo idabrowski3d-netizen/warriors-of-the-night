@@ -56,6 +56,9 @@ async function polacz() {
             (/HTTP 404/.test(opis) ? ostrzezenia : bledy).push(`${opis}${stos ? ' [' + stos + ']' : ` (linia ${d.lineNumber + 1})`}`);
         } else if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error') {
             ostrzezenia.push('console.error: ' + m.params.args.map(a => a.value || a.description).join(' '));
+        } else if (m.method === 'Runtime.consoleAPICalled' && m.params.args.some(a => a.value === 'Watchdog!')) {
+            // Render programowy ma poniżej 1 klatki na sekundę, więc to tylko ostrzeżenie
+            ostrzezenia.push('Watchdog tury wrogów (przy tak wolnym renderze zwykle fałszywy alarm)');
         }
     });
 }
