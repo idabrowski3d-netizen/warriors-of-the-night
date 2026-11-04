@@ -1513,10 +1513,10 @@
             swordHit: 'audio/sword_hit.ogg',
             chestOpen: 'audio/kufer_open.ogg',
             eveningNature: 'audio/evening_nature.ogg',
-            cityMusic: ['audio/miasto_tlo_1.ogg', 'audio/miasto_tlo_2.ogg'],
+            cityMusic: ['audio/miasto_tlo_1.ogg', 'audio/miasto_tlo_2.ogg', 'audio/miasto_tlo_3.ogg'],
             dreamCityMusic: 'audio/ambient_Sen_1.ogg',
             piorun: 'audio/thunder.ogg',
-            combatMusic: ['audio/music_ambient_1.ogg']
+            combatMusic: ['audio/music_ambient_1.ogg', 'audio/music_ambient_2.ogg', 'audio/music_ambient_3.ogg', 'audio/music_ambient_4.ogg']
         };
 
         // Konanie - osiem wariantów, losowany przy każdej śmierci
@@ -2103,7 +2103,7 @@
         function pickMusicForContext() {
             if (gameMode === 'presentNight') return AudioFiles.dreamCityMusic;
             if (gameMode === 'present') {
-                // miasto: losowo jeden z dwóch utworów, stały do czasu zmiany trybu
+                // miasto: losowo jeden z utworów, stały do czasu zmiany trybu
                 if (!window.__cityPick) window.__cityPick = AudioFiles.cityMusic[Math.floor(Math.random() * AudioFiles.cityMusic.length)];
                 return window.__cityPick;
             }
@@ -2111,7 +2111,12 @@
                 if (currentCombatTheme.id === 'nekropolia' || currentCombatTheme.id === 'cmentarzysko') {
                     return AudioFiles.necropolisMusic;
                 }
-                return AudioFiles.combatMusic[Math.floor(Math.random() * AudioFiles.combatMusic.length)];
+                // Utwór losowany raz na planszę: ta funkcja jest wołana wielokrotnie w trakcie misji
+                if (window.__combatPickTheme !== currentCombatTheme) {
+                    window.__combatPickTheme = currentCombatTheme;
+                    window.__combatPick = AudioFiles.combatMusic[Math.floor(Math.random() * AudioFiles.combatMusic.length)];
+                }
+                return window.__combatPick;
             }
             return null;
         }
@@ -24273,7 +24278,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             // WAŻNE: mapa musi być identyczna jak za dnia - NIE regenerujemy terenu ani budynków,
             // tylko podmieniamy mieszkańców i oświetlenie.
-            window.__cityPick = null;
+            window.__cityPick = null; window.__combatPickTheme = null;
             bellUsed = false; shadowsFleeUntil = 0;
             nightStartTime = performance.now(); nightExtraShadows = 0;
             resetWarriorMixers();
