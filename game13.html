@@ -9428,7 +9428,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (isNYMap) {
                 obstaclePositions = obstaclePositions.filter(p => {
                     if (p.type !== 'wall-resistant' && p.type !== 'wall-destructible') return true;
-                    obstacleGrid[p.x + offsetX][p.z + offsetZ] = null;
+                    obstacleGrid[p.x + offsetX][p.z + offsetZ] = null; obstacleMap.delete(`${p.x},${p.z}`);
                     obstacleMap.delete(`${p.x},${p.z}`);
                     return false;
                 });
@@ -15313,7 +15313,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 houses.some(h => h.zachod && p.x >= h.minX && p.x <= h.maxX && p.z >= h.minZ && p.z <= h.maxZ);
             obstaclePositions = obstaclePositions.filter(p => {
                 if (!zbedny(p)) return true;
-                obstacleGrid[p.x + offsetX][p.z + offsetZ] = null;
+                obstacleGrid[p.x + offsetX][p.z + offsetZ] = null; obstacleMap.delete(`${p.x},${p.z}`);
                 return false;
             });
         }
@@ -42323,7 +42323,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const i2 = obstaclePositions.indexOf(p);
                     if (i2 !== -1) obstaclePositions.splice(i2, 1);
                     obstacleMap.delete(`${p.x},${p.z}`);
-                    obstacleGrid[p.x + offsetX][p.z + offsetZ] = null;
+                    obstacleGrid[p.x + offsetX][p.z + offsetZ] = null; obstacleMap.delete(`${p.x},${p.z}`);
                     wybite++;
                 });
             }
