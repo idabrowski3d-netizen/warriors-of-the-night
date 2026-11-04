@@ -8098,7 +8098,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         SKLEP: { w: 7, d: 9, kolor: 0x7a6a4a, dach: 0x4a3a28, fasada: 1.6, meble: [
                             ...[2,3,5,6].map(v => [3, v, 'lada_baru']), ...[1,3,5,7].map(v => [5, v, 'polka_butelek']), [1, 1, 'beczka'], [1, 7, 'beczka'] ] },
                         HOTEL: { w: 7, d: 11, kolor: 0x8a3a30, dach: 0x3a2420, fasada: 2.6, meble: [
-                            [1, 2, 'stolik_baru'], [2, 2, 'krzeslo_baru'], [3, 8, 'lada_baru'], [3, 9, 'lada_baru'], [5, 2, 'prycza_aresztu'], [5, 8, 'prycza_aresztu'] ] }
+                            [1, 2, 'stolik_baru'], [2, 2, 'krzeslo_baru'], [3, 8, 'lada_baru'], [3, 9, 'lada_baru'], [5, 2, 'prycza_aresztu'], [5, 8, 'prycza_aresztu'] ] },
+                        BANK: { w: 7, d: 9, kolor: 0xb0a488, dach: 0x3e3a34, fasada: 2.2, meble: [
+                            ...[1,2,3,5,6,7].map(v => [3, v, 'okienko_banku']), [5, 2, 'sejf_banku'], [5, 6, 'sejf_banku'], [5, 4, 'worki_zlota'], [1, 1, 'krzeslo_baru'], [1, 7, 'krzeslo_baru'] ] }
                     };
                     const postawDomZachodu = (strona, z0, nazwa) => {
                         const t = DOMY_ZACHODU[nazwa], wx = (u) => ulicaX + strona * (6 + u);
@@ -8123,7 +8125,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             if (Math.abs(v - mid) > polDrzwi) addObstacle(wx(-1), z0 + v, 'zachod-weranda', { strona: strona });
                         return true;
                     };
-                    const KOLEJKI = { '-1/1': ['BAR', 'FRYZJER'], '1/1': ['STAJNIA', 'SZERYF'], '-1/-1': ['HOTEL'], '1/-1': ['SKLEP'] };
+                    const KOLEJKI = { '-1/1': ['BAR', 'FRYZJER'], '1/1': ['STAJNIA', 'SZERYF'], '-1/-1': ['BANK', 'HOTEL'], '1/-1': ['SKLEP'] };
                     const RESZTA = ['SKLEP', 'HOTEL', 'FRYZJER', 'SZERYF'];
                     for (const strona of [-1, 1]) for (const kier of [1, -1]) {
                         const kolejka = KOLEJKI[strona + '/' + kier];
@@ -9428,7 +9430,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (isNYMap) {
                 obstaclePositions = obstaclePositions.filter(p => {
                     if (p.type !== 'wall-resistant' && p.type !== 'wall-destructible') return true;
-                    obstacleGrid[p.x + offsetX][p.z + offsetZ] = null; obstacleMap.delete(`${p.x},${p.z}`);
+                    obstacleGrid[p.x + offsetX][p.z + offsetZ] = null;
                     obstacleMap.delete(`${p.x},${p.z}`);
                     return false;
                 });
@@ -15285,7 +15287,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             prycza_aresztu: [['b',.6,.1,.95,0x4a3a2a,0,.4,0],['b',.54,.1,.88,0x8a8470,0,.5,0],['b',.08,.36,.08,0x2a2a2a,-.25,.18,.4],['b',.08,.36,.08,0x2a2a2a,.25,.18,-.4]],
             fotel_fryzjera: [['c',.26,.32,.12,0xa8a8a8,0,.06,0],['c',.07,.07,.32,0xa8a8a8,0,.25,0],['b',.5,.14,.5,0x8a1a1a,0,.47,0],['b',.14,.6,.5,0x8a1a1a,.2,.8,0],['b',.45,.05,.07,0xc8c8c8,0,.62,.24],['b',.45,.05,.07,0xc8c8c8,0,.62,-.24]],
             lustro_fryzjera: [['b',.3,.7,.9,0x5a3418,0,.35,0],['b',.08,.9,.75,0x5a3418,0,1.15,0],['b',.1,.78,.63,0xbfe0f0,-.02,1.15,0]],
-            szafka_fryzjera: [['b',.4,1.1,.9,0xe8e4d8,0,.55,0],['c',.04,.05,.2,0x3a7a9a,0,1.2,-.2],['c',.04,.05,.2,0xc84a4a,0,1.2,.2]]
+            szafka_fryzjera: [['b',.4,1.1,.9,0xe8e4d8,0,.55,0],['c',.04,.05,.2,0x3a7a9a,0,1.2,-.2],['c',.04,.05,.2,0xc84a4a,0,1.2,.2]],
+            okienko_banku: [['b',.7,.95,1,0x4a3018,0,.48,0],['b',.8,.06,1,0x7a5230,0,.98,0],['b',.06,.06,1,0xb89a40,0,1.85,0],['c',.025,.025,.85,0xb89a40,0,1.43,-.32],['c',.025,.025,.85,0xb89a40,0,1.43,-.1],['c',.025,.025,.85,0xb89a40,0,1.43,.1],['c',.025,.025,.85,0xb89a40,0,1.43,.32]],
+            sejf_banku: [['b',.85,1.7,.95,0x3a3e44,0,.85,0],['b',.05,1.35,.7,0x5a5e66,-.44,.85,0],['k',.1,0xc8a840,-.48,.95,0],['k',.04,0xc8a840,-.48,.95,.24]],
+            worki_zlota: [['k',.24,0x9a8458,-.1,.22,-.2],['k',.22,0x8a7448,.12,.2,.2],['k',.17,0xa08a5e,0,.5,0],['b',.3,.1,.14,0xe0b830,-.3,.05,.3],['b',.3,.1,.14,0xe0b830,-.3,.15,.3]]
         };
         Object.keys(NOWE_REKWIZYTY).forEach(plansza => Object.keys(NOWE_REKWIZYTY[plansza]).forEach(nazwa => {
             if (REKWIZYTY_Z_KODU[nazwa]) throw new Error('Powtórzony rekwizyt: ' + nazwa);
@@ -42323,7 +42328,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const i2 = obstaclePositions.indexOf(p);
                     if (i2 !== -1) obstaclePositions.splice(i2, 1);
                     obstacleMap.delete(`${p.x},${p.z}`);
-                    obstacleGrid[p.x + offsetX][p.z + offsetZ] = null; obstacleMap.delete(`${p.x},${p.z}`);
+                    obstacleGrid[p.x + offsetX][p.z + offsetZ] = null;
                     wybite++;
                 });
             }
