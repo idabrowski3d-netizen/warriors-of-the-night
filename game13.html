@@ -9549,6 +9549,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             let counts = [0, 0, 0, 0, 0, 0];
             for(let x=0; x<mapWidth; x++) for(let z=0; z<mapDepth; z++) counts[terrainTypeMap[x][z]]++;
+            if (currentCombatTheme && currentCombatTheme.id === 'cyber') {
+                const metal = materialMetaluCyber();
+                Object.keys(terrainMats).forEach(k => { terrainMats[k] = metal; });
+            }
 
             const geo = new THREE.BoxGeometry(1, 1, 1);
             
@@ -9604,6 +9608,69 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (m.instanceColor) m.instanceColor.needsUpdate = true;
                 scene.add(m);
             });
+        }
+
+        // Metalowa podłoga Cyber. Jest lekko przezroczysta: pod nią leżą lustrzane kopie
+        // obiektów (dodajOdbiciaCyber), co daje odbicia bez drugiego renderu całej sceny.
+        function materialMetaluCyber() {
+            const c = document.createElement('canvas'); c.width = c.height = 256;
+            const x = c.getContext('2d');
+            x.fillStyle = '#39465a'; x.fillRect(0, 0, 256, 256);
+            for (let i = 0; i < 1400; i++) {
+                x.fillStyle = `rgba(${Math.random() < 0.5 ? '255,255,255' : '20,30,45'},0.05)`;
+                x.fillRect(Math.random() * 256, Math.random() * 256, 30 + Math.random() * 90, 1);
+            }
+            x.strokeStyle = 'rgba(10,18,30,0.8)'; x.lineWidth = 4; x.strokeRect(0, 0, 256, 256);
+            x.fillStyle = 'rgba(10,18,30,0.7)';
+            [[16, 16], [240, 16], [16, 240], [240, 240]].forEach(([a, b]) => { x.beginPath(); x.arc(a, b, 5, 0, 7); x.fill(); });
+            return new THREE.MeshPhongMaterial({ map: new THREE.CanvasTexture(c), specular: 0x9fd8ff, shininess: 90,
+                                                 transparent: true, opacity: 0.62 });
+        }
+
+        function dodajOdbiciaCyber() {
+            if (!currentCombatTheme || currentCombatTheme.id !== 'cyber') return;
+            obstacleMeshes.forEach(o => {
+                if (o.isLight) return;
+                const kopia = o.clone();
+                const swiatla = [];
+                kopia.traverse(k => { if (k.isLight) swiatla.push(k); k.userData = {}; });
+                swiatla.forEach(l => l.parent.remove(l));
+                // Dziecko obiektu: mgła wojny chowa odbicie razem z nim
+                kopia.position.set(0, -2 * o.position.y, 0);
+                kopia.rotation.set(0, 0, 0);
+                kopia.scale.set(1, -1, 1);
+                o.add(kopia);
+            });
+        }
+
+        // Boki bloków Cyber: szafy serwerowe ze światełkami, po kilka wariantów na wysokość
+        const teksturySerwerow = {};
+        function materialSerwera(wysokosc) {
+            const wariant = Math.floor(Math.random() * 4), klucz = wariant + '/' + wysokosc;
+            if (teksturySerwerow[klucz]) return teksturySerwerow[klucz];
+            const c = document.createElement('canvas'), l = document.createElement('canvas');
+            c.width = c.height = l.width = l.height = 128;
+            const x = c.getContext('2d'), y = l.getContext('2d');
+            x.fillStyle = '#10161f'; x.fillRect(0, 0, 128, 128);
+            y.fillStyle = '#000'; y.fillRect(0, 0, 128, 128);
+            x.fillStyle = '#2a3442'; x.fillRect(0, 0, 6, 128); x.fillRect(122, 0, 6, 128);
+            const BARWY = ['#35ff8a', '#35d6ff', '#ffb030', '#ff3a5a'];
+            for (let r = 0; r < 6; r++) {
+                const g = 4 + r * 20;
+                x.fillStyle = '#1c2530'; x.fillRect(10, g, 108, 17);
+                x.fillStyle = '#0a0e14';
+                for (let k = 0; k < 7; k++) x.fillRect(58 + k * 8, g + 3, 5, 11);
+                for (let k = 0; k < 6; k++) {
+                    if (Math.random() < 0.3) continue;
+                    y.fillStyle = BARWY[Math.random() < 0.65 ? (wariant % 2) : Math.floor(Math.random() * 4)];
+                    y.fillRect(14 + k * 7, g + 6, 4, 4);
+                }
+            }
+            const t = new THREE.CanvasTexture(c), e = new THREE.CanvasTexture(l);
+            [t, e].forEach(q => { q.wrapT = THREE.RepeatWrapping; q.repeat.set(1, wysokosc); });
+            const bok = new THREE.MeshLambertMaterial({ map: t, emissive: 0xffffff, emissiveMap: e });
+            const gora = new THREE.MeshLambertMaterial({ color: 0x16283c });
+            return (teksturySerwerow[klucz] = [bok, bok, gora, gora, bok, bok]);
         }
 
         function createSignSprite(text, bgColor, textColor) {
@@ -10616,6 +10683,27 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function createKapliczka() {
             const group = new THREE.Group();
+            if (currentCombatTheme && currentCombatTheme.id === 'cyber') {
+                const dodaj = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); group.add(m); return m; };
+                const stal = new THREE.MeshPhongMaterial({ color: 0x2a3442, specular: 0x9fd8ff, shininess: 80 });
+                const neon = new THREE.MeshBasicMaterial({ color: 0x35d6ff });
+                const holo = new THREE.MeshBasicMaterial({ color: 0xbdf1ff, transparent: true, opacity: 0.8 });
+                dodaj(new THREE.CylinderGeometry(0.42, 0.5, 0.14, 6), stal, 0, 0.07, 0);
+                dodaj(new THREE.BoxGeometry(0.42, 0.5, 0.42), stal, 0, 0.39, 0);
+                [-1, 1].forEach(k => {
+                    dodaj(new THREE.BoxGeometry(0.03, 0.42, 0.44), neon, k * 0.22, 0.39, 0);
+                    dodaj(new THREE.BoxGeometry(0.06, 0.04, 0.06), new THREE.MeshBasicMaterial({ color: 0x35ff8a }), k * 0.1, 0.5, 0.215);
+                });
+                dodaj(new THREE.CylinderGeometry(0.2, 0.26, 0.05, 6), neon, 0, 0.67, 0);
+                // Krzyż jako hologram unoszący się nad emiterem
+                dodaj(new THREE.BoxGeometry(0.07, 0.6, 0.03), holo, 0, 1.1, 0);
+                dodaj(new THREE.BoxGeometry(0.34, 0.07, 0.03), holo, 0, 1.22, 0);
+                const swiatloH = new THREE.PointLight(0x7fe0ff, 0, 6, 1.1);
+                swiatloH.position.set(0, 1, 0);
+                group.add(swiatloH);
+                group.userData.shrineLight = swiatloH;
+                return group;
+            }
             const stoneMat = new THREE.MeshLambertMaterial({ color: 0x999999 });
             const base = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.5), stoneMat);
             base.position.set(0, 0.3, 0);
@@ -10851,7 +10939,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // na KAŻDEJ planszy, tyle że z innego powodu. Pożar planszowy to ściana
         // ognia idąca frontem; ognisko po ładunku zapalającym jest małe, pełza
         // wolno i gaśnie - ma zmusić do zmiany pola, a nie spalić całą mapę.
-        const ZAPAL_OBRAZENIA = 3;        // mniej niż w pożarze - to nie ściana ognia
+        const ZAPAL_TRAFIENIE = 5;        // trafienie pociskiem zapalającym
+        const ZAPAL_OBRAZENIA = 2;        // pierwsze oparzenie, potem co turę o 1 więcej
+        const ZAPAL_OBRAZENIA_MAX = 4;
         const ZAPAL_TRWANIE = 4;          // dłużej się tli
         const ZAPAL_SZANSA = 0.1;         // ledwie pełza na sąsiednie pola
         const ZAPAL_PROMIEN = 1;          // rozprysk wokół trafionego pola
@@ -16620,8 +16710,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
                 else if (pos.type === 'datablock') {
                     const h = (pos.blockH || 1) * 1.1;
-                    const bryla = new THREE.Mesh(new THREE.BoxGeometry(1, h, 1),
-                        new THREE.MeshLambertMaterial({ color: 0x16283c }));
+                    const bryla = new THREE.Mesh(new THREE.BoxGeometry(1, h, 1), materialSerwera(pos.blockH || 1));
                     bryla.position.set(pos.x, ty + h / 2, pos.z);
                     scene.add(bryla); obstacleMeshes.push(bryla);
                     // neonowe krawędzie
@@ -17470,6 +17559,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Posadzki kładziemy po przeszkodach - leżą na terenie, pod sprzętem
             ozdobPodlogiOstoi();
             ozdobPodlogiWnetrz();
+            dodajOdbiciaCyber();
             zbudujPlatyPodlog();   // dopiero teraz bryły - z gotowej listy pól
             postawSkalyZboczy();
             postawPrzejsciaGruntu();
@@ -36882,7 +36972,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const AMU_ZRECZNOSC_MIN = 11;     // niżej ręka nie zrobi z tego użytku
         const AMU_DOPLATA_AP = 2;         // ponad zwykły koszt strzału
         const AMU_ZAPAL_PROMIEN = 2;      // rozprysk ognia - szerszy niż przypadkowy ładunek
-        const AMU_ZAPAL_OBRAZENIA = 3;    // tyle zabiera samo trafienie zapalającym
         const AMU_MROZ_TURY = 2;          // na tyle rund skuwa lód
         const AMU_MROZ_OBRAZENIA = 2;
         const AMU_PROG_2 = 12, AMU_PROG_3 = 15;   // progi Zręczności na 2 i 3 ładunki
@@ -36998,7 +37087,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function skutekAmunicji(rodzaj, cel, x, z, strzelec) {
             if (rodzaj === 'zapalajacy') {
                 const ile = zapalPole(x, z, AMU_ZAPAL_PROMIEN);
-                if (cel && !cel.isDead) applyDamageToUnit(cel, AMU_ZAPAL_OBRAZENIA, strzelec);
+                // Samo trafienie liczy strzał (ZAPAL_TRAFIENIE); tu tylko ci, którzy stoją w ogniu
+                oparzWPromieniu(x, z, AMU_ZAPAL_PROMIEN, cel, !!cel);
                 updateUI(`Pocisk zapalający rozbryzguje ogień na ${ile} ${ile === 1 ? 'polu' : 'polach'} - ` +
                          'kto tam stanie, będzie się palił.');
                 return true;
@@ -38075,6 +38165,38 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return Math.max(bazowe > 0 ? 1 : 0, po);
         }
 
+        const obrazeniaZaleganiaWOgniu = (u) => Math.min(ZAPAL_OBRAZENIA_MAX, ZAPAL_OBRAZENIA + (u.ogienTury || 0));
+
+        // Oparzenie w chwili wybuchu pocisku. Trafiony dostał już pełne obrażenia ze strzału,
+        // więc tu tylko zaczyna mu się liczyć stanie w ogniu. O śmierci celu decyduje strzelec.
+        function oparzWPromieniu(x, z, r, cel, celTrafiony) {
+            if (!ogienGrid) return;
+            const wZasiegu = (u) => {
+                if (u.isDead || !u.mesh || u.lewituje) return false;
+                const ux = Math.round(u.mesh.position.x), uz = Math.round(u.mesh.position.z);
+                const mx = ux + offsetX, mz = uz + offsetZ;
+                return Math.abs(ux - Math.round(x)) + Math.abs(uz - Math.round(z)) <= r &&
+                       mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth && ogienGrid[mx][mz] === 1;
+            };
+            soldiers.forEach(s => {
+                if (!wZasiegu(s)) return;
+                s.ogienTury = 1;
+                if (s === cel && celTrafiony) return;
+                const obr = obrazeniaOgnia(s, ZAPAL_OBRAZENIA);
+                applyDamageToUnit(s, obr, null, 'ogien');
+                updateUI(`${s.name} stoi w ogniu! (-${obr} HP)`);
+                if (s !== cel && s.hp <= 0) { playDyingSfx(); killUnitWithAnim(s); refreshPlayerPositions(); }
+            });
+            [...enemies, ...npcs].forEach(u => {
+                if (!wZasiegu(u)) return;
+                u.ogienTury = 1;
+                if (u === cel) { if (!celTrafiony) u.hp -= ZAPAL_OBRAZENIA; return; }
+                u.hp -= ZAPAL_OBRAZENIA;
+                if (u.hp <= 0) { u.isDead = true; scene.remove(u.mesh); refreshEnemyPositions(); }
+            });
+            checkGameOver();
+        }
+
         function tikPozaru() {
             if (!ogienGrid || gameOver) return;
             const planszowy = czyPozarPlanszowy();
@@ -38146,8 +38268,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (s.isDead || !s.mesh) return;
                 const mx = Math.round(s.mesh.position.x) + offsetX, mz = Math.round(s.mesh.position.z) + offsetZ;
                 if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return;
-                if (ogienGrid[mx][mz] !== 1) return;
-                const bazowe = planszowy ? POZAR_OBRAZENIA : ZAPAL_OBRAZENIA;
+                if (ogienGrid[mx][mz] !== 1) { s.ogienTury = 0; return; }
+                const bazowe = planszowy ? POZAR_OBRAZENIA : obrazeniaZaleganiaWOgniu(s);
+                s.ogienTury = (s.ogienTury || 0) + 1;
                 const obr = obrazeniaOgnia(s, bazowe);
                 applyDamageToUnit(s, obr, null, 'ogien');
                 poparzeni++;
@@ -38162,8 +38285,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (u.lewituje) return;
                 const mx = Math.round(u.mesh.position.x) + offsetX, mz = Math.round(u.mesh.position.z) + offsetZ;
                 if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return;
-                if (ogienGrid[mx][mz] !== 1) return;
-                u.hp -= POZAR_OBRAZENIA;
+                if (ogienGrid[mx][mz] !== 1) { u.ogienTury = 0; return; }
+                u.hp -= planszowy ? POZAR_OBRAZENIA : obrazeniaZaleganiaWOgniu(u);
+                u.ogienTury = (u.ogienTury || 0) + 1;
                 if (u.hp <= 0) { u.isDead = true; scene.remove(u.mesh); }
             });
 
@@ -45045,8 +45169,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                 playFileSfx(AudioFiles.wallHit, 0.5);
                             }
                         }
+                        if (zapalajacy) oparzWPromieniu(px, pz, ZAPAL_PROMIEN, bestTarget, isHit);
                         if(isHit && lodemWrog) { skutekAmunicji('mrozacy', bestTarget, px, pz, e); }
-                        else if(isHit) { applyDamageToUnit(bestTarget, 4); updateUI(bestTarget.isNPC ? `Cywil trafiony! (Szansa wroga: ${hitChance}%)` : `Otrzymałeś trafienie! (Szansa wroga: ${hitChance}%)`); if (!bestTarget.isNPC) playFileSfx(AudioFiles.warriorOuch, 0.6); if (!bestTarget.isNPC && bestTarget.hp > 0) chatter(bestTarget, bestTarget.hp <= 3 ? CHATTER_LOW_HP : CHATTER_HIT_TAKEN, 0.6); }
+                        else if(isHit) { applyDamageToUnit(bestTarget, zapalajacy ? ZAPAL_TRAFIENIE : 4); updateUI(bestTarget.isNPC ? `Cywil trafiony! (Szansa wroga: ${hitChance}%)` : `Otrzymałeś trafienie! (Szansa wroga: ${hitChance}%)`); if (!bestTarget.isNPC) playFileSfx(AudioFiles.warriorOuch, 0.6); if (!bestTarget.isNPC && bestTarget.hp > 0) chatter(bestTarget, bestTarget.hp <= 3 ? CHATTER_LOW_HP : CHATTER_HIT_TAKEN, 0.6); }
                         else { 
                             if (targetCover && !NIEZNISZCZALNE_OSLONY.includes(targetCover.type)) { destroyObstacle(targetCover); updateUI(`Wróg spudłował, niszcząc Twój mur!`); }
                             else updateUI(`Wróg pudłuje! (Szansa wroga: ${hitChance}%)`); 
@@ -47687,8 +47812,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 a rolka myszy pokazuje kolejne kondygnacje.</p>
                 <h4>Ogień</h4>
                 <p>Niektórzy strzelcy wroga używają <b>ładunków zapalających</b>. Taki pocisk
-                podpala pole, w które leciał - <b>także wtedy, gdy chybi</b>. Stanie w ogniu
-                zabiera zdrowie co turę, więc trzeba zejść z płonącego kafla, a to kosztuje
+                podpala pole, w które leciał - <b>także wtedy, gdy chybi</b>. Trafienie zabiera 5 zdrowia.
+                Kto stoi w ogniu, traci od razu 2, w następnej turze 3, a potem po 4, więc trzeba zejść z płonącego kafla, a to kosztuje
                 punkty ruchu. Ogień trawi też łatwopalne osłony: kłody, żywopłoty, beczki i skrzynie.</p>
                 <p><b>Odporność na ogień</b> rośnie z Witalnością: 14 daje 1. stopień (-35% obrażeń
                 od ognia), 18 drugi (-60%), 22 trzeci (-85%). Pełnej niewrażliwości nie ma -
