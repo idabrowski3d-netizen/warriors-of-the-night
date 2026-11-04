@@ -18895,7 +18895,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             wisp:     { plik: 'models/skull.glb', idle: null, walk: null,
                        atak: null, smierc: null, cios: null, wysokosc: 0.3 },   // czaszka bez animacji, 3x mniejsza
             obzeracz: { plik: 'models/obzeracz.glb', idle: 'obzeracz_idle', walk: 'obzeracz_walk',
-                       atak: 'obzeracz_attack', smierc: 'obzeracz_death', cios: 'obzeracz_hit', wysokosc: 2.2 },
+                       atak: 'obzeracz_attack', smierc: 'obzeracz_death', cios: 'obzeracz_hit', wysokosc: 2.2,
+                       tylem: ['obzeracz_walk', 'obzeracz_attack', 'obzeracz_death', 'obzeracz_hit'] },   // w pliku te klipy patrzą w drugą stronę niż idle
             robak:    { plik: 'models/robak.glb', idle: 'robak_idle', walk: 'robak_walk',
                        atak: 'robak_attack', smierc: 'robak_death', cios: 'robak_hit',
                        specjalna: 'robak_wake_up', wysokosc: 2.0 },
@@ -19056,6 +19057,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     loader.load(cfg.plik, (gltf) => {
                         const proto = gltf.scene;
                         (gltf.animations || []).forEach(a => { wrogModele[typ].klipy[a.name] = a; });
+                        (cfg.tylem || []).forEach(nazwa => obrocKlipO180(wrogModele[typ].klipy[nazwa]));
                         let minY = Infinity, maxY = -Infinity;
                         proto.traverse(ch => {
                             if (!ch.isMesh && !ch.isSkinnedMesh) return;
@@ -19118,6 +19120,20 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const gotowe = ['zombie', 'zombie2'].filter(k => wrogModele[k] && wrogModele[k].gotowy);
             if (gotowe.length === 0) return 'zombie';
             return gotowe[Math.floor(Math.random() * gotowe.length)];
+        }
+
+        // Obrót całej postaci o 180° wokół pionu. Biodra są w przestrzeni szkieletu z Blendera, gdzie pion to oś Z.
+        function obrocKlipO180(klip) {
+            if (!klip) return;
+            klip.tracks.forEach(t => {
+                const v = t.values;
+                if (/Hips.quaternion$/.test(t.name)) for (let i = 0; i < v.length; i += 4) {
+                    const [x, y, z, w] = [v[i], v[i + 1], v[i + 2], v[i + 3]];
+                    v[i] = -y; v[i + 1] = x; v[i + 2] = w; v[i + 3] = -z;
+                } else if (/Hips.position$/.test(t.name)) for (let i = 0; i < v.length; i += 3) {
+                    v[i] = -v[i]; v[i + 1] = -v[i + 1];
+                }
+            });
         }
 
         function buildEnemyModelInstance(typ, dokladnie) {
