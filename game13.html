@@ -2099,6 +2099,7 @@
         // Muzyka tła zależna od trybu i planszy.
         // Każdy tryb ma swój utwór; przy braku pliku gra po prostu milczy.
         let currentMusicSrc = null;
+        const CISZA_MIEDZY_UTWORAMI = 10000;   // ms
 
         function pickMusicForContext() {
             if (gameMode === 'presentNight') return AudioFiles.dreamCityMusic;
@@ -2134,7 +2135,19 @@
             if (!want) return;
             try {
                 themeMusicEl = new Audio(want);
-                themeMusicEl.loop = true;
+                // Utwory z listy gramy po kolei z chwilą ciszy; pojedynczy utwór trybu nadal się zapętla
+                const lista = [AudioFiles.cityMusic, AudioFiles.combatMusic].find(l => l.includes(want));
+                themeMusicEl.loop = !lista;
+                if (lista) themeMusicEl.addEventListener('ended', () => {
+                    themeMusicEl = null;
+                    setTimeout(() => {
+                        if (themeMusicEl || currentMusicSrc !== want) return;
+                        const inne = lista.filter(u => u !== want);
+                        const nastepny = inne[Math.floor(Math.random() * inne.length)];
+                        if (lista === AudioFiles.cityMusic) window.__cityPick = nastepny; else window.__combatPick = nastepny;
+                        updateThemeMusic();
+                    }, CISZA_MIEDZY_UTWORAMI);
+                });
                 themeMusicEl.volume = 0.35;
                 themeMusicEl.addEventListener('error', () => {
                     console.info(`[audio] Brak ${want} - ten tryb gra bez własnej muzyki.`);
