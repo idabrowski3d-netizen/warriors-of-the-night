@@ -8082,26 +8082,58 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             if (obstacleGrid[mx][mz]) obstacleGrid[mx][mz] = null;
                         }
                     }
-                    // Zabudowa wzdłuż ulicy, po obu stronach, z przerwami na zaułki
-                    for (const strona of [-1, 1]) {
-                        let z = -offsetZ + 12;
-                        while (z < offsetZ - 14) {
-                            const dlugosc = 4 + Math.floor(Math.random() * 4);
-                            const x = ulicaX + strona * (6 + Math.floor(Math.random() * 2));
-                            // Środek planszy zostawiamy wolny - tam stoi budynek z cywilem
-                            if (Math.abs(z) > 16 && Math.abs(z + dlugosc) > 16) {
-                                for (let d = 0; d < dlugosc; d++) {
-                                    if (!isWithinPlayBounds(x, z + d)) continue;
-                                    addObstacle(x, z + d, 'zachod-fasada', { strona: strona });
-                                }
-                                // Weranda od strony ulicy
-                                for (let d = 0; d < dlugosc; d++) {
-                                    const wx = x - strona;
-                                    if (isWithinPlayBounds(wx, z + d) && !isObstacle(wx, z + d))
-                                        addObstacle(wx, z + d, 'zachod-weranda', { strona: strona });
-                                }
-                            }
-                            z += dlugosc + 2 + Math.floor(Math.random() * 3);
+                    // Zabudowa wzdłuż ulicy: każdy dom ma swoją funkcję, rozmiar i wnętrze.
+                    // Środek planszy zostaje wolny - tam stoi budynek z cywilem.
+                    const DOMY_ZACHODU = {
+                        BAR: { w: 9, d: 13, kolor: 0x8a5a34, dach: 0x4a3420, fasada: 2.2, meble: [
+                            ...[2,3,4,5,6,7,8,9,10].map(v => [6, v, 'lada_baru']), ...[2,4,6,8,10].map(v => [7, v, 'polka_butelek']),
+                            ...[3, 9].flatMap(v => [[3, v, 'stolik_baru'], [2, v, 'krzeslo_baru'], [4, v, 'krzeslo_baru'], [3, v - 1, 'krzeslo_baru'], [3, v + 1, 'krzeslo_baru']]) ] },
+                        STAJNIA: { w: 9, d: 11, kolor: 0x6e3a24, dach: 0x3a2a1a, fasada: 0, spadzisty: true, drzwi: 1, meble: [
+                            ...[1,2,3,4,5,6,7].flatMap(u => [[u, 3, 'przegroda_stajni'], [u, 7, 'przegroda_stajni']].filter(() => u > 3)),
+                            [7, 1, 'zlob'], [7, 5, 'zlob'], [7, 9, 'zlob'], [5, 1, 'kon_w_stajni'], [5, 5, 'kon_w_stajni'], [5, 9, 'kon_w_stajni'], [2, 1, 'bela_siana_pustynna'], [2, 9, 'bela_siana_pustynna'] ] },
+                        SZERYF: { w: 7, d: 9, kolor: 0xa08458, dach: 0x54402a, fasada: 1.2, meble: [
+                            [2, 2, 'biurko_szeryfa'], [3, 2, 'krzeslo_baru'], [1, 7, 'tablica_listow'], ...[1,2,3,4,5].map(v => [4, v + 1, v === 3 ? null : 'krata_aresztu']).filter(m => m[2]), [5, 2, 'prycza_aresztu'], [5, 6, 'prycza_aresztu'] ] },
+                        FRYZJER: { w: 5, d: 7, kolor: 0xb8b0a0, dach: 0x6a4a3a, fasada: 1, meble: [
+                            [3, 1, 'lustro_fryzjera'], [3, 3, 'lustro_fryzjera'], [2, 1, 'fotel_fryzjera'], [2, 3, 'fotel_fryzjera'], [3, 5, 'szafka_fryzjera'], [1, 5, 'krzeslo_baru'] ] },
+                        SKLEP: { w: 7, d: 9, kolor: 0x7a6a4a, dach: 0x4a3a28, fasada: 1.6, meble: [
+                            ...[2,3,5,6].map(v => [3, v, 'lada_baru']), ...[1,3,5,7].map(v => [5, v, 'polka_butelek']), [1, 1, 'beczka'], [1, 7, 'beczka'] ] },
+                        HOTEL: { w: 7, d: 11, kolor: 0x8a3a30, dach: 0x3a2420, fasada: 2.6, meble: [
+                            [1, 2, 'stolik_baru'], [2, 2, 'krzeslo_baru'], [3, 8, 'lada_baru'], [3, 9, 'lada_baru'], [5, 2, 'prycza_aresztu'], [5, 8, 'prycza_aresztu'] ] }
+                    };
+                    const postawDomZachodu = (strona, z0, nazwa) => {
+                        const t = DOMY_ZACHODU[nazwa], wx = (u) => ulicaX + strona * (6 + u);
+                        for (let u = -1; u < t.w + 1; u++) for (let v = -1; v < t.d + 1; v++)
+                            if (!isWithinPlayBounds(wx(u), z0 + v)) return false;
+                        const mid = (t.d - 1) / 2, polDrzwi = t.drzwi || 0, houseId = houses.length;
+                        const xs = [wx(0), wx(t.w - 1)];
+                        houses.push({ id: houseId, specjalny: true, zachod: true, minX: Math.min(...xs), maxX: Math.max(...xs),
+                                      minZ: z0, maxZ: z0 + t.d - 1, centerX: wx((t.w - 1) / 2), centerZ: z0 + mid });
+                        addObstacle(wx((t.w - 1) / 2), z0 + mid, 'house-roof', { roofScaleX: (t.w + 0.3) / 5, roofScaleZ: (t.d + 0.3) / 5,
+                                    roofColor: t.dach, houseId: houseId, flatRoof: !t.spadzisty });
+                        for (let u = 0; u < t.w; u++) for (let v = 0; v < t.d; v++) {
+                            if (u !== 0 && u !== t.w - 1 && v !== 0 && v !== t.d - 1) continue;
+                            if (u === 0 && Math.abs(v - mid) <= polDrzwi) continue;     // drzwi od ulicy
+                            const extra = { kolor: t.kolor, strona: strona, okno: u === 0 && Math.abs(v - mid) === polDrzwi + 2 };
+                            // Fasada z szyldem wisi na polu tuż obok drzwi i biegnie przez cały front
+                            if (u === 0 && v === mid + polDrzwi + 1) extra.fasada = { dl: t.d, h: t.fasada, napis: nazwa, dz: mid - v };
+                            addObstacle(wx(u), z0 + v, 'zachod-sciana', extra);
+                        }
+                        t.meble.forEach(([u, v, typ]) => addObstacle(wx(u), z0 + v, typ, { obrot: (strona > 0 ? 0 : Math.PI) + (typ === 'fotel_fryzjera' ? Math.PI : 0) }));
+                        for (let v = 0; v < t.d; v++)
+                            if (Math.abs(v - mid) > polDrzwi) addObstacle(wx(-1), z0 + v, 'zachod-weranda', { strona: strona });
+                        return true;
+                    };
+                    const KOLEJKI = { '-1/1': ['BAR', 'FRYZJER'], '1/1': ['STAJNIA', 'SZERYF'], '-1/-1': ['HOTEL'], '1/-1': ['SKLEP'] };
+                    const RESZTA = ['SKLEP', 'HOTEL', 'FRYZJER', 'SZERYF'];
+                    for (const strona of [-1, 1]) for (const kier of [1, -1]) {
+                        const kolejka = KOLEJKI[strona + '/' + kier];
+                        let brzeg = 18, i = 0;
+                        for (;;) {
+                            const nazwa = kolejka[i] || RESZTA[(i + (strona > 0 ? 1 : 0)) % RESZTA.length];
+                            const d = DOMY_ZACHODU[nazwa].d;
+                            if (!postawDomZachodu(strona, kier > 0 ? brzeg : -brzeg - d + 1, nazwa)) break;
+                            brzeg += d + 2 + Math.floor(Math.random() * 3);
+                            i++;
                         }
                     }
                     // Koniowiązy, wozy i beczki przy ulicy
@@ -8114,7 +8146,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     }
                     for (let i = 0; i < 7; i++) {
                         for (let t = 0; t < 40; t++) {
-                            const x = Math.floor(Math.random() * 20) - 10;
+                            const x = Math.floor(Math.random() * 9) - 4;   // na ulicy, nie w domach
                             const z = Math.floor(Math.random() * (mapDepth - 30)) + 15 - offsetZ;
                             if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) continue;
                             addObstacle(x, z, 'woz'); break;
@@ -8122,7 +8154,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     }
                     // Wieża ciśnień - punkt orientacyjny widoczny z daleka
                     for (let t = 0; t < 60; t++) {
-                        const x = ulicaX + (Math.random() < 0.5 ? -10 : 10) + Math.floor(Math.random() * 4);
+                        const x = ulicaX + (Math.random() < 0.5 ? -22 : 22) + Math.floor(Math.random() * 4);
                         const z = Math.floor(Math.random() * 40) - 20;
                         if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) continue;
                         addObstacle(x, z, 'wieza-cisnien'); break;
@@ -9153,7 +9185,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // domów tylko by im ją rozsypał. Alabama dopisana, bo stawia zagrody
             // wzdłuż drogi i siedem przypadkowych chat na polach psuło cały układ.
             // Parów: płaskie dno koryta przyciągało domy, które stawały w poprzek parowu.
-            const BEZ_GENERYCZNYCH_DOMOW = ['newyork', 'powodz', 'cyber', 'otchlan', 'las', 'alabama', 'ostoja', 'klaustrofobia', 'parow'];
+            const BEZ_GENERYCZNYCH_DOMOW = ['ambush', 'newyork', 'powodz', 'cyber', 'otchlan', 'las', 'alabama', 'ostoja', 'klaustrofobia', 'parow'];
             const genericHouseCount = (currentCombatTheme && BEZ_GENERYCZNYCH_DOMOW.includes(currentCombatTheme.id))
                 ? 0
                 // Miasto w Ogniu MUSI być miastem - to, co płonie, ma być zabudową,
@@ -13725,6 +13757,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const PODLOGI_WNETRZ = ['plyty', 'wytarte', 'deski'];
         function ozdobPodlogiWnetrz() {
             const id = currentCombatTheme ? currentCombatTheme.id : '';
+            if (id === 'ambush') {
+                houses.forEach(h => { if (h.zachod) polozPlatPodlogi(h.minX + 1, h.minZ + 1, h.maxX - 1, h.maxZ - 1, 'deski', getTerrainY(h.centerX, h.centerZ), 1); });
+                return 0;
+            }
             // Ulice pod gołym niebem to nie wnętrza - łaty desek i płyt robiły tam chaos
             if (!id || id === 'ostoja' || id === 'newyork' || id === 'pozar' || id === 'katedra' || id === 'cyber') return 0;
             if (MURY_ZAMIAST_GLAZOW.indexOf(id) === -1) return 0;
@@ -15234,6 +15270,23 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             wulkan: { kamienny_oltarz_ognia: [['b',.9,.5,.6,0x2a2422,0,.25,0],['k',.16,0xff6a18,0,.62,0,'z']], siarkowy_komin: [['c',.08,.3,.8,0xc8b830,0,.4,0],['k',.1,0xe8d850,0,.84,0]], stos_pumeksu: [['k',.22,0x5a504a,-.18,.18,0],['k',.18,0x6a5e58,.2,.15,.1],['k',.14,0x4a423e,0,.38,0]] }
         };
         Object.keys(NOWE_REKWIZYTY_2).forEach(p => Object.assign(NOWE_REKWIZYTY[p], NOWE_REKWIZYTY_2[p]));
+        // Wyposażenie domów Zachodu. Stoi tylko we wnętrzach - klucz nie jest nazwą planszy, więc nie trafia do rozsiewania.
+        NOWE_REKWIZYTY.wnetrza_zachodu = {
+            lada_baru: [['b',.8,.95,1,0x5a3418,0,.48,0],['b',.95,.07,1,0x8a5a2c,0,.98,0],['k',.07,0x7a3a1a,.1,1.08,.25],['c',.04,.05,.2,0x2a6a3a,-.1,1.11,-.2]],
+            polka_butelek: [['b',.35,1.7,1,0x3a2412,0,.85,0],['c',.05,.06,.26,0x2a7a3a,0,1.03,-.3],['c',.05,.06,.26,0x9a3a1a,0,1.03,0],['c',.05,.06,.26,0xc8a040,0,1.03,.3],['c',.05,.06,.26,0x3a5a9a,0,1.5,-.2],['c',.05,.06,.26,0x7a2a4a,0,1.5,.2]],
+            stolik_baru: [['c',.45,.45,.07,0x7a5230,0,.75,0],['c',.07,.1,.72,0x3a2412,0,.36,0],['c',.05,.06,.2,0x2a6a3a,.1,.88,0]],
+            krzeslo_baru: [['b',.42,.06,.42,0x6a4426,0,.45,0],['b',.42,.5,.05,0x6a4426,0,.7,-.19],['b',.05,.42,.05,0x3a2412,-.17,.21,.17],['b',.05,.42,.05,0x3a2412,.17,.21,.17],['b',.05,.42,.05,0x3a2412,-.17,.21,-.17],['b',.05,.42,.05,0x3a2412,.17,.21,-.17]],
+            przegroda_stajni: [['b',1,.08,.08,0x5a3a20,0,1,0],['b',1,.08,.08,0x5a3a20,0,.6,0],['b',1,.08,.08,0x5a3a20,0,.2,0],['b',.1,1.15,.1,0x3a2412,-.42,.57,0],['b',.1,1.15,.1,0x3a2412,.42,.57,0]],
+            zlob: [['b',.5,.4,.95,0x5a3a20,0,.3,0],['b',.4,.06,.85,0xc8a850,0,.5,0]],
+            kon_w_stajni: [['b',.95,.45,.32,0x6a3a1c,0,.9,0],['b',.1,.65,.1,0x3a2010,-.36,.33,.1],['b',.1,.65,.1,0x3a2010,.36,.33,.1],['b',.1,.65,.1,0x3a2010,-.36,.33,-.1],['b',.1,.65,.1,0x3a2010,.36,.33,-.1],['b',.2,.5,.18,0x6a3a1c,.48,1.25,0],['b',.34,.17,.15,0x5a3018,.62,1.48,0]],
+            biurko_szeryfa: [['b',.6,.75,1,0x5a3418,0,.38,0],['b',.68,.05,1.05,0x7a5230,0,.77,0],['b',.3,.02,.22,0xe8e0c8,0,.81,.2]],
+            tablica_listow: [['b',.12,1.2,.95,0x5a3a20,0,.95,0],['b',.03,.35,.28,0xe8dcb0,.07,1.2,-.22],['b',.03,.35,.28,0xe8dcb0,.07,1.2,.22],['b',.03,.35,.28,0xe8dcb0,.07,.75,0]],
+            krata_aresztu: [['b',.08,.08,1,0x34343a,0,1.85,0],['b',.08,.08,1,0x34343a,0,.08,0],['c',.03,.03,1.8,0x4a4a50,0,.95,-.32],['c',.03,.03,1.8,0x4a4a50,0,.95,-.1],['c',.03,.03,1.8,0x4a4a50,0,.95,.1],['c',.03,.03,1.8,0x4a4a50,0,.95,.32]],
+            prycza_aresztu: [['b',.6,.1,.95,0x4a3a2a,0,.4,0],['b',.54,.1,.88,0x8a8470,0,.5,0],['b',.08,.36,.08,0x2a2a2a,-.25,.18,.4],['b',.08,.36,.08,0x2a2a2a,.25,.18,-.4]],
+            fotel_fryzjera: [['c',.26,.32,.12,0xa8a8a8,0,.06,0],['c',.07,.07,.32,0xa8a8a8,0,.25,0],['b',.5,.14,.5,0x8a1a1a,0,.47,0],['b',.14,.6,.5,0x8a1a1a,.2,.8,0],['b',.45,.05,.07,0xc8c8c8,0,.62,.24],['b',.45,.05,.07,0xc8c8c8,0,.62,-.24]],
+            lustro_fryzjera: [['b',.3,.7,.9,0x5a3418,0,.35,0],['b',.08,.9,.75,0x5a3418,0,1.15,0],['b',.1,.78,.63,0xbfe0f0,-.02,1.15,0]],
+            szafka_fryzjera: [['b',.4,1.1,.9,0xe8e4d8,0,.55,0],['c',.04,.05,.2,0x3a7a9a,0,1.2,-.2],['c',.04,.05,.2,0xc84a4a,0,1.2,.2]]
+        };
         Object.keys(NOWE_REKWIZYTY).forEach(plansza => Object.keys(NOWE_REKWIZYTY[plansza]).forEach(nazwa => {
             if (REKWIZYTY_Z_KODU[nazwa]) throw new Error('Powtórzony rekwizyt: ' + nazwa);
             REKWIZYTY_Z_KODU[nazwa] = () => {
@@ -15254,7 +15307,19 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             ostoja: ['kowadlo', 'tarcza_strzelnicza', 'studnia_wiejska', 'taczka']
         };
 
+        // Domy Zachodu: ogólne rozsiewanie osłon wrzucało głazy i beczki do środka
+        function oczyscWnetrzaZachodu() {
+            const zbedny = (p) => p.obrot === undefined && p.type !== 'zachod-sciana' && p.type !== 'house-roof' &&
+                houses.some(h => h.zachod && p.x >= h.minX && p.x <= h.maxX && p.z >= h.minZ && p.z <= h.maxZ);
+            obstaclePositions = obstaclePositions.filter(p => {
+                if (!zbedny(p)) return true;
+                obstacleGrid[p.x + offsetX][p.z + offsetZ] = null;
+                return false;
+            });
+        }
+
         function renderObstacles() {
+            oczyscWnetrzaZachodu();
             usunSladyWspolczesnosci();
             oczyscPentagramy();
             przetrzyjKorytoParowu();
@@ -15496,20 +15561,36 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     g.position.set(pos.x, ty, pos.z);
                     scene.add(g); obstacleMeshes.push(g);
                 }
-                else if (pos.type === 'zachod-fasada') {
-                    // Drewniany budynek z wysoką, prostokątną fasadą - znak rozpoznawczy Zachodu
+                else if (pos.type === 'zachod-sciana') {
                     const g = new THREE.Group();
-                    const deski = [0x8a6a44, 0x9c7a50, 0x77593a, 0xa8865c];
-                    const drewno = new THREE.MeshLambertMaterial({ color: deski[Math.floor(Math.random() * 4)] });
-                    const bryla = new THREE.Mesh(new THREE.BoxGeometry(2.0, 3.2, 1.0), drewno);
-                    bryla.position.y = 1.6; g.add(bryla);
-                    const fasada = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.3, 0.12), drewno);
-                    fasada.position.set(0, 3.7, -pos.strona * 0.5); g.add(fasada);
-                    const okno = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.06),
-                        new THREE.MeshLambertMaterial({ color: 0x2b3038 }));
-                    okno.position.set(0, 2.1, -pos.strona * 0.52); g.add(okno);
+                    const drewno = new THREE.MeshLambertMaterial({ color: pos.kolor });
+                    czesc(g, new THREE.BoxGeometry(1, 2, 1), pos.kolor, 0, 1, 0);
+                    const x0 = -pos.strona * 0.5;     // lico od strony ulicy
+                    if (pos.okno) {
+                        czesc(g, new THREE.BoxGeometry(0.06, 0.8, 0.7), 0x3a2a1a, x0, 1.15, 0);
+                        czesc(g, new THREE.BoxGeometry(0.08, 0.62, 0.52), 0x2b3038, x0, 1.15, 0);
+                    }
+                    if (pos.fasada && pos.fasada.h > 0) {
+                        const f = pos.fasada;
+                        const tablica = new THREE.Mesh(new THREE.BoxGeometry(0.12, f.h + 0.3, f.dl), drewno);
+                        tablica.position.set(x0, 1.85 + (f.h + 0.3) / 2, f.dz);
+                        g.add(tablica);
+                    }
+                    if (pos.fasada) {
+                        const f = pos.fasada, c = document.createElement('canvas');
+                        c.width = 256; c.height = 64;
+                        const x = c.getContext('2d');
+                        x.fillStyle = '#2a1a0e'; x.fillRect(0, 0, 256, 64);
+                        x.strokeStyle = '#c8a860'; x.lineWidth = 4; x.strokeRect(4, 4, 248, 56);
+                        x.fillStyle = '#e8d090'; x.font = 'bold 40px serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+                        x.fillText(f.napis, 128, 34);
+                        const szer = Math.min(f.dl - 1, 4.5);
+                        const szyld = new THREE.Mesh(new THREE.PlaneGeometry(szer, szer / 4), new THREE.MeshLambertMaterial({ map: new THREE.CanvasTexture(c) }));
+                        szyld.position.set(x0 - pos.strona * 0.08, f.h > 0 ? 2.1 + f.h / 2 : 2.2, f.dz);
+                        szyld.rotation.y = -pos.strona * Math.PI / 2;
+                        g.add(szyld);
+                    }
                     g.position.set(pos.x, ty, pos.z);
-                    g.rotation.y = (pos.strona < 0) ? Math.PI : 0;
                     scene.add(g); obstacleMeshes.push(g);
                 }
                 else if (pos.type === 'zachod-weranda') {
@@ -17383,7 +17464,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 else if (REKWIZYTY_Z_KODU[pos.type]) {
                     const g = REKWIZYTY_Z_KODU[pos.type](pos);
                     g.position.set(pos.x, ty, pos.z);
-                    g.rotation.y = Math.random() * Math.PI * 2;
+                    g.rotation.y = pos.obrot !== undefined ? pos.obrot : Math.random() * Math.PI * 2;
                     scene.add(g); obstacleMeshes.push(g);
                     if (pos.type === 'komin_wulkaniczny') kominyWulkanu.push({ mesh: g, x: pos.x, z: pos.z, y: ty, nastepny: Math.random() * 600 });
                     if (pos.type === 'strach_na_wroble') strachy.push({ mesh: g, x: pos.x, z: pos.z, nastepnie: 0, isDead: false });
@@ -17945,7 +18026,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         // Osłony, których pudło nie niszczy
-        const NIEZNISZCZALNE_OSLONY = ['wall-resistant', 'skrzynia_metal', 'rumowisko', 'wrak_osobowy', 'wrak_ciezarowy', 'wrak-czesc', 'kontener', 'pal', 'mebel_wiezy', 'mebel_wiezy_sciana'];
+        const NIEZNISZCZALNE_OSLONY = ['zachod-sciana', 'wall-resistant', 'skrzynia_metal', 'rumowisko', 'wrak_osobowy', 'wrak_ciezarowy', 'wrak-czesc', 'kontener', 'pal', 'mebel_wiezy', 'mebel_wiezy_sciana'];
 
         // ===================== CO SIĘ PRZEWRACA =====================
         // Wysokie konstrukcje nie znikają po pudle - walą się na sąsiednie pole
