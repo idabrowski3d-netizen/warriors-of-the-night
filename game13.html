@@ -9433,6 +9433,20 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     }
                 });
             }
+            // Nowe obiekty planszy: po kilka sztuk każdego, z wolnym polem dookoła, żeby nie zamykały przejść
+            const noweObiekty = currentCombatTheme && NOWE_REKWIZYTY[currentCombatTheme.id];
+            if (noweObiekty) Object.keys(noweObiekty).forEach(typ => {
+                for (let t = 0, stoi = 0; t < 4000 && stoi < 5; t++) {
+                    const gx = Math.floor(Math.random() * (mapWidth - 4)) + 2 - offsetX, gz = Math.floor(Math.random() * (mapDepth - 4)) + 2 - offsetZ;
+                    // Na Moście jedyny grunt to deski pomostu, które liczą się jak droga
+                    let wolne = (currentCombatTheme.id === 'most' || (terrainTypeMap[gx + offsetX][gz + offsetZ] !== 2 && terrainTypeMap[gx + offsetX][gz + offsetZ] !== 4)) && !isInsideAnyHouse(gx, gz);
+                    for (let dx = -1; dx <= 1 && wolne; dx++) for (let dz = -1; dz <= 1 && wolne; dz++)
+                        if (!isWithinPlayBounds(gx + dx, gz + dz) || isObstacle(gx + dx, gz + dz)) wolne = false;
+                    if (!wolne) continue;
+                    addObstacle(gx, gz, typ);
+                    stoi++;
+                }
+            });
             const cornfieldPatchCount = (isVolcanoMap || isSaharaMap || isNYMap || isKatedraMap || isFloodMap || isCyberMap) ? 0 : 7;
             for (let p = 0; p < cornfieldPatchCount; p++) {
                 let centerX = Math.floor(Math.random() * mapWidth) - offsetX;
@@ -12581,7 +12595,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // głazy i drzewa - przez co nie dało się nawet wystartować.
         function oczyscMost() {
             if (!currentCombatTheme || currentCombatTheme.id !== 'most') return 0;
-            const DOZWOLONE = ['skrzynia', 'skrzynia_metal', 'beczka', 'beczka_prochu', 'balustrada', 'przepasc'];
+            const DOZWOLONE = ['skrzynia', 'skrzynia_metal', 'beczka', 'beczka_prochu', 'balustrada', 'przepasc', ...Object.keys(NOWE_REKWIZYTY.most)];
             let usuniete = 0;
             for (let i = obstaclePositions.length - 1; i >= 0; i--) {
                 const p = obstaclePositions[i];
@@ -14895,6 +14909,196 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         };
         // Plansze z własnym układem (bez ogólnego posypania osłonami) dostają garść
         // rekwizytów tylko na polach, wokół których jest wolno - alejki zostają drożne.
+        // Nowe obiekty plansz. Każda bryła: b=pudło [w,h,d], c=walec [r1,r2,h], k=kula [r], potem barwa i środek x,y,z; z=świeci
+        const NOWE_REKWIZYTY = {
+            whitehouse: {
+                fotel_ogrodowy: [['b',.7,.08,.7,0xf0efe8,0,.4,0],['b',.7,.5,.07,0xf0efe8,0,.65,-.32],['b',.06,.4,.06,0xc0c0b8,-.3,.2,.3],['b',.06,.4,.06,0xc0c0b8,.3,.2,.3],['b',.06,.4,.06,0xc0c0b8,-.3,.2,-.3],['b',.06,.4,.06,0xc0c0b8,.3,.2,-.3]],
+                kula_bukszpanowa: [['b',.6,.3,.6,0xd8d4c8,0,.15,0],['k',.42,0x2f6a34,0,.68,0]],
+                mownica_prezydencka: [['b',.7,1.05,.42,0x4a2c18,0,.52,0],['b',.76,.05,.5,0x6a4426,0,1.07,0],['c',.14,.14,.02,0xd8b84a,0,.65,.22]]
+            },
+            pentagon: {
+                barykada_betonowa: [['b',.95,.3,.5,0x8a8a84,0,.15,0],['b',.7,.5,.24,0x9a9a94,0,.55,0]],
+                agregat_polowy: [['b',.9,.6,.55,0x4a5a38,0,.35,0],['c',.08,.08,.4,0x222222,.25,.85,0],['b',.2,.14,.02,0xffb030,-.2,.45,.285,'z']],
+                worki_piasku: [['b',.9,.2,.45,0xa8966c,0,.1,0],['b',.8,.2,.42,0xb5a378,.02,.3,0],['b',.65,.2,.4,0x9c8a60,-.02,.5,0]]
+            },
+            kremlin: {
+                cerkiewny_krzyz: [['b',.08,1.6,.08,0xc8a838,0,.8,0],['b',.6,.07,.07,0xc8a838,0,1.2,0],['b',.34,.07,.07,0xc8a838,0,1.42,0],['b',.3,.1,.3,0x4a4a4a,0,.05,0]],
+                samowar: [['b',.5,.5,.5,0x5a3a22,0,.25,0],['c',.12,.2,.4,0xc08a38,0,.7,0],['k',.1,0xc08a38,0,.95,0]],
+                kula_armatnia_stos: [['k',.2,0x24242a,-.2,.2,0],['k',.2,0x24242a,.2,.2,0],['k',.2,0x24242a,0,.2,.32],['k',.2,0x24242a,0,.5,.12]]
+            },
+            zhongnanhai: {
+                lampion_czerwony: [['b',.06,1.4,.06,0x2a1a10,0,.7,0],['k',.28,0xdd2a20,0,1.5,0,'z'],['b',.3,.05,.3,0xd4a838,0,1.8,0]],
+                lew_strazniczy: [['b',.6,.3,.6,0x8a8a84,0,.15,0],['b',.4,.45,.5,0x9a9a90,0,.5,0],['k',.22,0x9a9a90,0,.85,.12]],
+                bonsai: [['b',.6,.18,.4,0x3a4a6a,0,.09,0],['c',.03,.06,.35,0x4a2c18,0,.35,0],['k',.22,0x2a6a3a,.08,.6,0]]
+            },
+            sahara: {
+                dzban_gliniany: [['c',.16,.26,.5,0xb86a3c,0,.25,0],['c',.1,.16,.12,0xa85a30,0,.56,0]],
+                palma_mala: [['c',.06,.1,1.4,0x7a5a34,0,.7,0],['b',1,.04,.2,0x3a7a34,0,1.42,0],['b',.2,.04,1,0x3a7a34,0,1.42,0],['b',.7,.04,.16,0x4a8a3c,0,1.48,0]],
+                szkielet_wielblada: [['b',.9,.1,.14,0xddd4bc,0,.4,0],['b',.05,.34,.3,0xddd4bc,-.25,.26,0],['b',.05,.34,.3,0xddd4bc,0,.26,0],['b',.05,.34,.3,0xddd4bc,.25,.26,0],['k',.1,0xddd4bc,.5,.5,0]]
+            },
+            powodz: {
+                worki_przeciwpowodziowe: [['b',.9,.2,.5,0xc0b090,0,.1,0],['b',.85,.2,.45,0xb0a080,0,.3,0]],
+                ponton: [['b',.9,.2,.5,0xd8681c,0,.15,0],['b',.6,.06,.34,0x222222,0,.27,0]],
+                znak_zalany: [['b',.06,.8,.06,0x888888,0,.4,0],['b',.5,.5,.03,0xe8c030,0,1,0]]
+            },
+            bagno: {
+                pien_z_hubami: [['c',.2,.28,.6,0x3a2e20,0,.3,0],['b',.2,.04,.14,0xc8a060,.25,.4,0],['b',.16,.04,.12,0xb89050,-.24,.28,.05]],
+                grzyby_swiecace: [['c',.03,.04,.25,0xd8d0b0,0,.12,0],['k',.12,0x66ffaa,0,.28,0,'z'],['c',.02,.03,.18,0xd8d0b0,.2,.09,.1],['k',.08,0x66ffaa,.2,.2,.1,'z']],
+                sitowie: [['b',.04,.9,.04,0x5a7a34,0,.45,0],['b',.04,.75,.04,0x6a8a3c,.15,.37,.1],['b',.04,.8,.04,0x5a7a34,-.14,.4,-.1],['c',.04,.04,.18,0x4a2c18,0,.95,0]]
+            },
+            stacja: {
+                semafor: [['b',.08,1.8,.08,0x333333,0,.9,0],['b',.28,.5,.1,0x1a1a1a,0,1.6,0],['k',.07,0xff3020,0,1.72,.07,'z'],['k',.07,0x30ff60,0,1.5,.07,'z']],
+                kosz_bagazowy: [['b',.8,.5,.5,0x8a6a3c,0,.3,0],['b',.84,.05,.54,0x5a4428,0,.57,0],['c',.05,.05,.05,0x222222,.3,.05,.2],['c',.05,.05,.05,0x222222,-.3,.05,.2]],
+                zegar_peronowy: [['b',.08,1.7,.08,0x2a2a2a,0,.85,0],['c',.25,.25,.08,0xf0ecd8,0,1.8,0,'z'],['b',.04,.14,.1,0x111111,0,1.87,.02]]
+            },
+            szpital: {
+                butla_tlenowa: [['c',.1,.1,.8,0x4a7a9a,0,.4,0],['k',.1,0x4a7a9a,0,.8,0],['b',.06,.08,.06,0xb0b0b0,0,.93,0]],
+                monitor_zycia: [['b',.05,.7,.05,0x888888,0,.35,0],['b',.45,.32,.08,0x22262a,0,.85,0],['b',.38,.25,.01,0x30ff80,0,.85,.05,'z']],
+                worek_na_pranie: [['c',.26,.3,.6,0xc8d4d8,0,.3,0],['b',.5,.05,.5,0x777777,0,.62,0]]
+            },
+            las: {
+                pniak_z_mchem: [['c',.28,.34,.35,0x4a3422,0,.18,0],['c',.28,.3,.06,0x3d6a34,0,.38,0]],
+                kapliczka_lesna: [['b',.08,1.1,.08,0x4a3422,0,.55,0],['b',.34,.34,.24,0x5a4228,0,1.25,0],['b',.44,.05,.34,0x2e2418,0,1.45,0],['k',.05,0xffc060,0,1.25,.13,'z']],
+                paproc_lesna: [['b',.7,.03,.12,0x3a7a3a,0,.3,0],['b',.12,.03,.7,0x3a7a3a,0,.32,0],['b',.5,.03,.1,0x2e6a30,0,.4,0],['c',.03,.04,.3,0x2e5a2a,0,.15,0]]
+            },
+            studnia: {
+                kajdany_scienne: [['b',.5,.8,.1,0x2a2a2e,0,.4,0],['k',.07,0x55555a,-.18,.6,.08],['k',.07,0x55555a,.18,.6,.08]],
+                stos_kosci: [['b',.5,.05,.08,0xd8d0b8,0,.05,0],['b',.08,.05,.5,0xd8d0b8,.05,.1,0],['b',.4,.05,.07,0xc8c0a8,-.05,.15,.05],['k',.11,0xd8d0b8,.1,.24,0]],
+                kosz_na_wegiel: [['c',.26,.18,.4,0x2a2a2e,0,.3,0],['c',.22,.22,.06,0xff6a20,0,.52,0,'z'],['b',.04,.14,.04,0x2a2a2e,0,.07,0]]
+            },
+            jezioro: {
+                przerebel_sprzet: [['b',.7,.05,.7,0x6a5a44,0,.03,0],['c',.03,.03,.9,0x888888,0,.45,0],['b',.3,.05,.05,0x888888,0,.9,0]],
+                skrzynka_rybacka: [['b',.6,.35,.4,0x3a6a8a,0,.18,0],['b',.08,.1,.3,0xe8e8e8,0,.42,0]],
+                igloo_male: [['k',.42,0xdfeaf2,0,.15,0],['b',.3,.3,.2,0x9ab0c0,0,.15,.38]]
+            },
+            pobojowisko: {
+                tarcza_zlamana: [['b',.6,.7,.05,0x6a4a2a,0,.35,0],['k',.09,0x888888,0,.38,.03],['b',.5,.05,.06,0x444444,0,.5,0]],
+                sztandar_podarty: [['b',.05,1.8,.05,0x3a2a1a,0,.9,0],['b',.5,.5,.02,0x7a1a1a,.26,1.45,0],['b',.3,.2,.02,0x5a1414,.2,1.1,0]],
+                kosz_strzal: [['c',.16,.12,.4,0x6a5030,0,.2,0],['b',.02,.5,.02,0xbba070,.04,.5,0],['b',.02,.5,.02,0xbba070,-.05,.5,.04],['b',.02,.5,.02,0xbba070,0,.5,-.05]]
+            },
+            pozar: {
+                drabina_strazacka: [['b',.06,1.6,.06,0xc22a20,-.18,.8,0],['b',.06,1.6,.06,0xc22a20,.18,.8,0],['b',.36,.04,.04,0xbbbbbb,0,.4,0],['b',.36,.04,.04,0xbbbbbb,0,.8,0],['b',.36,.04,.04,0xbbbbbb,0,1.2,0]],
+                waz_strazacki: [['c',.28,.28,.2,0xa82a20,0,.1,0],['c',.12,.12,.22,0x222222,0,.11,0]],
+                zgliszcza_tlace: [['b',.8,.08,.6,0x1a1614,0,.04,0],['b',.5,.1,.08,0x241c18,.1,.14,.1],['k',.09,0xff6a20,-.2,.12,0,'z'],['k',.06,0xff8a30,.2,.1,-.15,'z']]
+            },
+            klaustrofobia: {
+                rura_kanalowa: [['c',.2,.2,.9,0x5a5a54,0,.45,0],['c',.25,.25,.08,0x3a3a38,0,.9,0]],
+                skrzynka_bezpiecznikow: [['b',.5,.8,.2,0x4a4a50,0,.4,0],['k',.04,0xff3020,.12,.6,.11,'z'],['k',.04,0x30ff60,-.12,.6,.11,'z']],
+                gruzowisko_male: [['b',.5,.2,.4,0x5a5650,0,.1,0],['b',.3,.2,.3,0x6a6660,.1,.3,0],['b',.2,.12,.2,0x4a4640,-.28,.06,.2]]
+            },
+            ostoja: {
+                sanie_drwa: [['b',.8,.1,.5,0x5a4228,0,.08,0],['c',.08,.08,.8,0x6a4a2a,0,.22,-.1],['c',.08,.08,.8,0x6a4a2a,0,.22,.1]],
+                snopek_siana: [['c',.28,.34,.7,0xc8a850,0,.35,0],['c',.3,.3,.04,0x8a6a30,0,.4,0]],
+                koryto_wodne: [['b',.95,.3,.42,0x5a4228,0,.15,0],['b',.85,.04,.32,0x3a6a8a,0,.3,0]]
+            },
+            wieza: {
+                gablota_kultu: [['b',.7,.7,.45,0x3a2030,0,.35,0],['b',.65,.4,.4,0x90b0d0,0,.9,0],['k',.1,0xff3050,0,.9,0,'z']],
+                wieszak_szat: [['b',.05,1.5,.05,0x3a2a1a,0,.75,0],['b',.5,.05,.05,0x3a2a1a,0,1.45,0],['b',.3,.9,.08,0x4a0a1a,.1,.95,.06]],
+                piramida_oko: [['b',.6,.2,.6,0x2a2a30,0,.1,0],['b',.4,.25,.4,0x8a7440,0,.32,0],['b',.2,.25,.2,0xb8963c,0,.56,0],['k',.05,0xffe080,0,.72,0,'z']]
+            },
+            most: {
+                beczka_smolna: [['c',.24,.24,.6,0x2a1e14,0,.3,0],['c',.25,.25,.05,0x555555,0,.45,0]],
+                kolowrot: [['b',.08,.7,.5,0x4a3420,-.35,.35,0],['b',.08,.7,.5,0x4a3420,.35,.35,0],['c',.14,.14,.7,0x7a6a4a,0,.55,0]],
+                latarnia_mostowa: [['b',.06,1.3,.06,0x2a2a2a,0,.65,0],['b',.22,.28,.22,0xffc060,0,1.42,0,'z'],['b',.28,.05,.28,0x2a2a2a,0,1.58,0]]
+            },
+            dom: {
+                karton_rzeczy: [['b',.55,.4,.45,0xa88a5c,0,.2,0],['b',.3,.14,.25,0xd8d0c0,.05,.45,0]],
+                lalka_na_krzesle: [['b',.4,.05,.4,0x6a4a2a,0,.4,0],['b',.4,.5,.05,0x6a4a2a,0,.65,-.18],['b',.14,.25,.1,0xc04a6a,0,.55,0],['k',.08,0xf0d0b8,0,.75,0]],
+                radio_stare: [['b',.55,.34,.22,0x5a3a22,0,.4,0],['b',.12,.2,.02,0xffc060,.14,.42,.12,'z'],['b',.4,.4,.2,0x3a2a1a,0,.2,0]]
+            },
+            alcatraz: {
+                prycza_zlozona: [['b',.9,.06,.4,0x777777,0,.5,0],['b',.06,.5,.4,0x555555,-.42,.25,0],['b',.06,.5,.4,0x555555,.42,.25,0]],
+                wiadro_cele: [['c',.17,.13,.3,0x6a6a6a,0,.15,0],['b',.3,.02,.02,0x333333,0,.36,0]],
+                reflektor_wartowni: [['b',.08,1.3,.08,0x333333,0,.65,0],['c',.18,.14,.28,0x22262a,0,1.42,0],['k',.1,0xfff4c0,0,1.58,0,'z']]
+            },
+            parow: {
+                glaz_z_naciekiem: [['k',.42,0x7a5a40,0,.3,0],['b',.5,.05,.5,0x9a7a58,0,.05,0]],
+                uschle_drzewko: [['c',.03,.07,.9,0x5a4632,0,.45,0],['b',.5,.03,.03,0x5a4632,.15,.8,0],['b',.03,.03,.4,0x5a4632,0,.6,.15]],
+                stos_kamieni: [['b',.5,.12,.5,0x8a7a64,0,.06,0],['b',.34,.12,.34,0x9a8a72,0,.18,0],['b',.2,.12,.2,0x7a6a54,0,.3,0]]
+            },
+            otchlan: {
+                kolec_otchlani: [['c',.01,.22,1.3,0x3a1010,0,.65,0],['k',.05,0xff3010,0,1.3,0,'z']],
+                klatka_dusz: [['b',.04,1,.04,0x2a2020,-.25,.5,-.25],['b',.04,1,.04,0x2a2020,.25,.5,-.25],['b',.04,1,.04,0x2a2020,-.25,.5,.25],['b',.04,1,.04,0x2a2020,.25,.5,.25],['b',.56,.05,.56,0x2a2020,0,1,0],['k',.14,0x80ffc0,0,.5,0,'z']],
+                zaru_szczelina: [['b',.9,.02,.16,0xff4a10,0,.02,0,'z'],['b',.14,.02,.6,0xff6a10,.2,.025,0,'z'],['b',.3,.06,.3,0x1a0808,-.3,.04,.2]]
+            },
+            ambush: {
+                bela_siana_pustynna: [['c',.32,.32,.6,0xb89a58,0,.32,0],['c',.34,.34,.03,0x7a5a2c,0,.32,0]],
+                skrzynia_amunicji: [['b',.7,.35,.4,0x4a5a34,0,.18,0],['b',.1,.08,.42,0x888888,0,.2,0]],
+                kanister: [['b',.3,.45,.16,0x8a2a20,0,.23,0],['b',.06,.1,.06,0x444444,.08,.5,0]]
+            },
+            sicario: {
+                opona_wrak: [['c',.3,.3,.14,0x1a1a1a,0,.08,0],['c',.3,.3,.14,0x1a1a1a,.05,.22,0]],
+                plot_siatka: [['b',.06,1,.06,0x777777,-.45,.5,0],['b',.06,1,.06,0x777777,.45,.5,0],['b',.9,.85,.01,0x8a8a8a,0,.52,0]],
+                cross_kartel: [['b',.06,.9,.06,0xe8e0d0,0,.45,0],['b',.42,.06,.06,0xe8e0d0,0,.65,0],['k',.05,0xc22a20,0,.1,.1]]
+            },
+            wesole: {
+                maszyna_waty: [['b',.6,.7,.5,0xe070a8,0,.35,0],['c',.26,.18,.2,0xffc0e0,0,.82,0]],
+                karuzela_mala: [['c',.48,.48,.08,0x3a8ac0,0,.1,0],['b',.06,.8,.06,0xffd030,0,.5,0],['c',.5,.02,.2,0xd83a4a,0,1,0],['b',.14,.26,.26,0xffffff,.3,.3,0]],
+                strzelnica_kaczki: [['b',.9,.6,.3,0x7a3a2a,0,.3,0],['b',.14,.14,.04,0xffd030,-.25,.72,0],['b',.14,.14,.04,0xffd030,0,.72,0],['b',.14,.14,.04,0xffd030,.25,.72,0]]
+            },
+            amazonia: {
+                bromelia: [['b',.5,.04,.1,0x3a8a3c,0,.2,0],['b',.1,.04,.5,0x3a8a3c,0,.22,0],['k',.09,0xe02a60,0,.3,0],['c',.04,.05,.2,0x2e5a2a,0,.1,0]],
+                liana_slup: [['c',.09,.13,1.5,0x4a3a22,0,.75,0],['c',.11,.11,.3,0x3a7a34,0,1,0],['c',.11,.11,.2,0x3a7a34,0,.45,0]],
+                gliniana_maska: [['b',.08,.9,.08,0x4a3422,0,.45,0],['b',.34,.45,.06,0xb86a3c,0,1,0],['k',.04,0xffe060,-.08,1.08,.04,'z'],['k',.04,0xffe060,.08,1.08,.04,'z']]
+            },
+            cyber: {
+                kabel_stos: [['c',.26,.3,.14,0x151820,0,.08,0],['c',.14,.14,.16,0x33ffff,0,.09,0,'z']],
+                automat_implantow: [['b',.6,1.4,.4,0x20242e,0,.7,0],['b',.45,.6,.01,0xff30c0,0,.95,.21,'z'],['b',.3,.08,.02,0x33ffff,0,.4,.21,'z']],
+                dron_rozbity: [['b',.4,.1,.4,0x2a2e38,0,.1,0],['b',.6,.03,.05,0x3a3e48,0,.14,0],['b',.05,.03,.6,0x3a3e48,0,.14,0],['k',.05,0xff3020,0,.18,0,'z']]
+            },
+            cmentarzysko: {
+                krzyz_zelazny: [['b',.06,1.1,.06,0x2a2a2e,0,.55,0],['b',.44,.06,.06,0x2a2a2e,0,.82,0],['b',.34,.1,.34,0x6a6a6a,0,.05,0]],
+                wieniec_pogrzebowy: [['b',.05,.5,.05,0x4a3422,-.14,.25,0],['b',.05,.5,.05,0x4a3422,.14,.25,0],['c',.26,.26,.07,0x2f5a30,0,.6,0],['k',.05,0xc0304a,.1,.65,.12]],
+                plyta_nagrobna: [['b',.55,.08,.95,0x7a7a7e,0,.05,0],['b',.3,.02,.04,0x444448,0,.1,.1],['b',.04,.02,.3,0x444448,0,.1,.1]]
+            },
+            nekropolia: {
+                sarkofag_ozdobny: [['b',.55,.5,.95,0x6c6a72,0,.25,0],['b',.6,.08,1,0x93909c,0,.54,0]],
+                obelisk_ofiarny: [['b',.34,.14,.34,0x4a4852,0,.07,0],['c',.05,.15,1.4,0x5a5864,0,.84,0],['k',.05,0xb48cff,0,1.58,0,'z']],
+                misa_duchow: [['b',.1,.5,.1,0x4a4852,0,.25,0],['c',.3,.12,.15,0x4a4852,0,.58,0],['c',.25,.25,.02,0xb48cff,0,.65,0,'z']]
+            },
+            katedra: {
+                lawa_koscielna: [['b',.95,.07,.36,0x5a3a22,0,.42,0],['b',.95,.5,.06,0x5a3a22,0,.65,-.16],['b',.08,.42,.34,0x4a2e1a,-.42,.21,0],['b',.08,.42,.34,0x4a2e1a,.42,.21,0]],
+                swiecznik_wielki: [['c',.16,.2,.08,0xb8963c,0,.04,0],['b',.05,1.2,.05,0xb8963c,0,.6,0],['b',.5,.04,.05,0xb8963c,0,1.2,0],['k',.05,0xffc060,-.22,1.3,0,'z'],['k',.05,0xffc060,0,1.3,0,'z'],['k',.05,0xffc060,.22,1.3,0,'z']],
+                relikwiarz: [['b',.5,.5,.4,0x4a3a2a,0,.25,0],['b',.45,.3,.35,0xc8a040,0,.65,0],['b',.04,.2,.04,0xf0d880,0,.9,0]]
+            },
+            wyspy: {
+                krysztal_lewitujacy: [['c',.02,.18,.5,0x9adcff,0,.75,0,'z'],['b',.3,.03,.3,0x6a6a7a,0,.03,0]],
+                kamien_runiczny: [['b',.36,1,.2,0x8a90a0,0,.5,0],['b',.14,.5,.01,0x88ddff,0,.55,.105,'z']],
+                mech_chmurny: [['k',.28,0xe8f0fa,0,.15,0],['k',.2,0xdce6f4,.26,.12,.1],['k',.16,0xe8f0fa,-.24,.1,-.1]]
+            },
+            zamiec: {
+                zaspa_ze_slupkiem: [['k',.42,0xe8eef4,0,.05,0],['b',.05,.9,.05,0x8a2a20,0,.45,0]],
+                namiot_polarny: [['c',.02,.5,.8,0xd86a1c,0,.4,0],['b',.2,.3,.02,0x2a2a2a,0,.15,.42]],
+                sopel_stos: [['c',.01,.1,.7,0xcfe4f2,0,.35,0],['c',.01,.08,.5,0xcfe4f2,.18,.25,.05],['c',.01,.07,.4,0xb8d4e8,-.16,.2,.1]]
+            },
+            newyork: {
+                stojak_rowerowy: [['b',.9,.04,.04,0x777777,0,.5,0],['b',.04,.5,.04,0x777777,-.42,.25,0],['b',.04,.5,.04,0x777777,.42,.25,0],['c',.2,.2,.03,0x1a1a1a,0,.3,.1]],
+                pojemniki_recykling: [['b',.28,.6,.3,0x2a5a9a,-.3,.3,0],['b',.28,.6,.3,0x3a8a4a,0,.3,0],['b',.28,.6,.3,0xd8b030,.3,.3,0]],
+                parkometr: [['b',.05,.9,.05,0x444444,0,.45,0],['b',.16,.26,.1,0x555a60,0,1.02,0],['b',.1,.08,.01,0x66ff88,0,1.05,.055,'z']]
+            },
+            alabama: {
+                bujany_fotel: [['b',.55,.06,.5,0x6a4a2a,0,.4,0],['b',.55,.6,.06,0x6a4a2a,0,.72,-.22],['b',.06,.06,.7,0x4a2e1a,-.25,.06,0],['b',.06,.06,.7,0x4a2e1a,.25,.06,0]],
+                skrzynka_na_listy: [['b',.06,.9,.06,0x5a4228,0,.45,0],['b',.2,.2,.45,0xb8b8b0,0,.98,0],['b',.03,.14,.1,0xc22a20,.1,1.1,0]],
+                balia_prania: [['c',.34,.28,.32,0x8a8a84,0,.16,0],['c',.3,.3,.02,0xc8d8e0,0,.3,0],['b',.03,.5,.2,0x6a4a2a,.2,.42,0]]
+            },
+            wulkan: {
+                lawa_w_niecce: [['c',.46,.5,.12,0x1e1816,0,.06,0],['c',.36,.36,.02,0xff5a10,0,.13,0,'z']],
+                kosci_smoka: [['b',.9,.12,.12,0xc8bea0,0,.3,0],['b',.05,.5,.05,0xc8bea0,-.3,.3,.08],['b',.05,.5,.05,0xc8bea0,0,.32,.08],['b',.05,.5,.05,0xc8bea0,.3,.3,.08]],
+                kamienny_totem_ognia: [['b',.5,.3,.5,0x2a2422,0,.15,0],['b',.36,.5,.36,0x352e2a,0,.55,0],['c',.2,.14,.14,0x1a1614,0,.86,0],['k',.1,0xff6a10,0,.95,0,'z']]
+            }
+        };
+        Object.keys(NOWE_REKWIZYTY).forEach(plansza => Object.keys(NOWE_REKWIZYTY[plansza]).forEach(nazwa => {
+            if (REKWIZYTY_Z_KODU[nazwa]) throw new Error('Powtórzony rekwizyt: ' + nazwa);
+            REKWIZYTY_Z_KODU[nazwa] = () => {
+                const g = new THREE.Group();
+                NOWE_REKWIZYTY[plansza][nazwa].forEach(p => {
+                    const [ro, ...r] = p, n = ro === 'k' ? 1 : 3;
+                    const geo = ro === 'b' ? new THREE.BoxGeometry(r[0], r[1], r[2]) : ro === 'c' ? new THREE.CylinderGeometry(r[0], r[1], r[2], 10) : new THREE.SphereGeometry(r[0], 10, 7);
+                    czesc(g, geo, r[n], r[n + 1], r[n + 2], r[n + 3], r[n + 4] ? ZAR(r[n]) : undefined);
+                });
+                return g;
+            };
+        }));
         const REKWIZYTY_PLANSZ_Z_UKLADEM = {
             cyber: ['terminal', 'antena', 'holo_slup', 'holo_slup'],
             katedra: ['kropielnica', 'pulpit_z_ksiega', 'konfesjonal'],
@@ -30244,6 +30448,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                    'rock', 'kloda', 'lawka', 'kosz', 'zywoplot', 'beczka', 'beczka_prochu',
                                    'stos_opon', 'hydrant', 'paleta', 'stos_drewna',
                                    'nagrobek', 'crate', 'barrel', 'bush', 'grave', 'tombstone'];
+        Object.values(NOWE_REKWIZYTY).forEach(r => NISKIE_PRZESZKODY.push(...Object.keys(r)));
 
         // Drzewa i słupy nie zasłaniają widoku: pień jest wąski, a korona wisi nad
         // głowami. Wcześniej rzucały za sobą szeroki czarny stożek mgły, choć
