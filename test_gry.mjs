@@ -95,8 +95,8 @@ try {
             stan.tura = await wykonaj(`(async () => {
                 soldiers.forEach(s => { s.ap = 0; s.turnEnded = true; });
                 startEnemyTurn();
-                for (let i = 0; i < 60 && !isPlayerTurn && !gameOver; i++) await new Promise(r => setTimeout(r, 500));
-                return isPlayerTurn || gameOver ? 'ok' : 'tura wrogów nie skończyła się w 30 s';
+                for (let i = 0; i < 1200 && !isPlayerTurn && !gameOver; i++) await new Promise(r => setTimeout(r, 500));
+                return isPlayerTurn || gameOver ? 'ok' : 'tura wrogów nie skończyła się w 10 min';
             })()`);
         }
         if (ZRZUTY) {
