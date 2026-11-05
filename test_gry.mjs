@@ -27,7 +27,7 @@ if (!CHROME) { console.error('Nie znaleziono Chrome ani Edge.'); process.exit(2)
 const serwer = spawn(process.execPath, [path.join(KATALOG, 'serwer.js'), String(PORT_GRY)], { stdio: 'ignore' });
 const profil = fs.mkdtempSync(path.join(os.tmpdir(), 'test-gry-'));
 const chrome = spawn(CHROME, ['--headless=new', `--remote-debugging-port=${PORT_CDP}`, `--user-data-dir=${profil}`,
-    '--window-size=1400,900', '--enable-unsafe-swiftshader', '--use-angle=swiftshader', 'about:blank'], { stdio: 'ignore' });
+    '--window-size=1400,900', '--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist', 'about:blank'], { stdio: 'ignore' });
 
 let ws, nr = 0;
 const oczekujace = new Map();
