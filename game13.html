@@ -1641,6 +1641,11 @@
         }
 
         function wSwietle(x, z, promien) {
+            // Płonące pole (pożar, ładunek zapalający) też jest ogniem - pająk tam nie wchodzi
+            if (typeof ogienGrid !== 'undefined' && ogienGrid) {
+                const mx = Math.round(x) + offsetX, mz = Math.round(z) + offsetZ;
+                if (ogienGrid[mx] && ogienGrid[mx][mz] === 1) return true;
+            }
             return zrodlaSwiatla().some(o => Math.hypot(o.x - x, o.z - z) <= (promien || o.r || LIGHT_FEAR_RADIUS));
         }
 
