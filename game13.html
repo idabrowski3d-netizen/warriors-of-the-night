@@ -41060,6 +41060,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Niezapalona nic nie da: najpierw trzeba ją rozpalić.
             const u = kapliczkiMisji.find(q => q.zapalona && !q.uleczyla && blisko(q));
             if (u && s.hp < (s.maxHp || 10)) return { rodzaj: 'modlitwa', cel: u };
+            // Zwykła przydrożna kapliczka też wysłucha modlitwy - słabiej (+2) i też tylko raz
+            const p = (typeof kapliczkaPositions !== 'undefined' ? kapliczkaPositions : []).find(q => !q.uleczyla && blisko(q));
+            if (p && s.hp < (s.maxHp || 10)) { p.leczenie = 2; return { rodzaj: 'modlitwa', cel: p }; }
             return null;
         }
 
@@ -41129,7 +41132,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function pomodlSieUKapliczki(k, s) {
             const max = s.maxHp || 10;
             const przed = s.hp;
-            s.hp = Math.min(max, s.hp + KAPLICZKA_LECZENIE);
+            s.hp = Math.min(max, s.hp + (k.leczenie || KAPLICZKA_LECZENIE));
             k.uleczyla = true;
             const odzyskane = s.hp - przed;
             if (k.mesh && k.mesh.userData.shrineLight) {
@@ -41236,7 +41239,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 b.innerText = `Zapal kapliczkę (${KAPLICZKA_AP} PA)`;
                 b.style.borderColor = '#ffcc66';
             } else if (z.rodzaj === 'modlitwa') {
-                b.innerText = `Módl się (+${KAPLICZKA_LECZENIE} życia, ${KAPLICZKA_LECZENIE_AP} PA)`;
+                b.innerText = `Módl się (+${z.cel.leczenie || KAPLICZKA_LECZENIE} życia, ${KAPLICZKA_LECZENIE_AP} PA)`;
                 b.style.borderColor = '#88dd99';
             } else {
                 b.innerText = `Zamknij ${nazwaWrot().toLowerCase()} (${WROTA_AP} PA)`;
