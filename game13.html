@@ -45231,7 +45231,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     }
 
                     // 3) Wolny cel w zasięgu - pajęczyna
-                    if (wolnyWZasiegu && e.ap >= 4) {
+                    // Jedna próba sieci na turę - po chybieniu pająk ma podejść, a nie rzucać do skutku
+                    if (wolnyWZasiegu && e.ap >= 4 && e.siecWTurze !== combatTurnCounter) {
+                        e.siecWTurze = combatTurnCounter;
                         e.ap -= 4;
                         faceTowards(e, wolnyWZasiegu.mesh.position.x, wolnyWZasiegu.mesh.position.z);
                         animWroga(e, 'atak', true);
@@ -45245,9 +45247,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const ex2 = Math.round(e.mesh.position.x), ez2 = Math.round(e.mesh.position.z);
                     const tx2 = Math.round(cel.mesh.position.x), tz2 = Math.round(cel.mesh.position.z);
                     refreshEnemyPositions(); refreshPlayerPositions();
-                    const sciezka = findPath(ex2, ez2, tx2, tz2, e.level || 0, e);
-                    if (sciezka && sciezka.path.length > 1) {
-                        let walk = sciezka.path.slice(0, Math.min(sciezka.path.length - 1, e.ap));
+                    // Na pole wojownika ścieżki nie ma (stoi tam on sam) - celujemy w wolne pole obok
+                    let sciezka = null;
+                    [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1]].forEach(([a, b]) => {
+                        const nx = tx2 + a, nz = tz2 + b;
+                        if (!canStandAt(nx, nz, e.level || 0) || isUnitAtLevel(nx, nz, e.level || 0, e) || wSwietle(nx, nz)) return;
+                        const p = findPath(ex2, ez2, nx, nz, e.level || 0, e);
+                        if (p && p.path.length > 0 && (!sciezka || p.path.length < sciezka.path.length)) sciezka = p;
+                    });
+                    if (sciezka && sciezka.path.length > 0) {
+                        let walk = sciezka.path.slice(0, Math.min(sciezka.path.length, e.ap));
                         // Zatrzymujemy się przed kręgiem światła
                         for (let k = 0; k < walk.length; k++) {
                             if (wSwietle(walk[k].x, walk[k].z)) { walk = walk.slice(0, k); break; }
