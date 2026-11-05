@@ -11242,7 +11242,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const ZAPAL_TRWANIE = 4;          // dłużej się tli
         const ZAPAL_SZANSA = 0.1;         // ledwie pełza na sąsiednie pola
         const ZAPAL_PROMIEN = 1;          // rozprysk wokół trafionego pola
-        const ZAPAL_SZANSA_STRZALU = 0.3; // jak często strzelec sięga po zapalające
+        const ZAPAL_SZANSA_STRZALU = 0.15; // jak często strzelec sięga po zapalające
         // Planszowy pożar steruje się inaczej niż punktowe ognisko
         function czyPozarPlanszowy() {
             return !!(currentCombatTheme && currentCombatTheme.id === 'pozar');
@@ -11388,6 +11388,62 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             postaw(createCampfire, ognisk);
             postaw(createPochodnia, pochodni);
             updateStreetLampsLighting();
+        }
+
+        // --- MEBLE W ZWYKŁYCH DOMACH ---
+        // Budynki specjalne urządza umeblujBudynki; zwykłe domy stały puste.
+        // Każdy dostaje stół z krzesłami, komodę, łóżko i regał - tam, gdzie jest
+        // wolne pole w środku i nie zastawia drzwi. Meble są niskimi przeszkodami
+        // (dają osłonę), a pola zapamiętujemy jak chatki, bo renderObstacles
+        // rysuje wszystko od nowa.
+        let mebleDomow = [];
+        function umeblujDomy() {
+            const pole = (x, z) => { const k = obstacleGrid[x + offsetX]; return k ? k[z + offsetZ] : undefined; };
+            mebleDomow = mebleDomow.filter(m => pole(m.x, m.z) === m.znacznik);
+            if (!mebleDomow.length && typeof houses !== 'undefined') {
+                houses.forEach(h => {
+                    if (h.specjalny || h.maxX - h.minX < 4 || h.maxZ - h.minZ < 4) return;
+                    const wolne = (x, z) => x > h.minX && x < h.maxX && z > h.minZ && z < h.maxZ && pole(x, z) === null &&
+                        ![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => { const o = pole(x + a, z + b); return o && o.type === 'house-door'; });
+                    const cx = Math.round(h.centerX), cz = Math.round(h.centerZ);
+                    [['stol', cx, cz, 0], ['komoda', h.minX + 1, cz, Math.PI / 2], ['lozko', h.maxX - 1, h.minZ + 1, -Math.PI / 2],
+                     ['regal', cx, h.maxZ - 1, Math.PI]].forEach(([rodzaj, x, z, rot]) => {
+                        if (!wolne(x, z)) return;
+                        const znacznik = { type: 'mebel', x: x, z: z };
+                        obstacleGrid[x + offsetX][z + offsetZ] = znacznik;
+                        mebleDomow.push({ x, z, rot, rodzaj, znacznik });
+                    });
+                });
+            }
+            const M = c => new THREE.MeshLambertMaterial({ color: c });
+            const drewno = M(0x8a5a32), ciemne = M(0x4a3020), tkanina = M(0xd8d0c0), koc = M(0x7a3a3a);
+            mebleDomow.forEach(m => {
+                const g = new THREE.Group();
+                const box = (w, hh, d, mat, x, y, z, rodzic) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, hh, d), mat); b.position.set(x, y, z); b.castShadow = true; (rodzic || g).add(b); };
+                const nogi = (sz, gl, h, rodzic) => [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, b]) => box(0.05, h, 0.05, ciemne, a * sz, h / 2, b * gl, rodzic));
+                if (m.rodzaj === 'stol') {
+                    box(0.9, 0.06, 0.9, drewno, 0, 0.74, 0); nogi(0.38, 0.38, 0.72);
+                    [[0.62, 0], [-0.62, Math.PI]].forEach(([z, r]) => {   // dwa krzesła
+                        const k = new THREE.Group(); k.position.set(0, 0, z); k.rotation.y = r; g.add(k);
+                        box(0.38, 0.05, 0.36, drewno, 0, 0.45, 0, k); box(0.38, 0.4, 0.05, drewno, 0, 0.68, 0.17, k); nogi(0.16, 0.15, 0.45, k);
+                    });
+                } else if (m.rodzaj === 'komoda') {
+                    box(0.9, 0.85, 0.5, drewno, 0, 0.43, 0);
+                    [0.2, 0.47, 0.74].forEach(y => box(0.8, 0.02, 0.02, ciemne, 0, y, 0.26));
+                    box(0.22, 0.25, 0.22, M(0x3a6ab0), 0.2, 0.98, 0);   // dzbanek
+                } else if (m.rodzaj === 'lozko') {
+                    box(0.95, 0.35, 0.95, ciemne, 0, 0.18, 0); box(0.9, 0.12, 0.9, tkanina, 0, 0.42, 0);
+                    box(0.9, 0.05, 0.55, koc, 0, 0.5, 0.17); box(0.95, 0.6, 0.06, ciemne, 0, 0.45, -0.46);
+                } else {
+                    box(0.95, 1.8, 0.4, drewno, 0, 0.9, 0);
+                    [0.45, 0.9, 1.35].forEach(y => box(0.88, 0.03, 0.36, ciemne, 0, y, 0.02));
+                    [[-0.25, 0.55, 0x8a2e2e], [0.15, 1.0, 0x2e5a8a], [-0.1, 1.45, 0x6a6a3a]].forEach(([x, y, c]) => box(0.3, 0.18, 0.26, M(c), x, y, 0.04));
+                }
+                g.position.set(m.x, getTerrainY(m.x, m.z), m.z);
+                g.rotation.y = m.rot;
+                g.userData.unitType = 'obstacle';
+                scene.add(g); obstacleMeshes.push(g);
+            });
         }
 
         // --- CHATKI NA PALACH (models/chatka.glb, z Blendera) ---
@@ -15746,6 +15802,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             efektyPiekla = [];
             domyInstancje = [];
             if (currentCombatTheme && currentCombatTheme.id === 'amazonia') renderChatki();
+            umeblujDomy();
             let drzewZKodu = 0;
 
             // Gdy są wgrane modele domów, stawiamy je zamiast brył rysowanych w kodzie.
