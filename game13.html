@@ -11404,7 +11404,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             mebleDomow = mebleDomow.filter(m => pole(m.x, m.z) === m.znacznik);
             if (!mebleDomow.length && typeof houses !== 'undefined') {
                 houses.forEach(h => {
-                    if (h.specjalny || h.maxX - h.minX < 4 || h.maxZ - h.minZ < 4) return;
+                    if (h.specjalny || h.meble || h.maxX - h.minX < 4 || h.maxZ - h.minZ < 4) return;
                     const wolne = (x, z) => x > h.minX && x < h.maxX && z > h.minZ && z < h.maxZ && pole(x, z) === null &&
                         ![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => { const o = pole(x + a, z + b); return o && o.type === 'house-door'; });
                     const cx = Math.round(h.centerX), cz = Math.round(h.centerZ);
@@ -12691,7 +12691,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // ustawienia domu), więc wypadają w złym miejscu albo puste.
             grupa.updateMatrixWorld(true);
 
-            const segmentyScian = [], meszeDrzwi = [], meszeGruzu = {};
+            const segmentyScian = [], meszeDrzwi = [], meszeGruzu = {}, meszeMebli = [];
             grupa.traverse(ch => {
                 if (!ch.isMesh) return;
                 const n = (ch.name || '').toLowerCase();
@@ -12701,6 +12701,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     ch.visible = false;             // gruz pokazujemy dopiero po zniszczeniu
                 }
                 else if ((n.startsWith('door') || n.includes('drzwi')) && !n.includes('garage')) meszeDrzwi.push(ch);
+                else if (n.startsWith('mebel')) meszeMebli.push(ch);
             });
 
             // Zamiana bryły segmentu na pola siatki. Ściana ma być gruba NA JEDNO POLE:
@@ -12852,6 +12853,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const wpis = { x: x, z: z, type: 'house-wall', houseId: h.id, zModelu: true, floors: 1, destructible: true, segment: kd.seg.name };
                     obstacleGrid[mx][mz] = wpis; obstaclePositions.push(wpis); mapaScian[x + ',' + z] = kd.seg;
                 }));
+
+                // Meble z modelu (mebel_*) stoją na polach jako niskie przeszkody - dają osłonę.
+                // Taki dom ma już wnętrze, więc umeblujDomy go pomija.
+                // Jedno pole na mebel (środek bryły) - przy małej działce dom jest pomniejszony
+                // i pełny obrys mebli zastawiał całe pokoje.
+                meszeMebli.map(m => { const c = new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3()); return [Math.round(c.x), Math.round(c.z)]; }).forEach(([gx, gz]) => {
+                    const mx = gx + offsetX, mz = gz + offsetZ;
+                    if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth || obstacleGrid[mx][mz] !== null) return;
+                    obstacleGrid[mx][mz] = { type: 'mebel', x: gx, z: gz, houseId: h.id, zModelu: true };
+                });
+                if (meszeMebli.length) h.meble = true;
             }
 
             // Zamknięte drzwi blokują przejście. Dom bohatera zaczyna z otwartymi -
