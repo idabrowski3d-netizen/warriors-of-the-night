@@ -9579,17 +9579,19 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // W więzieniu i na stacji drzew prawie nie ma - to beton i tłuczeń
                 const malozielone = currentCombatTheme &&
                     ['alcatraz', 'stacja'].includes(currentCombatTheme.id);
-                const treeTries = malozielone ? 6 : (wNowymJorku ? 0 : 150);
+                // Dżungla: dużo zbitych kęp drzew, miejscami gąszcz jak w Ciemnym Lesie
+                const dzungla = currentCombatTheme && ['amazonia', 'bagno'].includes(currentCombatTheme.id);
+                const treeTries = malozielone ? 6 : (wNowymJorku ? 0 : (dzungla ? 260 : 150));
 
                 // ZAGAJNIKI: około połowy drzew rośnie w skupiskach, reszta pojedynczo.
                 // Sam rozrzut po całej planszy dawał równomierny "sad", a nie las.
-                const zagajnikow = malozielone ? 0 : (wNowymJorku ? 0 : (4 + Math.floor(Math.random() * 4)));
+                const zagajnikow = malozielone ? 0 : (wNowymJorku ? 0 : dzungla ? (34 + Math.floor(Math.random() * 10)) : (4 + Math.floor(Math.random() * 4)));
                 let wZagajnikach = 0;
                 for (let g = 0; g < zagajnikow; g++) {
                     const cx = Math.floor(Math.random() * (mapWidth - 20)) + 10 - offsetX;
                     const cz = Math.floor(Math.random() * (mapDepth - 20)) + 10 - offsetZ;
                     const promien = 2.5 + Math.random() * 3.5;         // zagajniki różnej wielkości
-                    const ile = 6 + Math.floor(Math.random() * 10);
+                    const ile = dzungla ? 16 + Math.floor(Math.random() * 16) : 6 + Math.floor(Math.random() * 10);
                     for (let t = 0; t < ile; t++) {
                         // Gęściej w środku, rzadziej po brzegach - naturalniejszy kształt
                         const kat = Math.random() * Math.PI * 2;
