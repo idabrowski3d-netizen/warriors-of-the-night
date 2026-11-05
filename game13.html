@@ -31600,7 +31600,22 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Zwykłe bryły - wystarczy je wygasić
             obstacleMeshes.forEach(m => {
                 if (!m || m.isInstancedMesh) return;
-                m.visible = odkryte(m.position.x, m.position.z);
+                // Duża bryła (dom z modelu, chatka) ma środek w środku murów, którego
+                // z zewnątrz nie widać - wtedy dom zostawał czarną plamą. Liczy się
+                // każde odkryte pole pod jej obrysem (obrys liczony raz).
+                if (m.userData.__obrys === undefined) {
+                    m.userData.__obrys = false;
+                    if (m.children && m.children.length) {
+                        const b = new THREE.Box3().setFromObject(m);
+                        if (b.max.x - b.min.x > 1.5 || b.max.z - b.min.z > 1.5)
+                            m.userData.__obrys = [Math.round(b.min.x), Math.round(b.max.x), Math.round(b.min.z), Math.round(b.max.z)];
+                    }
+                }
+                const o = m.userData.__obrys;
+                if (!o) { m.visible = odkryte(m.position.x, m.position.z); return; }
+                let widac = false;
+                for (let x = o[0]; x <= o[1] && !widac; x++) for (let z = o[2]; z <= o[3]; z++) if (odkryte(x, z)) { widac = true; break; }
+                m.visible = widac;
             });
 
             // Zwłoki to już tylko bryła na planszy - widać je tam, gdzie teren
@@ -31840,6 +31855,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             obstacleMeshes.forEach(m => { 
                 let mx = Math.round(m.position.x) + offsetX, mz = Math.round(m.position.z) + offsetZ;
                 const hidden = m.userData && m.userData.hiddenByLevel;
+                if (m.userData && m.userData.__obrys) { if (hidden) m.visible = false; return; }   // duże bryły: obrys liczy ukryjPrzeszkodyWeMgle
                 if (mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth) m.visible = (exploredGrid[mx][mz] === 1) && !hidden;
             });
             odkryjWyposazenieWagonow();
@@ -38715,6 +38731,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         // Oparzenie w chwili wybuchu pocisku. Trafiony dostał już pełne obrażenia ze strzału,
         // więc tu tylko zaczyna mu się liczyć stanie w ogniu. O śmierci celu decyduje strzelec.
+        // Spalony wróg pada z animacją śmierci, jak po strzale - wcześniej znikał od razu
+        function zginalWOgniu(u) {
+            if (u.isDead) return;
+            if (enemies.includes(u)) { playEnemyDeathSfx(u); zabijWroga(u); }
+            else { killUnitWithAnim(u); refreshNPCPositions(); }
+        }
         function oparzWPromieniu(x, z, r, cel, celTrafiony) {
             if (!ogienGrid) return;
             const wZasiegu = (u) => {
@@ -38738,7 +38760,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 u.ogienTury = 1;
                 if (u === cel) { if (!celTrafiony) u.hp -= ZAPAL_OBRAZENIA; return; }
                 u.hp -= ZAPAL_OBRAZENIA;
-                if (u.hp <= 0) { u.isDead = true; scene.remove(u.mesh); refreshEnemyPositions(); }
+                if (u.hp <= 0) zginalWOgniu(u);
             });
             checkGameOver();
         }
@@ -38832,7 +38854,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (ogienGrid[mx][mz] !== 1) { u.ogienTury = 0; return; }
                 u.hp -= planszowy ? POZAR_OBRAZENIA : obrazeniaZaleganiaWOgniu(u);
                 u.ogienTury = (u.ogienTury || 0) + 1;
-                if (u.hp <= 0) { u.isDead = true; scene.remove(u.mesh); }
+                if (u.hp <= 0) zginalWOgniu(u);
             });
 
             odswiezPlomienie();
