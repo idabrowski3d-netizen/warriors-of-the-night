@@ -2571,7 +2571,9 @@
             }
             for (let i = 0; i < 160; i++) { ctx.fillStyle = Math.random() < .5 ? jasny : ciemny; ctx.fillRect(Math.random() * T, Math.random() * T, 1, 1); }
         };
+        const snieg = (tlo, jasny, ciemny) => (ctx, T) => { ctx.fillStyle = tlo; ctx.fillRect(0, 0, T, T); for (let i = 0; i < 26; i++) { const x = Math.random() * T, y = Math.random() * T, r = 6 + Math.random() * 12; [[0, 0], [T, 0], [-T, 0], [0, T], [0, -T]].forEach(([a, b]) => { ctx.fillStyle = ciemny; ctx.globalAlpha = .25; ctx.beginPath(); ctx.ellipse(x + a, y + b + 2, r, r * .45, 0, 0, 6.283); ctx.fill(); ctx.fillStyle = jasny; ctx.globalAlpha = .7; ctx.beginPath(); ctx.ellipse(x + a, y + b, r, r * .42, 0, 0, 6.283); ctx.fill(); }); } ctx.globalAlpha = 1; for (let i = 0; i < 120; i++) { ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.random() * T, Math.random() * T, 1, 1); } };
         const WZORY_TERENU = {
+            zamiec: { grass: snieg('#dfe8f0', '#f6fafd', '#b8c8d8'), dirt: snieg('#cfdbe6', '#eaf2f8', '#a8b9ca') },
             // Piasek: zmarszczki wiatru zamiast kępek, kamyków i rys wspólnych dla innych plansz
             sahara: { grass: piasek('#c2a878', '#d6bf92', '#a98f60'), dirt: piasek('#d9bc8a', '#ead2a6', '#bd9f6c') }
         };
