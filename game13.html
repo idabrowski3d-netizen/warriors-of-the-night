@@ -36717,7 +36717,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function budujMapeZagrozen() {
             const cele = soldiers.filter(s => !s.isDead && !s.isNPC && !s.isAngel);
-            mapaZagrozen = { cele: cele, pola: new Map() };
+            // Wspólny cel tury: ranny i wysunięty najbliżej wrogów - na nim skupia się atak
+            const ocenaCelu = s => s.hp * 3 + enemies.reduce((m, e) => e.isDead ? m : Math.min(m, Math.max(Math.abs(e.mesh.position.x - s.mesh.position.x), Math.abs(e.mesh.position.z - s.mesh.position.z))), 99);
+            const wspolnyCel = cele.reduce((a, s) => !a || ocenaCelu(s) < ocenaCelu(a) ? s : a, null);
+            mapaZagrozen = { cele: cele, pola: new Map(), wspolnyCel: wspolnyCel };
         }
 
         function kluczPola(x, z) { return x + ':' + z; }
@@ -43788,6 +43791,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const e = enemies[currentEnemyIndex]; 
             const eLvl = e.level || 0;
 
+            // STUDNIA: niezaalarmowany z innego piętra czeka na swoim poziomie
+            if (currentCombatTheme && currentCombatTheme.id === 'studnia' && !e.zaalarmowany &&
+                !soldiers.some(s => !s.isDead && (s.level || 0) === eLvl)) { e.ap = 0; currentEnemyIndex++; setTimeout(processNextEnemy, 0); return; }
+
             // Czający się w górze NIE RUSZA SIĘ - czeka, aż ktoś podejdzie pod
             // kryjówkę. Gdyby chodził, zdradziłby się ruchem i cała zasadzka
             // straciłaby sens. Spada z tikZasadzek(), nie ze swojej tury.
@@ -44496,7 +44503,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Słuch: ktoś blisko lub niedawny strzał odwraca wroga w tamtą stronę, zanim rozejrzy się po polu widzenia
             updateEnemyFacing(e);
 
-            let bestTarget = null; let minDist = Infinity;
+            let bestTarget = null; let minDist = Infinity; let najOcena = Infinity;
             for(let s of soldiers) {
                 if(s.isDead) continue;
                 const chebDist = Math.max(Math.abs(Math.round(s.mesh.position.x) - ex), Math.abs(Math.round(s.mesh.position.z) - ez));
@@ -44520,7 +44527,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // Pająki nie zapuszczają się w krąg światła
                 if ((e.type === 'spider_small' || e.type === 'spider_big') && chronionyPrzezSwiatlo(s)) continue;
                 let dist = Math.abs(Math.round(s.mesh.position.x) - ex) + Math.abs(Math.round(s.mesh.position.z) - ez);
-                if(dist < minDist) { minDist = dist; bestTarget = s; }
+                // Widoczny wspólny cel tury liczy się, jakby stał o 4 pola bliżej
+                const ocena = dist - (mapaZagrozen && s === mapaZagrozen.wspolnyCel ? 4 : 0);
+                if(ocena < najOcena) { najOcena = ocena; minDist = dist; bestTarget = s; }
             }
             for(let n of npcs) {
                 if(n.isDead) continue;
@@ -44528,7 +44537,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if(n.isPrisoner) continue;
                 if (!isInVisionCone(e, n.mesh.position.x, n.mesh.position.z)) continue;
                 let dist = Math.abs(Math.round(n.mesh.position.x) - ex) + Math.abs(Math.round(n.mesh.position.z) - ez);
-                if(dist < minDist) { minDist = dist; bestTarget = n; }
+                if(dist < najOcena) { najOcena = dist; minDist = dist; bestTarget = n; }
             }
 
             // Zaalarmowany wróg zna położenie oddziału i idzie do niego, nawet gdy
@@ -45665,8 +45674,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (walczyWrecz) {
                         punkty += Math.max(0, 40 - d * 4);      // liczy się dojście do celu
                     } else {
-                        if (widacZ(zx, zz)) punkty += 35;       // strzelec musi widzieć cel
+                        if (widacZ(zx, zz)) {
+                            punkty += 35;                       // strzelec musi widzieć cel
+                            if (!getCoverObstacle(px, pz, zx, zz)) punkty += 25;   // oskrzydlenie: osłona celu nie chroni z tego pola
+                        }
                         if (d >= 4 && d <= getVisionRange() - 4) punkty += 20;
+                        // Ranny strzelec ceni osłonę bardziej niż dobrą pozycję
+                        if (e.hp * 3 <= e.maxHp) punkty += info.oslona * 30 - Math.min(45, info.zagrozenie);
                         const mojKat = Math.atan2(zz - pz, zx - px);
                         let rozproszenie = 0;
                         enemies.forEach(inny => {
@@ -45692,6 +45706,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 let dojscie = null;
                 if (walczyWrecz && dist <= 25) {
                     let najkrotsza = null;
+                    const miejsca = [];
                     [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1]].forEach(d => {
                         const nx = px + d[0], nz = pz + d[1];
                         if (!isWithinPlayBounds(nx, nz) || !canStandAt(nx, nz, eLvl)) return;
@@ -45700,8 +45715,23 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         const sc = findPath(ex, ez, nx, nz, eLvl, e);
                         if (!sc || sc.path.length === 0) return;
                         if (!najkrotsza || sc.path.length < najkrotsza.path.length) najkrotsza = sc;
+                        // Oskrzydlanie: im dalej kątowo od sojuszników przy celu, tym lepsze miejsce
+                        let rozproszenie = 0;
+                        enemies.forEach(inny => {
+                            if (inny === e || inny.isDead) return;
+                            const ix = inny.mesh.position.x - px, iz = inny.mesh.position.z - pz;
+                            if (Math.max(Math.abs(ix), Math.abs(iz)) > 8) return;
+                            let r = Math.abs(Math.atan2(d[1], d[0]) - Math.atan2(iz, ix));
+                            if (r > Math.PI) r = Math.PI * 2 - r;
+                            rozproszenie += r;
+                        });
+                        miejsca.push({ sc: sc, ocena: sc.path.length - Math.min(3, rozproszenie) });
                     });
-                    dojscie = najkrotsza;
+                    // Obejście wolno wybrać, o ile nie odbiera ciosu możliwego w tej turze
+                    const zdazy = najkrotsza && najkrotsza.path.length + kosztAkcji <= e.ap;
+                    dojscie = miejsca.filter(m => !zdazy || m.sc.path.length + kosztAkcji <= e.ap)
+                                     .reduce((a, m) => !a || m.ocena < a.ocena ? m : a, null);
+                    dojscie = dojscie && dojscie.sc;
                 }
 
                 // Walczący wręcz NIE szuka osłony i nie krąży wokół celu. Idzie
@@ -45721,6 +45751,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         // Nie zdąży uderzyć w tej turze - wtedy opłaca się podejść
                         // najbliżej jak można, by w następnej turze bić od razu.
                         krokow = Math.min(potrzeba, e.ap);
+                        // Na koniec ruchu woli osłonę, nawet kosztem 1-2 pól - i tam czeka
+                        for (let k = krokow; k > Math.max(0, krokow - 3); k--) {
+                            const p = dojscie.path[k - 1];
+                            if (ocenPoleZMapy(p.x, p.z, eLvl).oslona > 0) { krokow = k; e.ap = k; break; }
+                        }
                     }
                     if (krokow > 0) {
                         const walk = dojscie.path.slice(0, krokow);
