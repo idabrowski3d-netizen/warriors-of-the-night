@@ -2577,7 +2577,7 @@
         const bagienny = (tlo, mech, ciemny) => (ctx, T) => { ctx.fillStyle = tlo; ctx.fillRect(0, 0, T, T); for (let i = 0; i < 70; i++) { ctx.fillStyle = Math.random() < .6 ? mech : ciemny; ctx.globalAlpha = .45; ctx.beginPath(); ctx.ellipse(Math.random() * T, Math.random() * T, 2 + Math.random() * 7, 1 + Math.random() * 4, Math.random() * 3, 0, 6.283); ctx.fill(); } for (let i = 0; i < 3; i++) { const x = 20 + Math.random() * (T - 40), y = 20 + Math.random() * (T - 40), r = 6 + Math.random() * 8; ctx.globalAlpha = .75; ctx.fillStyle = '#1c2a24'; ctx.beginPath(); ctx.ellipse(x, y, r, r * .6, 0, 0, 6.283); ctx.fill(); ctx.globalAlpha = .35; ctx.fillStyle = '#7a9a8a'; ctx.beginPath(); ctx.ellipse(x - r * .2, y - r * .2, r * .45, r * .2, 0, 0, 6.283); ctx.fill(); } ctx.globalAlpha = 1; };
         const WZORY_TERENU = {
             bagno: { grass: bagienny('#3f4a2e', '#55653a', '#2a3320'), dirt: bagienny('#4a4030', '#5e5240', '#2e281d') },
-            jezioro: { grass: lod('#b9c6d2', '#e4eef5', '#7f97ab'), dirt: lod('#9fb0c0', '#cfdde8', '#6d8499') },
+            jezioro: { sidewalk: lod('#b9c6d2', '#e4eef5', '#7f97ab'), road: lod('#cbd8e2', '#eef4f8', '#8ca3b6'), grass: lod('#b9c6d2', '#e4eef5', '#7f97ab'), dirt: lod('#9fb0c0', '#cfdde8', '#6d8499') },
             wulkan: { grass: skala_wulkanu('#2a2422', '#3a322e', '#ff6a18'), dirt: skala_wulkanu('#3a2e28', '#4a3c34', '#ff8a28') },
             zamiec: { grass: snieg('#dfe8f0', '#f6fafd', '#b8c8d8'), dirt: snieg('#cfdbe6', '#eaf2f8', '#a8b9ca') },
             // Piasek: zmarszczki wiatru zamiast kępek, kamyków i rys wspólnych dla innych plansz
