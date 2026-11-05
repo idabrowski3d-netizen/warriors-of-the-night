@@ -12827,6 +12827,29 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         delete mapaScian[gx + ',' + gz];
                     });
                 });
+
+                // Łatanie dziur: wolne pole między dwiema ścianami w jednej linii też jest ścianą.
+                // Z modelu wychodziły pojedyncze luki, przez które przelatywały pociski.
+                const scianaDomu = (x, z) => { const k = obstacleGrid[x + offsetX], o = k && k[z + offsetZ];
+                    return o && o.houseId === h.id && (o.type === 'house-wall' || o.type === 'house-door'); };
+                Object.values(nowePola).forEach(kd => [[1, 0], [0, 1]].forEach(([a, b]) => {
+                    const x = kd.x + a, z = kd.z + b, mx = x + offsetX, mz = z + offsetZ;
+                    if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth || obstacleGrid[mx][mz] !== null) return;
+                    if (!scianaDomu(x + a, z + b)) return;
+                    const wpis = { x: x, z: z, type: 'house-wall', houseId: h.id, zModelu: true, floors: 1, destructible: true, segment: kd.seg.name };
+                    obstacleGrid[mx][mz] = wpis; obstaclePositions.push(wpis); mapaScian[x + ',' + z] = kd.seg;
+                }));
+                // Uskok ściany po skosie: pocisk prześlizgiwał się między dwoma rogami.
+                // Domykamy go polem od strony zewnętrznej (dalszym od środka domu).
+                Object.values(nowePola).forEach(kd => [[1, 1], [1, -1]].forEach(([a, b]) => {
+                    if (!scianaDomu(kd.x + a, kd.z + b) || scianaDomu(kd.x + a, kd.z) || scianaDomu(kd.x, kd.z + b)) return;
+                    const d = (x, z) => Math.hypot(x - h.centerX, z - h.centerZ);
+                    const [x, z] = d(kd.x + a, kd.z) > d(kd.x, kd.z + b) ? [kd.x + a, kd.z] : [kd.x, kd.z + b];
+                    const mx = x + offsetX, mz = z + offsetZ;
+                    if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth || obstacleGrid[mx][mz] !== null) return;
+                    const wpis = { x: x, z: z, type: 'house-wall', houseId: h.id, zModelu: true, floors: 1, destructible: true, segment: kd.seg.name };
+                    obstacleGrid[mx][mz] = wpis; obstaclePositions.push(wpis); mapaScian[x + ',' + z] = kd.seg;
+                }));
             }
 
             // Zamknięte drzwi blokują przejście. Dom bohatera zaczyna z otwartymi -
@@ -15802,7 +15825,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             efektyPiekla = [];
             domyInstancje = [];
             if (currentCombatTheme && currentCombatTheme.id === 'amazonia') renderChatki();
-            umeblujDomy();
             let drzewZKodu = 0;
 
             // Gdy są wgrane modele domów, stawiamy je zamiast brył rysowanych w kodzie.
@@ -15815,6 +15837,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (postawDomZModelu(h)) domyZModelu.add(h.id);
                 });
             }
+            umeblujDomy();   // po domach z modelu - inaczej mebel zajmował pole ich ściany i robił w niej dziurę
             const resistantMat = new THREE.MeshLambertMaterial({ color: 0x444444 }); const destructibleMat = new THREE.MeshLambertMaterial({ color: 0xaaaaaa }); 
             const wallGeo = new THREE.BoxGeometry(1, 1, 1);
             shrines = [];
