@@ -30478,10 +30478,27 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         let activeAnimations = [];
+        const _kadr = new THREE.Frustum(), _kadrMacierz = new THREE.Matrix4(), _kadrCel = new THREE.Vector3();
         function slideObject(mesh, targetX, targetY, targetZ, duration, callback) {
             duration = duration / (spowolnienieCzasu || 1);   // w zwolnionym tempie ruch trwa dłużej
             // Każdy krok w turze obcych to postęp: długi marsz nie może wyglądać na zawieszenie
             if (!isPlayerTurn && !gameOver) uzbrojStraznikaTury();
+            // Wróg, którego gracz nie widzi, nie ma na co czekać: we mgle staje od razu,
+            // a poza kadrem idzie cztery razy szybciej
+            const idacyWrog = !isPlayerTurn && mesh !== cameraFocusMesh && enemies.find(e => e.mesh === mesh);
+            if (idacyWrog) {
+                const fowL = fowVisible[Math.min(idacyWrog.level || 0, fowVisible.length - 1)];
+                const fowX = fowL && fowL[Math.round(targetX) + offsetX];
+                if (!mesh.visible && !(fowX && fowX[Math.round(targetZ) + offsetZ] === 1)) {
+                    mesh.position.set(targetX, targetY, targetZ);
+                    if (callback) callback();
+                    return;
+                }
+                _kadrMacierz.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+                _kadr.setFromProjectionMatrix(_kadrMacierz);
+                _kadrCel.set(targetX, targetY, targetZ);
+                if (!_kadr.containsPoint(mesh.position) && !_kadr.containsPoint(_kadrCel)) duration /= 4;
+            }
 
             // Pająki nie wchodzą w krąg światła - sprawdzamy to przy KAŻDYM kroku,
             // niezależnie od tego, która część kodu każe im się ruszyć.
@@ -30639,8 +30656,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             let targetY = nextStep.y + meshData.mesh.userData.yOffset;
             
             meshData.mesh.lookAt(nextStep.x, meshData.mesh.position.y, nextStep.z);
-            SoundEngine.playStep(meshData.mesh.userData.unitType); 
-            
+            if (meshData.mesh.visible) SoundEngine.playStep(meshData.mesh.userData.unitType);
+
             slideObject(meshData.mesh, nextStep.x, targetY, nextStep.z, durationPerTile, () => {
                 meshData.__krokow = (meshData.__krokow || 0) + 1;   // liczymy pola faktycznie przebyte
                 const czyGracz = meshData.mesh.userData.unitType === 'player';
