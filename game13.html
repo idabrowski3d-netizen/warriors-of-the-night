@@ -2589,7 +2589,7 @@
         const posadzka_katedry = (a, b, fuga) => (ctx, T) => { const K = T / 2; for (let x = 0; x < 2; x++) for (let y = 0; y < 2; y++) { ctx.fillStyle = (x + y) % 2 ? a : b; ctx.fillRect(x * K, y * K, K, K); ctx.fillStyle = fuga; ctx.fillRect(x * K, y * K, K, 1); ctx.fillRect(x * K, y * K, 1, K); } for (let i = 0; i < 120; i++) { ctx.fillStyle = i % 2 ? fuga : b; ctx.globalAlpha = .3; ctx.fillRect(Math.random() * T, Math.random() * T, 1 + Math.random() * 4, 1); } ctx.globalAlpha = 1; };
         const WZORY_TERENU = {
             katedra: { sidewalk: posadzka_katedry('#6a6458', '#3a362e', '#8a8474'), grass: posadzka_katedry('#5a564c', '#34302a', '#7a7468') },
-            szpital: { grass: linoleum('#5e6358', '#6d7266', '#44483f'), dirt: linoleum('#7a7a6e', '#8c8c80', '#57574e'), road: linoleum('#8a8c84', '#9ea096', '#66685f') },
+            szpital: { sidewalk: linoleum('#8a8c84', '#9ea096', '#66685f'), grass: linoleum('#5e6358', '#6d7266', '#44483f'), dirt: linoleum('#7a7a6e', '#8c8c80', '#57574e'), road: linoleum('#8a8c84', '#9ea096', '#66685f') },
             alcatraz: { grass: beton_wiezienny('#6e6b63', '#85827a', '#4c4a44'), dirt: beton_wiezienny('#8a857a', '#a09b90', '#625e55'), road: beton_wiezienny('#5a5751', '#706d66', '#3c3a36') },
             sicario: { grass: pustynia_granicy('#b09468', '#c9ae80', '#8a7350'), dirt: pustynia_granicy('#c8a070', '#dcb88a', '#a07e54') },
             pozar: { grass: zgliszcza('#3a322c', '#55493e', '#141110'), dirt: zgliszcza('#4a3e32', '#65564a', '#1a1512'), road: zgliszcza('#35312f', '#4c4744', '#121010') },
