@@ -38718,7 +38718,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function oparzWPromieniu(x, z, r, cel, celTrafiony) {
             if (!ogienGrid) return;
             const wZasiegu = (u) => {
-                if (u.isDead || !u.mesh || u.lewituje) return false;
+                if (u.isDead || !u.mesh) return false;   // lewitujący (Bliźniaki) wiszą nisko - płomień też ich sięga
                 const ux = Math.round(u.mesh.position.x), uz = Math.round(u.mesh.position.z);
                 const mx = ux + offsetX, mz = uz + offsetZ;
                 return Math.abs(ux - Math.round(x)) + Math.abs(uz - Math.round(z)) <= r &&
@@ -38827,8 +38827,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
             [...enemies, ...npcs].forEach(u => {
                 if (u.isDead || !u.mesh) return;
-                // Lewitujący unosi się nad płomieniem - ogień go nie dotyka
-                if (u.lewituje) return;
                 const mx = Math.round(u.mesh.position.x) + offsetX, mz = Math.round(u.mesh.position.z) + offsetZ;
                 if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return;
                 if (ogienGrid[mx][mz] !== 1) { u.ogienTury = 0; return; }
