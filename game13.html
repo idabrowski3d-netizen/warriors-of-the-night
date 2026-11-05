@@ -11385,8 +11385,69 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             updateStreetLampsLighting();
         }
 
+        // --- CHATKI NA PALACH (models/chatka.glb, z Blendera) ---
+        // Zajmują 3x3 pola, przed nimi ganek na polu z+2. Podłoga i ganek to 1. piętro
+        // (floorGrid), a pole pod gankiem ma otwór - tamtędy wchodzi się po drabinie.
+        // Pola chatki to zwykłe przeszkody w siatce, ale bez wpisu w obstaclePositions,
+        // więc renderObstacles nie rysuje pod nimi brył - rysuje je ta funkcja.
+        const chatkaModel = { proto: null };
+        let chatkiNaPlanszy = [];
+        function loadChatkaModel() {
+            if (typeof THREE.GLTFLoader === 'undefined') return;
+            wczytajGlbBezAnimacji('models/chatka.glb', new THREE.GLTFLoader(), gltf => {
+                gltf.scene.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+                chatkaModel.proto = gltf.scene;
+            });
+        }
+        function naChatce(x, z) {
+            return chatkiNaPlanszy.some(c => Math.abs(x - c.x) <= 1 && z - c.z >= -1 && (z - c.z <= 1 || (z - c.z === 2 && x === c.x)));
+        }
+        function renderChatki() {
+            if (!chatkaModel.proto) return;
+            const pole = (x, z) => obstacleGrid[x + offsetX] && obstacleGrid[x + offsetX][z + offsetZ];
+            // Nowa plansza ma nową siatkę - stare chatki przepadają razem z nią
+            chatkiNaPlanszy = chatkiNaPlanszy.filter(c => pole(c.x, c.z) === c.znacznik);
+            if (chatkiNaPlanszy.length === 0 && soldiers.some(s => !s.isDead)) {
+                const ile = 2 + Math.floor(Math.random() * 2);
+                for (let i = 0, proby = 0; i < ile && proby < 400; proby++) {
+                    const x = Math.floor(Math.random() * (mapWidth - 30)) + 15 - offsetX;
+                    const z = Math.floor(Math.random() * (mapDepth - 30)) + 15 - offsetZ;
+                    if (!isFarFromSquad(x, z, 12)) continue;
+                    let wolne = true, hMin = Infinity, hMax = -Infinity;
+                    for (let dx = -2; dx <= 2 && wolne; dx++) for (let dz = -2; dz <= 3 && wolne; dz++) {
+                        if (!isWithinPlayBounds(x + dx, z + dz) || isObstacle(x + dx, z + dz) || isUnitAtLevel(x + dx, z + dz, 0, null) ||
+                            terrainTypeMap[x + dx + offsetX][z + dz + offsetZ] === 5) { wolne = false; break; }
+                        const h = getTerrainY(x + dx, z + dz); hMin = Math.min(hMin, h); hMax = Math.max(hMax, h);
+                    }
+                    if (!wolne || hMax - hMin > 0.6) continue;
+                    const znacznik = { type: 'chatka', x: x, z: z };
+                    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+                        obstacleGrid[x + dx + offsetX][z + dz + offsetZ] = znacznik;
+                        obstacleMap.set((x + dx) + ',' + (z + dz), znacznik);
+                    }
+                    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 2; dz++)
+                        if (dz < 2 || dx === 0) floorGrid[1][x + dx + offsetX][z + dz + offsetZ] = 1;
+                    holeGrid[0][x + offsetX][z + 2 + offsetZ] = 1;
+                    unieważnijPietra();
+                    chatkiNaPlanszy.push({ x: x, z: z, y: hMin, znacznik: znacznik });
+                    i++;
+                }
+            }
+            // renderObstacles czyści przeszkody i woła nas ponownie - stawiamy bryły od nowa
+            chatkiNaPlanszy.forEach(c => {
+                if (c.mesh) { scene.remove(c.mesh); obstacleMeshes = obstacleMeshes.filter(m => m !== c.mesh); }
+                const m = c.mesh = chatkaModel.proto.clone();
+                m.position.set(c.x, c.y, c.z);
+                m.userData.unitType = 'obstacle';
+                c.dach = m.getObjectByName('chatka_strzecha');
+                scene.add(m);
+                obstacleMeshes.push(m);
+            });
+        }
+
         function renderCampfires() {
             if (!currentCombatTheme || currentCombatTheme.id !== 'amazonia') return;
+            renderChatki();
             const ile = 10 + Math.floor(Math.random() * 8);
             for (let i = 0; i < ile; i++) {
                 let x = null, z = null;
@@ -15679,6 +15740,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             autaKryjowki = [];
             efektyPiekla = [];
             domyInstancje = [];
+            if (currentCombatTheme && currentCombatTheme.id === 'amazonia') renderChatki();
             let drzewZKodu = 0;
 
             // Gdy są wgrane modele domów, stawiamy je zamiast brył rysowanych w kodzie.
@@ -18334,6 +18396,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const L = poziomWymiany(unitX, unitZ, attackerX, attackerZ);
                 if (L > 0) return mebelNaPietrze(checkX, checkZ, L) ? { x: checkX, z: checkZ, type: 'mebel_wiezy', poziom: L } : null;
             }
+            // Wnętrze chatki: bambusowe ściany osłaniają ze wszystkich stron poza drzwiami (z+1)
+            const chatka = chatkiNaPlanszy.find(c => Math.abs(unitX - c.x) <= 1 && Math.abs(unitZ - c.z) <= 1);
+            if (chatka && hasFloorAt(unitX, unitZ, 1) && soldiers.concat(enemies).some(u => !u.isDead && u.level === 1 &&
+                    Math.round(u.mesh.position.x) === unitX && Math.round(u.mesh.position.z) === unitZ) &&
+                !(Math.abs(attackerX - chatka.x) <= 1 && Math.abs(attackerZ - chatka.z) <= 1)) {
+                const drzwi = unitX === chatka.x && unitZ === chatka.z + 1 && attackerZ > unitZ && Math.abs(attackerX - unitX) <= attackerZ - unitZ;
+                if (!drzwi) return chatka.znacznik;
+            }
             let mx = checkX + offsetX, mz = checkZ + offsetZ;
             if (mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth) return obstacleGrid[mx][mz];
             return null;
@@ -18368,7 +18438,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         // Osłony, których pudło nie niszczy
-        const NIEZNISZCZALNE_OSLONY = ['zachod-sciana', 'wall-resistant', 'skrzynia_metal', 'rumowisko', 'wrak_osobowy', 'wrak_ciezarowy', 'wrak-czesc', 'kontener', 'pal', 'mebel_wiezy', 'mebel_wiezy_sciana'];
+        const NIEZNISZCZALNE_OSLONY = ['zachod-sciana', 'wall-resistant', 'skrzynia_metal', 'rumowisko', 'wrak_osobowy', 'wrak_ciezarowy', 'wrak-czesc', 'kontener', 'pal', 'mebel_wiezy', 'mebel_wiezy_sciana', 'chatka'];
 
         // ===================== CO SIĘ PRZEWRACA =====================
         // Wysokie konstrukcje nie znikają po pudle - walą się na sąsiednie pole
@@ -31117,6 +31187,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     // ale widać nad nią i strzela się ponad nią bez przeszkód
                     if (obs.type === 'przepasc') { continue; }
                     if (obs.type === 'przerebel') { continue; }
+                    // Chatka: na wysokości izby ściany zasłaniają przelot na wylot. Kto stoi w środku,
+                    // widzi i jest widziany - przed strzałem chroni go osłona (getCoverObstacle).
+                    if (obs.type === 'chatka') {
+                        const wSrodku = (px, pz) => Math.abs(px - obs.x) <= 1 && Math.abs(pz - obs.z) <= 1;
+                        const h = y - terrainY;
+                        if (h >= 1.9 && h <= 3.5 && !wSrodku(x0, z0) && !wSrodku(x1, z1)) return false;
+                        if (h > 1.1) continue;
+                    }
                     // Niska przeszkoda zasłania strzał, ale nie widok
                     if (tylkoWidocznosc && czyNiskaPrzeszkoda(obs)) { continue; }
                     if (obs.type !== 'house-window') {
@@ -45934,6 +46012,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     for (let mz = 0; mz < mapDepth; mz++) {
                         if (floorGrid[L][mx][mz] !== 1) continue;
                         if (holeGrid[L - 1][mx][mz] === 1) continue; // otwór - brak płyty
+                        if (L === 1 && naChatce(mx - offsetX, mz - offsetZ)) continue;   // chatka ma własną podłogę z desek
                         tiles.push([mx - offsetX, mz - offsetZ]);
                     }
                 }
@@ -46181,6 +46260,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }, { passive: false });
 
         function updateFloorVisibility() {
+            chatkiNaPlanszy.forEach(c => { if (c.dach) c.dach.visible = viewLevel < 1; });   // dach chatki nie zasłania wnętrza
             const lvl = viewLevel;
             // W Wieży kondygnacje leżą jedna NAD drugą i strop zasłania to, co niżej,
             // więc pokazywanie wszystkiego poniżej wygląda dobrze. W Studni komory
@@ -52146,6 +52226,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         })();
 
         loadTreeModels();     // modele drzew - ciężkie pliki, więc z limitem na planszę
+        loadChatkaModel();    // chatka na palach z Blendera (Amazonia)
         loadHouseModels();    // modele domów - brak pliku oznacza dom rysowany w kodzie
         loadWarriorModel();   // model wojownika wczytujemy z wyprzedzeniem
         loadClassModels();    // i osobne modele klas (łucznik)
