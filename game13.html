@@ -9861,7 +9861,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
             x.strokeStyle = 'rgba(10,18,30,0.8)'; x.lineWidth = 4; x.strokeRect(0, 0, 256, 256);
             x.fillStyle = 'rgba(10,18,30,0.7)';
-            [[16, 16], [240, 16], [16, 240], [240, 240]].forEach(([a, b]) => { x.beginPath(); x.arc(a, b, 5, 0, 7); x.fill(); });
+            [[16, 16], [240, 16], [16, 240], [240, 240]].forEach(([a, b]) => { x.beginPath(); x.arc(a, b, 5, 0, 7); x.fill(); }); // Świecące ścieżki obwodu między nitami
+            x.fillStyle = 'rgba(40,220,230,0.55)'; [[16, 60, 90, 2], [106, 60, 2, 70], [106, 130, 134, 2], [60, 196, 2, 44], [60, 196, 120, 2]].forEach(([a, b, w, h]) => x.fillRect(a, b, w, h));
             return new THREE.MeshPhongMaterial({ map: new THREE.CanvasTexture(c), specular: 0x9fd8ff, shininess: 90,
                                                  transparent: true, opacity: 0.62 });
         }
