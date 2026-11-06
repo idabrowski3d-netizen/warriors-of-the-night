@@ -30826,6 +30826,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             for (const e of enemies) {
                 if (e.isDead) continue;
                 if (!e.mesh.visible) continue;              // dopóki go nie widać, nie ma zatrzymania
+                if (e.przebrany) continue;                  // udaje cywila - nie zdradzamy go
                 const klucz = enemies.indexOf(e);
                 if (dostrzezeniWrogowie.has(klucz)) continue;
                 dostrzezeniWrogowie.add(klucz);
@@ -34220,7 +34221,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function czyWojownikWidzi(s, e) {
             if (!s || s.isDead || !s.mesh || !e || e.isDead || !e.mesh) return false;
-            if (e.podZiemia || e.wZasadzce || e.wAucie || e.wWodzie) return false;   // ukryci nie liczą się
+            if (e.podZiemia || e.wZasadzce || e.wAucie || e.wWodzie || e.przebrany) return false;   // ukryci i przebrani nie liczą się
             if (e.mesh.visible === false) return false;
             const sx = Math.round(s.mesh.position.x), sz = Math.round(s.mesh.position.z);
             const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
@@ -35259,7 +35260,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
                 let moveCost = pathData ? pathData.cost : -1;
 
-                const hoveredEnemy = enemies.find(e => !e.isDead && e.mesh.visible && Math.round(e.mesh.position.x) === targetX && Math.round(e.mesh.position.z) === targetZ);
+                const hoveredEnemy = enemies.find(e => !e.isDead && e.mesh.visible && !e.przebrany && Math.round(e.mesh.position.x) === targetX && Math.round(e.mesh.position.z) === targetZ);
                 const hoveredPlayer = soldiers.find(s => !s.isDead && Math.round(s.mesh.position.x) === targetX && Math.round(s.mesh.position.z) === targetZ);
 
                 let remainingAP = active.ap, msg = "";
