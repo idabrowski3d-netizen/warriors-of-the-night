@@ -38283,7 +38283,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const VAN_TYPY = ['standard', 'brute', 'stalker', 'klaun', 'vampire', 'droid'];
         let van = null;
         function postawVana() {
-            if (van) { scene.remove(van.grupa); van = null; }
+            if (van) { scene.remove(van.grupa); if (van.pola && obstacleGrid[van.x + offsetX]) polaVana(false); van = null; }
             if (!currentCombatTheme || !VAN_PLANSZE.includes(currentCombatTheme.id) || Math.random() > 0.7) return;
             const pasazerowie = enemies.filter(e => !e.isDead && e.mesh && !e.isBoss && !e.wAucie && !e.wZasadzce && !e.czaiSie && !e.przebrany && VAN_TYPY.includes(e.type) && (e.level || 0) === 0)
                 .sort(() => Math.random() - 0.5).slice(0, 1 + Math.floor(Math.random() * 3));
@@ -38308,9 +38308,22 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const tyl = new THREE.Group(); tyl.position.set(-0.9, 0, -1.82); box(1.8, 1.4, 0.05, M(0xc8c8c0), 0.9, 1.2, 0, tyl); g.add(tyl); drzwi.push({ g: tyl, tyl: true });
             g.position.set(start[0], getTerrainY(start[0], start[1]), start[1]);
             scene.add(g);
-            van = { grupa: g, x: start[0], z: start[1], cel: null, stoi: false, drzwi: drzwi, pasazerowie: pasazerowie };
+            van = { grupa: g, x: start[0], z: start[1], cel: null, stoi: false, drzwi: drzwi, pasazerowie: pasazerowie, znacznik: { type: 'van', x: start[0], z: start[1] } };
+            polaVana(true);
             pasazerowie.forEach(e => { e.wAucie = true; e.van = van; e.mesh.visible = false; e.mesh.position.set(start[0], getTerrainY(start[0], start[1]), start[1]); });
             refreshEnemyPositions();
+        }
+        // Van to przeszkoda i osłona: zajmuje swoje pole oraz pole przed i za sobą
+        function polaVana(zajmij) {
+            (van.pola || []).forEach(([x, z]) => { if (obstacleGrid[x + offsetX][z + offsetZ] === van.znacznik) obstacleGrid[x + offsetX][z + offsetZ] = null; });
+            van.pola = [];
+            if (!zajmij) return;
+            const [dx, dz] = van.kier || [0, 1];
+            [[0, 0], [dx, dz], [-dx, -dz]].forEach(([a, b]) => {
+                const x = van.x + a, z = van.z + b;
+                if (!isWithinPlayBounds(x, z) || obstacleGrid[x + offsetX][z + offsetZ] !== null || isUnitAtLevel(x, z, 0, null)) return;
+                obstacleGrid[x + offsetX][z + offsetZ] = van.znacznik; van.pola.push([x, z]);
+            });
         }
         function vanWidziWojownika() {
             const y = getTerrainY(van.x, van.z) + 1.6;
@@ -38327,12 +38340,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) continue;
                     van.cel = [x, z];
                 }
+                polaVana(false);
                 const p = findPath(van.x, van.z, van.cel[0], van.cel[1], 0, null);
-                if (!p || !p.path.length) { van.cel = null; continue; }
+                if (!p || !p.path.length) { van.cel = null; polaVana(true); continue; }
                 const trasa = p.path.slice(0, 8), start = performance.now(), od = van.grupa.position.clone();
                 // jedzie pole po polu; staje na pierwszym, z którego kogoś widać
                 let i = 0;
                 for (; i < trasa.length; i++) {
+                    van.kier = [Math.sign(trasa[i].x - van.x), Math.sign(trasa[i].z - van.z)];
                     van.x = trasa[i].x; van.z = trasa[i].z;
                     if (vanWidziWojownika()) { i++; break; }
                 }
@@ -38346,6 +38361,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (k >= punkty.length - 1 && zobaczyl) zatrzymajVana();
                     return k >= punkty.length - 1;
                 });
+                polaVana(true);
                 van.pasazerowie.forEach(e => { if (!e.isDead && e.wAucie) e.mesh.position.set(van.x, getTerrainY(van.x, van.z), van.z); });
                 refreshEnemyPositions();
                 return;
