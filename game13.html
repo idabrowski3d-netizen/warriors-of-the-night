@@ -36054,7 +36054,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
             }
             if (intersectPoint) {
-                const targetX = Math.round(intersectPoint.x), targetZ = Math.round(intersectPoint.z);
+                let targetX = Math.round(intersectPoint.x), targetZ = Math.round(intersectPoint.z);
                 if(targetX < -offsetX || targetX >= offsetX || targetZ < -offsetZ || targetZ >= offsetZ) return;
 
                 // Telekineza przechwytuje klik, zanim stanie się z niego ruch
@@ -36289,6 +36289,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     toggleKneel(); // automatycznie wstaje (-2 PA), zanim ruszy do przodu
                     if (active.isKneeling) return; // za mało PA, by wstać - komunikat już wyświetlony
                 }
+                // Z chatki na palach na ziemię: najpierw marsz na ganek, zejście po
+                // drabinie, a potem dalej do klikniętego pola już na poziomie 0.
+                active.__dalejPoZejsciu = null;
+                if ((active.level || 0) === 1 && naChatce(startX, startZ) && !naChatce(targetX, targetZ) && !(active.levitateTurns > 0)) {
+                    const c = chatkiNaPlanszy.find(c => Math.abs(startX - c.x) <= 1 && startZ - c.z >= -1 && startZ - c.z <= 2);
+                    if (c && (startX !== c.x || startZ !== c.z + 2)) { active.__dalejPoZejsciu = [event, targetX, targetZ]; targetX = c.x; targetZ = c.z + 2; }
+                    else if (c) {
+                        changeSoldierLevel(-1);
+                        if ((active.level || 0) === 0 && active.ap > 0) { celZPaska = { x: targetX, z: targetZ }; try { obsluzRozkaz(event); } finally { celZPaska = null; } }
+                        return;
+                    }
+                }
                 if (viewLevel !== (active.level || 0)) {
                     updateUI(`Oglądasz ${nazwaPoziomu(viewLevel)}, a ${active.name} stoi na poziomie: ` +
                              `${nazwaPoziomu(active.level || 0)}. Przełącz widok rolką lub przyciskami ▲▼, ` +
@@ -36376,7 +36388,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         }
                     }
                     checkGameOver();
-                    checkEnemyOverwatch(() => { if (!gameOver) { isPlayerTurn = true; autoSelectActiveSoldier(); } }, true); 
+                    checkEnemyOverwatch(() => { if (!gameOver) { isPlayerTurn = true; autoSelectActiveSoldier();
+                        const dalej = active.__dalejPoZejsciu; active.__dalejPoZejsciu = null;   // dalsza droga z chatki
+                        if (dalej && !partialMove && getActiveSoldier() === active && !active.isDead) { celZPaska = { x: dalej[1], z: dalej[2] }; try { obsluzRozkaz(dalej[0]); } finally { celZPaska = null; } } } }, true); 
                 });
             }
         }
