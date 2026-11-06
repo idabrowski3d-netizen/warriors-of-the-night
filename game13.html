@@ -11487,6 +11487,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 gltf.scene.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
                 chatkaModel.proto = gltf.scene;
             });
+            wczytajGlbBezAnimacji('models/iglo.glb', loader, gltf => {   // Zamieć: iglo działa jak chatka na ziemi
+                gltf.scene.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+                chatkaModel.iglo = gltf.scene;
+            });
             ['chatka_lepianka', 'chatka_bale'].forEach(n => wczytajGlbBezAnimacji('models/' + n + '.glb', loader, gltf => {
                 gltf.scene.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
                 chatkaModel.naZiemi.push(gltf.scene);
@@ -11496,7 +11500,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // na zewnątrz jest zasłonięta - chyba że przechodzi przez wejście na ganek.
         function scianaChatki(ax, az, bx, bz, y) {
             return chatkiNaPlanszy.some(c => {
-                if (!c.ziemia && y === null) return false;   // pod chatką na palach się przechodzi
+                if (c.zniszczona || (!c.ziemia && y === null)) return false;   // pod chatką na palach się przechodzi
                 const wA = Math.abs(ax - c.x) <= 1 && Math.abs(az - c.z) <= 1;
                 const wB = Math.abs(bx - c.x) <= 1 && Math.abs(bz - c.z) <= 1;
                 if (wA === wB) return false;
@@ -11510,12 +11514,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return chatkiNaPlanszy.some(c => !c.ziemia && Math.abs(x - c.x) <= 1 && z - c.z >= -1 && (z - c.z <= 1 || (z - c.z === 2 && x === c.x)));
         }
         function renderChatki() {
-            if (!chatkaModel.proto) return;
+            const zamiec = currentCombatTheme && currentCombatTheme.id === 'zamiec';
+            if (zamiec ? !chatkaModel.iglo : !chatkaModel.proto) return;
             const pole = (x, z) => obstacleGrid[x + offsetX] && obstacleGrid[x + offsetX][z + offsetZ];
             // Nowa plansza ma nową siatkę - stare chatki przepadają razem z nią
             chatkiNaPlanszy = chatkiNaPlanszy.filter(c => (c.ziemia ? obstacleMap.get(c.x + ',' + c.z) : pole(c.x, c.z)) === c.znacznik);
             if (chatkiNaPlanszy.length === 0 && soldiers.some(s => !s.isDead)) {
-                const ile = 6 + Math.floor(Math.random() * 3);   // więcej chatek niż domów
+                const ile = zamiec ? 3 + Math.floor(Math.random() * 3) : 6 + Math.floor(Math.random() * 3);   // więcej chatek niż domów
                 for (let i = 0, proby = 0; i < ile && proby < 1200; proby++) {
                     const x = Math.floor(Math.random() * (mapWidth - 30)) + 15 - offsetX;
                     const z = Math.floor(Math.random() * (mapDepth - 30)) + 15 - offsetZ;
@@ -11528,7 +11533,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     }
                     if (!wolne || hMax - hMin > 0.6) continue;
                     const znacznik = { type: 'chatka', x: x, z: z };
-                    const ziemia = chatkaModel.naZiemi.length && Math.random() < 0.4 ? chatkaModel.naZiemi[i % chatkaModel.naZiemi.length] : null;
+                    const ziemia = zamiec ? chatkaModel.iglo : chatkaModel.naZiemi.length && Math.random() < 0.4 ? chatkaModel.naZiemi[i % chatkaModel.naZiemi.length] : null;
                     // chatka na ziemi: wnętrze wolne, ściany trzyma scianaChatki
                     for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
                         if (!ziemia) obstacleGrid[x + dx + offsetX][z + dz + offsetZ] = znacznik;
@@ -11540,12 +11545,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         holeGrid[0][x + offsetX][z + 2 + offsetZ] = 1;
                         unieważnijPietra();
                     }
-                    chatkiNaPlanszy.push({ x: x, z: z, y: hMin, znacznik: znacznik, ziemia: ziemia });
+                    chatkiNaPlanszy.push({ x: x, z: z, y: hMin, znacznik: znacznik, ziemia: ziemia, iglo: zamiec });
                     i++;
                 }
             }
             // renderObstacles czyści przeszkody i woła nas ponownie - stawiamy bryły od nowa
             chatkiNaPlanszy.forEach(c => {
+                if (c.zniszczona) return;
                 if (c.mesh) { scene.remove(c.mesh); obstacleMeshes = obstacleMeshes.filter(m => m !== c.mesh); }
                 const m = c.mesh = (c.ziemia || chatkaModel.proto).clone();
                 m.position.set(c.x, c.y, c.z);
@@ -12035,6 +12041,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // wiszące w powietrzu płomienie z poprzedniej misji.
             ogniePiekielne.forEach(o => scene.remove(o)); ogniePiekielne = [];
             clearCampfires();
+            if (currentCombatTheme && currentCombatTheme.id === 'zamiec') renderChatki();
             // Tabela opraw ma pierwszeństwo przed wszystkimi dawnymi gałęziami -
             // te kończyły funkcję wcześniej, więc Alcatraz, wyspy, bagno, zamieć
             // i wulkan nigdy by do niej nie dotarły.
@@ -15900,7 +15907,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             autaKryjowki = [];
             efektyPiekla = [];
             domyInstancje = [];
-            if (currentCombatTheme && currentCombatTheme.id === 'amazonia') renderChatki();
+            if (currentCombatTheme && (currentCombatTheme.id === 'amazonia' || currentCombatTheme.id === 'zamiec')) renderChatki();
             let drzewZKodu = 0;
 
             // Gdy są wgrane modele domów, stawiamy je zamiast brył rysowanych w kodzie.
@@ -18771,6 +18778,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Tuż obok: kruche osłony się rozpadają, wysokie przewracają, beczki wybuchają dalej
             obstaclePositions.filter(o => WYBUCH_NISZCZY.includes(o.type) &&
                 Math.max(Math.abs(o.x - x), Math.abs(o.z - z)) <= 1).forEach(destroyObstacle);
+            // Iglo w zasięgu wybuchu rozpada się - ściany przestają zasłaniać
+            chatkiNaPlanszy.forEach(c => {
+                if (!c.iglo || c.zniszczona || Math.max(Math.abs(c.x - x), Math.abs(c.z - z)) > WYBUCH_PROMIEN + 1) return;
+                c.zniszczona = true;
+                scene.remove(c.mesh); obstacleMeshes = obstacleMeshes.filter(m => m !== c.mesh);
+                updateUI('Wybuch rozbija iglo!');
+            });
             zerwijZyrandol(x, z, 1, WYBUCH_PROMIEN);
             pekniecieLodu(x, z, 1);
             stluczSwiatla(x, z, WYBUCH_PROMIEN + 1, true);
