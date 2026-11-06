@@ -11472,7 +11472,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // (floorGrid), a pole pod gankiem ma otwór - tamtędy wchodzi się po drabinie.
         // Pola chatki to zwykłe przeszkody w siatce, ale bez wpisu w obstaclePositions,
         // więc renderObstacles nie rysuje pod nimi brył - rysuje je ta funkcja.
-        const chatkaModel = { proto: null };
+        const chatkaModel = { proto: null, naZiemi: [] };   // naZiemi: chatki bez pali - pełna przeszkoda 3x3
         let chatkiNaPlanszy = [];
         function loadChatkaModel() {
             if (typeof THREE.GLTFLoader === 'undefined') return;
@@ -11487,11 +11487,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 gltf.scene.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
                 chatkaModel.proto = gltf.scene;
             });
+            ['chatka_lepianka', 'chatka_bale'].forEach(n => wczytajGlbBezAnimacji('models/' + n + '.glb', loader, gltf => {
+                gltf.scene.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+                chatkaModel.naZiemi.push(gltf.scene);
+            }));
         }
         // Ściany chatki na wysokości 1. piętra: linia między polem w środku a polem
         // na zewnątrz jest zasłonięta - chyba że przechodzi przez wejście na ganek.
         function scianaChatki(ax, az, bx, bz, y) {
             return chatkiNaPlanszy.some(c => {
+                if (c.ziemia) return false;
                 const wA = Math.abs(ax - c.x) <= 1 && Math.abs(az - c.z) <= 1;
                 const wB = Math.abs(bx - c.x) <= 1 && Math.abs(bz - c.z) <= 1;
                 if (wA === wB) return false;
@@ -11501,7 +11506,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
         }
         function naChatce(x, z) {
-            return chatkiNaPlanszy.some(c => Math.abs(x - c.x) <= 1 && z - c.z >= -1 && (z - c.z <= 1 || (z - c.z === 2 && x === c.x)));
+            return chatkiNaPlanszy.some(c => !c.ziemia && Math.abs(x - c.x) <= 1 && z - c.z >= -1 && (z - c.z <= 1 || (z - c.z === 2 && x === c.x)));
         }
         function renderChatki() {
             if (!chatkaModel.proto) return;
@@ -11522,22 +11527,25 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     }
                     if (!wolne || hMax - hMin > 0.6) continue;
                     const znacznik = { type: 'chatka', x: x, z: z };
+                    const ziemia = chatkaModel.naZiemi.length && Math.random() < 0.4 ? chatkaModel.naZiemi[i % chatkaModel.naZiemi.length] : null;
                     for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
                         obstacleGrid[x + dx + offsetX][z + dz + offsetZ] = znacznik;
                         obstacleMap.set((x + dx) + ',' + (z + dz), znacznik);
                     }
-                    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 2; dz++)
-                        if (dz < 2 || dx === 0) floorGrid[1][x + dx + offsetX][z + dz + offsetZ] = 1;
-                    holeGrid[0][x + offsetX][z + 2 + offsetZ] = 1;
-                    unieważnijPietra();
-                    chatkiNaPlanszy.push({ x: x, z: z, y: hMin, znacznik: znacznik });
+                    if (!ziemia) {
+                        for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 2; dz++)
+                            if (dz < 2 || dx === 0) floorGrid[1][x + dx + offsetX][z + dz + offsetZ] = 1;
+                        holeGrid[0][x + offsetX][z + 2 + offsetZ] = 1;
+                        unieważnijPietra();
+                    }
+                    chatkiNaPlanszy.push({ x: x, z: z, y: hMin, znacznik: znacznik, ziemia: ziemia });
                     i++;
                 }
             }
             // renderObstacles czyści przeszkody i woła nas ponownie - stawiamy bryły od nowa
             chatkiNaPlanszy.forEach(c => {
                 if (c.mesh) { scene.remove(c.mesh); obstacleMeshes = obstacleMeshes.filter(m => m !== c.mesh); }
-                const m = c.mesh = chatkaModel.proto.clone();
+                const m = c.mesh = (c.ziemia || chatkaModel.proto).clone();
                 m.position.set(c.x, c.y, c.z);
                 m.userData.unitType = 'obstacle';
                 c.dach = m.getObjectByName('chatka_strzecha');
