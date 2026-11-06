@@ -5133,7 +5133,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             ustawWypelnienie();
         }
 
-        let heightMap = new Array(mapWidth).fill(0).map(() => new Int16Array(mapDepth));
+        let heightMap = new Array(mapWidth).fill(0).map(() => new Float32Array(mapDepth));
         let obstacleGrid = new Array(mapWidth).fill(0).map(() => new Array(mapDepth).fill(null));
         let enemyGrid = new Array(mapWidth).fill(0).map(() => new Uint8Array(mapDepth));
         let playerGrid = new Array(mapWidth).fill(0).map(() => new Uint8Array(mapDepth));
@@ -5255,6 +5255,21 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (distToValley < radius) h -= Math.round(2 * (1 - (distToValley / radius)));
                     if (h > 2) h = 2; if (h < -2) h = -2;
                     heightMap[x][z] = h;
+                }
+            }
+            // PRÓBA: łagodne pagórki i dołki (ułamkowe wysokości) - wciąż poziom 0,
+            // ale teren faluje. Na razie tylko Amazonia.
+            if (currentCombatTheme && currentCombatTheme.id === 'amazonia') {
+                const garby = [];
+                for (let i = 0; i < 45; i++) garby.push({ x: Math.random() * mapWidth, z: Math.random() * mapDepth,
+                    r: 5 + Math.random() * 9, amp: (Math.random() < 0.5 ? -1 : 1) * (0.3 + Math.random() * 0.6) });
+                for (let x = 0; x < mapWidth; x++) for (let z = 0; z < mapDepth; z++) {
+                    let h = 0;
+                    for (const g of garby) {
+                        const d = Math.hypot(x - g.x, z - g.z);
+                        if (d < g.r) h += g.amp * (0.5 + 0.5 * Math.cos(d / g.r * Math.PI));
+                    }
+                    heightMap[x][z] += Math.max(-1.2, Math.min(1.2, h));
                 }
             }
         }
@@ -7591,7 +7606,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     // Rów to nie prosty wykop - prawdziwe kopano łamaną linią, żeby
                     // jeden pocisk nie przeszedł całą długością. Dno jest niżej i
                     // błotniste, a od strony wroga usypany jest wał, który daje osłonę.
-                    // UWAGA: heightMap to Int16Array - ułamki po cichu stają się zerem.
+                    // UWAGA: heightMap był kiedyś Int16Array (ułamki stawały się zerem), dziś Float32Array.
                     // Przy -0.7 rów "powstawał", ale jego dno było na poziomie gruntu.
                     const ROW_GLEBOKOSC = -1;
                     const zrobRow = (linia, odStrony) => {
@@ -9730,7 +9745,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Sahara: budynki i drogi spłaszczają teren do zera, co przy wysokich wydmach
             // tworzy pionowe progi nie do przejścia. Wyrównujemy je dopiero teraz, gdy
             // wszystko jest już rozstawione - inaczej poprawka zostałaby nadpisana.
-            if (isSaharaMap) smoothSaharaDunes();
+            if (isSaharaMap || (currentCombatTheme && currentCombatTheme.id === 'amazonia')) smoothSaharaDunes();
 
             // Koryto obniżamy na końcu, żeby nic już go nie wyrównało
             if (rzekaWKorycie) {
@@ -23990,7 +24005,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 foldZ: foldZ,
                 floorGrid: floorGrid ? floorGrid.map(l => l.map(r => Array.from(r))) : null,
                 holeGrid: holeGrid ? holeGrid.map(l => l.map(r => Array.from(r))) : null,
-                heightMap: heightMap.map(row => Array.from(row)),
+                heightMap: heightMap.map(row => Array.from(row, v => Math.round(v * 100) / 100)),
                 terrainTypeMap: terrainTypeMap.map(row => Array.from(row)),
                 obstaclePositions: obstaclePositions.map(({ skrzydlo, ...p }) => p),   // skrzydlo to obiekt 3D - JSON się na nim wywraca
                 themedLandmarkDecor: themedLandmarkDecor,
