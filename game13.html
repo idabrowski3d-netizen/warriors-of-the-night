@@ -46416,7 +46416,42 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             setViewLevel(viewLevel + (e.deltaY < 0 ? 1 : -1));
         }, { passive: false });
 
+        // ZNACZNIKI PRZEJŚĆ: świecący pierścień ze strzałką na polach, z których da się
+        // wejść piętro wyżej albo zejść niżej (otwory, drabiny, windy). Pokazujemy tylko
+        // te z oglądanej kondygnacji i z odkrytej części mapy.
+        let znacznikiPrzejsc = [], znacznikGeo = null;
+        function odswiezZnacznikiPrzejsc() {
+            znacznikiPrzejsc.forEach(m => scene.remove(m)); znacznikiPrzejsc = [];
+            if (!znacznikGeo) znacznikGeo = {
+                ring: new THREE.RingGeometry(0.32, 0.45, 24).rotateX(-Math.PI / 2),
+                grot: new THREE.ConeGeometry(0.14, 0.28, 12),
+                mat: new THREE.MeshBasicMaterial({ color: 0x66e0ff, transparent: true, opacity: 0.75, depthWrite: false, side: THREE.DoubleSide })
+            };
+            const pkt = [];   // [x, z, poziom, wGore]
+            if (holeGrid) for (let L = 0; L < MAX_LEVELS - 1; L++) {
+                const g = holeGrid[L]; if (!g) continue;
+                for (let mx = 0; mx < mapWidth; mx++) for (let mz = 0; mz < mapDepth; mz++)
+                    if (g[mx][mz] === 1) { pkt.push([mx - offsetX, mz - offsetZ, L, true], [mx - offsetX, mz - offsetZ, L + 1, false]); }
+            }
+            studniaDrabiny.forEach(d => pkt.push([d.x, d.z, d.dol, true], [d.x, d.z, d.gora, false]));
+            drabinyDachow.forEach(d => pkt.push([d.x, d.z, 0, true], [d.dachX, d.dachZ, d.dach, false]));
+            windyKamienic.forEach(w => pkt.push([w.x, w.z, 0, true]));
+            const juz = new Set();
+            pkt.forEach(([x, z, L, wGore]) => {
+                const k = x + ',' + z + ',' + L;
+                if (L !== viewLevel || juz.has(k)) return; juz.add(k);
+                const mx = x + offsetX, mz = z + offsetZ;
+                if (typeof exploredGrid !== 'undefined' && exploredGrid[mx] && exploredGrid[mx][mz] !== 1) return;
+                const y = getLevelY(x, z, L) + 0.06;
+                const r = new THREE.Mesh(znacznikGeo.ring, znacznikGeo.mat); r.position.set(x, y, z);
+                const s = new THREE.Mesh(znacznikGeo.grot, znacznikGeo.mat); s.position.set(x, y + 0.45, z);
+                if (!wGore) s.rotation.x = Math.PI;
+                [r, s].forEach(m => { m.renderOrder = 5; scene.add(m); znacznikiPrzejsc.push(m); });
+            });
+        }
+
         function updateFloorVisibility() {
+            odswiezZnacznikiPrzejsc();
             chatkiNaPlanszy.forEach(c => { if (c.dach) c.dach.visible = viewLevel < 1; });   // dach chatki nie zasłania wnętrza
             const lvl = viewLevel;
             // W Wieży kondygnacje leżą jedna NAD drugą i strop zasłania to, co niżej,
