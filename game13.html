@@ -11496,11 +11496,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // na zewnątrz jest zasłonięta - chyba że przechodzi przez wejście na ganek.
         function scianaChatki(ax, az, bx, bz, y) {
             return chatkiNaPlanszy.some(c => {
-                if (c.ziemia) return false;
+                if (!c.ziemia && y === null) return false;   // pod chatką na palach się przechodzi
                 const wA = Math.abs(ax - c.x) <= 1 && Math.abs(az - c.z) <= 1;
                 const wB = Math.abs(bx - c.x) <= 1 && Math.abs(bz - c.z) <= 1;
                 if (wA === wB) return false;
-                if (y < c.y + FLOOR_HEIGHT - 0.2 || y > c.y + FLOOR_HEIGHT + 2.5) return false;
+                const y0 = c.ziemia ? c.y : c.y + FLOOR_HEIGHT;   // y === null: ruch po ziemi
+                if (y !== null && (y < y0 - 0.2 || y > y0 + 2.5)) return false;
                 const [wx, wz, zx, zz] = wA ? [ax, az, bx, bz] : [bx, bz, ax, az];
                 return !(wx === c.x && wz === c.z + 1 && zx === c.x && zz === c.z + 2);   // drzwi
             });
@@ -11512,7 +11513,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (!chatkaModel.proto) return;
             const pole = (x, z) => obstacleGrid[x + offsetX] && obstacleGrid[x + offsetX][z + offsetZ];
             // Nowa plansza ma nową siatkę - stare chatki przepadają razem z nią
-            chatkiNaPlanszy = chatkiNaPlanszy.filter(c => pole(c.x, c.z) === c.znacznik);
+            chatkiNaPlanszy = chatkiNaPlanszy.filter(c => (c.ziemia ? obstacleMap.get(c.x + ',' + c.z) : pole(c.x, c.z)) === c.znacznik);
             if (chatkiNaPlanszy.length === 0 && soldiers.some(s => !s.isDead)) {
                 const ile = 6 + Math.floor(Math.random() * 3);   // więcej chatek niż domów
                 for (let i = 0, proby = 0; i < ile && proby < 1200; proby++) {
@@ -11528,8 +11529,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (!wolne || hMax - hMin > 0.6) continue;
                     const znacznik = { type: 'chatka', x: x, z: z };
                     const ziemia = chatkaModel.naZiemi.length && Math.random() < 0.4 ? chatkaModel.naZiemi[i % chatkaModel.naZiemi.length] : null;
+                    // chatka na ziemi: wnętrze wolne, ściany trzyma scianaChatki
                     for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
-                        obstacleGrid[x + dx + offsetX][z + dz + offsetZ] = znacznik;
+                        if (!ziemia) obstacleGrid[x + dx + offsetX][z + dz + offsetZ] = znacznik;
                         obstacleMap.set((x + dx) + ',' + (z + dz), znacznik);
                     }
                     if (!ziemia) {
@@ -11548,7 +11550,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const m = c.mesh = (c.ziemia || chatkaModel.proto).clone();
                 m.position.set(c.x, c.y, c.z);
                 m.userData.unitType = 'obstacle';
-                c.dach = m.getObjectByName('chatka_strzecha');
+                c.dach = m.getObjectByName('chatka_strzecha') || m.getObjectByName('chatka_strzecha001');
                 scene.add(m);
                 obstacleMeshes.push(m);
             });
@@ -30629,6 +30631,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 for(let dir of directions) {
                     let nx = curr.x + dir.dx, nz = curr.z + dir.dz;
                     let mx = nx + offsetX, mz = nz + offsetZ;
+                    if (level === 0 && chatkiNaPlanszy.length && scianaChatki(curr.x, curr.z, nx, nz, null)) continue;
                     
                     if (mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth) {
                         let key = (mx << 16) | mz;
@@ -46551,7 +46554,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function updateFloorVisibility() {
             odswiezZnacznikiPrzejsc();
-            chatkiNaPlanszy.forEach(c => { if (c.dach) c.dach.visible = viewLevel < 1; });   // dach chatki nie zasłania wnętrza
+            chatkiNaPlanszy.forEach(c => { if (c.dach) c.dach.visible = c.ziemia ? !soldiers.some(s => !s.isDead && s.mesh && Math.abs(Math.round(s.mesh.position.x) - c.x) <= 1 && Math.abs(Math.round(s.mesh.position.z) - c.z) <= 1) : viewLevel < 1; });   // dach chatki nie zasłania wnętrza
             const lvl = viewLevel;
             // W Wieży kondygnacje leżą jedna NAD drugą i strop zasłania to, co niżej,
             // więc pokazywanie wszystkiego poniżej wygląda dobrze. W Studni komory
