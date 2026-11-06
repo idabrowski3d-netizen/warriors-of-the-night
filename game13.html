@@ -31031,7 +31031,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function createProjectile(startX, startY, startZ, targetX, targetY, targetZ, isHit, hitObstacle, callback, shooterType) {
             SoundEngine.playShoot(); 
 
-            const styl = SHOT_STYLES[shooterType] || SHOT_STYLES.player;
+            const styl = SHOT_STYLES[shooterType] || (shooterType && shooterType !== 'player' ? SHOT_STYLES.standard : SHOT_STYLES.player);   // wróg spoza tabeli nie może strzelać pociskiem gracza
             const projectile = buildProjectileMesh(styl);
             
             projectile.position.set(startX, startY + 0.5, startZ); scene.add(projectile);
@@ -35205,7 +35205,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     let distanceXY = Math.abs(px - ex) + Math.abs(pz - ez);
                     let cornPenalty2 = isCornfield(px, pz) ? -20 : 0;
                     let hitChance = calculateHitChance(distanceXY, ey > py, targetCover !== null, shooterCover !== null, overwatchEnemy.accuracyBonus - getEnemyWoundPenalty(overwatchEnemy) - (active.isKneeling ? 15 : 0) + cornPenalty2);
-                    updateUI(`${overwatchEnemy.type === 'fast' ? "SZYBKI" : "ZWYKŁY"} OBCY: Strzał z warty!`);
+                    updateUI(`${nazwaWroga(overwatchEnemy)} strzela z warty!`);
                     playFileSfx(AudioFiles.laserShot, 0.5);
                     let isHit = (Math.random() * 100) <= hitChance;
                     animWroga(overwatchEnemy, 'atak', true);
