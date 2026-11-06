@@ -12653,10 +12653,24 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         // Stawia dom z modelu na miejscu domu opisanego w danych planszy
         function postawDomZModelu(h) {
-            const grupa = losowyModelDomu();
-            if (!grupa) return false;
             const sx = (h.minX + h.maxX) / 2, sz = (h.minZ + h.maxZ) / 2;
             const szerPol = h.maxX - h.minX + 1, glebPol = h.maxZ - h.minZ + 1;
+            // Domy z pokojami i meblami (house3/4) są w skali 1:1 (1 m = 1 pole) i NIE
+            // wolno ich zmniejszać - drzwi miałyby pół pola i nie dałoby się wejść.
+            // Jeśli taki dom nie mieści się na działce, losujemy inny model.
+            let grupa = null, naturalny = false, obrot = null;
+            for (let proba = 0; proba < 12 && !grupa; proba++) {
+                const g = losowyModelDomu();
+                if (!g) return false;
+                let meble = false; g.traverse(ch => { if ((ch.name || '').toLowerCase().startsWith('mebel')) meble = true; });
+                if (!meble) { grupa = g; break; }
+                const r = new THREE.Vector3(); new THREE.Box3().setFromObject(g).getSize(r);
+                const prosto = r.x <= szerPol + 0.6 && r.z <= glebPol + 0.6, bokiem = r.z <= szerPol + 0.6 && r.x <= glebPol + 0.6;
+                if (!prosto && !bokiem) continue;
+                grupa = g; naturalny = true;
+                obrot = (prosto && (!bokiem || Math.random() < 0.5) ? 0 : 1) + 2 * Math.floor(Math.random() * 2);
+            }
+            if (!grupa) return false;
 
             // Dopasowanie do liczby pól, które dom zajmuje na planszy, ale nie mniej
             // niż DOM_MIN_DLUGOSC pól wzdłuż dłuższego boku - przy małych działkach
@@ -12666,12 +12680,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const doDzialki = Math.min(szerPol / Math.max(0.1, rozm.x), glebPol / Math.max(0.1, rozm.z));
             const dluzszyBok = Math.max(rozm.x, rozm.z);
             const minimalna = DOM_MIN_DLUGOSC / Math.max(0.1, dluzszyBok);
-            const skala = Math.max(doDzialki, minimalna);
+            const skala = naturalny ? 1 : Math.max(doDzialki, minimalna);
             grupa.scale.setScalar(skala);
 
             const pudPo = new THREE.Box3().setFromObject(grupa);
             grupa.position.set(sx, getTerrainY(Math.round(sx), Math.round(sz)) - pudPo.min.y, sz);
-            grupa.rotation.y = (Math.PI / 2) * Math.floor(Math.random() * 4);
+            grupa.rotation.y = (Math.PI / 2) * (obrot !== null ? obrot : Math.floor(Math.random() * 4));
             grupa.userData.unitType = 'dom';
 
             // Odnajdujemy dach i drzwi po nazwach z pliku
@@ -30635,7 +30649,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             let diffY = ny - cy;
                             // Lewitujący przepływa nad wodą, lawą i przepaścią, nie licząc się z różnicą wysokości
                             if (canFly || diffY <= 1) { 
-                                let stepCost = 1 + (canFly ? 0 : (diffY > 0 ? diffY : 0));
+                                let stepCost = 1 + (canFly ? 0 : (diffY > 0 ? Math.round(diffY) : 0));   // pagórki mają ułamkowe wysokości - PA zostają całkowite
                                 if (!canFly && terrainTypeMap[mx][mz] === 5) stepCost += 1; // brnięcie przez błoto kosztuje podwójnie
                                 let newCost = curr.cost + stepCost;
                                 const zakret2 = (curr.dirX !== undefined && (curr.dirX !== dir.dx || curr.dirZ !== dir.dz)) ? 0.02 : 0;
@@ -30659,7 +30673,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             let truncated = [];
             for (const node of path) {
                 const diffY = node.y - prevY;
-                const stepCost = 1 + (diffY > 0 ? diffY : 0);
+                const stepCost = 1 + (diffY > 0 ? Math.round(diffY) : 0);
                 if (cost + stepCost > ap) break;
                 cost += stepCost;
                 truncated.push(node);
@@ -31289,7 +31303,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 
                 let terrainY = heightMap[mx][mz];
                 if (checkX === x1 && checkZ === z1) break; 
-                if (Math.round(y) < terrainY) return false;
+                if (Math.round(y) < Math.floor(terrainY + 0.01)) return false;   // niskie garby (ułamek) nie zasłaniają oczu
 
                 // Meble Wieży na piętrach: ściany komnat zasłaniają jak mur, reszta jak niska osłona na parterze
                 if (currentCombatTheme && currentCombatTheme.id === 'wieza' &&
@@ -44896,7 +44910,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             if (pathData && pathData.path.length > 0) {
                                 let nextStep = pathData.path[0];
                                 let diffY = nextStep.y - ey;
-                                let stepCost = 1 + (diffY > 0 ? diffY : 0);
+                                let stepCost = 1 + (diffY > 0 ? Math.round(diffY) : 0);
                                 if (e.ap >= stepCost) {
                                     e.ap -= stepCost;
                                     faceTowards(e, nextStep.x, nextStep.z);
@@ -46134,7 +46148,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (pathData && pathData.path.length > 0) {
                     let nextStep = pathData.path[0];
                     let diffY = nextStep.y - ey;
-                    let stepCost = 1 + (diffY > 0 ? diffY : 0);
+                    let stepCost = 1 + (diffY > 0 ? Math.round(diffY) : 0);
                     
                     if (e.ap >= stepCost) {
                         e.ap -= stepCost;
