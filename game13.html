@@ -9419,6 +9419,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // Miasto w Ogniu MUSI być miastem - to, co płonie, ma być zabudową,
                 // nie łąką z paroma chatami. Przy zwykłych 15 próbach stawał jeden dom.
                 : (currentCombatTheme && currentCombatTheme.id === 'pozar') ? 120
+                : (currentCombatTheme && currentCombatTheme.id === 'amazonia') ? 4   // w dżungli przeważają chatki na palach
                 : (wMiescie ? 160 : 15);   // w mieście wiele prób odpada przez kolizje, więc losujemy z zapasem
             for(let i = 0; i < genericHouseCount; i++) {
                 const [W, D] = HOUSE_SIZES[Math.floor(Math.random() * HOUSE_SIZES.length)];
@@ -11494,8 +11495,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Nowa plansza ma nową siatkę - stare chatki przepadają razem z nią
             chatkiNaPlanszy = chatkiNaPlanszy.filter(c => pole(c.x, c.z) === c.znacznik);
             if (chatkiNaPlanszy.length === 0 && soldiers.some(s => !s.isDead)) {
-                const ile = 2 + Math.floor(Math.random() * 2);
-                for (let i = 0, proby = 0; i < ile && proby < 400; proby++) {
+                const ile = 6 + Math.floor(Math.random() * 3);   // więcej chatek niż domów
+                for (let i = 0, proby = 0; i < ile && proby < 1200; proby++) {
                     const x = Math.floor(Math.random() * (mapWidth - 30)) + 15 - offsetX;
                     const z = Math.floor(Math.random() * (mapDepth - 30)) + 15 - offsetZ;
                     if (!isFarFromSquad(x, z, 12)) continue;
