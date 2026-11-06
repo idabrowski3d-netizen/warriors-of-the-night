@@ -45748,9 +45748,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const meleeCostE = (e.type === 'brute') ? shootCost : 3; // szybsze rasy uderzają taniej
                 const chebDystans = Math.max(Math.abs(px - ex), Math.abs(pz - ez));
                 if (e.ap >= meleeCostE && tLvl === eLvl && chebDystans === 1 && Math.abs(ey - py) <= 1) {
-                    if (e.type === 'glizda') {   // glizda: najwyżej 2 ataki w jednej turze
+                    if (e.type === 'glizda' || e.type === 'spider_small') {   // limit ataków w turze: glizda 2, mały pająk 3
                         if (e.atakiTura !== combatTurnCounter) { e.atakiTura = combatTurnCounter; e.atakiIle = 0; }
-                        if (e.atakiIle >= 2) { currentEnemyIndex++; setTimeout(processNextEnemy, 250); return; }
+                        if (e.atakiIle >= (e.type === 'glizda' ? 2 : 3)) { currentEnemyIndex++; setTimeout(processNextEnemy, 250); return; }
                         e.atakiIle++;
                     }
                     // Wojownik może uderzyć pierwszy i powalić napastnika
