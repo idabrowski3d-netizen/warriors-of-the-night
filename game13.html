@@ -32371,6 +32371,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             wyczyscLozkoSnu();
             postawLozkoSnu();
             posadzWZasadzce();
+            zaczajWDomach();
             // Zadania poboczne po celu głównym - mają leżeć z dala od trasy,
             // więc muszą wiedzieć, gdzie ta trasa się kończy.
             rozstawZadania();
@@ -38236,6 +38237,27 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 return d >= ZASADZKA_OD_ODDZIALU && d <= ZASADZKA_DO_ODDZIALU;
             });
             return przy.length ? przy : kryjowki.filter(k => isFarFromSquad(k.x, k.z, ZASADZKA_OD_ODDZIALU));
+        }
+
+        const WALCZA_WRECZ = ['brute', 'stalker', 'wisp', 'zombie', 'robot', 'spider_small', 'spider_big', 'robak',
+                              'smierc', 'ogar', 'glizda', 'lustrzak', 'bezimienny', 'oltarznik', 'wydrazony', 'gasiciel', 'obzeracz'];
+        // Strzelcy czający się w domach i chatkach: startują w środku i nie ruszają się,
+        // dopóki wojownik nie podejdzie na 7 pól (albo ich nie zrani - wtedy też wstają).
+        function zaczajWDomach() {
+            const pola = [];
+            const dodaj = (x, z) => { if (isWithinPlayBounds(x, z) && !isObstacle(x, z) && !isUnitAtLevel(x, z, 0, null) && isFarFromSquad(x, z, 14)) pola.push([x, z]); };
+            (typeof houses !== 'undefined' ? houses : []).forEach(h => { for (let x = h.minX + 1; x < h.maxX; x++) for (let z = h.minZ + 1; z < h.maxZ; z++) dodaj(x, z); });
+            chatkiNaPlanszy.forEach(c => { if (c.ziemia) for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) dodaj(c.x + dx, c.z + dz); });
+            const strzelcy = enemies.filter(e => !e.isDead && e.mesh && !e.isBoss && !e.wZasadzce && !e.podZiemia && !e.przebrany && !WALCZA_WRECZ.includes(e.type) && (e.level || 0) === 0);
+            const ilu = Math.min(strzelcy.length, 2 + Math.floor(Math.random() * 3));
+            for (let i = 0; i < ilu && pola.length; i++) {
+                const [x, z] = pola.splice(Math.floor(Math.random() * pola.length), 1)[0];
+                const e = strzelcy.splice(Math.floor(Math.random() * strzelcy.length), 1)[0];
+                e.mesh.position.set(x, getTerrainY(x, z) + (e.mesh.userData.yOffset || 0), z);
+                e.czaiSie = true;
+                for (let j = pola.length - 1; j >= 0; j--) if (Math.max(Math.abs(pola[j][0] - x), Math.abs(pola[j][1] - z)) < 6) pola.splice(j, 1);
+            }
+            refreshEnemyPositions();
         }
 
         function posadzWZasadzce() {
@@ -44109,6 +44131,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // kryjówkę. Gdyby chodził, zdradziłby się ruchem i cała zasadzka
             // straciłaby sens. Spada z tikZasadzek(), nie ze swojej tury.
             if (e.wZasadzce) { currentEnemyIndex++; setTimeout(processNextEnemy, 15); return; }
+            if (e.czaiSie) {
+                if (e.hp < e.maxHp || soldiers.some(s => !s.isDead && s.mesh && Math.max(Math.abs(s.mesh.position.x - e.mesh.position.x), Math.abs(s.mesh.position.z - e.mesh.position.z)) <= 7)) e.czaiSie = false;
+                else { currentEnemyIndex++; setTimeout(processNextEnemy, 15); return; }
+            }
 
             // Skuty lodem nie zrobi nic, dopóki lód nie puści
             if (czyZamrozony(e)) { e.ap = 0; currentEnemyIndex++; setTimeout(processNextEnemy, 15); return; }
@@ -46008,8 +46034,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // czy zdąży dojść I uderzyć; jeśli nie - szuka osłony,
                 // a strzelec dodatkowo pozycji z boku, nie na wprost.
                 // ========================================================
-                const walczyWrecz = ['brute', 'stalker', 'wisp', 'zombie', 'robot', 'spider_small', 'spider_big', 'robak',
-                                     'smierc', 'ogar', 'glizda', 'lustrzak', 'bezimienny', 'oltarznik', 'wydrazony', 'gasiciel', 'obzeracz'].includes(e.type) ||
+                const walczyWrecz = WALCZA_WRECZ.includes(e.type) ||
                                     (e.gatunek !== null && e.gatunek !== undefined && PAJAKI_GATUNKI[e.gatunek]);
                 const kosztAkcji = walczyWrecz ? 3 : shootCost;
 
