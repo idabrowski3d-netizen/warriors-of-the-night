@@ -36056,6 +36056,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             else {
                 if (sprobujRuszycWrota(intersectPoint, event)) return;
                 if (sprobujOtworzycDrzwi(intersectPoint, event)) return;
+                // Kliknięcie w otwarte wrota posiłków: obok - zamyka je, z daleka - podpowiedź
+                const wr = wrotaMisji.find(q => !q.zamkniete && Math.round(intersectPoint.x) === q.x && Math.round(intersectPoint.z) === q.z);
+                if (wr) {
+                    const z = zadanieObok(active);
+                    if (z && z.cel === wr) zadanieAction();
+                    else updateUI(`${nazwaWrot()}: podejdź na pole obok i kliknij je, żeby zamknąć (${WROTA_AP} PA).`);
+                    return;
+                }
             }
 
             // CTRL + klik w ścianę = ostrzał muru
