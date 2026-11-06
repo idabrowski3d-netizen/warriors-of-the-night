@@ -1644,7 +1644,9 @@
             // Płonące pole (pożar, ładunek zapalający) też jest ogniem - pająk tam nie wchodzi
             if (typeof ogienGrid !== 'undefined' && ogienGrid) {
                 const mx = Math.round(x) + offsetX, mz = Math.round(z) + offsetZ;
-                if (ogienGrid[mx] && ogienGrid[mx][mz] === 1) return true;
+                // ...a także pole tuż obok ognia - strzał zapalający przed wojownikiem go osłania
+                for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++)
+                    if (ogienGrid[mx + a] && ogienGrid[mx + a][mz + b] === 1) return true;
             }
             return zrodlaSwiatla().some(o => Math.hypot(o.x - x, o.z - z) <= (promien || o.r || LIGHT_FEAR_RADIUS));
         }
@@ -11484,6 +11486,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             wczytajGlbBezAnimacji('models/chatka.glb', loader, gltf => {
                 gltf.scene.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
                 chatkaModel.proto = gltf.scene;
+            });
+        }
+        // Ściany chatki na wysokości 1. piętra: linia między polem w środku a polem
+        // na zewnątrz jest zasłonięta - chyba że przechodzi przez wejście na ganek.
+        function scianaChatki(ax, az, bx, bz, y) {
+            return chatkiNaPlanszy.some(c => {
+                const wA = Math.abs(ax - c.x) <= 1 && Math.abs(az - c.z) <= 1;
+                const wB = Math.abs(bx - c.x) <= 1 && Math.abs(bz - c.z) <= 1;
+                if (wA === wB) return false;
+                if (y < c.y + FLOOR_HEIGHT - 0.2 || y > c.y + FLOOR_HEIGHT + 2.5) return false;
+                const [wx, wz, zx, zz] = wA ? [ax, az, bx, bz] : [bx, bz, ax, az];
+                return !(wx === c.x && wz === c.z + 1 && zx === c.x && zz === c.z + 2);   // drzwi
             });
         }
         function naChatce(x, z) {
@@ -30709,7 +30723,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             // Pająki nie wchodzą w krąg światła - sprawdzamy to przy KAŻDYM kroku,
             // niezależnie od tego, która część kodu każe im się ruszyć.
-            if (mesh && mesh.userData && mesh.userData.boiSieSwiatla && gameMode === 'dream') {
+            if (mesh && mesh.userData && mesh.userData.boiSieSwiatla && !mesh.userData.__bezLeku && gameMode === 'dream') {
                 if (wSwietle(targetX, targetZ)) {
                     if (callback) callback();
                     return;
@@ -31298,11 +31312,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             let dx = x1 - x0, dy = y1 - y0, dz = z1 - z0, steps = Math.max(Math.abs(dx), Math.abs(dy), Math.abs(dz));
             if (steps === 0) return true;
             let xInc = dx / steps, yInc = dy / steps, zInc = dz / steps, x = x0, y = y0, z = z0;
+            let pX = Math.round(x0), pZ = Math.round(z0);
             for (let i = 1; i <= steps; i++) {
                 x += xInc; y += yInc; z += zInc;
                 let checkX = Math.round(x), checkZ = Math.round(z);
                 let mx = checkX + offsetX, mz = checkZ + offsetZ;
                 if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return false;
+                if (checkX !== pX || checkZ !== pZ) {
+                    if (chatkiNaPlanszy.length && scianaChatki(pX, pZ, checkX, checkZ, y)) return false;
+                    pX = checkX; pZ = checkZ;
+                }
                 
                 let terrainY = heightMap[mx][mz];
                 if (checkX === x1 && checkZ === z1) break; 
@@ -44202,6 +44221,33 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 checkGameOver();
                 if (!gameOver) { currentEnemyIndex++; setTimeout(processNextEnemy, 300); }
                 return;
+            }
+            // Pająk przy ogniu (płonące pole lub tuż obok) najpierw z niego ucieka -
+            // ogień to dla niego to samo co krąg światła.
+            if ((e.type === 'spider_small' || e.type === 'spider_big') && e.ap > 0 && !e.isDead &&
+                plonacePole(e.mesh.position.x, e.mesh.position.z) || ((e.type === 'spider_small' || e.type === 'spider_big') && e.ap > 0 && !e.isDead &&
+                [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1]].some(([a, b]) => plonacePole(e.mesh.position.x + a, e.mesh.position.z + b)))) {
+                const fx = Math.round(e.mesh.position.x), fz = Math.round(e.mesh.position.z), fL = e.level || 0;
+                let ucieczka = null;
+                for (let r = 1; r <= 4 && !ucieczka; r++)
+                    for (let a = -r; a <= r && !ucieczka; a++) for (let b = -r; b <= r && !ucieczka; b++) {
+                        if (Math.max(Math.abs(a), Math.abs(b)) !== r) continue;
+                        const nx = fx + a, nz = fz + b;
+                        if (!isWithinPlayBounds(nx, nz) || !canStandAt(nx, nz, fL) || isUnitAtLevel(nx, nz, fL, e) || wSwietle(nx, nz)) continue;
+                        const p = findPath(fx, fz, nx, nz, fL, e);
+                        if (p && p.path.length > 0 && p.path.length <= e.ap) ucieczka = p.path;
+                    }
+                if (ucieczka) {
+                    e.ap -= ucieczka.length;
+                    animWroga(e, 'walk');
+                    e.mesh.userData.__bezLeku = true;   // przez ogień przy ucieczce wolno przebiec
+                    moveAlongPath({ mesh: e.mesh, userData: e.mesh.userData }, ucieczka, 140, () => {
+                        e.mesh.userData.__bezLeku = false;
+                        refreshEnemyPositions();
+                        currentEnemyIndex++; setTimeout(processNextEnemy, 200);
+                    });
+                    return;
+                }
             }
             // Napastnik prze DO SERCA, nie do wojowników. Wcześniej tylko zapisywaliśmy
             // cel, ale nikt go nie odczytywał - stąd horda biła się z oddziałem.
