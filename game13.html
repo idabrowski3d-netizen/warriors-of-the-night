@@ -2959,7 +2959,7 @@
             const windX = Math.cos(windAngle), windZ = Math.sin(windAngle);
             for (let i = 0; i < 4; i++) {
                 const tex = createCloudShadowTexture();
-                const size = 16 + Math.random() * 14;
+                const size = (16 + Math.random() * 14) * 0.8;   // cienie chmur o 20% mniejsze
                 const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.8, depthWrite: false });
                 const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
                 mesh.userData.unitType = 'fx';
