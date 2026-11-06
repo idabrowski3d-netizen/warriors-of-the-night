@@ -45247,10 +45247,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                 spot = [nx, nz]; break;
                             }
                             if (!spot) continue;
-                            const m = createSpiderMesh(false);
-                            m.position.set(spot[0], getLevelY(spot[0], spot[1], e.level || 0) + m.userData.yOffset, spot[1]);
+                            // Pobratymcy z modeli 3D (gatunki małych pająków), nie bryły z silnika
+                            const male = PAJAKI_GATUNKI.map((g, i) => i).filter(i => PAJAKI_GATUNKI[i].typ === 'spider_small');
+                            const zMisji = male.filter(i => gatunkiMisji.includes(i));
+                            const pula = zMisji.length ? zMisji : male;
+                            const nr = pula[Math.floor(Math.random() * pula.length)], gat = PAJAKI_GATUNKI[nr];
+                            const m = zbudujPajaka(nr);
+                            m.position.set(spot[0], getLevelY(spot[0], spot[1], e.level || 0) + (m.userData.yOffset || 0), spot[1]);
                             scene.add(m);
-                            enemies.push({ mesh: m, type: 'spider_small', hp: 6, maxHp: 6, ap: 14, maxAp: 14,
+                            enemies.push({ mesh: m, type: 'spider_small', hp: gat.hp, maxHp: gat.hp, ap: gat.ap, maxAp: gat.ap, gatunek: nr,
                                            accuracyBonus: 0, isDead: false, facingAngle: 0, level: e.level || 0 });
                             refreshEnemyPositions();
                             sciagniete++;
