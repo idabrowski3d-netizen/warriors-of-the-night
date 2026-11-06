@@ -32386,6 +32386,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             postawLozkoSnu();
             posadzWZasadzce();
             zaczajWDomach();
+            postawVana();
             // Zadania poboczne po celu głównym - mają leżeć z dala od trasy,
             // więc muszą wiedzieć, gdzie ta trasa się kończy.
             rozstawZadania();
@@ -32556,7 +32557,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     document.getElementById('serce-tury').innerText = (zostalo === null) ? '(dojdź do serca)' : `(do świtu: ${zostalo})`;
                 }
             }
-            document.getElementById('enemies-count').innerText = enemies.filter(e => !e.isDead).length; 
+            document.getElementById('enemies-count').innerText = missionTypeLabel(currentMissionType) === 'OCZYSZCZENIE' ? enemies.filter(e => !e.isDead).length : '?';   // poza Oczyszczeniem liczba wrogów to zagadka
 
             updateReserveButton();
             const btnU = document.getElementById('btn-ucieczka');
@@ -36522,6 +36523,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             zawalMost();
             tikPozaru();
             tikZasadzek();
+            tikVana();
             tikGargulcow();
             tikTopielcow();
             tikOltarzy();
@@ -38272,6 +38274,107 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 for (let j = pola.length - 1; j >= 0; j--) if (Math.max(Math.abs(pola[j][0] - x), Math.abs(pola[j][1] - z)) < 6) pola.splice(j, 1);
             }
             refreshEnemyPositions();
+        }
+
+        // VAN: na miejskich planszach do 3 człekokształtnych wrogów jeździ vanem przez planszę.
+        // Siedzą w środku jak w zaparkowanym aucie (wAucie) - nie widać ich i nie wiadomo, ilu jedzie.
+        // Gdy z vana widać wojownika, van staje, otwierają się drzwi i wysiadają.
+        const VAN_PLANSZE = ['newyork', 'sicario', 'pozar', 'cyber'];
+        const VAN_TYPY = ['standard', 'brute', 'stalker', 'klaun', 'vampire', 'droid'];
+        let van = null;
+        function postawVana() {
+            if (van) { scene.remove(van.grupa); van = null; }
+            if (!currentCombatTheme || !VAN_PLANSZE.includes(currentCombatTheme.id) || Math.random() > 0.7) return;
+            const pasazerowie = enemies.filter(e => !e.isDead && e.mesh && !e.isBoss && !e.wAucie && !e.wZasadzce && !e.czaiSie && !e.przebrany && VAN_TYPY.includes(e.type) && (e.level || 0) === 0)
+                .sort(() => Math.random() - 0.5).slice(0, 1 + Math.floor(Math.random() * 3));
+            if (!pasazerowie.length) return;
+            let start = null;
+            for (let i = 0; i < 300 && !start; i++) {
+                const x = Math.floor(Math.random() * mapWidth) - offsetX, z = Math.floor(Math.random() * mapDepth) - offsetZ;
+                if (isWithinPlayBounds(x, z) && !isObstacle(x, z) && !isUnitAtLevel(x, z, 0, null) && isFarFromSquad(x, z, 22)) start = [x, z];
+            }
+            if (!start) return;
+            const g = new THREE.Group(), M = c => new THREE.MeshLambertMaterial({ color: c });
+            const lakier = M(0xd8d8d0), ciemny = M(0x1a1a1a), szyba = M(0x2a3540);
+            const box = (w, h, d, mat, x, y, z, rodzic) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); b.position.set(x, y, z); b.castShadow = true; (rodzic || g).add(b); return b; };
+            box(1.8, 1.6, 3.0, lakier, 0, 1.25, -0.3);            // paka
+            box(1.8, 1.0, 1.0, lakier, 0, 0.95, 1.65);            // kabina
+            box(1.6, 0.5, 0.05, szyba, 0, 1.2, 2.16);             // przednia szyba
+            [[-0.85, 1.3], [0.85, 1.3], [-0.85, -1.2], [0.85, -1.2]].forEach(([x, z]) => {
+                const k = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.24, 10), ciemny); k.rotation.z = Math.PI / 2; k.position.set(x, 0.34, z); g.add(k);
+            });
+            const drzwi = [];   // dwa boczne (przesuwne) i tylne (na zawiasie)
+            [-1, 1].forEach(st => { const d = new THREE.Group(); d.position.set(st * 0.92, 0, 0); box(0.05, 1.3, 1.2, M(0xc8c8c0), 0, 1.15, 0, d); g.add(d); drzwi.push({ g: d, st: st }); });
+            const tyl = new THREE.Group(); tyl.position.set(-0.9, 0, -1.82); box(1.8, 1.4, 0.05, M(0xc8c8c0), 0.9, 1.2, 0, tyl); g.add(tyl); drzwi.push({ g: tyl, tyl: true });
+            g.position.set(start[0], getTerrainY(start[0], start[1]), start[1]);
+            scene.add(g);
+            van = { grupa: g, x: start[0], z: start[1], cel: null, stoi: false, drzwi: drzwi, pasazerowie: pasazerowie };
+            pasazerowie.forEach(e => { e.wAucie = true; e.van = van; e.mesh.visible = false; e.mesh.position.set(start[0], getTerrainY(start[0], start[1]), start[1]); });
+            refreshEnemyPositions();
+        }
+        function vanWidziWojownika() {
+            const y = getTerrainY(van.x, van.z) + 1.6;
+            return soldiers.some(s => !s.isDead && !s.isNPC && s.mesh && (s.level || 0) === 0 &&
+                Math.max(Math.abs(s.mesh.position.x - van.x), Math.abs(s.mesh.position.z - van.z)) <= getVisionRange() &&
+                czyWidacPrzez(van.x, y, van.z, Math.round(s.mesh.position.x), s.mesh.position.y + 1, Math.round(s.mesh.position.z)));
+        }
+        function tikVana() {
+            if (!van || van.stoi || gameOver) return;
+            if (vanWidziWojownika()) return zatrzymajVana();
+            for (let proba = 0; proba < 5; proba++) {
+                if (!van.cel || (van.cel[0] === van.x && van.cel[1] === van.z)) {
+                    const x = Math.floor(Math.random() * (mapWidth - 10)) + 5 - offsetX, z = Math.floor(Math.random() * (mapDepth - 10)) + 5 - offsetZ;
+                    if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) continue;
+                    van.cel = [x, z];
+                }
+                const p = findPath(van.x, van.z, van.cel[0], van.cel[1], 0, null);
+                if (!p || !p.path.length) { van.cel = null; continue; }
+                const trasa = p.path.slice(0, 8), start = performance.now(), od = van.grupa.position.clone();
+                // jedzie pole po polu; staje na pierwszym, z którego kogoś widać
+                let i = 0;
+                for (; i < trasa.length; i++) {
+                    van.x = trasa[i].x; van.z = trasa[i].z;
+                    if (vanWidziWojownika()) { i++; break; }
+                }
+                const punkty = [od].concat(trasa.slice(0, i).map(q => new THREE.Vector3(q.x, getTerrainY(q.x, q.z), q.z)));
+                const czas = punkty.length * 180, zobaczyl = vanWidziWojownika();
+                activeAnimations.push(function (t) {
+                    const k = Math.min(1, (t - start) / czas) * (punkty.length - 1), a = Math.floor(Math.min(k, punkty.length - 2)), f = k - a;
+                    const A = punkty[a], B = punkty[a + 1] || A;
+                    van.grupa.position.lerpVectors(A, B, f);
+                    if (B !== A) van.grupa.rotation.y = Math.atan2(B.x - A.x, B.z - A.z);
+                    if (k >= punkty.length - 1 && zobaczyl) zatrzymajVana();
+                    return k >= punkty.length - 1;
+                });
+                van.pasazerowie.forEach(e => { if (!e.isDead && e.wAucie) e.mesh.position.set(van.x, getTerrainY(van.x, van.z), van.z); });
+                refreshEnemyPositions();
+                return;
+            }
+        }
+        function zatrzymajVana() {
+            if (!van || van.stoi) return;
+            van.stoi = true;
+            const start = performance.now();
+            activeAnimations.push(function (t) {
+                const p = Math.min(1, (t - start) / 500);
+                van.drzwi.forEach(d => { if (d.tyl) d.g.rotation.y = -p * 1.8; else { d.g.position.x = d.st * (0.92 + p * 0.12); d.g.position.z = -p * 1.0; } });
+                return p >= 1;
+            });
+            const cel = soldiers.find(s => !s.isDead && !s.isNPC);
+            let ilu = 0;
+            van.pasazerowie.forEach(e => {
+                if (e.isDead || !e.wAucie) return;
+                const pole = wolnePoleObok(van.x, van.z, 0, e) || [van.x, van.z];
+                e.wAucie = false; e.van = null; ilu++;
+                e.mesh.position.set(pole[0], getTerrainY(pole[0], pole[1]) + (e.mesh.userData.yOffset || 0), pole[1]);
+                e.mesh.visible = true;
+                if (cel) faceTowards(e, cel.mesh.position.x, cel.mesh.position.z);
+                noteEnemyEncountered(e.type);
+                refreshEnemyPositions();
+            });
+            showFloatingWarning('Van staje - drzwi się otwierają!');
+            updateUI('Z vana wysiada ' + (ilu === 1 ? 'jeden wróg' : ilu + ' wrogów') + '!');
+            updateFoW();
         }
 
         function posadzWZasadzce() {
@@ -44758,6 +44861,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             // WRÓG W AUCIE: siedzi w środku, aż oddział podejdzie na 7 pól.
             // Wtedy otwierają się drzwi i dopiero po chwili wychodzi.
+            if (e.wAucie && e.van) { currentEnemyIndex++; setTimeout(processNextEnemy, 20); return; }   // jedzie vanem - wysiada w tikVana
             if (e.wAucie) {
                 const ax = Math.round(e.mesh.position.x), az = Math.round(e.mesh.position.z);
                 const blisko = soldiers.some(s => !s.isDead && !s.isNPC &&
