@@ -9794,6 +9794,54 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
         }
 
+        // --- ZDJĘCIOWE TEKSTURY TERENU (CC0: ambientCG, Poly Haven) ---
+        // Na każdą planszę losujemy jedną z tekstur danej grupy: asfalt na jezdnię,
+        // grunt na drogę gruntową, piasek z trawą na trawę suchych plansz.
+        const ASFALT_PLANSZE = ['whitehouse', 'pentagon', 'kremlin', 'zhongnanhai', 'stacja', 'szpital', 'pozar', 'sicario', 'newyork', 'alabama', 'dom', 'alcatraz', 'powodz', 'wesole'];
+        const BEZ_GRUNTU = ['zamiec', 'jezioro', 'otchlan', 'wyspy', 'cyber', 'wulkan', 'katedra', 'studnia', 'wieza', 'klaustrofobia', 'nekropolia', 'sahara', 'parow', 'cmentarzysko'];
+        const PIASEK_PLANSZE = ['sicario', 'ambush', 'alabama', 'pobojowisko', 'parow', 'sahara'];
+        const _zdjeciaTerenu = {};
+        function wczytajZdjecie(plik, gotowe) {
+            if (_zdjeciaTerenu[plik]) return gotowe(_zdjeciaTerenu[plik]);
+            new THREE.TextureLoader().load(plik, t => { _zdjeciaTerenu[plik] = t; gotowe(t); });
+        }
+        function nalozZdjeciaTerenu() {
+            if (!currentCombatTheme || isExploreMode()) return;
+            const id = currentCombatTheme.id;
+            [['road', 'asfalt', 5, ASFALT_PLANSZE.includes(id)], ['dirt', 'grunt', 4, !BEZ_GRUNTU.includes(id)], ['grass', 'piasektrawa', 5, PIASEK_PLANSZE.includes(id)]].forEach(([k, n, ile, tak]) => {
+                const mat = terrainMats[k];
+                if (!tak || !mat || mat.__zdjecie) return;   // materiał jest nowy co planszę - jedno losowanie na planszę
+                mat.__zdjecie = true;
+                wczytajZdjecie(`textures/${n}_${1 + Math.floor(Math.random() * ile)}.jpg`, t => { mat.map = t; mat.needsUpdate = true; });
+            });
+        }
+
+        // Graffiti na części murków miejskich plansz - atlas 4x4 tagów (GraffitiSet001, CC0)
+        const GRAFFITI_PLANSZE = ['newyork', 'sicario', 'pozar', 'stacja', 'szpital', 'alcatraz', 'wesole', 'powodz', 'whitehouse', 'pentagon', 'kremlin', 'zhongnanhai', 'alabama', 'dom'];
+        const _materialyGraffiti = [];
+        function dodajGraffiti(pos, g) {
+            if (pos.graffiti === undefined) pos.graffiti = (currentCombatTheme && GRAFFITI_PLANSZE.includes(currentCombatTheme.id) && Math.random() < 0.2) ? Math.floor(Math.random() * 64) : -1;
+            if (pos.graffiti < 0) return;
+            const nr = pos.graffiti % 16, bok = Math.floor(pos.graffiti / 16);
+            if (!_materialyGraffiti[nr]) {
+                _materialyGraffiti[nr] = new THREE.MeshLambertMaterial({ transparent: true, alphaTest: 0.2, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+                wczytajZdjecie('textures/graffiti.webp', t => {
+                    const k = t.clone(); k.needsUpdate = true;
+                    k.repeat.set(0.25, 0.25); k.offset.set((nr % 4) * 0.25, 0.75 - Math.floor(nr / 4) * 0.25);
+                    _materialyGraffiti[nr].map = k; _materialyGraffiti[nr].needsUpdate = true;
+                });
+            }
+            g.updateMatrixWorld(true);
+            const b = new THREE.Box3().setFromObject(g);
+            const h = Math.min(0.7, (b.max.y - b.min.y) * 0.6);
+            if (h < 0.3) return;
+            const pl = new THREE.Mesh(new THREE.PlaneGeometry(0.95, h), _materialyGraffiti[nr]);
+            const kat = bok * Math.PI / 2, odl = [b.max.z - pos.z, b.max.x - pos.x, pos.z - b.min.z, pos.x - b.min.x][bok] + 0.01;
+            pl.position.set(pos.x + Math.sin(kat) * odl, b.min.y + h * 0.5 + 0.1, pos.z + Math.cos(kat) * odl);
+            pl.rotation.y = kat;
+            scene.add(pl); g.attach(pl);   // jako część bryły - znika razem z murkiem
+        }
+
         function buildTerrainMeshes() {
             if (terrainMeshes && terrainMeshes.length > 0) {
                 terrainMeshes.forEach(m => {
@@ -9818,6 +9866,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const metal = materialMetaluCyber();
                 Object.keys(terrainMats).forEach(k => { terrainMats[k] = metal; });
             }
+            nalozZdjeciaTerenu();
 
             const geo = new THREE.BoxGeometry(1, 1, 1);
             
@@ -15933,6 +15982,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const twarda = (pos.type === 'wall-resistant');
                     const g = postawBrylePrzeszkody(pos, ty, twarda);
                     scene.add(g); obstacleMeshes.push(g);
+                    dodajGraffiti(pos, g);
                 }
                 else if (pos.type === 'tree') {
                     // Drzewo trafione piorunem odbudowuje się jako kikut, nie jako żywe
