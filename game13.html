@@ -19685,7 +19685,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                        atak: 'spider_attack', smierc: 'spider_death', cios: 'spider_hit', wysokosc: 1.0 },
             strzyga: { plik: 'models/strzyga.glb', idle: 'strzyga_idle', walk: 'strzyga_walk',
                        atak: 'strzyga_attack', smierc: 'strzyga_death', cios: 'strzyga_hit',
-                       specjalna: 'strzyga_scream', wysokosc: 1.9 },
+                       specjalna: 'strzyga_scream', wysokosc: 1.9, koloryZPliku: true },
             // Ludzie Zakonu. Model dochodzi osobno - do tego czasu gra buduje
             // zastępczą bryłę w kodzie, więc oblężenie działa i bez pliku.
             // Wystarczy wgrać models/zakonnik.glb z animacjami o tych nazwach.
@@ -19828,9 +19828,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             const nowe = mats.map(m => {
                                 if (!m) return m;
                                 if (m.map) { m.map.encoding = THREE.LinearEncoding; m.map.needsUpdate = true; }
+                                // Model bez tekstur (kolorowany w Blenderze) zachowuje swoje barwy i świecenie
+                                const wlasne = cfg.koloryZPliku && !m.map;
                                 return new THREE.MeshLambertMaterial({
                                     map: m.map || null,
-                                    color: m.map ? 0xffffff : 0xa08890,
+                                    color: m.map ? 0xffffff : wlasne ? m.color : 0xa08890,
+                                    emissive: wlasne && m.emissive ? m.emissive : 0x000000,
                                     skinning: !!ch.isSkinnedMesh, side: THREE.DoubleSide
                                 });
                             });
