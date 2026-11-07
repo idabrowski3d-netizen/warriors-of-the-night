@@ -12190,6 +12190,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         let _lampyParku = 0;
         function renderStreetLamps() {
             _lampyParku = 0;
+            fxPrzygotujSwiatla();
             // Stare latarnie sprzątamy ZAWSZE, zanim rozgałęzimy się na motywy -
             // inaczej przy wejściu w Otchłań zostawały te z poprzedniej planszy.
             streetLamps.forEach(l => scene.remove(l));
@@ -31104,7 +31105,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // ========================================================
         const SHOT_STYLES = {
             player:   { kolor: 0xffe066, poswiata: 0xfff3b0, ksztalt: 'strzala' },
-            standard: { kolor: 0xff4444, poswiata: 0xff9090, ksztalt: 'kula' },
+            // Strzały wojowników zależą od klasy
+            player_uniwersalna: { kolor: 0xffd860, poswiata: 0xfff0b0, ksztalt: 'promien' },      // Paladyn: złoty promień światła
+            player_uzdrowiciel: { kolor: 0x9ad8ff, poswiata: 0xd8f0ff, ksztalt: 'blyskawica' },   // Mentalista: falująca błyskawica
+            player_snajper:     { kolor: 0xd8c8a0, poswiata: 0xfff0c0, ksztalt: 'strzala' },      // Łucznik: prawdziwa strzała
+            player_wojownik:    { kolor: 0xffc070, poswiata: 0xffe0a0, ksztalt: 'smuga' },        // Wojownik: świetlista smuga pocisku
+            standard: { kolor: 0xff4444, poswiata: 0xff9090, ksztalt: 'smuga' },
             brute:    { kolor: 0xff8800, poswiata: 0xffbb55, ksztalt: 'glaz' },
             fast:     { kolor: 0xcc00ff, poswiata: 0xe090ff, ksztalt: 'iglica' },
             summoner: { kolor: 0x66ffcc, poswiata: 0xaaffee, ksztalt: 'fala' },
@@ -31113,9 +31119,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             zapalajacy: { kolor: 0xff7a1a, poswiata: 0xffc060, ksztalt: 'ogien', dym: true },
             blizniaki: { kolor: 0xffd24a, poswiata: 0xb98cff, ksztalt: 'fala' },
             vampire:  { kolor: 0x8c1020, poswiata: 0xdd4466, ksztalt: 'nietoperz' },
-            wisp:     { kolor: 0xaaddff, poswiata: 0xddf0ff, ksztalt: 'iskra' },
+            wisp:     { kolor: 0xaaddff, poswiata: 0xddf0ff, ksztalt: 'blyskawica' },
             strzyga:  { kolor: 0xeef2f5, poswiata: 0xffffff, ksztalt: 'fala' },
-            droid:    { kolor: 0x35d6ff, poswiata: 0x9beeff, ksztalt: 'iglica' }
+            droid:    { kolor: 0x35d6ff, poswiata: 0x9beeff, ksztalt: 'promien' }
         };
 
         function buildProjectileMesh(styl) {
@@ -31124,10 +31130,25 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const glowMat = new THREE.MeshBasicMaterial({ color: styl.poswiata, transparent: true, opacity: 0.35, depthWrite: false });
 
             if (styl.ksztalt === 'strzala') {
-                const geo = new THREE.ConeGeometry(0.1, 0.45, 8); geo.rotateX(Math.PI / 2);
-                g.add(new THREE.Mesh(geo, mat));
-                const t = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.35, 6), glowMat);
-                t.rotation.x = Math.PI / 2; t.position.z = -0.3; g.add(t);
+                // drzewce, stalowy grot i trzy lotki
+                const drzewce = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.9, 5), new THREE.MeshBasicMaterial({ color: 0x8a6a40 }));
+                drzewce.rotation.x = Math.PI / 2; drzewce.position.z = -0.35; g.add(drzewce);
+                const geo = new THREE.ConeGeometry(0.045, 0.16, 4); geo.rotateX(Math.PI / 2);
+                const grot = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xd8dce0 })); grot.position.z = 0.15; g.add(grot);
+                for (let i = 0; i < 3; i++) {
+                    const l = new THREE.Mesh(new THREE.PlaneGeometry(0.07, 0.2), new THREE.MeshBasicMaterial({ color: 0xc83a2a, side: THREE.DoubleSide }));
+                    l.rotation.set(Math.PI / 2, i * Math.PI * 2 / 3, 0); l.position.z = -0.72; g.add(l);
+                }
+                const slad = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.025, 0.8, 5), glowMat);
+                slad.rotation.x = Math.PI / 2; slad.position.z = -1.2; g.add(slad);
+
+            } else if (styl.ksztalt === 'smuga') {
+                // pocisk widziany jako rozgrzana smuga: jasny rdzeń i dłuższa poświata
+                const geo = new THREE.CylinderGeometry(0.035, 0.035, 0.7, 6); geo.rotateX(Math.PI / 2);
+                g.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xfff6e0 })));
+                const geo2 = new THREE.CylinderGeometry(0.01, 0.08, 1.6, 8); geo2.rotateX(Math.PI / 2);
+                const p = new THREE.Mesh(geo2, new THREE.MeshBasicMaterial({ color: styl.kolor, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }));
+                p.position.z = -0.6; g.add(p);
 
             } else if (styl.ksztalt === 'kula') {
                 g.add(new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), mat));
@@ -31158,7 +31179,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 rdzen.scale.set(1, 1, 1.5); g.add(rdzen);
                 const ogon = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.9, 8), glowMat);
                 ogon.rotation.x = -Math.PI / 2; ogon.position.z = -0.5; g.add(ogon);
-                const l = new THREE.PointLight(styl.kolor, 1.6, 7, 1.4); g.add(l);
 
             } else if (styl.ksztalt === 'nietoperz') {
                 g.add(new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), mat));
@@ -31234,19 +31254,46 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
         }
 
+        let _klasaStrzelca = null;   // klasa wojownika, który właśnie strzela - dobiera wygląd strzału
         function createProjectile(startX, startY, startZ, targetX, targetY, targetZ, isHit, hitObstacle, callback, shooterType) {
+            if (!shooterType && _klasaStrzelca) shooterType = _klasaStrzelca;
+            _klasaStrzelca = null;
             SoundEngine.playShoot(); 
 
-            const styl = SHOT_STYLES[shooterType] || (shooterType && shooterType !== 'player' ? SHOT_STYLES.standard : SHOT_STYLES.player);   // wróg spoza tabeli nie może strzelać pociskiem gracza
-            const projectile = buildProjectileMesh(styl);
-            
-            projectile.position.set(startX, startY + 0.5, startZ); scene.add(projectile);
+            const styl = SHOT_STYLES[shooterType] || (shooterType && shooterType !== 'player' && !String(shooterType).startsWith('player_') ? SHOT_STYLES.standard : SHOT_STYLES.player);   // wróg spoza tabeli nie może strzelać pociskiem gracza
             let endX = targetX, endY = targetY + 0.5, endZ = targetZ;
             if (!isHit) {
                 if (hitObstacle) { endX = hitObstacle.x; endZ = hitObstacle.z; endY = getLevelY(endX, endZ, hitObstacle.poziom) + 0.5; }
                 else { endX += (Math.random() > 0.5 ? 1 : -1) * 2; endZ += (Math.random() > 0.5 ? 1 : -1) * 2; endY += (Math.random() > 0.5 ? 1 : -1) * 1; }
             }
+            const koniecStrzalu = () => {
+                fxTrafienie(endX, endY, endZ, styl, isHit || !!hitObstacle);
+                if (typeof stluczSwiatla === 'function') stluczSwiatla(endX, endZ, SZKLO_PROMIEN, false);
+                if (isHit) SoundEngine.playHit();
+                if (callback) callback();
+            };
+            // Promień i błyskawica nie lecą - sięgają celu od razu i chwilę trwają
+            if (styl.ksztalt === 'promien' || styl.ksztalt === 'blyskawica') {
+                fxBlysk(startX, startY + 0.5, startZ, styl.kolor, 2.5, 220);
+                (styl.ksztalt === 'promien' ? fxPromien : fxBlyskawica)(new THREE.Vector3(startX, startY + 0.5, startZ), new THREE.Vector3(endX, endY, endZ), styl, koniecStrzalu);
+                return;
+            }
+            const projectile = buildProjectileMesh(styl);
+
+            projectile.position.set(startX, startY + 0.5, startZ); scene.add(projectile);
             projectile.lookAt(endX, endY, endZ);
+            if (styl.ksztalt === 'smuga') fxBlysk(startX, startY + 0.5, startZ, 0xffd080, 2.2, 120);   // błysk u wylotu
+            // Kula ognia sypie iskrami
+            if (styl.ksztalt === 'ogien') {
+                const sw = fxSwiatlo(styl.kolor, startX, startY + 0.5, startZ); sw.intensity = 1.8;   // kula ognia oświetla drogę, którą leci
+                activeAnimations.push(function () {
+                    if (!projectile.parent) { sw.intensity = 0; return true; }
+                    const p = projectile.position;
+                    sw.position.copy(p); sw._wolne = performance.now() + 500;
+                    fxIskry(p.x, p.y, p.z, Math.random() < 0.5 ? styl.kolor : 0xffd060, 2, 0.6, 450);
+                    return false;
+                });
+            }
             // Pocisk zapalający i ognisty ciągnie smugę dymu
             if (styl.dym) {
                 let ostatni = 0;
@@ -31287,16 +31334,124 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
             // Pocisk z dymem leci wolniej, żeby smugę było widać
             slideObject(projectile, endX, endY, endZ, styl.dym ? 1100 : 400, () => {
-                // Pocisk, który dolatuje w okolicę lampy czy neonu, zbija szkło
-                if (typeof stluczSwiatla === 'function') stluczSwiatla(endX, endZ, SZKLO_PROMIEN, false);
-                scene.remove(projectile); 
+                scene.remove(projectile);
                 // pocisk to grupa - zwalniamy wszystkie jej części
                 projectile.traverse(ch => {
                     if (ch.geometry) ch.geometry.dispose();
                     zwolnijMaterial(ch);
                 });
-                if (isHit) SoundEngine.playHit(); 
-                if (callback) callback(); 
+                koniecStrzalu();   // m.in. pocisk przy lampie czy neonie zbija szkło
+            });
+        }
+
+        // --- EFEKTY STRZAŁÓW I CZARÓW ---
+        // (czas liczymy z performance.now - znacznik klatki bywa wcześniejszy niż start efektu)
+        const fxMat = kolor => new THREE.MeshBasicMaterial({ color: kolor, transparent: true, opacity: 1, depthWrite: false, blending: THREE.AdditiveBlending });
+        function fxUsun(o) { scene.remove(o); o.traverse(ch => { if (ch.geometry) ch.geometry.dispose(); if (ch.material) ch.material.dispose(); }); }
+        // Krótki błysk światła - rozjaśnia otoczenie i gaśnie
+        // Stała pula świateł: dodanie lub zdjęcie światła ze sceny wymusza przeliczenie
+        // wszystkich materiałów (zacięcie), więc światła efektów tylko się zapala i gasi.
+        const _pulaSwiatel = [];
+        function fxPrzygotujSwiatla() {   // wołane przy budowie planszy - przeliczenie materiałów wtedy, a nie przy pierwszym strzale
+            if (!_pulaSwiatel.length) for (let i = 0; i < 4; i++) _pulaSwiatel.push(Object.assign(new THREE.PointLight(0xffffff, 0, 8, 1.5), { _wolne: 0 }));
+            _pulaSwiatel.forEach(l => { if (l.parent !== scene) scene.add(l); });
+        }
+        function fxSwiatlo(kolor, x, y, z) {
+            fxPrzygotujSwiatla();
+            const l = _pulaSwiatel.reduce((a, b) => a._wolne <= b._wolne ? a : b);
+            l.color.setHex(kolor); l.position.set(x, y, z); l._wolne = performance.now() + 500;
+            return l;
+        }
+        function fxBlysk(x, y, z, kolor, moc, ms) {
+            const l = fxSwiatlo(kolor, x, y, z);
+            const t0 = performance.now();
+            activeAnimations.push(time => { const k = (performance.now() - t0) / ms; if (k >= 1) { l.intensity = 0; return true; } l.intensity = moc * (1 - k); return false; });
+        }
+        // Iskry rozpryskujące się i opadające
+        const _geoIskry = new THREE.SphereGeometry(0.035, 4, 3);
+        function fxIskry(x, y, z, kolor, ile, sila, ms) {
+            for (let i = 0; i < ile; i++) {
+                const m = new THREE.Mesh(_geoIskry, fxMat(kolor)); m.position.set(x, y, z); scene.add(m);
+                const v = new THREE.Vector3((Math.random() - 0.5) * sila, Math.random() * sila, (Math.random() - 0.5) * sila);
+                const t0 = performance.now(), zycie = ms * (0.6 + Math.random() * 0.6);
+                let ost = t0;
+                activeAnimations.push(time => {
+                    const k = (performance.now() - t0) / zycie, dt = Math.min(0.05, (time - ost) / 1000); ost = time;
+                    if (k >= 1) { scene.remove(m); m.material.dispose(); return true; }
+                    v.y -= 4 * dt; m.position.addScaledVector(v, dt * 4);
+                    m.material.opacity = 1 - k; m.scale.setScalar(1 - k * 0.6);
+                    return false;
+                });
+            }
+        }
+        // Trafienie: rozbłysk kuli światła, iskry i błysk na otoczeniu
+        function fxTrafienie(x, y, z, styl, mocno) {
+            const kula = new THREE.Mesh(new THREE.SphereGeometry(0.25, 10, 8), fxMat(styl.poswiata)); kula.position.set(x, y, z); scene.add(kula);
+            const t0 = performance.now(), rozmiar = styl.ksztalt === 'ogien' ? 4 : 2.2;
+            activeAnimations.push(time => {
+                const k = (performance.now() - t0) / 280; if (k >= 1) { fxUsun(kula); return true; }
+                kula.scale.setScalar(1 + k * rozmiar); kula.material.opacity = 1 - k; return false;
+            });
+            fxIskry(x, y, z, styl.kolor, styl.ksztalt === 'ogien' ? 16 : mocno ? 9 : 5, styl.ksztalt === 'ogien' ? 1.4 : 1, 500);
+            fxBlysk(x, y, z, styl.kolor, styl.ksztalt === 'ogien' ? 5 : 2.5, 300);
+            if (styl.ksztalt === 'ogien' && typeof klabDymu === 'function') for (let i = 0; i < 3; i++) klabDymu(x + (Math.random() - 0.5) * 0.6, y, z + (Math.random() - 0.5) * 0.6, 0x6a6058, 0.9, 2200);
+        }
+        // Promień energii: wiązka rozszerza się, faluje i gaśnie
+        function fxPromien(a, b, styl, gotowe) {
+            const dl = a.distanceTo(b), g = new THREE.Group();
+            const rdzen = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, dl, 8, 1, true), fxMat(0xffffff));
+            const blask = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, dl, 12, 1, true), fxMat(styl.kolor));
+            [rdzen, blask].forEach(m => { m.geometry.rotateX(Math.PI / 2); m.position.z = dl / 2; g.add(m); });
+            const pierscien = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.04, 6, 20), fxMat(styl.poswiata)); g.add(pierscien);
+            g.position.copy(a); g.lookAt(b); scene.add(g);
+            const s = a.clone().lerp(b, 0.5), l = fxSwiatlo(styl.kolor, s.x, s.y, s.z);
+            const t0 = performance.now(); let trafil = false;
+            activeAnimations.push(time => {
+                const k = (performance.now() - t0) / 420;
+                if (k >= 0.35 && !trafil) { trafil = true; gotowe(); }
+                if (k >= 1) { fxUsun(g); l.intensity = 0; return true; }
+                const w = Math.sin(Math.max(0.05, Math.min(1, k * 3)) * Math.PI / 2) * (1 - k) * (1 + 0.25 * Math.sin(time * 0.06));
+                rdzen.scale.set(w + 0.3, w + 0.3, 1); blask.scale.set(w * 1.2, w * 1.2, 1);
+                blask.material.opacity = 0.7 * (1 - k); pierscien.scale.setScalar(1 + k * 2); pierscien.material.opacity = 1 - k;
+                l.intensity = 2.5 * (1 - k);
+                return false;
+            });
+        }
+        // Błyskawica: łamana linia losowana co klatkę od nowa, drga i migocze
+        function fxBlyskawica(a, b, styl, gotowe) {
+            const g = new THREE.Group(); scene.add(g);
+            const s = a.clone().lerp(b, 0.5), l = fxSwiatlo(styl.kolor, s.x, s.y, s.z);
+            const kierunek = b.clone().sub(a), bok = new THREE.Vector3(-kierunek.z, 0, kierunek.x).normalize(), gora = new THREE.Vector3(0, 1, 0);
+            const odcinki = Math.max(6, Math.round(kierunek.length() * 1.6));
+            const tor = (rozrzut) => {
+                const pkt = [];
+                for (let i = 0; i <= odcinki; i++) {
+                    const p = a.clone().addScaledVector(kierunek, i / odcinki);
+                    if (i > 0 && i < odcinki) p.addScaledVector(bok, (Math.random() - 0.5) * rozrzut).addScaledVector(gora, (Math.random() - 0.5) * rozrzut);
+                    pkt.push(p);
+                }
+                const sciezka = new THREE.CurvePath();
+                for (let i = 0; i < odcinki; i++) sciezka.add(new THREE.LineCurve3(pkt[i], pkt[i + 1]));
+                return sciezka;
+            };
+            const rdzenM = fxMat(0xffffff), blaskM = fxMat(styl.kolor);
+            const t0 = performance.now(); let trafil = false, ost = 0;
+            activeAnimations.push(time => {
+                const k = (performance.now() - t0) / 450;
+                if (k >= 0.3 && !trafil) { trafil = true; gotowe(); }
+                if (k >= 1) { fxUsun(g); l.intensity = 0; return true; }
+                if (time - ost > 45) {
+                    ost = time;
+                    g.children.slice().forEach(ch => { g.remove(ch); ch.geometry.dispose(); });
+                    const t = tor(0.5);
+                    g.add(new THREE.Mesh(new THREE.TubeGeometry(t, odcinki * 2, 0.025, 4), rdzenM));
+                    g.add(new THREE.Mesh(new THREE.TubeGeometry(t, odcinki * 2, 0.09, 5), blaskM));
+                    if (Math.random() < 0.6) g.add(new THREE.Mesh(new THREE.TubeGeometry(tor(1.1), odcinki, 0.02, 3), blaskM));   // odgałęzienie
+                }
+                const migot = Math.random() < 0.25 ? 0.3 : 1;
+                rdzenM.opacity = (1 - k) * migot; blaskM.opacity = 0.6 * (1 - k) * migot;
+                l.intensity = 1.8 * (1 - k) * migot;
+                return false;
             });
         }
 
@@ -35340,6 +35495,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     shooter.shotsFired = (shooter.shotsFired || 0) + 1;
                     playWarriorAnimAny(shooter.mesh,
                         shooter.isKneeling ? ['fire_kneel', 'fire', 'attack'] : ['fire', 'attack'], true);
+                    _klasaStrzelca = 'player_' + (shooter.class || 'uniwersalna');
                     createProjectile(px, py, pz, ex, ey, ez, isHit, targetCover, () => {
                         if (isHit) {
                             shooter.shotsHit = (shooter.shotsHit || 0) + 1;
