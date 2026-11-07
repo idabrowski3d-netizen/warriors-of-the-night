@@ -2714,7 +2714,7 @@
             { id: 'zamiec', name: 'Zamieć śnieżna',
               palette: { grass:'#d8dde3', grassDetail1:'#e8edf3', grassDetail2:'#c2ccd6', dirt:'#a89888', dirtDetail1:'#8f7d6c', dirtDetail2:'#c4b5a5', road:'#8890a0', roadDetail1:'#78808e', roadDetail2:'#9aa4b4' } },
             { id: 'newyork', name: 'Nowy Jork',
-              palette: { grass:'#3f4348', grassDetail1:'#4a4f55', grassDetail2:'#34383c', dirt:'#5a5a5e', dirtDetail1:'#4c4c50', dirtDetail2:'#6a6a70', road:'#2e2e32', roadDetail1:'#232326', roadDetail2:'#3c3c42' } },
+              palette: { grass:'#3e5a2c', grassDetail1:'#4a6a34', grassDetail2:'#324a24', dirt:'#5a5a5e', dirtDetail1:'#4c4c50', dirtDetail2:'#6a6a70', road:'#2e2e32', roadDetail1:'#232326', roadDetail2:'#3c3c42' } },
             { id: 'alabama', name: 'Wioska w Alabamie',
               palette: { grass:'#4a6b2e', grassDetail1:'#587c38', grassDetail2:'#3a5622', dirt:'#8a6a4a', dirtDetail1:'#77593c', dirtDetail2:'#9c7c5c', road:'#6b5c4a', roadDetail1:'#5a4d3d', roadDetail2:'#7c6c58' } },
             { id: 'wulkan', name: 'Wnętrze wulkanu',
@@ -9166,6 +9166,33 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                 break;
                             }
                         }
+                    }
+                    // ZA PIERZEJAMI: dotąd puste szare place aż po krańce planszy. Teraz kwartały
+                    // jak w mieście - siatka chodników biegnących w głąb, aż w mgłę na skraju,
+                    // a między nimi trawniki ze szpalerami drzew, ławkami przy alejkach,
+                    // latarniami i koszami.
+                    const alejaX = wx => Math.abs(wx) >= 22 && (Math.abs(wx) - 22) % 13 < 2;
+                    const alejaZ = wz => (wz + 300) % 17 < 2;
+                    for (let x = 0; x < mapWidth; x++) for (let z = 0; z < mapDepth; z++) {
+                        const wx = x - offsetX, wz = z - offsetZ;
+                        if (terrainTypeMap[x][z] !== 0 || Math.abs(wx) < 22) continue;
+                        if (alejaX(wx) || alejaZ(wz)) terrainTypeMap[x][z] = 3;
+                    }
+                    const wolneNY = (x, z) => isWithinPlayBounds(x, z) && !isObstacle(x, z) && terrainTypeMap[x + offsetX][z + offsetZ] === 0;
+                    const przyAlei = (x, z) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => isWithinPlayBounds(x + a, z + b) && terrainTypeMap[x + a + offsetX][z + b + offsetZ] === 3);
+                    for (let x = -offsetX; x < mapWidth - offsetX; x++) for (let z = -offsetZ; z < mapDepth - offsetZ; z++) {
+                        if (Math.abs(x) < 22 || !wolneNY(x, z)) continue;
+                        const r = Math.random();
+                        if (przyAlei(x, z)) {
+                            // pas przy alejce: szpaler drzew co 3 pola, ławki, latarnie, kosze
+                            const krok = (Math.abs(x) + Math.abs(z)) % 9;
+                            if (krok === 0) addObstacle(x, z, 'tree');
+                            else if (krok === 4 && r < 0.6) addObstacle(x, z, 'lawka');
+                            else if (krok === 6 && r < 0.5) addObstacle(x, z, 'latarnia_uliczna');
+                            else if (krok === 5 && r < 0.25) addObstacle(x, z, 'kosz');
+                        } else if (r < 0.015) addObstacle(x, z, 'tree');               // drzewa w głębi trawnika
+                        else if (r < 0.018) addObstacle(x, z, 'donica_zlota');
+                        else if (r < 0.020 && wolneNY(x + 1, z) && wolneNY(x - 1, z)) addObstacle(x, z, 'fontanna');
                     }
                 } else if (currentCombatTheme.id === 'sahara') {
                     for (let i = 0; i < 5; i++) {
