@@ -10335,7 +10335,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         function postawGatunek(nazwa, tiles, skala = 1) {
-            const def = GATUNKI_ROSLIN[nazwa], naPole = skala < 1 ? 1 : 3;
+            const def = GATUNKI_ROSLIN[nazwa], naPole = skala < 1 ? 5 : 3;
             const geo = geometriaKepki(0.9, 1.2, 0);
             const inst = new THREE.InstancedMesh(geo, materialGatunku(nazwa), tiles.length * naPole);
             const dummy = new THREE.Object3D();
@@ -10344,8 +10344,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const ty = getTerrainY(wx, wz);
                 for (let s = 0; s < naPole; s++) {
                     const sy = (0.9 + Math.random() * 0.3) * def.wys * skala;
-                    dummy.position.set(wx + (Math.random() - 0.5) * 0.7, ty + 0.6 * sy - 0.05, wz + (Math.random() - 0.5) * 0.7);
-                    dummy.rotation.y = Math.random() * Math.PI * 2;
+                    const rozrzut = skala < 1 ? 1.0 : 0.7;   // gęstwina zarasta całe pole, bez przerw między kępami
+                    dummy.position.set(wx + (Math.random() - 0.5) * rozrzut, ty + 0.6 * sy - 0.05, wz + (Math.random() - 0.5) * rozrzut);
+                    dummy.rotation.set(skala < 1 ? (Math.random() - 0.5) * 0.5 : 0, Math.random() * Math.PI * 2, skala < 1 ? (Math.random() - 0.5) * 0.5 : 0);
                     dummy.scale.set(0.8 + Math.random() * 0.4, sy, 0.8 + Math.random() * 0.4);
                     dummy.updateMatrix();
                     inst.setMatrixAt(idx++, dummy.matrix);
@@ -10433,13 +10434,20 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (!dzikie.length && GATUNKI_ROSLIN.trawa) dzikie.push('trawa');
             const id = currentCombatTheme ? currentCombatTheme.id : '';
             if (gameMode === 'dream' && dzikie.length && !['zamiec', 'cyber', 'otchlan', 'szpital', 'dom', 'stacja', 'katedra', 'klaustrofobia', 'wieza', 'studnia', 'alcatraz', 'most'].includes(id)) {
-                const kepy = {};
+                // Gęstwiny, nie pojedyncze kępki: zarodek co kilkanaście pól i zarośnięty
+                // płat wokół niego, jednego gatunku
+                const kepy = {}, zajete = new Set();
                 for (let mx = 0; mx < mapWidth; mx++) for (let mz = 0; mz < mapDepth; mz++) {
-                    if (terrainTypeMap[mx][mz] !== 0 || cornfieldGrid[mx][mz] === 1 || obstacleGrid[mx][mz] !== null || Math.random() > 0.3) continue;
-                    const n = dzikie[Math.floor(Math.random() * dzikie.length)];
-                    (kepy[n] = kepy[n] || []).push([mx - offsetX, mz - offsetZ]);
+                    if (Math.random() > 0.035) continue;
+                    const n = dzikie[Math.floor(Math.random() * dzikie.length)], pr = 1 + Math.random() * 1.6;
+                    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
+                        const x = mx + dx, z = mz + dz, k = x + ',' + z;
+                        if (Math.hypot(dx, dz) > pr || zajete.has(k) || x < 0 || z < 0 || x >= mapWidth || z >= mapDepth) continue;
+                        if (terrainTypeMap[x][z] !== 0 || cornfieldGrid[x][z] === 1 || obstacleGrid[x][z] !== null) continue;
+                        zajete.add(k); (kepy[n] = kepy[n] || []).push([x - offsetX, z - offsetZ]);
+                    }
                 }
-                Object.keys(kepy).forEach(n => postawGatunek(n, kepy[n], 0.45));
+                Object.keys(kepy).forEach(n => postawGatunek(n, kepy[n], 0.7));
             }
         }
 
@@ -17272,7 +17280,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         noga.position.set(dx, 0.22, 0); g.add(noga);
                     });
                     g.position.set(pos.x, ty, pos.z);
-                    g.rotation.y = Math.random() * Math.PI;
+                    // Ławka stoi przodem (siedziskiem) do sąsiedniego chodnika czy ścieżki,
+                    // równo z jego krawędzią - nigdy pod przypadkowym kątem
+                    const kier = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+                    const typ = (dx, dz) => { const mx = pos.x + dx + offsetX, mz = pos.z + dz + offsetZ; return terrainTypeMap[mx] ? terrainTypeMap[mx][mz] : undefined; };
+                    const ku = kier.find(([dx, dz]) => [3, 4].includes(typ(dx, dz))) || kier.find(([dx, dz]) => [1, 2].includes(typ(dx, dz)));
+                    g.rotation.y = pos.obrot !== undefined ? pos.obrot : ku ? Math.atan2(ku[0], ku[1]) : kier.indexOf(kier[(Math.abs(pos.x * 7 + pos.z * 3)) % 4]) * Math.PI / 2;
                     scene.add(g); obstacleMeshes.push(g);
                 }
                 else if (pos.type === 'swieca') {
