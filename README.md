@@ -9,3 +9,4 @@ Opcje: `--tury` (także tura wrogów), `--zrzuty` (zrzuty do `zrzuty_testu/`), `
 ## Modele z zewnątrz
 
 - `models/zakonnik.glb` – "Monk animated" (https://opengameart.org/content/monk-animated), model i rig: CDmir ("Monk", https://opengameart.org/content/monk), animacje: hwoarangmy. Licencja CC-BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0/). Zmiany: nazwy animacji, materiały pod glTF, eksport do GLB.
+- `models/strzyga.glb` – baza strzygi zbudowana skryptem `models/zrodla/strzyga_baza.py` (plik do dalszej pracy: `models/zrodla/strzyga.blend`, tylko lokalnie - folder poza repo) na manekinie kobiecym i animacjach z Universal Animation Library 1 i 2 autorstwa Quaterniusa (https://quaternius.com, CC0). Dodane: całun, siwe włosy, świecące oczy, pazury.
