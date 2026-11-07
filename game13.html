@@ -2844,7 +2844,34 @@
             kompozytor.addPass(new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.55, 0.5, 0.82));
             kompozytor.addPass(new THREE.ShaderPass(KlimatShader));
         }
+        // Pył w powietrzu: drobinki dryfujące wokół miejsca, na które patrzy kamera,
+        // łapią światło i dodają głębi. Tylko na planszach walki, poza trybem oszczędnym.
+        let pylek = null;
+        function animujPyl() {
+            if (!pylek) {
+                const N = 260, poz = new Float32Array(N * 3);
+                for (let i = 0; i < N * 3; i++) poz[i] = (Math.random() - 0.5) * (i % 3 === 1 ? 6 : 30);
+                const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(poz, 3));
+                pylek = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffe2b0, size: 0.07, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }));
+                pylek.frustumCulled = false; scene.add(pylek);
+            }
+            pylek.visible = gameMode === 'dream' && !trybOszczedny;
+            if (!pylek.visible) return;
+            if (!pylek.parent) scene.add(pylek);
+            const poz = pylek.geometry.attributes.position.array, t = performance.now() * 0.0003;
+            for (let i = 0; i < poz.length; i += 3) {
+                poz[i] += Math.sin(t + i) * 0.004 + 0.002; poz[i + 1] += Math.cos(t * 1.3 + i) * 0.002; poz[i + 2] += Math.cos(t + i * 0.7) * 0.004;
+                if (poz[i] > 15) poz[i] -= 30;
+                if (poz[i + 1] > 3.5 || poz[i + 1] < 0.2) poz[i + 1] = 0.3 + Math.random() * 3;
+            }
+            pylek.geometry.attributes.position.needsUpdate = true;
+            // chmura idzie za kamerą: środek tam, gdzie patrzy
+            const d = new THREE.Vector3(); camera.getWorldDirection(d);
+            const k = d.y < -0.05 ? -camera.position.y / d.y : 10;
+            pylek.position.set(camera.position.x + d.x * k, 0, camera.position.z + d.z * k);
+        }
         function rysujKadr() {
+            animujPyl();
             if (kompozytor && !trybOszczedny) kompozytor.render(); else renderer.render(scene, camera);
         }
         window.addEventListener('resize', dopasujPoObrocie);
@@ -10307,8 +10334,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return ['trawa', 'suchostoj', 'mak', 'ostrozen', 'krzak', 'owies', 'pszenica', 'wrzos'];
         }
 
-        function postawGatunek(nazwa, tiles) {
-            const def = GATUNKI_ROSLIN[nazwa], naPole = 3;
+        function postawGatunek(nazwa, tiles, skala = 1) {
+            const def = GATUNKI_ROSLIN[nazwa], naPole = skala < 1 ? 1 : 3;
             const geo = geometriaKepki(0.9, 1.2, 0);
             const inst = new THREE.InstancedMesh(geo, materialGatunku(nazwa), tiles.length * naPole);
             const dummy = new THREE.Object3D();
@@ -10316,7 +10343,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             tiles.forEach(([wx, wz]) => {
                 const ty = getTerrainY(wx, wz);
                 for (let s = 0; s < naPole; s++) {
-                    const sy = (0.9 + Math.random() * 0.3) * def.wys;
+                    const sy = (0.9 + Math.random() * 0.3) * def.wys * skala;
                     dummy.position.set(wx + (Math.random() - 0.5) * 0.7, ty + 0.6 * sy - 0.05, wz + (Math.random() - 0.5) * 0.7);
                     dummy.rotation.y = Math.random() * Math.PI * 2;
                     dummy.scale.set(0.8 + Math.random() * 0.4, sy, 0.8 + Math.random() * 0.4);
@@ -10399,7 +10426,21 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     }
                 }
             }
-            Object.keys(zebrane).forEach(n => postawGatunek(n, zebrane[n]));
+            // Kępy dzikiej trawy i krzaczki rozsiane po trawnikach - teren nie jest gołą
+            // zieloną płachtą. Tylko wygląd: nie blokują ruchu ani strzału.
+            const DZIKIE = ['trawa', 'paproc', 'krzak', 'suchostoj', 'wrzos', 'jagodnik', 'krzak_rudy', 'ostrozen'];
+            const dzikie = lista.filter(n => DZIKIE.includes(n) && GATUNKI_ROSLIN[n]);
+            if (!dzikie.length && GATUNKI_ROSLIN.trawa) dzikie.push('trawa');
+            const id = currentCombatTheme ? currentCombatTheme.id : '';
+            if (gameMode === 'dream' && dzikie.length && !['zamiec', 'cyber', 'otchlan', 'szpital', 'dom', 'stacja', 'katedra', 'klaustrofobia', 'wieza', 'studnia', 'alcatraz', 'most'].includes(id)) {
+                const kepy = {};
+                for (let mx = 0; mx < mapWidth; mx++) for (let mz = 0; mz < mapDepth; mz++) {
+                    if (terrainTypeMap[mx][mz] !== 0 || cornfieldGrid[mx][mz] === 1 || obstacleGrid[mx][mz] !== null || Math.random() > 0.3) continue;
+                    const n = dzikie[Math.floor(Math.random() * dzikie.length)];
+                    (kepy[n] = kepy[n] || []).push([mx - offsetX, mz - offsetZ]);
+                }
+                Object.keys(kepy).forEach(n => postawGatunek(n, kepy[n], 0.45));
+            }
         }
 
         let riverMesh = null;
@@ -12120,7 +12161,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Plansze z własnym, już niepowtarzalnym światłem (ogniska Otchłani,
             // girlandy wesołego miasteczka) obsługują się same.
             if (def.wlasny || def.oprawa === 'ognisko') return false;
-            const noc = (typeof isNight === 'function') ? isNight() : false;
+            const noc = (currentTimeOfDay === 'noc' || currentTimeOfDay === 'wieczor');
             let ilu = 0;
             const limit = Math.max(8, Math.floor(420 / (def.gestosc || 14)));
             const miejsca = miejscaOpraw(def);
@@ -12146,7 +12187,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return true;
         }
 
+        let _lampyParku = 0;
         function renderStreetLamps() {
+            _lampyParku = 0;
             // Stare latarnie sprzątamy ZAWSZE, zanim rozgałęzimy się na motywy -
             // inaczej przy wejściu w Otchłań zostawały te z poprzedniej planszy.
             streetLamps.forEach(l => scene.remove(l));
@@ -14865,6 +14908,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 czesc(g, new THREE.BoxGeometry(0.5, 0.05, 0.05), zelazo, 0.22, 2.7, 0);
                 czesc(g, new THREE.CylinderGeometry(0.06, 0.16, 0.18, 6), zelazo, 0.45, 2.62, 0);
                 czesc(g, new THREE.SphereGeometry(0.08, 6, 4), 0xffe2a0, 0.45, 2.52, 0, ZAR(0xffc860));
+                // Nocą latarnia w parku naprawdę świeci - ciepła plama światła na trawie i ławce.
+                // Limit na planszę, bo każde światło kosztuje.
+                if (gameMode === 'dream' && (currentTimeOfDay === 'noc' || currentTimeOfDay === 'wieczor') && _lampyParku++ < 10) {
+                    const sw = new THREE.PointLight(0xffc070, 2.4, 10, 1.4);
+                    sw.position.set(0.45, 2.3, 0); g.add(sw);
+                }
                 return g;
             },
             kiosk: () => {
