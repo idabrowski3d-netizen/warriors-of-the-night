@@ -1001,6 +1001,12 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
 </head>
 <body>
     <!-- Ostoja: baza wojowników. Przycisk obok ustawień, żeby dało się ją otworzyć
@@ -2803,10 +2809,43 @@
             if (!w || !h) return;
             camera.aspect = w / h; camera.updateProjectionMatrix();
             renderer.setSize(w, h);
+            if (kompozytor) { kompozytor.setPixelRatio(renderer.getPixelRatio()); kompozytor.setSize(w, h); }
         }
         function dopasujPoObrocie() {
             dopasujRozmiar();
             [120, 350, 700, 1200].forEach(ms => setTimeout(dopasujRozmiar, ms));
+        }
+        // --- KLIMAT OBRAZU (postprocessing) ---
+        // Poświata od ognia, latarni i magii, cieplejsze i bardziej kontrastowe kolory
+        // oraz ciemniejsze rogi kadru - jak w ilustracjach RPG. Wyłączone w trybie oszczędnym.
+        const KlimatShader = {
+            uniforms: { tDiffuse: { value: null } },
+            vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+            fragmentShader: `uniform sampler2D tDiffuse; varying vec2 vUv;
+                void main(){
+                    vec3 c = texture2D(tDiffuse, vUv).rgb;
+                    float l = dot(c, vec3(0.299, 0.587, 0.114));
+                    c = mix(vec3(l), c, 1.18);                          // nasycenie
+                    c = (c - 0.5) * 1.12 + 0.5;                         // kontrast
+                    c *= mix(vec3(0.92, 0.95, 1.06), vec3(1.07, 1.0, 0.88), smoothstep(0.1, 0.7, l));  // chłodne cienie, ciepłe światła
+                    vec2 d = vUv - 0.5;
+                    c *= 1.0 - smoothstep(0.35, 0.85, length(d * vec2(1.25, 1.0))) * 0.55;   // winieta
+                    gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
+                }`
+        };
+        let kompozytor = null;
+        if (THREE.EffectComposer && THREE.UnrealBloomPass) {
+            const pr = renderer.getPixelRatio();
+            const rt = THREE.WebGLMultisampleRenderTarget && renderer.capabilities.isWebGL2
+                ? new THREE.WebGLMultisampleRenderTarget(window.innerWidth * pr, window.innerHeight * pr, { format: THREE.RGBAFormat })
+                : undefined;   // wygładzanie krawędzi zostaje mimo postprocessingu
+            kompozytor = new THREE.EffectComposer(renderer, rt);
+            kompozytor.addPass(new THREE.RenderPass(scene, camera));
+            kompozytor.addPass(new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.55, 0.5, 0.82));
+            kompozytor.addPass(new THREE.ShaderPass(KlimatShader));
+        }
+        function rysujKadr() {
+            if (kompozytor && !trybOszczedny) kompozytor.render(); else renderer.render(scene, camera);
         }
         window.addEventListener('resize', dopasujPoObrocie);
         window.addEventListener('orientationchange', dopasujPoObrocie);
@@ -48025,7 +48064,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             updateCloudShadows(dt);
             if (gameMode === 'dream' && !gameOver) updateDustDevils(dt);
             applyFoldVisualTransform();
-            renderer.render(scene, camera); 
+            rysujKadr();
             restoreFoldVisualTransform();
         }
 
