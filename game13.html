@@ -2825,9 +2825,9 @@
         directionalLight.shadow.camera.bottom = -55;
         directionalLight.shadow.camera.near = 10;
         directionalLight.shadow.camera.far = 260;
-        directionalLight.shadow.bias = -0.0015;
+        directionalLight.shadow.bias = -0.0004;
         // Odsunięcie wzdłuż normalnej - bez tego cienkie ściany cieniują same siebie
-        directionalLight.shadow.normalBias = 0.05;
+        directionalLight.shadow.normalBias = 0.015;   // większe odrywało cień od podstawy - obiekty wyglądały na zawieszone
         scene.add(directionalLight.target);
 
         // Wszystko dodawane do sceny automatycznie rzuca i przyjmuje cienie - jedno miejsce zamiast setek wywolan
@@ -36161,6 +36161,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const z = zadanieObok(active);
                     if (z && z.cel === wr) zadanieAction();
                     else updateUI(`${nazwaWrot()}: podejdź na pole obok i kliknij je, żeby zamknąć (${WROTA_AP} PA).`);
+                    return;
+                }
+                // Kliknięcie w kapliczkę: obok - zapala ją albo modli się o zdrowie, z daleka - podpowiedź
+                const kx = Math.round(intersectPoint.x), kz = Math.round(intersectPoint.z);
+                const kap = kapliczkiMisji.concat(kapliczkaPositions).find(q => q.x === kx && q.z === kz);
+                if (kap) {
+                    const z = zadanieObok(active);
+                    if (z && z.cel === kap) zadanieAction();
+                    else if (Math.max(Math.abs(Math.round(active.mesh.position.x) - kx), Math.abs(Math.round(active.mesh.position.z) - kz)) > 1)
+                        updateUI('Kapliczka: podejdź na pole obok i kliknij ją.');
+                    else updateUI(kap.uleczyla ? 'Ta kapliczka oddała już swoje.' : active.hp >= (active.maxHp || 10) ? `${active.name} ma pełne życie - modlitwa nic nie da.` : 'Najpierw trzeba zapalić kapliczkę.');
                     return;
                 }
             }
