@@ -2599,6 +2599,10 @@
         const pustynia_granicy = (tlo, jasny, ciemny) => (ctx, T) => { ctx.fillStyle = tlo; ctx.fillRect(0, 0, T, T); for (let i = 0; i < 16; i++) { ctx.fillStyle = i % 2 ? jasny : ciemny; ctx.globalAlpha = .3; ctx.beginPath(); ctx.ellipse(Math.random() * T, Math.random() * T, 8 + Math.random() * 16, 4 + Math.random() * 8, Math.random() * 3, 0, 6.283); ctx.fill(); } ctx.globalAlpha = 1; for (let i = 0; i < 45; i++) { const x = Math.random() * T, y = Math.random() * T, r = 1 + Math.random() * 2; ctx.fillStyle = ciemny; ctx.fillRect(x, y + 1, r * 2, r); ctx.fillStyle = jasny; ctx.fillRect(x, y, r * 2, r); } };
         const beton_wiezienny = (tlo, jasny, ciemny) => (ctx, T) => { ctx.fillStyle = tlo; ctx.fillRect(0, 0, T, T); for (let i = 0; i < 300; i++) { ctx.fillStyle = i % 2 ? jasny : ciemny; ctx.globalAlpha = .35; ctx.fillRect(Math.random() * T, Math.random() * T, 1, 1); } for (let i = 0; i < 6; i++) { ctx.fillStyle = '#3a3226'; ctx.globalAlpha = .18; ctx.fillRect(Math.random() * T, Math.random() * T, 3 + Math.random() * 6, 14 + Math.random() * 24); } ctx.globalAlpha = 1; for (let s = 0; s < 3; s++) { let x = Math.random() * T, y = Math.random() * T, k = Math.random() * 6.283; for (let i = 0; i < 35; i++) { k += (Math.random() - .5) * .8; x = (x + Math.cos(k) + T) % T; y = (y + Math.sin(k) + T) % T; ctx.fillStyle = ciemny; ctx.fillRect(x, y, 1, 1); } } };
         const linoleum = (tlo, jasny, ciemny) => (ctx, T) => { const K = T / 4; for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) { ctx.fillStyle = (a + b) % 2 ? tlo : jasny; ctx.fillRect(a * K, b * K, K, K); } for (let i = 0; i < 14; i++) { ctx.fillStyle = ciemny; ctx.globalAlpha = .3; ctx.beginPath(); ctx.ellipse(Math.random() * T, Math.random() * T, 3 + Math.random() * 10, 2 + Math.random() * 6, Math.random() * 3, 0, 6.283); ctx.fill(); } ctx.globalAlpha = 1; for (let i = 0; i < 90; i++) { ctx.fillStyle = ciemny; ctx.fillRect(Math.random() * T, Math.random() * T, 1 + Math.random() * 3, 1); } };
+        const zyly = (ctx, T, barwa, ile) => { ctx.strokeStyle = barwa; ctx.globalAlpha = .35; for (let i = 0; i < ile; i++) { let x = Math.random() * T, y = Math.random() * T; ctx.lineWidth = .5 + Math.random(); ctx.beginPath(); ctx.moveTo(x, y); for (let k = 0; k < 7; k++) { x += (Math.random() - .35) * T / 6; y += (Math.random() - .5) * T / 6; ctx.lineTo(x, y); } ctx.stroke(); } ctx.globalAlpha = 1; };
+        const romby_katedry = (jasny, ciemny, zloto) => (ctx, T) => { ctx.fillStyle = jasny; ctx.fillRect(0, 0, T, T); zyly(ctx, T, '#6e675a', 7); ctx.fillStyle = ciemny; ctx.beginPath(); ctx.moveTo(T / 2, T * .1); ctx.lineTo(T * .9, T / 2); ctx.lineTo(T / 2, T * .9); ctx.lineTo(T * .1, T / 2); ctx.closePath(); ctx.fill(); ctx.strokeStyle = zloto; ctx.lineWidth = 2; ctx.stroke(); zyly(ctx, T, '#a59a84', 3); ctx.fillStyle = zloto; ctx.fillRect(T / 2 - 4, T / 2 - 4, 8, 8); ctx.fillStyle = '#4a453b'; ctx.fillRect(0, 0, T, 1); ctx.fillRect(0, 0, 1, T); };
+        const plyty_katedry = (a, b, fuga) => (ctx, T) => { const H = T / 2; [[0, 0, T], [0, H, H], [H, H, H]].forEach(([x, y, w], i) => { ctx.fillStyle = i % 2 ? b : a; ctx.fillRect(x, y, w, H); ctx.fillStyle = fuga; ctx.fillRect(x, y, w, 1.5); ctx.fillRect(x, y, 1.5, H); }); zyly(ctx, T, fuga, 9); };
+        const dywan_katedry = (tlo, zloto, ciemny) => (ctx, T) => { ctx.fillStyle = tlo; ctx.fillRect(0, 0, T, T); ctx.strokeStyle = ciemny; ctx.lineWidth = 1; for (let i = 0; i < T; i += 3) { ctx.globalAlpha = .18; ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(T, i); ctx.stroke(); } ctx.globalAlpha = 1; ctx.strokeStyle = zloto; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(T / 2, T * .22); ctx.lineTo(T * .78, T / 2); ctx.lineTo(T / 2, T * .78); ctx.lineTo(T * .22, T / 2); ctx.closePath(); ctx.stroke(); ctx.fillStyle = zloto; ctx.beginPath(); ctx.arc(T / 2, T / 2, T * .07, 0, 7); ctx.fill(); };
         const posadzka_katedry = (a, b, fuga) => (ctx, T) => { const K = T / 2; for (let x = 0; x < 2; x++) for (let y = 0; y < 2; y++) { ctx.fillStyle = (x + y) % 2 ? a : b; ctx.fillRect(x * K, y * K, K, K); ctx.fillStyle = fuga; ctx.fillRect(x * K, y * K, K, 1); ctx.fillRect(x * K, y * K, 1, K); } for (let i = 0; i < 120; i++) { ctx.fillStyle = i % 2 ? fuga : b; ctx.globalAlpha = .3; ctx.fillRect(Math.random() * T, Math.random() * T, 1 + Math.random() * 4, 1); } ctx.globalAlpha = 1; };
         const bruk_tunelu = (tlo, jasny, fuga) => (ctx, T) => { ctx.fillStyle = fuga; ctx.fillRect(0, 0, T, T); const H = T / 8, W = T / 4; for (let r = 0; r < 8; r++) for (let k = -1; k < 4; k++) { const x = k * W + (r % 2 ? W / 2 : 0); ctx.fillStyle = (r * 3 + k * 5) % 4 === 0 ? jasny : tlo; ctx.fillRect(x + 1, r * H + 1, W - 2, H - 2); } for (let i = 0; i < 5; i++) { ctx.fillStyle = 'rgba(20,30,28,.3)'; ctx.fillRect(Math.random() * T, Math.random() * T, 2 + Math.random() * 5, 12 + Math.random() * 24); } };
         const plyty_nekropolii = (tlo, jasny, fuga) => (ctx, T) => { ctx.fillStyle = fuga; ctx.fillRect(0, 0, T, T); const K = T / 2; for (let a = 0; a < 2; a++) for (let b = 0; b < 2; b++) { ctx.fillStyle = (a + b) % 2 ? tlo : jasny; ctx.fillRect(a * K + 2, b * K + 2, K - 4, K - 4); } for (let i = 0; i < 30; i++) { ctx.fillStyle = '#3f5a30'; ctx.globalAlpha = .4; ctx.beginPath(); ctx.ellipse(Math.random() * T, Math.random() * T, 2 + Math.random() * 6, 1 + Math.random() * 3, Math.random() * 3, 0, 6.283); ctx.fill(); } ctx.globalAlpha = 1; for (let i = 0; i < 80; i++) { ctx.fillStyle = fuga; ctx.fillRect(Math.random() * T, Math.random() * T, 1 + Math.random() * 3, 1); } };
@@ -2635,7 +2639,7 @@
             wyspy: { grass: trawa_wysp('#4a7a3a', '#5e9446', '#355a2a'), dirt: trawa_wysp('#7a6240', '#90764e', '#58462c') },
             nekropolia: { sidewalk: plyty_nekropolii('#5a5444', '#6e6856', '#34302a'), grass: plyty_nekropolii('#4a4a3e', '#5e5e50', '#2c2c24'), dirt: plyty_nekropolii('#5c5240', '#6e6450', '#38301f') },
             klaustrofobia: { sidewalk: bruk_tunelu('#423d37', '#5a544c', '#2a2622'), grass: bruk_tunelu('#3a3632', '#4f4a44', '#25221f'), dirt: bruk_tunelu('#4a443c', '#605a50', '#2e2a24') },
-            katedra: { sidewalk: posadzka_katedry('#6a6458', '#3a362e', '#8a8474'), grass: posadzka_katedry('#5a564c', '#34302a', '#7a7468') },
+            katedra: { sidewalk: romby_katedry('#8a8272', '#201e1b', '#7a6a4a'), dirt: plyty_katedry('#716a5b', '#5b5549', '#332f27'), grass: plyty_katedry('#6b6355', '#524c41', '#2c2822'), road: dywan_katedry('#6c1420', '#c9a227', '#3e0a12') },
             szpital: { sidewalk: linoleum('#8a8c84', '#9ea096', '#66685f'), grass: linoleum('#5e6358', '#6d7266', '#44483f'), dirt: linoleum('#7a7a6e', '#8c8c80', '#57574e'), road: linoleum('#8a8c84', '#9ea096', '#66685f') },
             alcatraz: { grass: beton_wiezienny('#6e6b63', '#85827a', '#4c4a44'), dirt: beton_wiezienny('#8a857a', '#a09b90', '#625e55'), road: beton_wiezienny('#5a5751', '#706d66', '#3c3a36') },
             sicario: { grass: pustynia_granicy('#b09468', '#c9ae80', '#8a7350'), dirt: pustynia_granicy('#c8a070', '#dcb88a', '#a07e54') },
@@ -3593,8 +3597,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Katedra: półmrok wnętrza, światło sączy się przez witraże
             if (currentCombatTheme && currentCombatTheme.id === 'katedra') {
                 scene.background.set(0x14100c);
-                ambientLight.color.set(0xffe0b0); ambientLight.intensity = 0.5;
-                directionalLight.color.set(0xffd090); directionalLight.intensity = 0.45;
+                ambientLight.color.set(0xd8c8b8); ambientLight.intensity = 0.42;
+                directionalLight.color.set(0xffd8b0); directionalLight.intensity = 0.3;
             }
             // Mgła zależna od planszy - jedno miejsce decyzji, żeby kolejne bloki
             // nie kasowały sobie nawzajem ustawień
@@ -9003,149 +9007,104 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         }
                     }
                 } else if (currentCombatTheme.id === 'katedra') {
-                    // Katedra: mury zewnętrzne z galeriami na piętrach, w środku las kolumn
-                    const W = 34, D = 52, STOREYS = 3;
-                    const doors = [[Math.floor(W/2), 0], [Math.floor(W/4), 0], [Math.floor(3*W/4), 0]];
-                    const b = placeSpecialBuilding(W, D, 0x6b6055, { text: 'KATEDRA', bg: '#6b6055' }, STOREYS, doors, []);
+                    // Katedra wg planu Notre-Dame: fasada z wieżami od z=0, siedem przęseł nawy, transept,
+                    // chór i apsyda od ZA. Bryłę rysuje models/katedra.glb; lz, lx - pola względem osi i fasady.
+                    const W = 29, D = 62, STOREYS = 3, ZA = 47;
+                    // Miejsce pod gmach musi być czyste - stoi zawsze w środku planszy
+                    obstaclePositions = obstaclePositions.filter(p => p.x < -16 || p.x > 16 || p.z < -33 || p.z > 33);
+                    bridgePositions = bridgePositions.filter(p => p.x < -16 || p.x > 16 || p.z < -33 || p.z > 33);
+                    for (let x = -16; x <= 16; x++) for (let z = -33; z <= 33; z++) {
+                        const mx = x + offsetX, mz = z + offsetZ;
+                        obstacleGrid[mx][mz] = null; obstacleMap.delete(x + ',' + z); terrainTypeMap[mx][mz] = 1; riverGrid[mx][mz] = 0;
+                    }
+                    const b = placeSpecialBuilding(W, D, 0x6b6055, { text: 'KATEDRA', bg: '#6b6055' }, STOREYS, [[14, 0], [5, 0], [23, 0]], [], undefined, { x: -14, z: -31 });
                     if (b) {
                         combatLandmarkPos = { x: b.x, z: b.z };
                         const hData = houses.find(h => h.centerX === b.x && h.centerZ === b.z);
+                        const bMinX = b.x - 14, bMinZ = b.z - Math.round((D - 1) / 2);
+                        katedraObszar = { x0: bMinX, x1: bMinX + W - 1, z0: bMinZ, z1: bMinZ + D - 1 };
+                        obstaclePositions = obstaclePositions.filter(p => !(p.type === 'house-roof' && p.houseId === hData.id));
                         obstaclePositions.forEach(p => {
-                            if (p.type === 'house-wall' && hData && p.houseId === hData.id) p.thinWall = true;
+                            if (p.houseId === hData.id) { p.katedra = true; p.thinWall = true; p.destructible = false; }
                         });
-                        const bMinX = b.x - Math.round((W - 1) / 2), bMinZ = b.z - Math.round((D - 1) / 2);
-                        const interior = [];
-                        for (let x = bMinX + 1; x < bMinX + W - 1; x++) {
-                            for (let z = bMinZ + 1; z < bMinZ + D - 1; z++) {
-                                const mx = x + offsetX, mz = z + offsetZ;
-                                if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
-                                interior.push([x, z, mx, mz]);
-                            }
+                        const wzorMuru = obstaclePositions.find(p => p.type === 'house-wall' && p.houseId === hData.id);
+                        const mur = { houseId: hData.id, wallColor: wzorMuru.wallColor, destructible: false, floors: STOREYS, thinWall: true, katedra: true };
+                        // Apsyda: prostokąt zamknięty półkolem, rogi poza nim to pustka
+                        const usun = new Set();
+                        for (let lx = -14; lx <= 14; lx++) for (let lz = ZA + 1; lz < D; lz++) {
+                            const x = b.x + lx, z = bMinZ + lz, mx = x + offsetX, mz = z + offsetZ, d = Math.hypot(lx, lz - ZA);
+                            if (d < 13.5) continue;
+                            if (d >= 14.6) {
+                                if (obstacleGrid[mx][mz]) usun.add(obstacleGrid[mx][mz]);
+                                obstacleMap.delete(`${x},${z}`);
+                                obstacleGrid[mx][mz] = { type: 'przepasc', x, z };
+                            } else if (obstacleGrid[mx][mz] === null) addObstacle(x, z, 'house-wall', mur);
                         }
-                        // Kolumny sięgające sklepienia - wyznaczają nawy i służą za osłony
-                        for (let x = bMinX + 4; x < bMinX + W - 4; x += 6) {
-                            for (let z = bMinZ + 4; z < bMinZ + D - 4; z += 5) {
-                                const mx = x + offsetX, mz = z + offsetZ;
-                                if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
-                                if (obstacleGrid[mx][mz] !== null) continue;
-                                addObstacle(x, z, 'column');
-                            }
-                        }
-                        // Ołtarz główny w prezbiterium i dwa boczne
-                        const altarSpots = [
-                            [b.x, bMinZ + D - 4],
-                            [bMinX + 3, bMinZ + Math.floor(D / 2)],
-                            [bMinX + W - 4, bMinZ + Math.floor(D / 2)]
-                        ];
-                        altarSpots.forEach(([axx, azz]) => {
-                            const mx = axx + offsetX, mz = azz + offsetZ;
-                            if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return;
-                            if (obstacleGrid[mx][mz] !== null) return;
-                            addObstacle(axx, azz, 'altar');
-                        });
-                        // Kamienne posągi wzdłuż naw bocznych
-                        for (let z = bMinZ + 6; z < bMinZ + D - 6; z += 7) {
-                            [[bMinX + 2, z], [bMinX + W - 3, z]].forEach(([sxx, szz]) => {
-                                const mx = sxx + offsetX, mz = szz + offsetZ;
-                                if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return;
-                                if (obstacleGrid[mx][mz] !== null) return;
-                                addObstacle(sxx, szz, 'statue');
-                            });
-                        }
+                        obstaclePositions = obstaclePositions.filter(p => !usun.has(p));
 
-                        // ===== KATEDRA BYŁA PUSTA =====
-                        // 63 rekwizyty na całą planszę: kolumny, trzy ołtarze i kilka
-                        // posągów. Układ był poprawny (kolumnada w siatce 6x5), ale we
-                        // wnętrzu nie było NICZEGO, co mówi, że to kościół. Dokładamy
-                        // to, co w kościele widać najpierw: rzędy ławek wzdłuż nawy,
-                        // kaplice przy ścianach, świece przy ołtarzach.
-
-                        const osX = b.x;                              // oś nawy głównej
-                        const prezbiterium = bMinZ + D - 6;           // tam stoi ołtarz główny
-                        const ZAJETE = (x, z) => {
-                            const mx = x + offsetX, mz = z + offsetZ;
-                            return mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth ||
-                                   obstacleGrid[mx][mz] !== null;
+                        const plan = (lx, lz, typ, extra) => {
+                            const x = b.x + lx, z = bMinZ + lz;
+                            if (obstacleGrid[x + offsetX][z + offsetZ] === null) addObstacle(x, z, typ, Object.assign({ plan: true }, extra));
                         };
-
-                        // --- ŁAWKI: dwa bloki po obu stronach przejścia środkowego ---
-                        // To one robią z pustej hali kościół. Rzędy co dwa pola,
-                        // przejście w osi zostaje wolne - tędy idzie się do ołtarza.
-                        const PRZEJSCIE = 2;                          // połowa szerokości przejścia
-                        const lawkaOd = bMinZ + 6, lawkaDo = prezbiterium - 4;
-                        for (let z = lawkaOd; z < lawkaDo; z += 2) {
-                            for (let x = bMinX + 3; x < bMinX + W - 3; x++) {
-                                if (Math.abs(x - osX) <= PRZEJSCIE) continue;      // przejście środkowe
-                                if (ZAJETE(x, z)) continue;
-                                // Co kilka rzędów przerwa - ławki nie ciągną się bez końca
-                                if (Math.floor((z - lawkaOd) / 2) % 7 === 6) continue;
-                                addObstacle(x, z, 'lawka');
-                            }
-                        }
-
-                        // --- KAPLICE BOCZNE: wnęki przy ścianach, każda z własnym ołtarzykiem ---
-                        [bMinX + 2, bMinX + W - 3].forEach((kx, strona) => {
-                            for (let z = bMinZ + 9; z < prezbiterium - 6; z += 11) {
-                                // Ścianka działowa oddzielająca kaplicę od nawy
-                                const wgl = strona === 0 ? 1 : -1;
-                                for (let d2 = 0; d2 < 3; d2++) {
-                                    const sx = kx + wgl * 2, sz = z + d2 - 1;
-                                    if (!ZAJETE(sx, sz) && isWithinPlayBounds(sx, sz))
-                                        addObstacle(sx, sz, 'wall-destructible');
-                                }
-                                // Ołtarzyk i świece w środku kaplicy
-                                if (!ZAJETE(kx, z)) addObstacle(kx, z, 'kapliczka');
-                                [[kx, z - 2], [kx, z + 2]].forEach(([cx2, cz2]) => {
-                                    if (!ZAJETE(cx2, cz2) && isWithinPlayBounds(cx2, cz2))
-                                        addObstacle(cx2, cz2, 'swieca');
-                                });
-                            }
+                        const wSrodku = (lx, lz) => lz <= ZA ? Math.abs(lx) < 14 && lz > 0 : Math.hypot(lx, lz - ZA) < 13.5;
+                        const PRZESLA = [12, 15, 18, 21, 24, 27], CHOR = [40, 43, 46];
+                        plan(-5, 1, 'filar', { wysoka: true, powloka: [b.x, bMinZ] });
+                        [-1, 1].forEach(s => {
+                            // masywy wież i filary
+                            [4, 5, 6].forEach(a => [1, 2].forEach(c => plan(s * a, c, 'filar', { wysoka: true })));
+                            [12, 13].forEach(a => [1, 2, 3].forEach(c => plan(s * a, c, 'filar', { wysoka: true })));
+                            [[5, 5], [5, 9], [8, 5], [8, 9], [5, 30], [5, 37], [8, 30], [8, 37]].forEach(([a, c]) => plan(s * a, c, 'filar'));
+                            PRZESLA.concat(CHOR).forEach(c => {
+                                plan(s * 5, c, 'filar'); plan(s * 8, c, 'filar');
+                                [11, 12, 13].forEach(a => plan(s * a, c, 'filar', { wysoka: true }));   // przypory dzielące kaplice
+                            });
                         });
+                        for (let i = 1; i < 6; i++) { const a = Math.PI * i / 6; plan(Math.round(5 * Math.cos(a)), ZA + Math.round(5 * Math.sin(a)), 'filar'); }
+                        for (let i = 1; i < 8; i++) { const a = Math.PI * i / 8; plan(Math.round(8.4 * Math.cos(a)), ZA + Math.round(8.4 * Math.sin(a)), 'filar'); }
+                        for (let i = 1; i < 6; i++) { const a = Math.PI * i / 6; [11.3, 12.2, 13.1].forEach(q => plan(Math.round(q * Math.cos(a)), ZA + Math.round(q * Math.sin(a)), 'filar', { wysoka: true })); }
 
-                        // --- PREZBITERIUM: świece i stalle wokół ołtarza głównego ---
-                        for (let dx = -4; dx <= 4; dx += 2) {
-                            const sx = osX + dx, sz = prezbiterium - 2;
-                            if (!ZAJETE(sx, sz) && isWithinPlayBounds(sx, sz)) addObstacle(sx, sz, 'swieca');
-                        }
-                        [-3, 3].forEach(dx => {
-                            for (let dz = 0; dz < 4; dz++) {
-                                const sx = osX + dx, sz = prezbiterium + 1 + dz;
-                                if (!ZAJETE(sx, sz) && isWithinPlayBounds(sx, sz)) addObstacle(sx, sz, 'lawka');
-                            }
+                        // Ławki w dwóch blokach, przodem do ołtarza; przejście z dywanem w osi
+                        for (let lz = 12; lz <= 27; lz += 2) [-4, -3, -2, 2, 3, 4].forEach(lx => plan(lx, lz, 'lawka', { obrot: 0 }));
+                        // Chór: stalle twarzami do osi, ołtarz główny w świetle apsydy
+                        CHOR.forEach(c => [c - 1, c + 1].forEach(lz => [-1, 1].forEach(q => plan(q * 3, lz, 'lawka', { obrot: -q * Math.PI / 2 }))));
+                        plan(0, ZA + 3, 'altar');
+                        [[-2, ZA + 2], [2, ZA + 2], [-2, ZA + 4], [2, ZA + 4], [-1, ZA + 1], [1, ZA + 1]].forEach(([a, c]) => plan(a, c, 'swieca'));
+                        // Transept: ołtarze pod rozetami, posągi i świece w regularnym układzie
+                        [-1, 1].forEach(q => {
+                            plan(q * 12, 33, 'altar'); plan(q * 12, 31, 'swieca'); plan(q * 12, 35, 'swieca');
+                            plan(q * 12, 30, 'statue'); plan(q * 12, 36, 'statue');
+                            [31, 36].forEach(c => plan(q * 3, c, 'swieca'));
+                            plan(q * 2, 4, 'statue'); plan(q * 2, 8, 'swieca');
+                            // Kaplice między przyporami: ołtarzyk ze świecą, na przemian z posągiem
+                            PRZESLA.slice(0, -1).concat(CHOR.slice(0, -1)).forEach((c, i) => {
+                                if (i % 2) { plan(q * 13, c + 1, 'statue'); return; }
+                                plan(q * 13, c + 1, 'kapliczka'); plan(q * 13, c + 2, 'swieca');
+                            });
                         });
+                        for (let i = 0; i < 6; i++) { const a = Math.PI * (i + .5) / 6; plan(Math.round(12.5 * Math.cos(a)), ZA + Math.round(12.5 * Math.sin(a)), i % 2 ? 'statue' : 'kapliczka'); }
 
-                        // --- POSADZKA: kamienne płyty w szachownicę, nie szum ---
-                        // Kościół poznaje się po posadzce tak samo jak po kolumnach.
-                        for (let x = bMinX + 1; x < bMinX + W - 1; x++) {
-                            for (let z = bMinZ + 1; z < bMinZ + D - 1; z++) {
-                                const mx = x + offsetX, mz = z + offsetZ;
-                                if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
-                                terrainTypeMap[mx][mz] = 3;          // bruk wnętrza
-                                heightMap[mx][mz] = 0;
-                            }
+                        // Posadzka: dywan w osi, nawa w romby, nawy boczne i kaplice z płyt
+                        for (let lx = -13; lx <= 13; lx++) for (let lz = 1; lz < D - 1; lz++) {
+                            if (!wSrodku(lx, lz)) continue;
+                            const mx = b.x + lx + offsetX, mz = bMinZ + lz + offsetZ, a = Math.abs(lx);
+                            terrainTypeMap[mx][mz] = (a <= 1 && lz >= 2 && lz <= ZA + 2) ? 2 : (a <= 4 || (lz >= 31 && lz <= 36) || lz > ZA) ? 3 : a >= 11 ? 0 : 1;
+                            heightMap[mx][mz] = 0;
+                            cornfieldGrid[mx][mz] = 0;
                         }
-                        // Żyrandole zawieszone wysoko nad nawą główną
-                        for (let z = bMinZ + 7; z < bMinZ + D - 5; z += 9) {
-                            themedLandmarkDecor.push({ type: 'chandelier', x: b.x, z: z });
+                        // Żyrandole nad nawą, skrzyżowaniem i chórem
+                        [14, 20, 26, 33.5, 43].forEach(lz => themedLandmarkDecor.push({ type: 'chandelier', x: b.x, z: bMinZ + Math.floor(lz) }));
+                        // Empory nad nawami bocznymi; środek otwarty aż po sklepienie
+                        const gallery = [];
+                        for (let lx = -13; lx <= 13; lx++) for (let lz = 3; lz <= 46; lz++) {
+                            if (Math.abs(lx) >= 9 && !(lz >= 29 && lz <= 38)) gallery.push([b.x + lx, bMinZ + lz]);
                         }
-                        // Galerie: podłogi tylko przy ścianach, środek nawy zostaje otwarty aż po sklepienie
-                        interior.forEach(([x, z, mx, mz]) => {
-                            const nearWallX = (x - bMinX <= 4) || (bMinX + W - 1 - x <= 4);
-                            const nearWallZ = (z - bMinZ <= 4) || (bMinZ + D - 1 - z <= 4);
-                            if (nearWallX || nearWallZ) {
-                                for (let L = 1; L < STOREYS; L++) floorGrid[L][mx][mz] = 1;
-                            }
-                        });
-                        const gallery = interior.filter(([x, z]) => {
-                            const nearWallX = (x - bMinX <= 4) || (bMinX + W - 1 - x <= 4);
-                            const nearWallZ = (z - bMinZ <= 4) || (bMinZ + D - 1 - z <= 4);
-                            return nearWallX || nearWallZ;
-                        });
+                        gallery.forEach(([x, z]) => { for (let L = 1; L < STOREYS; L++) floorGrid[L][x + offsetX][z + offsetZ] = 1; });
+                        const jestGaleria = new Set(gallery.map(g => g.join()));
                         for (let L = 0; L < STOREYS - 1; L++) {
                             for (let attempt = 0; attempt < 40; attempt++) {
-                                const spot = gallery[Math.floor(Math.random() * gallery.length)];
-                                const cells = [[spot[0], spot[1]], [spot[0]+1, spot[1]], [spot[0], spot[1]+1], [spot[0]+1, spot[1]+1]];
-                                if (!cells.every(([cx2, cz2]) => gallery.some(it => it[0] === cx2 && it[1] === cz2))) continue;
+                                const [x, z] = gallery[Math.floor(Math.random() * gallery.length)];
+                                const cells = [[x, z], [x + 1, z], [x, z + 1], [x + 1, z + 1]];
+                                if (!cells.every(c => jestGaleria.has(c.join()) && !obstacleGrid[c[0] + offsetX][c[1] + offsetZ])) continue;
                                 cells.forEach(([cx2, cz2]) => {
                                     holeGrid[L][cx2 + offsetX][cz2 + offsetZ] = 1;
                                     if (L + 1 < STOREYS) floorGrid[L + 1][cx2 + offsetX][cz2 + offsetZ] = 1;
@@ -9839,6 +9798,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
             }
 
+            // Wnętrze katedry trzyma się planu - żadnych przypadkowych przeszkód między filarami
+            if (isKatedraMap && katedraObszar) {
+                const k = katedraObszar;
+                obstaclePositions = obstaclePositions.filter(p => {
+                    if (p.plan || p.type.startsWith('house') || p.x < k.x0 || p.x > k.x1 || p.z < k.z0 || p.z > k.z1) return true;
+                    obstacleGrid[p.x + offsetX][p.z + offsetZ] = null;
+                    obstacleMap.delete(`${p.x},${p.z}`);
+                    return false;
+                });
+            }
             // Ruiny: skupiska zwalisk rozsiane po całej planszy, po jednym na oczko siatki
             const ruinyPlanszy = currentCombatTheme && RUINY_PLANSZE[currentCombatTheme.id];
             if (ruinyPlanszy) {
@@ -12064,7 +12033,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             cyber:        { oprawa: 'neon',      barwa: 0x40ffe0, wys: 3.5, rozstaw: 'droga',  gestosc: 10 },
             cmentarzysko: { oprawa: 'znicz',     barwa: 0xff5a2a, wys: 0.5, rozstaw: 'sciezka',gestosc: 13 },
             nekropolia:   { oprawa: 'znicz',     barwa: 0x7ad0ff, wys: 0.5, rozstaw: 'rozsyp', gestosc: 15 },
-            katedra:      { oprawa: 'swieca',    barwa: 0xffb45a, wys: 1.2, rozstaw: 'rozsyp', gestosc: 11 },
+            katedra:      { oprawa: 'swieca',    barwa: 0xffb45a, wys: 1.2, wlasny: true },
             wyspy:        { oprawa: 'pochodnia', barwa: 0xffc060, wys: 1.9, rozstaw: 'rozsyp', gestosc: 18 },
             zamiec:       { oprawa: 'kaganek',   barwa: 0xa8c8ff, wys: 1.5, rozstaw: 'rozsyp', gestosc: 17 },
             newyork:      { oprawa: 'latarnia',  barwa: 0xffe8b0, wys: 4.0, rozstaw: 'ulica',  gestosc: 12 },
@@ -12666,6 +12635,34 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function dolozRuine(g, wzor) {
             if (ruinyProto[wzor]) g.add(ruinyProto[wzor].clone()); else ruinyCzekaja.push([g, wzor]);
         }
+        // Bryła katedry: ściany widoczne tylko od środka (kamera patrzy przez bliski mur), witraże świecą same
+        let katedraProto = null, katedraCzeka = null, katedraObszar = null;
+        function loadKatedra() {
+            if (typeof THREE.GLTFLoader === 'undefined') return;
+            const loader = new THREE.GLTFLoader();
+            if (typeof THREE.DRACOLoader !== 'undefined') {
+                const draco = new THREE.DRACOLoader();
+                draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+                draco.setDecoderConfig({ type: 'js' });
+                loader.setDRACOLoader(draco);
+            }
+            wczytajGlbBezAnimacji('models/katedra.glb', loader, gltf => {
+                gltf.scene.traverse(ch => {
+                    if (!ch.isMesh) return;
+                    const m = ch.material, szklo = /Roza|Lancet/.test(m.name);
+                    if (m.map) m.map.encoding = THREE.LinearEncoding;
+                    ch.material = (szklo || m.name === 'Czern')
+                        ? new THREE.MeshBasicMaterial({ map: m.map || null, color: szklo ? 0xffffff : 0x000000 })
+                        : new THREE.MeshLambertMaterial({ map: m.map, color: m.name === 'Filar' ? 0x8c867c : 0xa8a298 });
+                    ch.castShadow = m.name === 'Filar';
+                    ch.receiveShadow = !szklo;
+                    ch.frustumCulled = false;
+                });
+                katedraProto = gltf.scene;
+                if (katedraCzeka) { katedraCzeka.add(katedraProto); katedraCzeka = null; }
+            }, err => console.warn('[katedra] Nie wczytano models/katedra.glb', err));
+        }
+
         function loadRuiny() {
             if (typeof THREE.GLTFLoader === 'undefined') return;
             const loader = new THREE.GLTFLoader();
@@ -17274,6 +17271,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     scene.add(g); obstacleMeshes.push(g);
                     if (pos.kryjowka) autaKryjowki.push({ grupa: g, x: pos.x, z: pos.z, otwarte: false });
                 }
+                else if (pos.katedra) { /* mury i portale rysuje models/katedra.glb */ }
+                else if (pos.type === 'filar') {
+                    if (pos.powloka) {
+                        const g = new THREE.Group();
+                        g.position.set(pos.powloka[0], 0, pos.powloka[1]);
+                        if (katedraProto) g.add(katedraProto); else katedraCzeka = g;
+                        scene.add(g); obstacleMeshes.push(g);
+                    }
+                }
                 else if (pos.type === 'ruiny') {
                     const g = new THREE.Group();
                     // Na nierównym terenie stoi na najniższym polu - fundament chowa się w gruncie
@@ -18877,7 +18883,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         // Osłony, których pudło nie niszczy
-        const NIEZNISZCZALNE_OSLONY = ['zachod-sciana', 'wall-resistant', 'skrzynia_metal', 'rumowisko', 'wrak_osobowy', 'wrak_ciezarowy', 'wrak-czesc', 'kontener', 'pal', 'mebel_wiezy', 'mebel_wiezy_sciana', 'chatka', 'ruiny', 'ruiny-czesc'];
+        const NIEZNISZCZALNE_OSLONY = ['zachod-sciana', 'wall-resistant', 'skrzynia_metal', 'rumowisko', 'wrak_osobowy', 'wrak_ciezarowy', 'wrak-czesc', 'kontener', 'pal', 'mebel_wiezy', 'mebel_wiezy_sciana', 'chatka', 'ruiny', 'ruiny-czesc', 'filar'];
 
         // ===================== CO SIĘ PRZEWRACA =====================
         // Wysokie konstrukcje nie znikają po pudle - walą się na sąsiednie pole
@@ -31732,7 +31738,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return przedrostek + (NAZWY_WROGOW[e.type] || (e.type || '').toUpperCase());
         }
 
-        const NISKIE_PRZESZKODY = ['ruiny', 'ruiny-czesc', 'mebel_wiezy', 'lozko','wozek', 'kroplowka', 'kra', 'wlocznie', 'balustrada', 'skrzynia', 'skrzynia_metal', 'rumowisko', 'tor', 'krata', 'prycza', 'kibel', 'ruina', 'zachod-weranda', 'koniowiaz', 'woz',
+        const NISKIE_PRZESZKODY = ['filar', 'ruiny', 'ruiny-czesc', 'mebel_wiezy', 'lozko','wozek', 'kroplowka', 'kra', 'wlocznie', 'balustrada', 'skrzynia', 'skrzynia_metal', 'rumowisko', 'tor', 'krata', 'prycza', 'kibel', 'ruina', 'zachod-weranda', 'koniowiaz', 'woz',
                                    'rock', 'kloda', 'lawka', 'kosz', 'zywoplot', 'beczka', 'beczka_prochu',
                                    'stos_opon', 'hydrant', 'paleta', 'stos_drewna',
                                    'nagrobek', 'crate', 'barrel', 'bush', 'grave', 'tombstone'];
@@ -53119,6 +53125,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         })();
 
         loadRuiny();
+        loadKatedra();
         loadTreeModels();     // modele drzew - ciężkie pliki, więc z limitem na planszę
         loadChatkaModel();    // chatka na palach z Blendera (Amazonia)
         loadHouseModels();    // modele domów - brak pliku oznacza dom rysowany w kodzie
