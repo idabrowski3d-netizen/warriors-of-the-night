@@ -20435,10 +20435,111 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Odtwarza pierwszą animację, którą model faktycznie zawiera.
         // Dzięki temu starszy plik bez nowych klipów nadal działa.
         function playWarriorAnimAny(mesh, nazwy, powrotDoIdle) {
-            if (!mesh || !mesh.userData || !mesh.userData.actions) return;
-            for (const n of nazwy) {
-                if (mesh.userData.actions[n]) { playWarriorAnim(mesh, n, powrotDoIdle); return; }
+            if (!mesh || !mesh.userData) return;
+            const akcje = mesh.userData.actions, n = akcje && nazwy.find(x => akcje[x]);
+            if (n) playWarriorAnim(mesh, n, powrotDoIdle);
+            fxDoAnimacji(mesh, n || nazwy[0], nazwy);   // bryła zastępcza nie ma animacji, ale efekt dostaje
+        }
+
+        // --- ENERGIA WOKÓŁ WOJOWNIKÓW ---
+        // Jedna funkcja na wszystkie efekty: chmura iskier (jeden obiekt Points),
+        // do tego opcjonalnie słup światła, kurczący się krąg i blask w punkcie zbiegu.
+        const FX_MODLITWA = { kolor: 0xffdf9a, n: 44, promien: 2.2, wys: 8, obiegi: 2, rozmiar: 0.55, slup: 0.32, krag: 1.5, kula: 2.4, cel: [0, 1.2, 0] };
+        const FX_LECZENIE = { kolor: 0x7dffa8, n: 34, czas: 1500, wznos: true, obiegi: 2, rozmiar: 0.5, krag: 1.1, kula: 2, cel: [0, 1.1, 0] };
+        const FX_ZRODLO_LECZENIA = { kolor: 0xa8ffc4, n: 24, czas: 1100, promien: 1.5, wys: 3, obiegi: 2, rozmiar: 0.4, kula: 1.5, cel: [0, 1.2, 0] };
+        const FX_OSLONA = { kolor: 0x7fc8ff, n: 30, czas: 1200, promien: 1.8, wys: 3.2, obiegi: 2, rozmiar: 0.45, krag: 1.3, kula: 2, cel: [0, 1.1, 0] };
+        const FX_STRZAL = { n: 20, promien: 1.1, wys: 2, obiegi: 2, rozmiar: 0.38, krag: 0.8, kula: 1.5, przod: 0.55, cel: [0, 1.25, 0] };
+        const KOLOR_AURY_KLASY = { uniwersalna: 0xffc860, wojownik: 0xff7a40, snajper: 0x70ffd0, uzdrowiciel: 0xc090ff };
+        let teksturaEnergii = null;
+        function fxEnergia(mesh, o) {
+            if (!mesh || !mesh.visible) return;
+            if (!teksturaEnergii) {
+                const c = document.createElement('canvas'); c.width = c.height = 64;
+                const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 1, 32, 32, 31);
+                gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+                g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+                teksturaEnergii = new THREE.CanvasTexture(c);
             }
+            const swiatlo = { color: o.kolor, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending };
+            const g = new THREE.Group();
+            g.position.copy(mesh.position);
+            g.userData.unitType = 'fx';
+            scene.add(g);
+            const cel = new THREE.Vector3(o.cel[0], o.cel[1], o.cel[2]);
+            if (o.przod) {
+                const kier = new THREE.Vector3(); mesh.getWorldDirection(kier); cel.addScaledVector(kier, o.przod);
+            }
+            // Iskry
+            const czastki = [];
+            for (let i = 0; i < o.n; i++) czastki.push({ a: Math.random() * Math.PI * 2, r: (o.promien || 0.6) * (0.5 + Math.random() * 0.5), h: (o.wys || 0) * (0.35 + Math.random() * 0.65), faza: Math.random() });
+            const geo = new THREE.BufferGeometry();
+            const poz = new Float32Array(o.n * 3);
+            geo.setAttribute('position', new THREE.BufferAttribute(poz, 3));
+            const matIskry = new THREE.PointsMaterial(Object.assign({ map: teksturaEnergii, size: o.rozmiar }, swiatlo));
+            const iskry = new THREE.Points(geo, matIskry);
+            iskry.frustumCulled = false;
+            g.add(iskry);
+            const dodatki = [];   // [obiekt, materiał, krycie, rysuj(P)]
+            if (o.slup) {
+                const c = document.createElement('canvas'); c.width = 4; c.height = 64;
+                const k = c.getContext('2d'), gr = k.createLinearGradient(0, 0, 0, 64);
+                gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.75, 'rgba(255,255,255,0.8)'); gr.addColorStop(1, 'rgba(255,255,255,0.15)');
+                k.fillStyle = gr; k.fillRect(0, 0, 4, 64);
+                const m = new THREE.MeshBasicMaterial(Object.assign({ map: new THREE.CanvasTexture(c), side: THREE.DoubleSide }, swiatlo));
+                const s = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 0.6, 14, 18, 1, true), m);
+                s.position.y = 7;
+                g.add(s); dodatki.push([s, m, o.slup, P => { s.rotation.y = P * 2; }]);
+            }
+            if (o.krag) {
+                const m = new THREE.MeshBasicMaterial(Object.assign({ side: THREE.DoubleSide }, swiatlo));
+                const k = new THREE.Mesh(new THREE.RingGeometry(0.82, 1, 40), m);
+                k.rotation.x = -Math.PI / 2; k.position.y = 0.08;
+                g.add(k); dodatki.push([k, m, 0.55, P => { k.scale.setScalar(o.krag * (1.15 - 0.6 * P)); }]);
+            }
+            if (o.kula) {
+                const m = new THREE.SpriteMaterial(Object.assign({ map: teksturaEnergii, depthTest: false }, swiatlo));
+                const s = new THREE.Sprite(m);
+                s.position.copy(cel);
+                g.add(s); dodatki.push([s, m, 0.7, P => { s.scale.setScalar(o.kula * (0.25 + 0.75 * P) * (0.94 + 0.06 * Math.sin(P * 40))); }]);
+            }
+            g.traverse(c => { c.raycast = () => {}; });
+            const t0 = performance.now(), czas = o.czas;
+            activeAnimations.push(function (time) {
+                const P = (time - t0) / czas;
+                if (P >= 1 || !g.parent) {
+                    scene.remove(g);
+                    g.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) { if (c.material.map && c.material.map !== teksturaEnergii) c.material.map.dispose(); c.material.dispose(); } });
+                    return true;
+                }
+                const obwiednia = Math.min(1, P / 0.15) * Math.min(1, (1 - P) / 0.18);
+                czastki.forEach((c, i) => {
+                    const p = (P * o.obiegi + c.faza) % 1;
+                    let x, y, z;
+                    if (o.wznos) {   // spirala w górę, od stóp po głowę
+                        const a = c.a + p * 6, r = 0.75 * (1 - p * 0.65);
+                        x = Math.cos(a) * r; y = p * 2.5; z = Math.sin(a) * r;
+                    } else {          // z dala do punktu zbiegu
+                        const q = p * p, a = c.a + p * 1.6;
+                        x = Math.cos(a) * c.r * (1 - q) + cel.x * q;
+                        y = (c.h + cel.y) * (1 - q) + cel.y * q;
+                        z = Math.sin(a) * c.r * (1 - q) + cel.z * q;
+                    }
+                    poz[i * 3] = x; poz[i * 3 + 1] = y; poz[i * 3 + 2] = z;
+                });
+                geo.attributes.position.needsUpdate = true;
+                matIskry.opacity = obwiednia;
+                dodatki.forEach(([, m, krycie, rysuj]) => { m.opacity = krycie * obwiednia; rysuj(P); });
+                return false;
+            });
+        }
+        // Modlitwa i strzał idą przez playWarriorAnimAny - tu dobieramy do nich efekt
+        function fxDoAnimacji(mesh, nazwa, nazwy) {
+            const s = soldiers.find(u => u.mesh === mesh);
+            if (!s) return;
+            const klip = warriorModelClips[nazwa];
+            const dl = (klip ? klip.duration : 1) * 1000;
+            if (nazwa === 'pray') fxEnergia(mesh, Object.assign({}, FX_MODLITWA, { czas: Math.max(1500, dl) }));
+            else if (nazwy.indexOf('fire') !== -1) fxEnergia(mesh, Object.assign({}, FX_STRZAL, { kolor: KOLOR_AURY_KLASY[s.class] || 0xffc860, czas: Math.min(1400, Math.max(600, dl)) }));
         }
 
         function playWarriorAnim(mesh, nazwa, powrotDoIdle) {
@@ -23306,7 +23407,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Na początku tury gracza, zanim gra odnowi punkty ruchu
         function tikManny() {
             if (!manna || gameMode !== 'dream') return;
-            soldiers.forEach(s => { if (!s.isDead && !s.isNPC) s.hp = Math.min(s.maxHp, s.hp + MANNA_HP); });
+            soldiers.forEach(s => { if (!s.isDead && !s.isNPC) { s.hp = Math.min(s.maxHp, s.hp + MANNA_HP); fxEnergia(s.mesh, FX_LECZENIE); } });
             manna.zostalo--;
             if (manna.zostalo > 0) { updateUI(`Manna wciąż spada (tur: ${manna.zostalo}). Wojownicy odzyskują siły.`); return; }
             zakonczManne();
@@ -35300,6 +35401,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             active.ap -= healCost;
             active.healsUsed = (active.healsUsed || 0) + 1;
             target.hp = target.maxHp || 10; // pełne uleczenie do wartości startowej misji
+            fxEnergia(target.mesh, FX_LECZENIE);
+            if (target !== active) fxEnergia(active.mesh, FX_ZRODLO_LECZENIA);
             if (target.nieprzytomny) postawNaNogi(target, active);
             const bylZarazony = cureInfection(target);
             cureVenom(target);
@@ -35327,6 +35430,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             active.shieldsUsed = (active.shieldsUsed || 0) + 1;
 
             createShieldBubble(active);
+            fxEnergia(active.mesh, FX_OSLONA);
 
             const cx = active.mesh.position.x, cz = active.mesh.position.z;
             const covered = soldiers.filter(s => !s.isDead && isInsideShield(s.mesh.position.x, s.mesh.position.z)).length;
