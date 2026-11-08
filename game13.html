@@ -21128,7 +21128,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 oddzial: soldiers.filter(s => !s.isEscortee && !s.isAngel).map(s => ({
                     name: s.name, class: s.class, hp: s.hp, maxHp: s.maxHp, isDead: s.isDead,
                     shotsFired: s.shotsFired || 0, shotsHit: s.shotsHit || 0, kills: s.kills || 0,
-                    healsUsed: s.healsUsed || 0, shieldsUsed: s.shieldsUsed || 0, crossUsed: s.crossUsed || 0,
+                    healsUsed: s.healsUsed || 0, shieldsUsed: s.shieldsUsed || 0, crossUsed: s.crossUsed || 0, chwytUsed: s.chwytUsed || 0,
                     levitateUsed: s.levitateUsed || 0, stealthUsed: s.stealthUsed || 0,
                     callUsed: s.callUsed || 0, angelUsed: s.angelUsed || 0,
                     relicUses: { ...(s.relicUses || {}) },
@@ -21155,7 +21155,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (!z) return;
                 // NIC SIĘ NIE ODNAWIA: zdrowie i zużycie przechodzą jak stały
                 s.hp = Math.min(s.maxHp, z.hp);
-                s.healsUsed = z.healsUsed; s.shieldsUsed = z.shieldsUsed; s.crossUsed = z.crossUsed;
+                s.healsUsed = z.healsUsed; s.shieldsUsed = z.shieldsUsed; s.crossUsed = z.crossUsed; s.chwytUsed = z.chwytUsed;
                 s.levitateUsed = z.levitateUsed; s.stealthUsed = z.stealthUsed;
                 s.callUsed = z.callUsed; s.angelUsed = z.angelUsed;
                 s.relicUses = { ...z.relicUses };
@@ -23360,6 +23360,21 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 run: () => levitateAction()
             },
             {
+                id: 'pochwycenie',
+                name: 'Pochwycenie',
+                describe: (idx) => {
+                    if (getChwytTier(idx) === 0) {
+                        return `Wymaga 13 Mądrości lub Zręczności (masz ${getWarriorStat(idx, 'madrosc')} / ${getWarriorStat(idx, 'zrecznosc')}).`;
+                    }
+                    const t = getChwytTier(idx);
+                    return `Elektryczne lasso: zasięg ${CHWYT_ZASIEG[t]} pól, koszt ${CHWYT_AP} PA. Wróg nie rusza się i nie atakuje przez ` +
+                           `${t === 3 ? '2 swoje tury' : 'swoją następną turę'} - w tym czasie inni mogą go dobić. Nie działa na bossów.`;
+                },
+                available: (idx) => getChwytTier(idx) > 0,
+                usesLeft: (s, idx) => Math.max(0, getChwytTier(idx) - (s.chwytUsed || 0)),
+                run: () => pochwycenieAction()
+            },
+            {
                 id: 'stealth',
                 name: 'Skradanie',
                 describe: (idx) => {
@@ -23493,6 +23508,94 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             updateUI();
         }
 
+        // --- POCHWYCENIE ---
+        // Elektryczne lasso. Liczy się lepsza z dwóch cech, więc naturalnie przychodzi
+        // Uzdrowicielowi (Mądrość) i Łucznikowi (Zręczność); reszta musi je wyćwiczyć.
+        const CHWYT_AP = 4;
+        const CHWYT_ZASIEG = [0, 6, 8, 10];
+        let trybChwytu = false;
+        function getChwytTier(idx) {
+            const w = Math.max(getWarriorStat(idx || 0, 'madrosc'), getWarriorStat(idx || 0, 'zrecznosc'));
+            return w >= 20 ? 3 : (w >= 15 ? 2 : (w >= 13 ? 1 : 0));
+        }
+        function celeChwytu(s) {
+            const idx = soldiers.indexOf(s), sx = Math.round(s.mesh.position.x), sz = Math.round(s.mesh.position.z), lvl = s.level || 0;
+            const sy = getLevelY(sx, sz, lvl);
+            return enemies.filter(e => {
+                if (e.isDead || !e.mesh || !e.mesh.visible || e.isBoss || e.nieDoZabicia || e.podZiemia) return false;
+                const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
+                return Math.max(Math.abs(ex - sx), Math.abs(ez - sz)) <= CHWYT_ZASIEG[getChwytTier(idx)] &&
+                    checkLineOfSight3D(sx, sy + 1, sz, ex, getLevelY(ex, ez, e.level || 0) + 0.5, ez) &&
+                    !floorsBlockShot(sx, sz, lvl, ex, ez, e.level || 0);
+            });
+        }
+        function pochwycenieAction() {
+            if (gameOver || !isPlayerTurn) return;
+            const s = getActiveSoldier();
+            if (!s || s.isDead) return;
+            const idx = soldiers.indexOf(s), limit = getChwytTier(idx);
+            if (limit === 0) { updateUI('Pochwycenie wymaga 13 Mądrości lub Zręczności.'); return; }
+            if (s.turnEnded) { updateUI('Ten wojownik zakończył już ruch w tej turze.'); return; }
+            if ((s.chwytUsed || 0) >= limit) { updateUI(`Pochwycenie wyczerpane w tej misji (${limit}/${limit}).`); return; }
+            if (s.ap < CHWYT_AP) { updateUI(`Za mało punktów ruchu (potrzeba ${CHWYT_AP}).`); return; }
+            const cele = celeChwytu(s);
+            if (!cele.length) { updateUI(`Żaden wróg nie stoi na linii lassa (zasięg ${CHWYT_ZASIEG[limit]} pól).`); return; }
+            trybChwytu = true;
+            updateUI(`POCHWYCENIE: kliknij wroga - w zasięgu ${cele.length}. [Esc] anuluje.`);
+        }
+        function chwytKlik(x, z) {
+            if (!trybChwytu) return false;
+            const s = getActiveSoldier();
+            if (!s || s.isDead || !isPlayerTurn) { trybChwytu = false; return false; }
+            const cel = celeChwytu(s).find(e => Math.round(e.mesh.position.x) === x && Math.round(e.mesh.position.z) === z);
+            if (!cel) { updateUI('Tam lasso nie sięgnie. Kliknij wroga w zasięgu albo [Esc].'); return true; }
+            trybChwytu = false;
+            s.ap -= CHWYT_AP;
+            s.chwytUsed = (s.chwytUsed || 0) + 1;
+            s.mesh.lookAt(cel.mesh.position.x, s.mesh.position.y, cel.mesh.position.z);
+            SoundEngine.playShoot();
+            piorunLassa(s.mesh.position, cel.mesh.position);
+            cel.lodMesh = cel.lodMesh || petleLassa(cel);
+            // tik zdejmuje turę na starcie tury wroga, więc 2 = jedna stracona tura, 3 = dwie
+            skujLodem(cel, getChwytTier(soldiers.indexOf(s)) === 3 ? 3 : 2);
+            updateUI(`${s.name} pochwycił: ${nazwaWroga(cel)} nie może się ruszyć!`);
+            updateUI();
+            return true;
+        }
+        function piorunLassa(a, b) {
+            const mat = new THREE.MeshBasicMaterial({ color: 0x8fe8ff });
+            const m = new THREE.Mesh(new THREE.BufferGeometry(), mat);
+            scene.add(m);
+            let klatek = 12;
+            const krok = setInterval(() => {
+                m.geometry.dispose();
+                if (--klatek < 0) { clearInterval(krok); scene.remove(m); mat.dispose(); return; }
+                const pkt = [];
+                for (let i = 0; i <= 12; i++) {
+                    const f = i / 12, r = (i % 12 ? 0.22 : 0);
+                    pkt.push(new THREE.Vector3(a.x + (b.x - a.x) * f + (Math.random() - .5) * r,
+                        a.y + 1.2 + (b.y - a.y) * f + Math.sin(f * Math.PI) * 0.5 + (Math.random() - .5) * r, a.z + (b.z - a.z) * f + (Math.random() - .5) * r));
+                }
+                m.geometry = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pkt), 36, 0.035, 5, false);
+            }, 50);
+        }
+        // Trzy iskrzące pętle wokół wroga; zdejmuje je rozkujLod jak bryłę lodu
+        function petleLassa(u) {
+            const g = new THREE.Group(); g.userData.lasso = true;
+            const mat = new THREE.MeshBasicMaterial({ color: 0x8fe8ff, transparent: true });
+            [0.5, 1.0, 1.5].forEach(y => {
+                const r = new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.03, 6, 22), mat);
+                r.rotation.x = Math.PI / 2; r.position.y = y; g.add(r);
+            });
+            u.mesh.add(g);
+            const krok = setInterval(() => {
+                if (!g.parent || !g.parent.parent) { clearInterval(krok); return; }
+                mat.opacity = 0.45 + Math.random() * 0.55;
+                g.children.forEach((r, i) => { r.rotation.y = Math.sin(Date.now() / 90 + i * 2) * 0.28; });
+            }, 60);
+            return g;
+        }
+
         // Moce z założonych artefaktów - doklejane do stałych umiejętności
         function getRelicAbilities(idx) {
             const s = soldiers[idx];
@@ -23518,6 +23621,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             stealth: '<path d="M3 11c3 4 15 4 18 0M7 14l-1.5 2M12 15v2.5M17 14l1.5 2"/>',
             call: '<path d="M3 10v4h4l6 5V5L7 10zM17 9a4 4 0 0 1 0 6M20 6a8 8 0 0 1 0 12"/>',
             angel: '<ellipse cx="12" cy="4" rx="5" ry="1.6"/><circle cx="12" cy="11" r="4"/><path d="M5 21c1-3.5 3.5-5 7-5s6 1.5 7 5"/>',
+            pochwycenie: '<ellipse cx="15" cy="7" rx="6.5" ry="4"/><path d="M10.5 10 7 14h3.5L7 18.5h2.5L5 23M18 13.5l-1 2.5h2.5L18 19"/>',
             relikwia: '<path d="M6 3h12l3 6-9 12L3 9zM3 9h18M9 3l3 6 3-6M12 9v12"/>'
         };
         // Moce relikwii - po nazwie przedmiotu
@@ -24391,7 +24495,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 soldiers: soldiers.filter(s => !s.isAngel).map(s => ({
                     x: s.mesh.position.x, z: s.mesh.position.z, hp: s.hp, maxHp: s.maxHp, ap: s.ap, maxAp: s.maxAp,
                     isDead: s.isDead, name: s.name, class: s.class, accuracyBonus: s.accuracyBonus,
-                    turnEnded: s.turnEnded, isKneeling: s.isKneeling, shieldHp: s.shieldHp, level: s.level || 0, mannaUsed: !!s.mannaUsed, crossUsed: s.crossUsed || 0, angelUsed: s.angelUsed || 0, rojTury: s.rojTury || 0, lampionDuszony: s.lampionDuszony || 0, wabiGo: s.wabiGo || null, nieprzytomny: !!s.nieprzytomny, infected: !!s.infected, infectionTick: s.infectionTick || 0, webbedTurns: s.webbedTurns || 0, venomTurns: s.venomTurns || 0, relicUses: { ...(s.relicUses || {}) }, levitateUsed: s.levitateUsed || 0, levitateTurns: s.levitateTurns || 0, stealthUsed: s.stealthUsed || 0, stealthActive: !!s.stealthActive, callUsed: s.callUsed || 0, summonedTurns: s.summonedTurns || 0,
+                    turnEnded: s.turnEnded, isKneeling: s.isKneeling, shieldHp: s.shieldHp, level: s.level || 0, mannaUsed: !!s.mannaUsed, crossUsed: s.crossUsed || 0, chwytUsed: s.chwytUsed || 0, angelUsed: s.angelUsed || 0, rojTury: s.rojTury || 0, lampionDuszony: s.lampionDuszony || 0, wabiGo: s.wabiGo || null, nieprzytomny: !!s.nieprzytomny, infected: !!s.infected, infectionTick: s.infectionTick || 0, webbedTurns: s.webbedTurns || 0, venomTurns: s.venomTurns || 0, relicUses: { ...(s.relicUses || {}) }, levitateUsed: s.levitateUsed || 0, levitateTurns: s.levitateTurns || 0, stealthUsed: s.stealthUsed || 0, stealthActive: !!s.stealthActive, callUsed: s.callUsed || 0, summonedTurns: s.summonedTurns || 0,
                     shotsFired: s.shotsFired, shotsHit: s.shotsHit, kills: s.kills,
                     zabiciRodzaje: { ...(s.zabiciRodzaje || {}) }
                 })),
@@ -24545,7 +24649,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 mesh.position.set(sd.x, ty + mesh.userData.yOffset, sd.z);
                 mesh.add(createNameSprite(sd.name));
                 scene.add(mesh);
-                const sObj = { mesh: mesh, hp: sd.hp, maxHp: sd.maxHp, ap: sd.ap, maxAp: sd.maxAp, isDead: sd.isDead, name: sd.name, class: sd.class, accuracyBonus: sd.accuracyBonus, turnEnded: sd.turnEnded, isKneeling: sd.isKneeling, shieldHp: sd.shieldHp, level: sd.level || 0, mannaUsed: !!sd.mannaUsed, crossUsed: sd.crossUsed || 0, angelUsed: sd.angelUsed || 0, rojTury: sd.rojTury || 0, lampionDuszony: sd.lampionDuszony || 0, wabiGo: sd.wabiGo || null, nieprzytomny: !!sd.nieprzytomny, infected: !!sd.infected, infectionTick: sd.infectionTick || 0, webbedTurns: sd.webbedTurns || 0, venomTurns: sd.venomTurns || 0, relicUses: { ...(sd.relicUses || {}) }, levitateUsed: sd.levitateUsed || 0, levitateTurns: sd.levitateTurns || 0, stealthUsed: sd.stealthUsed || 0, stealthActive: !!sd.stealthActive, callUsed: sd.callUsed || 0, summonedTurns: sd.summonedTurns || 0, shotsFired: sd.shotsFired, shotsHit: sd.shotsHit, kills: sd.kills, zabiciRodzaje: { ...(sd.zabiciRodzaje || {}) } };
+                const sObj = { mesh: mesh, hp: sd.hp, maxHp: sd.maxHp, ap: sd.ap, maxAp: sd.maxAp, isDead: sd.isDead, name: sd.name, class: sd.class, accuracyBonus: sd.accuracyBonus, turnEnded: sd.turnEnded, isKneeling: sd.isKneeling, shieldHp: sd.shieldHp, level: sd.level || 0, mannaUsed: !!sd.mannaUsed, crossUsed: sd.crossUsed || 0, chwytUsed: sd.chwytUsed || 0, angelUsed: sd.angelUsed || 0, rojTury: sd.rojTury || 0, lampionDuszony: sd.lampionDuszony || 0, wabiGo: sd.wabiGo || null, nieprzytomny: !!sd.nieprzytomny, infected: !!sd.infected, infectionTick: sd.infectionTick || 0, webbedTurns: sd.webbedTurns || 0, venomTurns: sd.venomTurns || 0, relicUses: { ...(sd.relicUses || {}) }, levitateUsed: sd.levitateUsed || 0, levitateTurns: sd.levitateTurns || 0, stealthUsed: sd.stealthUsed || 0, stealthActive: !!sd.stealthActive, callUsed: sd.callUsed || 0, summonedTurns: sd.summonedTurns || 0, shotsFired: sd.shotsFired, shotsHit: sd.shotsHit, kills: sd.kills, zabiciRodzaje: { ...(sd.zabiciRodzaje || {}) } };
                 // Leżący bez przytomności wraca na planszę leżąc
                 if (sObj.nieprzytomny && sObj.mesh) { sObj.mesh.rotation.z = Math.PI / 2; sObj.mesh.position.y -= 0.35; }
                 if (sObj.levitateTurns > 0) attachLevitateAura(sObj); // przywróć poświatę lewitacji
@@ -35556,7 +35660,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 e.preventDefault();
                 wskazCelZPaska(wskazanyCel.s, wskazanyCel.e);
             }
-            if (e.key === 'Escape' && trybTelekinezy) {
+            if (e.key === 'Escape' && trybChwytu) {
+                e.preventDefault(); trybChwytu = false; updateUI('Pochwycenie odwołane.');
+            } else if (e.key === 'Escape' && trybTelekinezy) {
                 e.preventDefault(); przerwijTelekineze('Telekineza odwołana.');
             } else if (e.key === 'Escape' && wskazanyCel) {
                 e.preventDefault(); porzucCel();
@@ -36616,6 +36722,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
                 // Telekineza przechwytuje klik, zanim stanie się z niego ruch
                 if (telekinezaKlik(targetX, targetZ)) { highlightMesh.visible = false; return; }
+                if (chwytKlik(targetX, targetZ)) { highlightMesh.visible = false; return; }
 
                 // Mgła na krawędzi snu - wejście w nią kończy misję dla wojownika
                 if (sprobujWejscWeMgle(targetX, targetZ)) { highlightMesh.visible = false; return; }
@@ -38316,8 +38423,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 u.ap = 0;
                 if (u.turnEnded !== undefined) u.turnEnded = true;
                 if (u.zamrozony <= 0) {
+                    const lasso = u.lodMesh && u.lodMesh.userData.lasso;
                     rozkujLod(u);
-                    updateUI(`${u.name || nazwaWroga(u)} rozkuwa się z lodu.`);
+                    updateUI(`${u.name || nazwaWroga(u)} ${lasso ? 'wyrywa się z lassa' : 'rozkuwa się z lodu'}.`);
                 }
             });
         }
