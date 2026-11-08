@@ -12663,6 +12663,23 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }, err => console.warn('[katedra] Nie wczytano models/katedra.glb', err));
         }
 
+        let rzezbyProto = null, rzezbyCzekaja = [];
+        function loadRzezby() {
+            if (typeof THREE.GLTFLoader === 'undefined') return;
+            wczytajGlbBezAnimacji('models/rzezby.glb', new THREE.GLTFLoader(), gltf => {
+                const figury = gltf.scene.children.slice();
+                figury.forEach(f => f.traverse(ch => {
+                    if (!ch.isMesh) return;
+                    if (ch.material.map) ch.material.map.encoding = THREE.LinearEncoding;
+                    ch.material = new THREE.MeshLambertMaterial({ map: ch.material.map, color: 0xf0ebe0 });
+                    ch.frustumCulled = false;
+                }));
+                rzezbyProto = figury;
+                rzezbyCzekaja.forEach(g => g.add(figury[g.userData.wzor % figury.length].clone()));
+                rzezbyCzekaja = [];
+            }, err => console.warn('[rzezby] Nie wczytano models/rzezby.glb', err));
+        }
+
         function loadRuiny() {
             if (typeof THREE.GLTFLoader === 'undefined') return;
             const loader = new THREE.GLTFLoader();
@@ -17622,6 +17639,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const plinth = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.9, 1.0), stoneMat);
                     plinth.position.set(pos.x, ty + 0.45, pos.z);
                     scene.add(plinth); obstacleMeshes.push(plinth);
+                    if (pos.plan) {   // katedra: figury ze skanów, twarzą do wejścia
+                        const g = new THREE.Group();
+                        g.position.set(pos.x, ty + 0.9, pos.z); g.rotation.y = Math.PI;
+                        g.userData.wzor = Math.abs(pos.x * 3 + pos.z);
+                        if (rzezbyProto) g.add(rzezbyProto[g.userData.wzor % rzezbyProto.length].clone()); else rzezbyCzekaja.push(g);
+                        scene.add(g); obstacleMeshes.push(g);
+                        return;
+                    }
                     const figMat = new THREE.MeshLambertMaterial({ color: pos.kolor || 0xc3bcb0 });
                     const robe = new THREE.Mesh(new THREE.ConeGeometry(0.42, 1.7, 10), figMat);
                     robe.position.set(pos.x, ty + 1.75, pos.z);
@@ -53126,6 +53151,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         loadRuiny();
         loadKatedra();
+        loadRzezby();
         loadTreeModels();     // modele drzew - ciężkie pliki, więc z limitem na planszę
         loadChatkaModel();    // chatka na palach z Blendera (Amazonia)
         loadHouseModels();    // modele domów - brak pliku oznacza dom rysowany w kodzie
