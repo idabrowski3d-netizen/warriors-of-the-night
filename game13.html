@@ -6338,6 +6338,39 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             addObstacleRef = addObstacle;
             // Okolica katedry: od zachodu cmentarz z kurhanami i grobowcami, od wschodu budowle według
             // rzutów. Mury to zwykłe pola siatki, bryły rysuje models/budowle.glb.
+            // Wnętrza budowli: ołtarze, figury zwrócone ku środkowi izby, ławki przodem do ołtarza
+            function urzadzWnetrze(nazwa, cx, cz) {
+                const stawiaj = (a, c, typ, extra) => addObstacle(cx + a, cz + c, typ, Object.assign({ plan: true }, extra));
+                const figura = (a, c, naA, naC) => stawiaj(a, c, 'statue', { obrot: Math.atan2(naA - a, naC - c) });
+                const swieca = (a, c) => stawiaj(a, c, 'swieca', { przygaszona: true });   // jasne ściany budowli prześwietlałaby pełnym światłem
+                const P = [-1, 1];
+                if (nazwa === 'rotonda') {
+                    stawiaj(0, 0, 'altar');
+                    P.forEach(a => P.forEach(c => {
+                        figura(a * 3, c * 2, 0, 0); swieca(a, c);
+                        // narożne izby: ołtarzyk ze świecą i figura
+                        stawiaj(a * 4, c * 8, 'altar'); swieca(a * 8, c * 8); figura(a * 5, c * 4, a * 4, c * 7);
+                    }));
+                } else if (nazwa === 'panteon') {
+                    stawiaj(0, -9, 'altar'); figura(0, -10, 0, 0);
+                    [1, 3, 5].forEach(c => [2, 3, 4].forEach(a => P.forEach(q => stawiaj(q * a, c, 'lawka', { obrot: Math.PI }))));
+                    P.forEach(q => {
+                        swieca(q * 2, -8);
+                        figura(q * 7, -8, 0, 0); figura(q * 7, 8, 0, 0); figura(q * 8, -4, 0, 0); figura(q * 8, 4, 0, 0);
+                        stawiaj(q * 10, 0, 'altar', { obrot: Math.PI / 2 }); P.forEach(c => swieca(q * 10, c * 2));
+                    });
+                } else {
+                    stawiaj(9, 0, 'altar', { obrot: Math.PI / 2 }); figura(11, 0, 0, 0);
+                    [-12, -10, -8, -4, -2, 0].forEach(a => [2, 3].forEach(c => P.forEach(q => stawiaj(a, q * c, 'lawka', { obrot: Math.PI / 2 }))));
+                    P.forEach(q => {
+                        swieca(9, q * 2); figura(7, q * 3, 7, 0);
+                        stawiaj(1, q * 4, 'altar'); swieca(-1, q * 4);
+                        figura(-11, q * 4, -11, 0); figura(-3, q * 4, -3, 0);
+                    });
+                    stawiaj(-17, -3, 'altar'); figura(-17, 3, -17, 0);
+                }
+            }
+
             function zabudujOkolicePlanszyKatedry() {
                 katedraStrefy = [];
                 const zwolnij = (x0, x1, z0, z1) => {
@@ -6368,6 +6401,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     zwolnij(cx + pl.x0 - 1, cx + x1 + 1, cz + pl.z0 - 1, cz + z1 + 1);
                     rz.forEach((w, j) => [...w].forEach((c, i) => { if ('#Ro'.includes(c)) pola.push([i + pl.x0, j + pl.z0]); }));
                     budowla(nazwa, cx, cz, 0, pola, pl.x0, x1, pl.z0, z1);
+                    urzadzWnetrze(nazwa, cx, cz);
                 });
                 // Cmentarz: aleja główna, pięć poprzecznych, między nimi kwatery
                 const X0 = -62, X1 = -22, Z0 = -84, Z1 = 84, OS = -42, ALEJE = [-56, -28, 0, 28, 56];
@@ -17558,7 +17592,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             new THREE.MeshBasicMaterial({ color: 0xffd27a }));
                         plomien.position.set(dx, 1.34 + h, 0); plomien.scale.y = 1.8; g.add(plomien);
                     });
-                    const swiatlo = new THREE.PointLight(0xffb45a, 0.9, 9, 1.6);
+                    const swiatlo = new THREE.PointLight(0xffb45a, pos.przygaszona ? 0.14 : 0.9, pos.przygaszona ? 5 : 9, 1.6);
                     swiatlo.position.y = 1.6;
                     swiatlo.userData.rodzajSwiatla = 'pochodnia';
                     g.add(swiatlo);
@@ -17715,6 +17749,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     scene.add(g); obstacleMeshes.push(g);
                 }
                 else if (pos.type === 'altar') {
+                    const odMesha = obstacleMeshes.length;
                     const stoneMat = materialPlyty(0xd6cbb8, 2);
                     const table = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.28, 0.9), stoneMat);
                     table.position.set(pos.x, ty + 1.0, pos.z);
@@ -17761,6 +17796,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         fl.position.set(pos.x + dx, ty + 1.63, pos.z);
                         scene.add(fl); obstacleMeshes.push(fl);
                     });
+                    if (pos.obrot) obstacleMeshes.slice(odMesha).forEach(m => {   // ołtarz poprzek izby
+                        const dx = m.position.x - pos.x, dz = m.position.z - pos.z, s = Math.sin(pos.obrot), c = Math.cos(pos.obrot);
+                        m.position.x = pos.x + dx * c + dz * s; m.position.z = pos.z - dx * s + dz * c; m.rotation.y = pos.obrot;
+                    });
                 }
                 else if (pos.type === 'pal') {
                     const g = brylaPala(pos);
@@ -17774,7 +17813,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     scene.add(plinth); obstacleMeshes.push(plinth);
                     if (pos.plan) {   // katedra: figury ze skanów, twarzą do wejścia
                         const g = new THREE.Group();
-                        g.position.set(pos.x, ty + 0.9, pos.z); g.rotation.y = Math.PI;
+                        g.position.set(pos.x, ty + 0.9, pos.z); g.rotation.y = pos.obrot === undefined ? Math.PI : pos.obrot;
                         g.userData.wzor = Math.abs(pos.x * 3 + pos.z);
                         if (rzezbyProto) g.add(rzezbyProto[g.userData.wzor % rzezbyProto.length].clone()); else rzezbyCzekaja.push(g);
                         scene.add(g); obstacleMeshes.push(g);
