@@ -18779,7 +18779,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return false;
             const obs = obstacleGrid[mx][mz] || scianaNadWyrwa(x, z);
             if (!obs) return false;
-            if (obs.type === 'wall-resistant') return false;
+            if (obs.type === 'wall-resistant' || obs.katedra) return false;   // mury katedry i budowli wokół niej nie pękają od niczego
             if (obs.type !== 'house-wall' && obs.type !== 'wall-destructible' &&
                 obs.type !== 'wagon-sciana' && obs.type !== 'blok' && obs.type !== 'wrota') return false;
 
