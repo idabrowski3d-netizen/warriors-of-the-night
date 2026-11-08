@@ -10347,6 +10347,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const def = GATUNKI_ROSLIN[nazwa], naPole = skala < 1 ? 5 : 3;
             const geo = geometriaKepki(0.9, 1.2, 0);
             const inst = new THREE.InstancedMesh(geo, materialGatunku(nazwa), tiles.length * naPole);
+            inst.userData.roslina = true;
             const dummy = new THREE.Object3D();
             let idx = 0;
             tiles.forEach(([wx, wz]) => {
@@ -11647,6 +11648,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // więc renderObstacles nie rysuje pod nimi brył - rysuje je ta funkcja.
         const chatkaModel = { proto: null, naZiemi: [] };   // naZiemi: chatki bez pali - pełna przeszkoda 3x3
         let chatkiNaPlanszy = [];
+        const WIATRAKI_PLANSZE = ['alabama', 'las', 'pobojowisko', 'ambush', 'stacja', 'bagno', 'parow', 'sahara'];   // wiatrak działa jak chatka na ziemi
+        const maWiatraki = () => !!currentCombatTheme && WIATRAKI_PLANSZE.includes(currentCombatTheme.id);
         function loadChatkaModel() {
             if (typeof THREE.GLTFLoader === 'undefined') return;
             const loader = new THREE.GLTFLoader();
@@ -11663,6 +11666,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             wczytajGlbBezAnimacji('models/iglo.glb', loader, gltf => {   // Zamieć: iglo działa jak chatka na ziemi
                 gltf.scene.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
                 chatkaModel.iglo = gltf.scene;
+            });
+            wczytajGlbBezAnimacji('models/wiatrak.glb', loader, gltf => {
+                gltf.scene.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+                chatkaModel.wiatrak = gltf.scene;
             });
             ['chatka_lepianka', 'chatka_bale'].forEach(n => wczytajGlbBezAnimacji('models/' + n + '.glb', loader, gltf => {
                 gltf.scene.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
@@ -11688,12 +11695,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
         function renderChatki() {
             const zamiec = currentCombatTheme && currentCombatTheme.id === 'zamiec';
-            if (zamiec ? !chatkaModel.iglo : !chatkaModel.proto) return;
+            const wiatraki = maWiatraki();
+            if (wiatraki ? !chatkaModel.wiatrak : zamiec ? !chatkaModel.iglo : !chatkaModel.proto) return;
             const pole = (x, z) => obstacleGrid[x + offsetX] && obstacleGrid[x + offsetX][z + offsetZ];
             // Nowa plansza ma nową siatkę - stare chatki przepadają razem z nią
             chatkiNaPlanszy = chatkiNaPlanszy.filter(c => (c.ziemia ? obstacleMap.get(c.x + ',' + c.z) : pole(c.x, c.z)) === c.znacznik);
             if (chatkiNaPlanszy.length === 0 && soldiers.some(s => !s.isDead)) {
-                const ile = zamiec ? 3 + Math.floor(Math.random() * 3) : 6 + Math.floor(Math.random() * 3);   // więcej chatek niż domów
+                const ile = wiatraki ? 2 + Math.floor(Math.random() * 2) : zamiec ? 3 + Math.floor(Math.random() * 3) : 6 + Math.floor(Math.random() * 3);   // więcej chatek niż domów
                 for (let i = 0, proby = 0; i < ile && proby < 1200; proby++) {
                     const x = Math.floor(Math.random() * (mapWidth - 30)) + 15 - offsetX;
                     const z = Math.floor(Math.random() * (mapDepth - 30)) + 15 - offsetZ;
@@ -11706,7 +11714,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     }
                     if (!wolne || hMax - hMin > 0.6) continue;
                     const znacznik = { type: 'chatka', x: x, z: z };
-                    const ziemia = zamiec ? chatkaModel.iglo : chatkaModel.naZiemi.length && Math.random() < 0.4 ? chatkaModel.naZiemi[i % chatkaModel.naZiemi.length] : null;
+                    const ziemia = wiatraki ? chatkaModel.wiatrak : zamiec ? chatkaModel.iglo : chatkaModel.naZiemi.length && Math.random() < 0.4 ? chatkaModel.naZiemi[i % chatkaModel.naZiemi.length] : null;
                     // chatka na ziemi: wnętrze wolne, ściany trzyma scianaChatki
                     for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
                         if (!ziemia) obstacleGrid[x + dx + offsetX][z + dz + offsetZ] = znacznik;
@@ -11719,6 +11727,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         unieważnijPietra();
                     }
                     chatkiNaPlanszy.push({ x: x, z: z, y: hMin, znacznik: znacznik, ziemia: ziemia, iglo: zamiec });
+                    if (wiatraki) scene.children.forEach(r => {   // trawa nie rośnie w izbie
+                        if (!r.userData.roslina) return;
+                        const m = new THREE.Matrix4(), zero = new THREE.Matrix4().makeScale(0, 0, 0);
+                        for (let k = 0; k < r.count; k++) {
+                            r.getMatrixAt(k, m);
+                            if (Math.abs(m.elements[12] - x) < 1.6 && Math.abs(m.elements[14] - z) < 1.6) r.setMatrixAt(k, zero);
+                        }
+                        r.instanceMatrix.needsUpdate = true;
+                    });
                     i++;
                 }
             }
@@ -11730,6 +11747,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 m.position.set(c.x, c.y, c.z);
                 m.userData.unitType = 'obstacle';
                 c.dach = m.getObjectByName('chatka_strzecha') || m.getObjectByName('chatka_strzecha001');
+                c.skrzydla = m.getObjectByName('wiatrak_skrzydla');
                 scene.add(m);
                 obstacleMeshes.push(m);
             });
@@ -12217,7 +12235,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // wiszące w powietrzu płomienie z poprzedniej misji.
             ogniePiekielne.forEach(o => scene.remove(o)); ogniePiekielne = [];
             clearCampfires();
-            if (currentCombatTheme && currentCombatTheme.id === 'zamiec') renderChatki();
+            if (currentCombatTheme && (currentCombatTheme.id === 'zamiec' || maWiatraki())) renderChatki();
             // Tabela opraw ma pierwszeństwo przed wszystkimi dawnymi gałęziami -
             // te kończyły funkcję wcześniej, więc Alcatraz, wyspy, bagno, zamieć
             // i wulkan nigdy by do niej nie dotarły.
@@ -16178,7 +16196,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             autaKryjowki = [];
             efektyPiekla = [];
             domyInstancje = [];
-            if (currentCombatTheme && (currentCombatTheme.id === 'amazonia' || currentCombatTheme.id === 'zamiec')) renderChatki();
+            if (currentCombatTheme && (currentCombatTheme.id === 'amazonia' || currentCombatTheme.id === 'zamiec' || maWiatraki())) renderChatki();
             let drzewZKodu = 0;
 
             // Gdy są wgrane modele domów, stawiamy je zamiast brył rysowanych w kodzie.
@@ -48330,7 +48348,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 scene.remove(sp); sp.material.map.dispose(); sp.material.dispose(); paskiZycia.delete(e);
             });
         }
-        function animate(time) { 
+        function animate(time) {
+            chatkiNaPlanszy.forEach(c => { if (c.skrzydla) c.skrzydla.rotation.z = performance.now() * 0.0009; }); 
             requestAnimationFrame(animate); 
             const dt = Math.min((time - lastFrameTime) / 1000, 0.1); 
             lastFrameTime = time;
