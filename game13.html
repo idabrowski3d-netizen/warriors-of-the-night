@@ -9839,6 +9839,46 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
             }
 
+            // Ruiny: skupiska zwalisk rozsiane po całej planszy, po jednym na oczko siatki
+            const ruinyPlanszy = currentCombatTheme && RUINY_PLANSZE[currentCombatTheme.id];
+            if (ruinyPlanszy) {
+                const maska = currentCombatTheme.id === 'bagno' ? [0, 5] : [0];
+                const pola = (w, x, z, k) => RUINY_WZORY[w].pola.map(([a, b]) => {
+                    for (let i = 0; i < k; i++) [a, b] = [b, -a];
+                    return [x + a, z + b];
+                });
+                const zabudowa = (x, z) => {
+                    const o = obstacleGrid[x + offsetX] && obstacleGrid[x + offsetX][z + offsetZ];
+                    return !!o && (o.type.startsWith('ruiny') || o.type.startsWith('house'));
+                };
+                const stawiaj = (w, x, z, k) => {
+                    const t = pola(w, x, z, k);
+                    let lo = Infinity, hi = -Infinity;
+                    for (const [a, b] of t) {
+                        if (!isWithinPlayBounds(a, b) || isObstacle(a, b) || isInsideAnyHouse(a, b)) return false;
+                        const mx = a + offsetX, mz = b + offsetZ;
+                        if (maska.indexOf(terrainTypeMap[mx][mz]) === -1 || riverGrid[mx][mz] === 1) return false;
+                        lo = Math.min(lo, heightMap[mx][mz]); hi = Math.max(hi, heightMap[mx][mz]);
+                        // pole odstępu od innych ruin i domów, żeby nie zamurować przejścia
+                        for (let u = -1; u <= 1; u++) for (let v = -1; v <= 1; v++) if (zabudowa(a + u, b + v)) return false;
+                    }
+                    if (hi - lo > 1.2) return false;
+                    t.forEach(([a, b], i) => {
+                        addObstacle(a, b, i === 0 ? 'ruiny' : 'ruiny-czesc', { wysoka: !!RUINY_WZORY[w].wysoka, wzor: i === 0 ? w : undefined, obrot: k, pola: i === 0 ? t : undefined });
+                        cornfieldGrid[a + offsetX][b + offsetZ] = 0;
+                    });
+                    return true;
+                };
+                const OCZKO = 24, los = t => t[Math.floor(Math.random() * t.length)];
+                for (let cx = -offsetX; cx < mapWidth - offsetX; cx += OCZKO) for (let cz = -offsetZ; cz < mapDepth - offsetZ; cz += OCZKO) {
+                    if (Math.random() > 0.7) continue;
+                    const sx = cx + 6 + Math.floor(Math.random() * 12), sz = cz + 6 + Math.floor(Math.random() * 12);
+                    stawiaj(los(ruinyPlanszy.duze), sx, sz, Math.floor(Math.random() * 4));
+                    for (let i = 0, ile = 3 + Math.floor(Math.random() * 3); i < ile; i++) for (let p = 0; p < 6; p++)
+                        if (stawiaj(los(ruinyPlanszy.drobne), sx + Math.floor(Math.random() * 15) - 7, sz + Math.floor(Math.random() * 15) - 7, Math.floor(Math.random() * 4))) break;
+                }
+            }
+
             // Sahara: budynki i drogi spłaszczają teren do zera, co przy wysokich wydmach
             // tworzy pionowe progi nie do przejścia. Wyrównujemy je dopiero teraz, gdy
             // wszystko jest już rozstawione - inaczej poprawka zostałaby nadpisana.
@@ -12601,6 +12641,50 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 } catch (e) { /* nie udało się - próbujemy oryginału */ }
                 loader.parse(doParsowania, '', gotowe, blad);
             }).catch(blad);
+        }
+
+        // --- RUINY (models/ruiny.glb, kawałek = obiekt o nazwie wzoru) ---
+        // pola: zajęte kratki względem środka; wysoka: zasłania też widok
+        const POLA3 = [[0, 0], [-1, 0], [1, 0]], POLA2 = [[0, 0], [1, 0]], POLE = [[0, 0]];
+        const RUINY_WZORY = {
+            azt_piramida: { wysoka: true, pola: [-1, 0, 1].flatMap(a => [-1, 0, 1].map(b => [a, b])) },
+            azt_mur: { pola: POLA3 }, azt_stela: { pola: POLE }, azt_glowa: { pola: POLE }, azt_gruz: { pola: POLE },
+            ant_portyk: { pola: [[-1, 0], [1, 0]] }, ant_kolumna: { pola: POLE }, ant_kolumna_zlamana: { pola: POLE },
+            ant_murek: { pola: POLA3 }, ant_beben: { pola: POLA2 },
+            spal_sciana: { wysoka: true, pola: POLA3 }, spal_komin: { pola: POLE }, spal_gruz: { pola: POLA2 },
+            spal_naroznik: { wysoka: true, pola: [[-1, -1], [0, -1], [1, -1], [-1, 0], [-1, 1]] },
+            spal_dom: { wysoka: true, pola: [[-2, -2], [-1, -2], [0, -2], [1, -2], [2, -2], [-2, -1], [2, -1], [-2, 0], [2, 0], [-2, 1], [2, 1], [-2, 2], [-1, 2], [1, 2], [2, 2]] }
+        };
+        const AZTECKIE = { duze: ['azt_piramida', 'azt_mur'], drobne: ['azt_mur', 'azt_stela', 'azt_stela', 'azt_glowa', 'azt_gruz', 'azt_gruz'] };
+        const RUINY_PLANSZE = {
+            amazonia: AZTECKIE, bagno: AZTECKIE,
+            sahara: { duze: ['ant_portyk', 'ant_murek'], drobne: ['ant_kolumna', 'ant_kolumna', 'ant_kolumna_zlamana', 'ant_kolumna_zlamana', 'ant_murek', 'ant_beben'] },
+            pozar: { duze: ['spal_dom', 'spal_dom', 'spal_naroznik'], drobne: ['spal_sciana', 'spal_sciana', 'spal_naroznik', 'spal_komin', 'spal_gruz', 'spal_gruz'] }
+        };
+        const ruinyProto = {};
+        let ruinyCzekaja = [];          // plansza stanęła przed końcem wczytywania
+        function dolozRuine(g, wzor) {
+            if (ruinyProto[wzor]) g.add(ruinyProto[wzor].clone()); else ruinyCzekaja.push([g, wzor]);
+        }
+        function loadRuiny() {
+            if (typeof THREE.GLTFLoader === 'undefined') return;
+            const loader = new THREE.GLTFLoader();
+            if (typeof THREE.DRACOLoader !== 'undefined') {
+                const draco = new THREE.DRACOLoader();
+                draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+                draco.setDecoderConfig({ type: 'js' });
+                loader.setDRACOLoader(draco);
+            }
+            wczytajGlbBezAnimacji('models/ruiny.glb', loader, gltf => {
+                const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+                gltf.scene.children.slice().forEach(o => {
+                    o.traverse(ch => { if (ch.isMesh) { ch.material = mat; ch.castShadow = ch.receiveShadow = true; } });
+                    o.position.set(0, 0, 0);
+                    ruinyProto[o.name] = o;
+                });
+                ruinyCzekaja.forEach(([g, w]) => dolozRuine(g, w));
+                ruinyCzekaja = [];
+            }, err => console.warn('[ruiny] Nie wczytano models/ruiny.glb', err));
         }
 
         function loadTreeModels() {
@@ -17190,7 +17274,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     scene.add(g); obstacleMeshes.push(g);
                     if (pos.kryjowka) autaKryjowki.push({ grupa: g, x: pos.x, z: pos.z, otwarte: false });
                 }
-                else if (pos.type === 'wesole-czesc' || pos.type === 'wrak-czesc') { /* niewidoczna część dużej konstrukcji */ }
+                else if (pos.type === 'ruiny') {
+                    const g = new THREE.Group();
+                    // Na nierównym terenie stoi na najniższym polu - fundament chowa się w gruncie
+                    g.position.set(pos.x, Math.min(...pos.pola.map(([a, b]) => getTerrainY(a, b))), pos.z);
+                    g.rotation.y = pos.obrot * Math.PI / 2;
+                    dolozRuine(g, pos.wzor);
+                    scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'wesole-czesc' || pos.type === 'wrak-czesc' || pos.type === 'ruiny-czesc') { /* niewidoczna część dużej konstrukcji */ }
                 else if (pos.type === 'karuzela') {
                     const g = new THREE.Group();
                     const drewno = new THREE.MeshLambertMaterial({ color: 0x5a4636 });
@@ -18785,7 +18877,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         // Osłony, których pudło nie niszczy
-        const NIEZNISZCZALNE_OSLONY = ['zachod-sciana', 'wall-resistant', 'skrzynia_metal', 'rumowisko', 'wrak_osobowy', 'wrak_ciezarowy', 'wrak-czesc', 'kontener', 'pal', 'mebel_wiezy', 'mebel_wiezy_sciana', 'chatka'];
+        const NIEZNISZCZALNE_OSLONY = ['zachod-sciana', 'wall-resistant', 'skrzynia_metal', 'rumowisko', 'wrak_osobowy', 'wrak_ciezarowy', 'wrak-czesc', 'kontener', 'pal', 'mebel_wiezy', 'mebel_wiezy_sciana', 'chatka', 'ruiny', 'ruiny-czesc'];
 
         // ===================== CO SIĘ PRZEWRACA =====================
         // Wysokie konstrukcje nie znikają po pudle - walą się na sąsiednie pole
@@ -31640,7 +31732,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return przedrostek + (NAZWY_WROGOW[e.type] || (e.type || '').toUpperCase());
         }
 
-        const NISKIE_PRZESZKODY = ['mebel_wiezy', 'lozko','wozek', 'kroplowka', 'kra', 'wlocznie', 'balustrada', 'skrzynia', 'skrzynia_metal', 'rumowisko', 'tor', 'krata', 'prycza', 'kibel', 'ruina', 'zachod-weranda', 'koniowiaz', 'woz',
+        const NISKIE_PRZESZKODY = ['ruiny', 'ruiny-czesc', 'mebel_wiezy', 'lozko','wozek', 'kroplowka', 'kra', 'wlocznie', 'balustrada', 'skrzynia', 'skrzynia_metal', 'rumowisko', 'tor', 'krata', 'prycza', 'kibel', 'ruina', 'zachod-weranda', 'koniowiaz', 'woz',
                                    'rock', 'kloda', 'lawka', 'kosz', 'zywoplot', 'beczka', 'beczka_prochu',
                                    'stos_opon', 'hydrant', 'paleta', 'stos_drewna',
                                    'nagrobek', 'crate', 'barrel', 'bush', 'grave', 'tombstone'];
@@ -53026,6 +53118,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             document.addEventListener('fullscreenchange', () => { chk.checked = czyPelnyEkran(); });
         })();
 
+        loadRuiny();
         loadTreeModels();     // modele drzew - ciężkie pliki, więc z limitem na planszę
         loadChatkaModel();    // chatka na palach z Blendera (Amazonia)
         loadHouseModels();    // modele domów - brak pliku oznacza dom rysowany w kodzie
