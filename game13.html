@@ -2639,7 +2639,7 @@
             wyspy: { grass: trawa_wysp('#4a7a3a', '#5e9446', '#355a2a'), dirt: trawa_wysp('#7a6240', '#90764e', '#58462c') },
             nekropolia: { sidewalk: plyty_nekropolii('#5a5444', '#6e6856', '#34302a'), grass: plyty_nekropolii('#4a4a3e', '#5e5e50', '#2c2c24'), dirt: plyty_nekropolii('#5c5240', '#6e6450', '#38301f') },
             klaustrofobia: { sidewalk: bruk_tunelu('#423d37', '#5a544c', '#2a2622'), grass: bruk_tunelu('#3a3632', '#4f4a44', '#25221f'), dirt: bruk_tunelu('#4a443c', '#605a50', '#2e2a24') },
-            katedra: { sidewalk: romby_katedry('#8a8272', '#201e1b', '#7a6a4a'), dirt: plyty_katedry('#716a5b', '#5b5549', '#332f27'), grass: plyty_katedry('#6b6355', '#524c41', '#2c2822'), road: dywan_katedry('#6c1420', '#c9a227', '#3e0a12') },
+            katedra: { sidewalk: romby_katedry('#8a8272', '#201e1b', '#7a6a4a'), dirt: plyty_katedry('#716a5b', '#5b5549', '#332f27'), grass: darn_cmentarna('#3e4436', '#555c48', '#2c3026'), road: dywan_katedry('#6c1420', '#c9a227', '#3e0a12') },
             szpital: { sidewalk: linoleum('#8a8c84', '#9ea096', '#66685f'), grass: linoleum('#5e6358', '#6d7266', '#44483f'), dirt: linoleum('#7a7a6e', '#8c8c80', '#57574e'), road: linoleum('#8a8c84', '#9ea096', '#66685f') },
             alcatraz: { grass: beton_wiezienny('#6e6b63', '#85827a', '#4c4a44'), dirt: beton_wiezienny('#8a857a', '#a09b90', '#625e55'), road: beton_wiezienny('#5a5751', '#706d66', '#3c3a36') },
             sicario: { grass: pustynia_granicy('#b09468', '#c9ae80', '#8a7350'), dirt: pustynia_granicy('#c8a070', '#dcb88a', '#a07e54') },
@@ -5782,7 +5782,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             alabama:      ['dab', 'dab', 'lisciaste'],
             pobojowisko:  ['dab', 'brzoza', 'lisciaste'],
             amazonia:     ['lisciaste', 'lisciaste'],
-            katedra:      ['dab', 'swierk'],
+            katedra:      ['dab', 'swierk', 'wierzba'],
             parow:        ['swierk', 'brzoza'],
             wyspy:        ['lisciaste', 'wierzba'],
             kremlin:      ['swierk', 'brzoza', 'brzoza'],
@@ -6219,7 +6219,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             } else if (gameMode === 'dream' &&
                        // Labirynt i Ostoja też są zabudową - rzeka przecinałaby
                        // korytarze i zostawiała w nich pas trawy.
-                       !(currentCombatTheme && ['newyork', 'alcatraz', 'stacja', 'most', 'dom', 'wieza', 'jezioro', 'studnia', 'szpital', 'klaustrofobia', 'ostoja'].includes(currentCombatTheme.id)) &&
+                       !(currentCombatTheme && ['newyork', 'alcatraz', 'stacja', 'most', 'dom', 'wieza', 'jezioro', 'studnia', 'szpital', 'klaustrofobia', 'ostoja', 'katedra'].includes(currentCombatTheme.id)) &&
                        (isVolcanoTheme ||
                        (currentCombatTheme && currentCombatTheme.id === 'otchlan') ||
                        Math.random() < 0.45)) {
@@ -6336,6 +6336,86 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             // Udostępniamy na zewnątrz - cele misji rozstawiane są po wygenerowaniu mapy
             addObstacleRef = addObstacle;
+            // Okolica katedry: od zachodu cmentarz z kurhanami i grobowcami, od wschodu budowle według
+            // rzutów. Mury to zwykłe pola siatki, bryły rysuje models/budowle.glb.
+            function zabudujOkolicePlanszyKatedry() {
+                katedraStrefy = [];
+                const zwolnij = (x0, x1, z0, z1) => {
+                    const zdejmij = p => { obstacleGrid[p.x + offsetX][p.z + offsetZ] = null; obstacleMap.delete(p.x + ',' + p.z); return false; };
+                    houses.forEach(h => {
+                        if (h.maxX < x0 - 2 || h.minX > x1 + 2 || h.maxZ < z0 - 2 || h.minZ > z1 + 2) return;
+                        obstaclePositions = obstaclePositions.filter(p => p.houseId !== h.id || zdejmij(p));
+                        h.minX = h.maxX = h.minZ = h.maxZ = -9999;   // wpis zostaje: houses[houseId] musi wskazywać ten sam dom
+                    });
+                    obstaclePositions = obstaclePositions.filter(p => p.x < x0 || p.x > x1 || p.z < z0 || p.z > z1 || zdejmij(p));
+                    for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
+                        const mx = x + offsetX, mz = z + offsetZ;
+                        obstacleGrid[mx][mz] = null; obstacleMap.delete(x + ',' + z); terrainTypeMap[mx][mz] = 1; heightMap[mx][mz] = 0; cornfieldGrid[mx][mz] = 0;
+                    }
+                    katedraStrefy.push({ x0, x1, z0, z1 });
+                };
+                const budowla = (model, cx, cz, obrot, pola, x0, x1, z0, z1) => {
+                    const id = houses.length;
+                    houses.push({ specjalny: true, id, minX: cx + x0, maxX: cx + x1, minZ: cz + z0, maxZ: cz + z1, centerX: cx, centerZ: cz });
+                    pola.forEach(([a, c]) => addObstacle(cx + a, cz + c, 'house-wall', { houseId: id, wallColor: 0x888888, destructible: false, floors: 2, thinWall: true, katedra: true }));
+                    obstaclePositions.push({ type: 'budowla', plan: true, model, x: cx, z: cz, obrot, x0: cx + x0, x1: cx + x1, z0: cz + z0, z1: cz + z1 });
+                };
+                for (let x = 0; x < mapWidth; x++) for (let z = 0; z < mapDepth; z++) if (terrainTypeMap[x][z] === 0) terrainTypeMap[x][z] = 1;
+                // Budowle według rzutów
+                [['rotonda', 44, -58], ['panteon', 44, -6], ['kosciol', 44, 62]].forEach(([nazwa, cx, cz]) => {
+                    const pl = PLANY_BUDOWLI[nazwa], rz = pl.rz.split('/'), pola = [];
+                    const x1 = pl.x0 + rz[0].length - 1, z1 = pl.z0 + rz.length - 1;
+                    zwolnij(cx + pl.x0 - 1, cx + x1 + 1, cz + pl.z0 - 1, cz + z1 + 1);
+                    rz.forEach((w, j) => [...w].forEach((c, i) => { if ('#Ro'.includes(c)) pola.push([i + pl.x0, j + pl.z0]); }));
+                    budowla(nazwa, cx, cz, 0, pola, pl.x0, x1, pl.z0, z1);
+                });
+                // Cmentarz: aleja główna, pięć poprzecznych, między nimi kwatery
+                const X0 = -62, X1 = -22, Z0 = -84, Z1 = 84, OS = -42, ALEJE = [-56, -28, 0, 28, 56];
+                zwolnij(X0 - 1, X1 + 1, Z0 - 1, Z1 + 1);
+                const naAlei = (x, z) => Math.abs(x - OS) <= 1 || ALEJE.some(a => Math.abs(z - a) <= 1);
+                for (let x = X0; x <= X1; x++) for (let z = Z0; z <= Z1; z++) if (!naAlei(x, z)) terrainTypeMap[x + offsetX][z + offsetZ] = 0;
+                for (let x = X0; x <= X1; x++) if (Math.abs(x - OS) > 1) [Z0, Z1].forEach(z => addObstacle(x, z, 'grave-fence', { fenceSide: false, plan: true }));
+                for (let z = Z0 + 1; z < Z1; z++) if (!ALEJE.some(a => Math.abs(z - a) <= 1)) [X0, X1].forEach(x => addObstacle(x, z, 'grave-fence', { fenceSide: true, plan: true }));
+                const rodzaje = ['kurhan', 'kurhan', 'kurhan', 'grobowce', 'grobowce', 'grobowce', 'groby', 'groby', 'groby', 'groby', 'groby', 'groby'];
+                for (let i = rodzaje.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [rodzaje[i], rodzaje[j]] = [rodzaje[j], rodzaje[i]]; }
+                const kratki = [];
+                [-83, -54, -26, 2, 30, 58].forEach((z0, k) => [[X0 + 1, OS - 2], [OS + 2, X1 - 1]].forEach(([x0, x1]) => kratki.push({ x0, x1, z0, z1: [-58, -30, -2, 26, 54, 83][k] })));
+                const grobyWRzedach = (k, z0, z1) => {
+                    for (let z = z0; z <= z1; z += 4) for (let x = k.x0 + 1; x <= k.x1; x += 3) {
+                        if (Math.random() < 0.3) continue;
+                        const r = Math.random();
+                        if (r < 0.62) addObstacle(x, z, 'nagrobek', { plan: true });
+                        else if (r < 0.78) addObstacle(x, z, 'krzyz', { plan: true });
+                        else if (r < 0.94) addObstacle(x, z, 'sarcophagus', { plan: true, sarcoSize: Math.random() < 0.5 ? 'small' : 'normal' });
+                        else addObstacle(x, z, 'aniol_nagrobny', { plan: true });
+                    }
+                };
+                kratki.forEach((k, i) => {
+                    const rodzaj = rodzaje[i], sx = Math.round((k.x0 + k.x1) / 2);
+                    if (rodzaj === 'kurhan') {
+                        [k.z0 + 6, k.z1 - 6].forEach(cz => {
+                            const pola = [];
+                            for (let a = -4; a <= 4; a++) for (let c = -4; c <= 4; c++) if (Math.hypot(a, c) <= 4.2) pola.push([a, c]);
+                            budowla('kurhan', sx, cz, 0, pola, -4, 4, -4, 4);
+                        });
+                    } else if (rodzaj === 'grobowce') {
+                        [[k.z1 - 2, 0], [k.z0 + 2, Math.PI]].forEach(([cz, obrot]) => {
+                            for (let cx = k.x0 + 3; cx <= k.x1 - 2; cx += 6) {
+                                if (Math.random() < 0.15) continue;
+                                const pola = [];
+                                for (let a = -2; a <= 2; a++) for (let c = -2; c <= 2; c++) pola.push([a, c]);
+                                budowla('grobowiec_' + 'abc'[Math.floor(Math.random() * 3)], cx, cz, obrot, pola, -2, 2, -2, 2);
+                            }
+                        });
+                        grobyWRzedach(k, k.z0 + 7, k.z1 - 7);
+                    } else grobyWRzedach(k, k.z0 + 1, k.z1 - 1);
+                    for (let n = rodzaj === 'kurhan' ? 9 : 5; n > 0; n--) {
+                        const x = k.x0 + Math.floor(Math.random() * (k.x1 - k.x0 + 1)), z = k.z0 + Math.floor(Math.random() * (k.z1 - k.z0 + 1));
+                        addObstacle(x, z, 'tree', { plan: true });
+                    }
+                });
+            }
+
             function addObstacle(ox, oz, type, extra) {
                 let mx = ox + offsetX, mz = oz + offsetZ;
                 if (mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth) {
@@ -9087,7 +9167,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         for (let lx = -13; lx <= 13; lx++) for (let lz = 1; lz < D - 1; lz++) {
                             if (!wSrodku(lx, lz)) continue;
                             const mx = b.x + lx + offsetX, mz = bMinZ + lz + offsetZ, a = Math.abs(lx);
-                            terrainTypeMap[mx][mz] = (a <= 1 && lz >= 2 && lz <= ZA + 2) ? 2 : (a <= 4 || (lz >= 31 && lz <= 36) || lz > ZA) ? 3 : a >= 11 ? 0 : 1;
+                            terrainTypeMap[mx][mz] = (a <= 1 && lz >= 2 && lz <= ZA + 2) ? 2 : (a <= 4 || (lz >= 31 && lz <= 36) || lz > ZA) ? 3 : 1;
                             heightMap[mx][mz] = 0;
                             cornfieldGrid[mx][mz] = 0;
                         }
@@ -9112,6 +9192,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                 break;
                             }
                         }
+                        zabudujOkolicePlanszyKatedry();
                     }
                 } else if (currentCombatTheme.id === 'newyork') {
                     // Nowy Jork: ulica jak z fotografii. Jezdnia, szerokie chodniki, przecznice,
@@ -9802,7 +9883,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (isKatedraMap && katedraObszar) {
                 const k = katedraObszar;
                 obstaclePositions = obstaclePositions.filter(p => {
-                    if (p.plan || p.type.startsWith('house') || p.x < k.x0 || p.x > k.x1 || p.z < k.z0 || p.z > k.z1) return true;
+                    if (p.plan || p.type.startsWith('house') || ![k].concat(katedraStrefy).some(s => p.x >= s.x0 && p.x <= s.x1 && p.z >= s.z0 && p.z <= s.z1)) return true;
                     obstacleGrid[p.x + offsetX][p.z + offsetZ] = null;
                     obstacleMap.delete(`${p.x},${p.z}`);
                     return false;
@@ -12679,6 +12760,31 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 katedraProto = gltf.scene;
                 if (katedraCzeka) { katedraCzeka.add(katedraProto); katedraCzeka = null; }
             }, err => console.warn('[katedra] Nie wczytano models/katedra.glb', err));
+        }
+
+        // Budowle wokół katedry i groby rodzinne (models/budowle.glb, z Blendera). Rzuty: # R o mur, D przejście, reszta wolna
+        const PLANY_BUDOWLI = {"rotonda":{"x0":-17,"z0":-17,"rz":"                                   /                                   /                                   /                                   /                                   /             o.o...o.o             /             .........             /             #.......#             /        ########DDD########        /        #..#...#...#...#..#        /        #..D...D...D...D..#        /        #..#...#...#...#..#        /        #..#...#DDD#...#..#        /     o.##..#..RRDDDRR..#..##.o     /     ...#..#.RR.....RR.#..#...     /     o..##D##R.......R##D##..o     /     ...D...DD.......DD...D...     /     ...D...DD.......DD...D...     /     ...D...DD.......DD...D...     /     o..##D##R.......R##D##..o     /     ...#..#.RR.....RR.#..#...     /     o.##..#..RRDDDRR..#..##.o     /        #..#...#DDD#...#..#        /        #..#...#...#...#..#        /        #..D...D...D...D..#        /        #..#...#...#...#..#        /        ########DDD########        /             #.......#             /             .........             /             o.o...o.o             /                                   /                                   /                                   /                                   /                                   "},"panteon":{"x0":-13,"z0":-13,"rz":"                           /          RRRRRRR          /        RRRRRRRRRRR        /      RRRRRR...RRRRRR      /     RRRRRRR...RRRRRRR     /    RR..R.........R..RR    /   RR.................RR   /   RR.................RR   /  RRRR...............RRRR  /  RRR.................RRR  / RRRR.................RRRR / RRRR.................RRRR / RR.....................RR / RR.....................RR / RR.....................RR / RRRR.................RRRR / RRRR.................RRRR /  RRR.................RRR  /  RRRR...............RRRR  /   RR.................RR   /   RR.................RR   /    RR..R.........R..RR    /     RRRRRRRDDDRRRRRRR     /      RRRRRRDDDRRRRRR      /      ##RRRRDDDRRRR##      /      ####RRDDDRR####      /      ######DDD######      /      ######DDD######      /     .................     /     .................     /     o...o.......o...o     /     .................     /     .................     /     o.o.o.o...o.o.o.o     "},"kosciol":{"x0":-20,"z0":-8,"rz":"        o..o..o..o..o..o..o..o.   /        .......................   /        .......................   /      #######DDD#######           /      #...............########    /#######...............#......##   /#.....#...............D.......##  /D.....D...............D........###/D.....D...............D..........#/D.....D...............D........###/#.....#...............D.......##  /#######...............#......##   /      #...............########    /      #######DDD#######           /        .......................   /        .......................   /        o..o..o..o..o..o..o..o.   "}};
+        let katedraStrefy = [], budowleProto = null, budowleCzekaja = [], budowleZDachem = [];
+        function wstawBudowle(g) {
+            const m = budowleProto.getObjectByName(g.userData.budowla.model).clone();
+            m.position.set(0, 0, 0);
+            g.add(m);
+            g.userData.dach = m.children.find(c => /_dach$/.test(c.name));
+            if (g.userData.dach) budowleZDachem.push(g);
+        }
+        function loadBudowle() {
+            if (typeof THREE.GLTFLoader === 'undefined') return;
+            wczytajGlbBezAnimacji('models/budowle.glb', new THREE.GLTFLoader(), gltf => {
+                gltf.scene.traverse(ch => {
+                    if (!ch.isMesh) return;
+                    const m = ch.material;
+                    if (m.map) m.map.encoding = THREE.LinearEncoding;
+                    ch.material = new THREE.MeshLambertMaterial({ map: m.map, color: m.map ? 0xffffff : m.color });
+                    ch.castShadow = ch.receiveShadow = true;
+                });
+                budowleProto = gltf.scene;
+                budowleCzekaja.forEach(wstawBudowle); budowleCzekaja = [];
+            });
         }
 
         let rzezbyProto = null, rzezbyCzekaja = [];
@@ -16186,7 +16292,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // misji każda przeszkoda istniała podwójnie, a po wczytaniu zapisu na scenie
             // zostawały przeszkody z poprzedniej planszy.
             obstacleMeshes.forEach(m => scene.remove(m));
-            obstacleMeshes = [];
+            obstacleMeshes = []; budowleZDachem = []; budowleCzekaja = [];
             if (gameMode === 'dream') renderThemedLandmarkDecor();   // kasowane razem z przeszkodami, więc rysowane razem z nimi
             strachy = [];
             kominyWulkanu = [];
@@ -17307,6 +17413,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (pos.kryjowka) autaKryjowki.push({ grupa: g, x: pos.x, z: pos.z, otwarte: false });
                 }
                 else if (pos.katedra) { /* mury i portale rysuje models/katedra.glb */ }
+                else if (pos.type === 'budowla') {
+                    const g = new THREE.Group();
+                    g.position.set(pos.x, 0, pos.z);
+                    g.rotation.y = pos.obrot;
+                    g.userData.unitType = 'obstacle';
+                    g.userData.budowla = pos;
+                    if (budowleProto) wstawBudowle(g); else budowleCzekaja.push(g);
+                    scene.add(g); obstacleMeshes.push(g);
+                }
                 else if (pos.type === 'filar') {
                     if (pos.powloka) {
                         const g = new THREE.Group();
@@ -47502,6 +47617,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function updateFloorVisibility() {
             odswiezZnacznikiPrzejsc();
+            budowleZDachem.forEach(g => { const b = g.userData.budowla; g.userData.dach.visible = !soldiers.some(s => { if (s.isDead || !s.mesh) return false; const x = Math.round(s.mesh.position.x), z = Math.round(s.mesh.position.z); return x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1; }); });
             chatkiNaPlanszy.forEach(c => { if (c.dach) c.dach.visible = c.ziemia ? !soldiers.some(s => !s.isDead && s.mesh && Math.abs(Math.round(s.mesh.position.x) - c.x) <= 1 && Math.abs(Math.round(s.mesh.position.z) - c.z) <= 1) : viewLevel < 1; });   // dach chatki nie zasłania wnętrza
             const lvl = viewLevel;
             // W Wieży kondygnacje leżą jedna NAD drugą i strop zasłania to, co niżej,
@@ -53471,6 +53587,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         loadRuiny();
         loadKatedra();
+        loadBudowle();
         loadRzezby();
         loadTreeModels();     // modele drzew - ciężkie pliki, więc z limitem na planszę
         loadChatkaModel();    // chatka na palach z Blendera (Amazonia)
