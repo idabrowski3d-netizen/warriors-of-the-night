@@ -17,4 +17,5 @@ Opcje: `--tury` (także tura wrogów), `--zrzuty` (zrzuty do `zrzuty_testu/`), `
 - `models/diabelski.glb` - diabelski młyn wykonany w Blenderze; tekstury rdzy, farby i betonu generowane skryptem.
 - `models/przejscie.glb` - przejście graniczne z budkami, szlabanami i wieżami, wykonane w Blenderze.
 - `models/wiaty.glb` - wiaty z atrakcjami wesołego miasteczka, wykonane w Blenderze.
+- `models/chatka_kurza.glb` - chatka na kurzej łapie, wykonana w Blenderze; tekstury generowane skryptem.
 - `models/zwierzeta_karuzeli.glb` - zwierzęta z "LowPoly Animated Farm Animal Pack", Quaternius (https://opengameart.org/content/lowpoly-animated-farm-animal-pack), CC0.

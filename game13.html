@@ -11929,6 +11929,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 gltf.scene.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
                 chatkaModel.iglo = gltf.scene;
             });
+            wczytajGlbBezAnimacji('models/chatka_kurza.glb', loader, gltf => {   // Mokradła: chatka na kurzej łapie
+                gltf.scene.traverse(c => {
+                    if (!c.isMesh) return;
+                    const m = c.material;
+                    if (m.map) m.map.encoding = THREE.LinearEncoding;
+                    c.material = new THREE.MeshLambertMaterial({ map: m.map, color: m.map ? 0xffffff : m.color, emissive: m.emissive, side: THREE.DoubleSide });
+                    c.castShadow = c.receiveShadow = true;
+                });
+                chatkaModel.kurza = gltf.scene;
+            });
             wczytajGlbBezAnimacji('models/wiatrak.glb', loader, gltf => {
                 gltf.scene.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
                 chatkaModel.wiatrak = gltf.scene;
@@ -11958,12 +11968,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function renderChatki() {
             const zamiec = currentCombatTheme && currentCombatTheme.id === 'zamiec';
             const wiatraki = maWiatraki();
+            const bagno = currentCombatTheme && currentCombatTheme.id === 'bagno';
+            if (bagno && !chatkaModel.kurza) return;
             if (wiatraki ? !chatkaModel.wiatrak : zamiec ? !chatkaModel.iglo : !chatkaModel.proto) return;
             const pole = (x, z) => obstacleGrid[x + offsetX] && obstacleGrid[x + offsetX][z + offsetZ];
             // Nowa plansza ma nową siatkę - stare chatki przepadają razem z nią
             chatkiNaPlanszy = chatkiNaPlanszy.filter(c => (c.ziemia ? obstacleMap.get(c.x + ',' + c.z) : pole(c.x, c.z)) === c.znacznik);
             if (chatkiNaPlanszy.length === 0 && soldiers.some(s => !s.isDead)) {
-                const ile = wiatraki ? 2 + Math.floor(Math.random() * 2) : zamiec ? 3 + Math.floor(Math.random() * 3) : 6 + Math.floor(Math.random() * 3);   // więcej chatek niż domów
+                const ile = bagno ? 4 + Math.floor(Math.random() * 2) : wiatraki ? 2 + Math.floor(Math.random() * 2) : zamiec ? 3 + Math.floor(Math.random() * 3) : 6 + Math.floor(Math.random() * 3);   // więcej chatek niż domów
                 for (let i = 0, proby = 0; i < ile && proby < 1200; proby++) {
                     const x = Math.floor(Math.random() * (mapWidth - 30)) + 15 - offsetX;
                     const z = Math.floor(Math.random() * (mapDepth - 30)) + 15 - offsetZ;
@@ -11976,7 +11988,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     }
                     if (!wolne || hMax - hMin > 0.6) continue;
                     const znacznik = { type: 'chatka', x: x, z: z };
-                    const ziemia = wiatraki ? chatkaModel.wiatrak : zamiec ? chatkaModel.iglo : chatkaModel.naZiemi.length && Math.random() < 0.4 ? chatkaModel.naZiemi[i % chatkaModel.naZiemi.length] : null;
+                    const kurza = bagno && i < 2 ? chatkaModel.kurza : null;   // dwie pierwsze na łapie, reszta to wiatraki
+                    const ziemia = kurza ? null : wiatraki ? chatkaModel.wiatrak : zamiec ? chatkaModel.iglo : chatkaModel.naZiemi.length && Math.random() < 0.4 ? chatkaModel.naZiemi[i % chatkaModel.naZiemi.length] : null;
                     // chatka na ziemi: wnętrze wolne, ściany trzyma scianaChatki
                     for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
                         if (!ziemia) obstacleGrid[x + dx + offsetX][z + dz + offsetZ] = znacznik;
@@ -11988,7 +12001,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         holeGrid[0][x + offsetX][z + 2 + offsetZ] = 1;
                         unieważnijPietra();
                     }
-                    chatkiNaPlanszy.push({ x: x, z: z, y: hMin, znacznik: znacznik, ziemia: ziemia, iglo: zamiec });
+                    chatkiNaPlanszy.push({ x: x, z: z, y: hMin, znacznik: znacznik, ziemia: ziemia, iglo: zamiec, kurza: kurza });
                     if (wiatraki) scene.children.forEach(r => {   // trawa nie rośnie w izbie
                         if (!r.userData.roslina) return;
                         const m = new THREE.Matrix4(), zero = new THREE.Matrix4().makeScale(0, 0, 0);
@@ -12005,7 +12018,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             chatkiNaPlanszy.forEach(c => {
                 if (c.zniszczona) return;
                 if (c.mesh) { scene.remove(c.mesh); obstacleMeshes = obstacleMeshes.filter(m => m !== c.mesh); }
-                const m = c.mesh = (c.ziemia || chatkaModel.proto).clone();
+                const m = c.mesh = (c.ziemia || c.kurza || chatkaModel.proto).clone();
+                if (c.kurza) { const luna = new THREE.PointLight(0xff3010, 1.3, 9, 1.5); luna.position.y = 3.2; m.add(luna); }
                 m.position.set(c.x, c.y, c.z);
                 m.userData.unitType = 'obstacle';
                 c.dach = m.getObjectByName('chatka_strzecha') || m.getObjectByName('chatka_strzecha001');
@@ -21228,6 +21242,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function distributeUnitsAcrossFloors() {
             if (!currentCombatTheme || !floorGrid) return;
+            if (currentCombatTheme.id === 'bagno') return;   // na Mokradłach piętro mają tylko chatki, a tych obsadza zaczajWDomach
             // Dotąd lista trzech plansz wpisana na sztywno - przez co na każdej
             // innej planszy z piętrami wrogowie siedzieli wyłącznie na parterze.
             // Warunek wyprowadzamy z danych: są piętra, to się po nich rozdziela.
@@ -21249,7 +21264,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (isUnitAtLevel(s.x, s.z, s.L, unit)) continue;
                     if (!isFarFromSquad(s.x, s.z)) continue; // nie przenoś nikogo pod nos oddziału
                     unit.level = s.L;
-                    unit.mesh.position.set(s.x, getLevelY(s.x, s.z, s.L) + unit.mesh.userData.yOffset, s.z);
+                    unit.mesh.position.set(s.x, getLevelY(s.x, s.z, s.L) + (unit.mesh.userData.yOffset || 0), s.z);
                     return;
                 }
             };
@@ -39539,6 +39554,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             (typeof houses !== 'undefined' ? houses : []).forEach(h => { for (let x = h.minX + 1; x < h.maxX; x++) for (let z = h.minZ + 1; z < h.maxZ; z++) dodaj(x, z); });
             chatkiNaPlanszy.forEach(c => { if (c.ziemia) for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) dodaj(c.x + dx, c.z + dz); });
             const strzelcy = enemies.filter(e => !e.isDead && e.mesh && !e.isBoss && !e.wZasadzce && !e.podZiemia && !e.przebrany && !WALCZA_WRECZ.includes(e.type) && (e.level || 0) === 0);
+            // W chatce na kurzej łapie z reguły ktoś czeka, na piętrze, naprzeciw drzwi
+            const inni = enemies.filter(e => !e.isDead && e.mesh && !e.isBoss && !e.wZasadzce && !e.podZiemia && !e.przebrany && !strzelcy.includes(e) && !['bozek', 'topielec', 'robak', 'glizda', 'roj'].includes(e.type) && (e.level || 0) === 0);
+            chatkiNaPlanszy.filter(c => c.kurza && !c.zniszczona && strzelcy.length + inni.length && Math.random() < 0.85).forEach(c => {
+                const pula = strzelcy.length ? strzelcy : inni;
+                const e = pula.splice(Math.floor(Math.random() * pula.length), 1)[0];
+                e.level = 1;
+                e.mesh.position.set(c.x, getLevelY(c.x, c.z, 1) + (e.mesh.userData.yOffset || 0), c.z - 1);
+                e.czaiSie = true;
+            });
             const ilu = Math.min(strzelcy.length, 2 + Math.floor(Math.random() * 3));
             for (let i = 0; i < ilu && pola.length; i++) {
                 const [x, z] = pola.splice(Math.floor(Math.random() * pola.length), 1)[0];
