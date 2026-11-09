@@ -2665,7 +2665,7 @@
               palette: { grass:'#4a5c3a', grassDetail1:'#566844', grassDetail2:'#3a4a2c', dirt:'#6b6255', dirtDetail1:'#5a5248', dirtDetail2:'#7a7267', road:'#555550', roadDetail1:'#454540', roadDetail2:'#656560' } },
             { id: 'kremlin', name: 'Moskwa - okolice Kremla',
               palette: { grass:'#33502e', grassDetail1:'#3f5f39', grassDetail2:'#254022', dirt:'#5a4a3a', dirtDetail1:'#493c2f', dirtDetail2:'#6b5847', road:'#3f3f45', roadDetail1:'#303035', roadDetail2:'#505058' } },
-            { id: 'zhongnanhai', name: 'Pekin - okolice Zhongnanhai',
+            { id: 'zhongnanhai', name: 'Zakazane Miasto w Chinach',
               palette: { grass:'#3d5738', grassDetail1:'#4a6844', grassDetail2:'#2e442a', dirt:'#665244', dirtDetail1:'#544235', dirtDetail2:'#786353', road:'#3a3a3e', roadDetail1:'#2a2a2e', roadDetail2:'#4a4a4e' } },
             { id: 'sahara', name: 'Wioska na Saharze',
               palette: { grass:'#c2a878', grassDetail1:'#cbb488', grassDetail2:'#b89968', dirt:'#d9bc8a', dirtDetail1:'#c9a976', dirtDetail2:'#e3cb9c', road:'#c7ab7a', roadDetail1:'#b89968', roadDetail2:'#d4bb8c' } },
@@ -7147,66 +7147,142 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         }
                     }
                 } else if (currentCombatTheme.id === 'zhongnanhai') {
-                    // Trzykondygnacyjna pagoda z cienkimi ścianami - da się je przestrzelić,
-                    // a wnętrze zwiedza się po piętrach jak w kamienicach Nowego Jorku.
-                    const W = 24, D = 18, STOREYS = 3;
-                    // Kilkoro drzwi zamiast jednych - przy jednym wejściu obrońcy potrafili
-                    // całkowicie zakorkować budynek i jednostki w środku były nieosiągalne.
-                    const doors = [[Math.floor(W/2), 0], [Math.floor(W/4), 0], [Math.floor(3*W/4), 0]];
-                    const b = placeSpecialBuilding(W, D, 0x9c2b2b, { text: 'ZHONGNANHAI', bg: '#9c2b2b' }, STOREYS, doors, []);
-                    if (b) {
-                        combatLandmarkPos = { x: b.x, z: b.z };
-                        const hData = houses.find(h => h.centerX === b.x && h.centerZ === b.z);
-                        if (hData) themedLandmarkDecor.push({ type: 'pagodaGate', x: b.x, z: hData.minZ - 1.5, width: 8 });
+                    // Zakazane Miasto wg planu: oś północ-południe, fosa, mur z czterema wieżami i bramami,
+                    // dwór zewnętrzny z trzema pawilonami na tarasie w kształcie znaku 土, dwór wewnętrzny, ogród.
+                    // Układ dotyczy całej planszy, więc najpierw zdejmujemy wszystko, co wygenerowała reszta.
+                    houses.forEach(h => { h.minX = h.maxX = h.minZ = h.maxZ = h.centerX = h.centerZ = -9999; });
+                    obstaclePositions = []; bridgePositions = []; polaPodMostem = new Set(); obstacleMap.clear();
+                    crosswalkZs.length = 0; parkingBays.length = 0;
+                    hasRiver = true; riverIsLava = false; rzekaKrwi = false; nurtRzeki = false; rzekaWKorycie = true;
+                    for (let mx = 0; mx < mapWidth; mx++) for (let mz = 0; mz < mapDepth; mz++) { obstacleGrid[mx][mz] = null; terrainTypeMap[mx][mz] = 0; heightMap[mx][mz] = 0; riverGrid[mx][mz] = 0; cornfieldGrid[mx][mz] = 0; }
 
-                        // Cienkie ściany: każdy kwadrat da się wybić strzałem
-                        obstaclePositions.forEach(p => {
-                            if (p.type === 'house-wall' && p.houseId !== undefined && hData && p.houseId === hData.id) {
-                                p.thinWall = true;
-                            }
-                        });
-                        if (hData) {
-                            urzadzGmach(hData, { podloga: 'deski', kolorScian: 0xb83a30,
-                                sciany: [[8,1,8,9,5], [16,1,16,9,5], [1,10,22,10,4,12,20]],
-                                meble: [
-                                    // Sala przyjęć: parawan za krzesłami honorowymi, wazy
-                                    [11,9,'parawan_chinski',PI], [13,9,'parawan_chinski',PI], [11,7,'krzeslo_palisander',P2], [13,7,'krzeslo_palisander',-P2], [12,7,'stol_palisander'], [9,1,'waza_ming'], [15,1,'waza_ming'], [9,9,'lampion_palacowy'], [15,9,'lampion_palacowy'],
-                                    // Herbaciarnia
-                                    [3,4,'stol_palisander'], [5,4,'stol_palisander'], [3,3,'krzeslo_palisander',0], [3,5,'krzeslo_palisander',PI], [5,3,'krzeslo_palisander',0], [5,5,'krzeslo_palisander',PI], [1,1,'bonsai_palacowy'], [7,1,'bonsai_palacowy'], [1,9,'waza_ming'], [7,9,'lampion_palacowy'],
-                                    // Gabinet z księgami
-                                    ...rzad(17, 22, 1, 'regal_ksiag', 0), [19,5,'biurko_resolute',0], [19,4,'fotel_gmachu',0], [22,9,'flaga_chin'], [17,9,'bonsai_palacowy'],
-                                    // Sala narad w głębi
-                                    ...stolNarad(9, 15, 14, 'stol_palisander', 'krzeslo_palisander'), [12,16,'flaga_chin'], [10,16,'waza_ming'], [14,16,'waza_ming'], [1,16,'parawan_chinski',PI], [2,16,'parawan_chinski',PI], [3,13,'sofa_czerwona',P2], [3,11,'kwietnik_wazon'], [22,16,'bonsai_palacowy'], [20,14,'stolik_kawowy'], [22,14,'sofa_czerwona',-P2]
-                                ],
-                                dywany: [[10,1,14,6,0x9a1a18,0xd8b040], [8,12,16,16,0x6a1410,0xd8b040]],
-                                obrazy: [[10,-.3,0,0xe8dcc0,0x2a2a2a], [14,-.3,0,0xe8dcc0,0x8a2a1a], [3,-.3,0,0xe8dcc0,0x2a5a3a], [-.3,14,P2,0xe8dcc0,0x2a2a2a], [23+.3,14,-P2,0xe8dcc0,0x8a2a1a]],
-                                zyrandole: [[12,4], [12,14]] });
+                    const CZERWIEN = 0xa02820, MARMUR_T = 0x9a968c, ZOLTY = 0xd8a020;
+                    // Dom-zbiorczy: bryły rysuje dekoracja, a pola tylko blokują ruch
+                    const zespol = { specjalny: true, zabytek: true, id: houses.length, minX: -9999, maxX: -9999, minZ: -9999, maxZ: -9999, centerX: -9999, centerZ: -9999 };
+                    houses.push(zespol);
+                    const pole = (x, z) => addObstacle(x, z, 'house-wall', { houseId: zespol.id, wallColor: CZERWIEN, destructible: false, floors: 1, bezBryly: true });
+                    // Mur z przerwami [od, do] liczonymi wzdłuż odcinka
+                    const mur = (x0, z0, x1, z1, przerwy, wys) => {
+                        const poX = z0 === z1, a = poX ? x0 : z0, c = poX ? x1 : z1, wolne = v => (przerwy || []).some(([p, k]) => v >= p && v <= k);
+                        for (let v = a, st = null; v <= c + 1; v++) {
+                            if (v <= c && !wolne(v)) { if (st === null) st = v; pole(poX ? v : x0, poX ? z0 : v); }
+                            else if (st !== null) { const k = v - 1; themedLandmarkDecor.push({ type: 'mur_prosty', x: poX ? (st + k) / 2 : x0, z: poX ? z0 : (st + k) / 2, x0: poX ? st : x0, z0: poX ? z0 : st, x1: poX ? k : x0, z1: poX ? z0 : k, color: CZERWIEN, cap: ZOLTY, wys: wys, houseId: zespol.id }); st = null; }
                         }
+                    };
+                    const dziedziniec = (x0, z0, x1, z1) => { const s = Math.round((x0 + x1) / 2); mur(x0, z0, x1, z0, [[s - 1, s + 1]]); mur(x0, z1, x1, z1); mur(x0, z0 + 1, x0, z1 - 1); mur(x1, z0 + 1, x1, z1 - 1); };
+                    const blok = (cx, cz, w, d) => { for (let x = Math.ceil(cx - w / 2 + .01); x <= cx + w / 2 - .01; x++) for (let z = Math.ceil(cz - d / 2 + .01); z <= cz + d / 2 - .01; z++) pole(x, z); };
+                    const pawilon = (cx, cz, w, d, dwa) => { blok(cx, cz, w, d); themedLandmarkDecor.push({ type: 'pawilon', x: cx, z: cz, w, d, dwa }); };
+                    const ozdoba = (x, z, typ) => addObstacle(x, z, typ, { obrot: 0, plan: true });
+                    const drzewo = (x, z) => addObstacle(x, z, 'tree', { plan: true });
+                    const plyta = (x, z, sx, sz, color) => themedLandmarkDecor.push({ type: 'kloc', x, z, y: .03, sx, sy: .06, sz, color });
+                    // Brama: dwa filary, nadproże z przejściem pod spodem i pawilon na górze
+                    const brama = (x, z, szer, poX, dwa) => {
+                        const pol = szer / 2 - 1;
+                        [-1, 1].forEach(s => { const px = poX ? x + s * (pol + .5 - .0) : x, pz = poX ? z : z + s * (pol + .5);
+                            for (let t = -1; t <= 1; t++) pole(Math.round(px + (poX ? 0 : t)), Math.round(pz + (poX ? t : 0)));
+                            themedLandmarkDecor.push({ type: 'kloc', x: px, z: pz, y: 2, sx: poX ? 2 : 3, sy: 4, sz: poX ? 3 : 2, color: CZERWIEN }); });
+                        themedLandmarkDecor.push({ type: 'kloc', x, z, y: 3.5, sx: poX ? szer : 3, sy: 1, sz: poX ? 3 : szer, color: CZERWIEN });
+                        themedLandmarkDecor.push({ type: 'pawilon', x, z, w: poX ? szer : 4, d: poX ? 4 : szer, y: 4, dwa, h: 1.6 });
+                    };
+                    // Wnętrza do zwiedzania: pawilony z prawdziwymi ścianami
+                    const sala = (x, z, W, D, dwa, wnetrze) => {
+                        const u = Math.floor(W / 2), b = placeSpecialBuilding(W, D, ZOLTY, null, 1, [[u, 0], [u - 3, 0], [u + 3, 0]], [[u - 5, 0], [u + 5, 0]].filter(o => o[0] > 0 && o[0] < W - 1), undefined, { x, z });
+                        if (!b) return null;
+                        const h = houses[houses.length - 1];
+                        obstaclePositions = obstaclePositions.filter(p => !(p.type === 'house-roof' && p.houseId === h.id));
+                        themedLandmarkDecor.push({ type: 'pawilon', x: x + (W - 1) / 2, z: z + (D - 1) / 2, w: W, d: D, dwa, tylkoDach: true, houseId: h.id });
+                        urzadzGmach(h, Object.assign({ podloga: 'deski', kolorScian: 0xb83a30, kolorFasady: CZERWIEN, gladkaFasada: true }, wnetrze));
+                        return b;
+                    };
+                    const komnata = (W, D) => ({
+                        meble: [[Math.floor(W / 2), D - 2, 'parawan_chinski', PI], [Math.floor(W / 2) - 2, D - 2, 'waza_ming'], [Math.floor(W / 2) + 2, D - 2, 'waza_ming'], [1, D - 2, 'bonsai_palacowy'], [W - 2, D - 2, 'bonsai_palacowy'], [1, 2, 'lampion_palacowy'], [W - 2, 2, 'lampion_palacowy'], [2, 3, 'stol_palisander'], [2, 4, 'krzeslo_palisander', PI], [W - 3, 3, 'stol_palisander'], [W - 3, 4, 'krzeslo_palisander', PI]],
+                        dywany: [[Math.floor(W / 2) - 1, 1, Math.floor(W / 2) + 1, D - 3, 0x9a1a18, 0xd8b040]], zyrandole: [[Math.floor(W / 2), Math.floor(D / 2)]]
+                    });
 
-                        // Podłogi na piętrach + otwory 2x2 w stropach
-                        const bMinX = b.x - Math.round((W - 1) / 2), bMinZ = b.z - Math.round((D - 1) / 2);
-                        const interior = [];
-                        for (let x = bMinX + 1; x < bMinX + W - 1; x++) {
-                            for (let z = bMinZ + 1; z < bMinZ + D - 1; z++) {
-                                const mx = x + offsetX, mz = z + offsetZ;
-                                if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
-                                interior.push([x, z, mx, mz]);
-                                for (let L = 1; L < STOREYS; L++) floorGrid[L][mx][mz] = 1;
-                            }
-                        }
-                        for (let L = 0; L < STOREYS - 1; L++) {
-                            for (let attempt = 0; attempt < 30; attempt++) {
-                                const spot = interior[Math.floor(Math.random() * interior.length)];
-                                const cells = [[spot[0], spot[1]], [spot[0]+1, spot[1]], [spot[0], spot[1]+1], [spot[0]+1, spot[1]+1]];
-                                if (!cells.every(([cx, cz]) => interior.some(it => it[0] === cx && it[1] === cz) && obstacleGrid[cx + offsetX][cz + offsetZ] === null)) continue;
-                                cells.forEach(([cx, cz]) => {
-                                    holeGrid[L][cx + offsetX][cz + offsetZ] = 1;
-                                    if (L + 1 < STOREYS) floorGrid[L + 1][cx + offsetX][cz + offsetZ] = 1;
-                                });
-                                break;
+                    // Pawilon Najwyższej Harmonii, sala tronowa i główny cel planszy
+                    const b = sala(-8, -21, 17, 9, true, {
+                        meble: [[8,6,'tron_kremlowski',PI], [8,7,'parawan_chinski',PI], [6,7,'waza_ming'], [10,7,'waza_ming'], [6,6,'lampion_palacowy'], [10,6,'lampion_palacowy'], ...[2,5,11,14].flatMap(u => [[u,2,'kolumna_zlota'], [u,6,'kolumna_zlota']]), [1,7,'flaga_chin'], [15,7,'flaga_chin'], [1,1,'kadzielnica'], [15,1,'kadzielnica']],
+                        dywany: [[7,1,9,5,0x9a1a18,0xd8b040]], zyrandole: [[8,3], [4,4], [12,4]] });
+                    if (b) combatLandmarkPos = { x: b.x, z: b.z };
+                    sala(-7, 23, 15, 8, true, komnata(15, 8));   // Pałac Niebiańskiej Czystości
+                    sala(-22, 18, 10, 7, false, komnata(10, 7)); // Pawilon Kształtowania Charakteru
+                    sala(-37, -49, 9, 7, false, komnata(9, 7));  // Pawilon Waleczności
+                    sala(24, -47, 9, 7, false, komnata(9, 7));   // Pawilon Literackiej Chwały
+                    sala(36, 22, 11, 8, true, komnata(11, 8));   // Pałac Spokojnej Długowieczności
+
+                    // Posadzka w murach, trawa w ogrodach, droga na osi poza fosą
+                    const ogrody = [[-11, 47, 11, 60], [-45, -14, -26, 10]];
+                    for (let x = -56; x <= 56; x++) for (let z = -71; z <= 71; z++) if (!ogrody.some(([a, c, e, f]) => x >= a && x <= e && z >= c && z <= f)) terrainTypeMap[x + offsetX][z + offsetZ] = 3;
+                    for (let x = -3; x <= 3; x++) for (let z = -offsetZ; z < offsetZ; z++) if (Math.abs(z) > 70) terrainTypeMap[x + offsetX][z + offsetZ] = 2;
+
+                    // Mur zewnętrzny, wieże narożne, bramy
+                    mur(-54, -69, 54, -69, [[-4, 4]], 2); mur(-54, 69, 54, 69, [[-2, 2]], 2);
+                    mur(-54, -68, -54, 68, [[-52, -48]], 2); mur(54, -68, 54, 68, [[-52, -48]], 2);
+                    [-54, 54].forEach(x => [-69, 69].forEach(z => { blok(x, z, 5, 5); themedLandmarkDecor.push({ type: 'kloc', x, z, y: 2, sx: 5, sy: 4, sz: 5, color: CZERWIEN }); themedLandmarkDecor.push({ type: 'pawilon', x, z, w: 6, d: 6, y: 4, dwa: true, h: 1.6 }); }));
+                    brama(0, 69, 7, true, true); brama(-54, -50, 7, false, true); brama(54, -50, 7, false, true);
+                    // Brama Południkowa: środek i dwa skrzydła w kształcie litery U, z pawilonami na końcach
+                    brama(0, -69, 11, true, true);
+                    [-1, 1].forEach(s => { for (let x = 8; x <= 13; x++) for (let z = -77; z <= -70; z++) if (x >= 11 || z >= -70) pole(s * x, z);
+                        themedLandmarkDecor.push({ type: 'kloc', x: s * 12.5, z: -73.5, y: 2, sx: 3, sy: 4, sz: 8, color: CZERWIEN });
+                        [-70, -76].forEach(z => themedLandmarkDecor.push({ type: 'pawilon', x: s * 12.5, z, w: 5, d: 5, y: 4, h: 1.6 })); });
+                    themedLandmarkDecor.push({ type: 'sign', x: 0, z: -72, y: 9, text: 'ZAKAZANE MIASTO' });
+
+                    // Dwór zewnętrzny: galerie, Brama Najwyższej Harmonii, taras 土 i trzy pawilony
+                    [-16, 16].forEach(x => mur(x, -68, x, 9, [[-56, -54], [-28, -26], [0, 2]]));
+                    mur(-15, -44, 15, -44, [[-4, 4], [-11, -9], [9, 11]]); mur(-15, 9, 15, 9, [[-2, 2], [-11, -9], [9, 11]]);
+                    brama(0, -44, 11, true, true);
+                    plyta(0, -17, 24, 18, MARMUR_T); plyta(0, -5, 12, 6, MARMUR_T); plyta(0, 2.5, 24, 9, MARMUR_T); plyta(0, -35, 5, 18, MARMUR_T); plyta(0, -58, 5, 22, MARMUR_T);
+                    [[-12,-26,-3,-26], [3,-26,12,-26], [-12,-26,-12,-8], [12,-26,12,-8], [-12,-8,-6,-8], [6,-8,12,-8], [-6,-8,-6,-2], [6,-8,6,-2], [-12,-2,-6,-2], [6,-2,12,-2], [-12,-2,-12,7], [12,-2,12,7], [-12,7,-3,7], [3,7,12,7]].forEach(([a,c,e,f]) => themedLandmarkDecor.push({ type: 'balustrada', x0: a, z0: c, x1: e, z1: f, y: .06, color: MARMUR_T }));
+                    pawilon(0, -5, 5, 5); pawilon(0, 3, 15, 6, true);
+                    [-3, 3].forEach(s => [-40, -33, -27].forEach(z => ozdoba(s * 2, z, z === -33 ? 'kadzielnica' : 'lampion_czerwony')));
+                    pawilon(-22, -20, 3, 18); pawilon(22, -20, 3, 18);
+
+                    // Dwór wewnętrzny i ogród cesarski
+                    mur(-11, 12, 11, 12, [[-2, 2]]); mur(-11, 46, 11, 46, [[-2, 2]]); [-11, 11].forEach(x => mur(x, 13, x, 45, [[20, 22]]));
+                    brama(0, 12, 7, true, false);
+                    pawilon(0, 34, 5, 4); pawilon(0, 41, 13, 5, true);
+                    mur(-11, 47, 11, 47, [[-2, 2]]); mur(-11, 60, 11, 60, [[-2, 2]]); [-11, 11].forEach(x => mur(x, 48, x, 59));
+                    pawilon(0, 53, 6, 5, true);
+                    [-8, -5, 5, 8].forEach(x => [50, 53, 57].forEach(z => drzewo(x, z)));
+
+                    // Pałace boczne: równe rzędy dziedzińców po obu stronach osi
+                    [14, 25, 36, 47].forEach((z, r) => { [13, 23].concat(r ? [-22] : []).forEach(x => { dziedziniec(x, z, x + 9, z + 9); pawilon(x + 4.5, z + 5.5, 6, 4); }); });
+                    dziedziniec(-24, 14, -12, 26);
+                    pawilon(-18, 65, 18, 3); pawilon(20, 65, 26, 3);
+                    // Zachodnia strona: trzy zespoły, najniższy z ogrodem
+                    dziedziniec(-45, 36, -26, 60); pawilon(-35.5, 48, 10, 7, true); pawilon(-35.5, 41, 6, 3); pawilon(-35.5, 56, 8, 3);
+                    dziedziniec(-45, 14, -26, 33); pawilon(-35.5, 25, 9, 5); pawilon(-35.5, 19, 6, 3);
+                    dziedziniec(-45, -14, -26, 10); pawilon(-35.5, -2, 6, 7, true);
+                    [-41, -30].forEach(x => [-9, -4, 1, 6].forEach(z => drzewo(x, z)));
+                    // Wschodnia strona: Pałac Spokojnej Długowieczności, kuchnie południowe, magazyny
+                    dziedziniec(33, 18, 50, 36); pawilon(41, 33, 10, 3);
+                    dziedziniec(37, 40, 51, 62); pawilon(44, 58, 10, 3); pawilon(44, 51, 8, 5, true); pawilon(44, 44, 10, 3);
+                    dziedziniec(34, -13, 50, 3); [38, 46].forEach(x => [-8, -2].forEach(z => pawilon(x, z, 5, 3)));
+                    dziedziniec(-40, -52, -26, -38); dziedziniec(21, -50, 35, -30);
+                    pawilon(-36, -63, 14, 3); pawilon(34, -63, 18, 3); pawilon(30, -22, 8, 3); pawilon(-30, -24, 8, 3);
+
+                    // Woda: fosa z groblami przy bramach i Złota Rzeka z przejściami
+                    const woda = (mx, mz) => { if (obstacleGrid[mx][mz] === null) { riverGrid[mx][mz] = 1; obstacleGrid[mx][mz] = { type: 'river' }; terrainTypeMap[mx][mz] = 1; } };
+                    for (let x = -65; x <= 65; x++) for (let z = -80; z <= 78; z++) {
+                        if (Math.abs(x) <= 57 && z >= -72 && z <= 72) continue;
+                        if ((z < 0 && Math.abs(x) <= 13) || (z > 0 && Math.abs(x) <= 3) || Math.abs(z + 50) <= 3) { terrainTypeMap[x + offsetX][z + offsetZ] = 3; continue; }
+                        woda(x + offsetX, z + offsetZ);
+                    }
+                    const PRZEJSCIA = [[-5, -62, 5, -58], [-49, 29, -45, 31], [-49, -11, -45, -9], [-33, -58, -31, -54], [31, -30, 33, -26], [18, -41, 22, -39], [45, -41, 49, -39], [40, -60, 45, -58]];
+                    const RZEKA = [[-47,64], [-47,-18], [-44,-20], [-44,-56], [-18,-56], [-4,-60], [4,-60], [18,-56], [20,-52], [20,-28], [47,-28], [47,-52], [42,-66]];
+                    for (let i = 0; i + 1 < RZEKA.length; i++) {
+                        const [a, c] = RZEKA[i], [e, f] = RZEKA[i + 1], n = Math.max(Math.abs(e - a), Math.abs(f - c));
+                        for (let k = 0; k <= n; k++) {
+                            const x = Math.round(a + (e - a) * k / n), z = Math.round(c + (f - c) * k / n);
+                            for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+                                if (PRZEJSCIA.some(([p, q, r, s]) => x + dx >= p && x + dx <= r && z + dz >= q && z + dz <= s)) continue;
+                                woda(x + dx + offsetX, z + dz + offsetZ);
                             }
                         }
                     }
+                    // Poza fosą: równe szpalery drzew wzdłuż dróg
+                    for (let z = -110; z <= 110; z += 8) if (Math.abs(z) > 84) [-7, 7].forEach(x => drzewo(x, z));
+                    for (let x = -66; x <= 66; x += 8) if (Math.abs(x) > 8) [-86, 84].forEach(z => drzewo(x, z));
                 } else if (currentCombatTheme.id === 'bagno') {
                     // Mokradła: rozlewiska błota, przez które da się iść, ale wolno.
                     // Kilka chat na palach jako jedyny suchy grunt.
@@ -9899,7 +9975,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // meble. Rozrzut roślinności biegnie PO jego zbudowaniu i stawiał
             // drzewa wprost na podłodze pokoi (111 ze 111 drzew na deskach).
             const wnetrzeNaCalosc = currentCombatTheme && currentCombatTheme.id === 'dom';
-            if (isVolcanoMap || isKatedraMap || isCyberMap || wnetrzeNaCalosc) {
+            if (isVolcanoMap || isKatedraMap || isCyberMap || wnetrzeNaCalosc || currentCombatTheme.id === 'zhongnanhai') {
                 // Wulkan, katedra, siatka cyfrowa i wnętrze domu - żadnej roślinności
             } else if (isSaharaMap) {
                 // Sahara - drzewa rosną wyłącznie w kilku skupiskach (oazy), nie rozrzucone po pustyni
@@ -10074,7 +10150,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     stoi++;
                 }
             });
-            const cornfieldPatchCount = (isVolcanoMap || isSaharaMap || isNYMap || isKatedraMap || isFloodMap || isCyberMap) ? 0 : 7;
+            const cornfieldPatchCount = (isVolcanoMap || isSaharaMap || isNYMap || isKatedraMap || isFloodMap || isCyberMap || currentCombatTheme.id === 'zhongnanhai') ? 0 : 7;
             for (let p = 0; p < cornfieldPatchCount; p++) {
                 let centerX = Math.floor(Math.random() * mapWidth) - offsetX;
                 let centerZ = Math.floor(Math.random() * mapDepth) - offsetZ;
@@ -10454,7 +10530,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const dl = Math.hypot(d.x1 - d.x0, d.z1 - d.z0) + 1;
                     const tekstura = teksturaScianyBud(d.color).clone();
                     tekstura.wrapS = THREE.RepeatWrapping; tekstura.repeat.set(dl, 1); tekstura.needsUpdate = true;
-                    [[dl, 2, .8, 1, new THREE.MeshLambertMaterial({ map: tekstura, transparent: true })], [dl + .1, .14, .95, 2.05, new THREE.MeshLambertMaterial({ color: d.color, transparent: true })]].forEach(([w, g, gr, y, mat]) => {
+                    const kw = d.wys || 1;
+                    [[dl, 2 * kw, .8, kw, new THREE.MeshLambertMaterial({ map: tekstura, transparent: true })], [dl + .1, .14, .95, 2 * kw + .05, new THREE.MeshLambertMaterial({ color: d.cap || d.color, transparent: true })]].forEach(([w, g, gr, y, mat]) => {
                         const m = new THREE.Mesh(new THREE.BoxGeometry(w, g, gr), mat);
                         m.position.set(d.x, ty + y, d.z); m.rotation.y = -Math.atan2(d.z1 - d.z0, d.x1 - d.x0);
                         m.userData = { type: 'house-wall', x: d.x, z: d.z, houseId: d.houseId };
@@ -10504,6 +10581,37 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const col = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.4, d.height, 10), new THREE.MeshLambertMaterial({ color: d.color }));
                     col.position.set(d.x, ty + d.height / 2, d.z);
                     scene.add(col); obstacleMeshes.push(col);
+                } else if (d.type === 'pawilon') {
+                    // Chiński pawilon: czerwone ściany, belkowanie, żółty czterospadowy dach o wygiętych okapach
+                    const y0 = ty + (d.y || 0), H = d.h || 2.4, M = c => new THREE.MeshLambertMaterial({ color: c });
+                    const dodaj = (m, x, y, z) => { m.position.set(x, y, z); if (d.houseId !== undefined) m.userData = { type: 'house-roof', x: d.x, z: d.z, houseId: d.houseId }; scene.add(m); obstacleMeshes.push(m); };
+                    const dach = (w, g, y, wys) => {
+                        const geo = new THREE.PlaneGeometry(w, g, 22, 22); geo.rotateX(-Math.PI / 2);
+                        const p = geo.attributes.position, pol = Math.min(w, g) / 2;
+                        for (let i = 0; i < p.count; i++) {
+                            const ax = Math.abs(p.getX(i)), az = Math.abs(p.getZ(i)), t = Math.min(1, Math.min(w / 2 - ax, g / 2 - az) / pol);
+                            p.setY(i, wys * Math.pow(t, 1.5) + 0.55 * Math.pow(ax / (w / 2) * az / (g / 2), 6));
+                        }
+                        geo.computeVertexNormals();
+                        const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: 0xffffff, map: teksturaDachowki(), side: THREE.DoubleSide }));
+                        m.material.color.setHex(0xe8b030);
+                        dodaj(m, d.x, y, d.z);
+                        const grzbiet = new THREE.Mesh(new THREE.BoxGeometry(Math.max(.6, w - g + .6), .22, Math.max(.6, g - w + .6)), M(0xc89018));
+                        dodaj(grzbiet, d.x, y + wys + .08, d.z);
+                    };
+                    if (!d.tylkoDach) {
+                        const s = new THREE.Mesh(new THREE.BoxGeometry(d.w - .1, H, d.d - .1), M(0xa02820));
+                        s.position.set(d.x, y0 + H / 2, d.z); scene.add(s); obstacleMeshes.push(s);
+                    }
+                    const belka = new THREE.Mesh(new THREE.BoxGeometry(d.w + .15, .4, d.d + .15), M(0x2a6a6a));
+                    dodaj(belka, d.x, y0 + H + (d.tylkoDach ? 0 : -.2), d.z);
+                    const top = Math.min(d.w, d.d) * .32;
+                    dach(d.w + 2, d.d + 2, y0 + H + .05, d.dwa ? top * .6 : top);
+                    if (d.dwa) {
+                        const g2 = new THREE.Mesh(new THREE.BoxGeometry(d.w * .68, 1.1, d.d * .68), M(0xa02820));
+                        dodaj(g2, d.x, y0 + H + .85, d.z);
+                        dach(d.w * .68 + 1.6, d.d * .68 + 1.6, y0 + H + 1.4, top * .75);
+                    }
                 } else if (d.type === 'kloc') {
                     let mat = new THREE.MeshLambertMaterial({ color: d.color });
                     if (d.flaga) { const c = document.createElement('canvas'); c.width = 76; c.height = 52; const g = c.getContext('2d'); for (let i = 0; i < 13; i++) { g.fillStyle = i % 2 ? '#fff' : '#b22234'; g.fillRect(0, i * 4, 76, 4); } g.fillStyle = '#3c3b6e'; g.fillRect(0, 0, 32, 28); g.fillStyle = '#fff'; for (let i = 0; i < 6; i++) for (let j = 0; j < 4; j++) g.fillRect(3 + i * 5, 3 + j * 6, 2, 2); mat = new THREE.MeshLambertMaterial({ map: new THREE.CanvasTexture(c) }); }
@@ -10531,7 +10639,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     let porecz;
                     if (d.r) { porecz = new THREE.Mesh(new THREE.TorusGeometry(d.r, 0.08, 6, 28, Math.PI), M); porecz.rotation.x = Math.PI / 2; porecz.position.set(d.x, ty + d.y + 0.46, d.z); }
                     else { porecz = new THREE.Mesh(new THREE.BoxGeometry(d.x1 - d.x0 + 0.16, 0.1, d.z1 - d.z0 + 0.16), M); porecz.position.set((d.x0 + d.x1) / 2, ty + d.y + 0.46, (d.z0 + d.z1) / 2); }
-                    [tralki, porecz].forEach(m => { m.userData = { type: 'house-roof', x: d.x0 === undefined ? d.x : d.x0, z: d.z0 === undefined ? d.z : d.z0, houseId: d.houseId }; scene.add(m); obstacleMeshes.push(m); });
+                    [tralki, porecz].forEach(m => { if (d.houseId !== undefined) m.userData = { type: 'house-roof', x: d.x0 === undefined ? d.x : d.x0, z: d.z0 === undefined ? d.z : d.z0, houseId: d.houseId }; scene.add(m); obstacleMeshes.push(m); });
                 } else if (d.type === 'naczolek') {
                     // Naczółek nad oknem: na zmianę trójkątny i łukowy
                     const m = new THREE.Mesh(d.luk ? new THREE.CylinderGeometry(0.62, 0.62, 0.16, 12, 1, false, -Math.PI / 2, Math.PI) : new THREE.CylinderGeometry(0.8, 0.8, 0.16, 3), new THREE.MeshLambertMaterial({ color: d.color }));
@@ -10609,7 +10717,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     });
                 } else if (d.type === 'sign') {
                     const sign = createSignSprite(d.text, '#222222', '#ffffff');
-                    sign.position.set(d.x, ty + 2, d.z);
+                    sign.position.set(d.x, ty + (d.y || 2), d.z);
                     scene.add(sign); obstacleMeshes.push(sign);
                 }
             });
@@ -16806,8 +16914,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Tylko przy pierwszym rysowaniu planszy: potem dochodzą cele misji, których ruszać nie wolno
             const zostaje = ['zachod-sciana', 'house-roof', 'house-wall', 'house-door', 'house-window', 'wall-resistant'];
             const doSprzatania = houses.filter(h => (h.zachod || h.zabytek) && !h.posprzatany);
-            const zbedny = (p) => p.obrot === undefined && zostaje.indexOf(p.type) === -1 &&
-                doSprzatania.some(h => p.x >= h.minX && p.x <= h.maxX && p.z >= h.minZ && p.z <= h.maxZ);
+            const zakazane = doSprzatania.length && currentCombatTheme && currentCombatTheme.id === 'zhongnanhai';
+            const zbedny = (p) => p.obrot === undefined && (zostaje.indexOf(p.type) === -1 || (zakazane && p.type === 'wall-resistant')) && !p.plan && (zakazane ||
+                doSprzatania.some(h => p.x >= h.minX && p.x <= h.maxX && p.z >= h.minZ && p.z <= h.maxZ));
             doSprzatania.forEach(h => { h.posprzatany = true; });
             obstaclePositions = obstaclePositions.filter(p => {
                 if (!zbedny(p)) return true;
@@ -24478,7 +24587,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             { label: '🏝️ Latające wyspy',  theme: 'wyspy',        mission: 'standard' },
             { label: '🏙️ Piętra (NY)',     theme: 'newyork',      mission: 'standard' },
             { label: '⛪ Katedra',          theme: 'katedra',      mission: 'standard' },
-            { label: '🏯 Pagoda (piętra)', theme: 'zhongnanhai',  mission: 'standard' },
+            { label: '🏯 Zakazane Miasto', theme: 'zhongnanhai',  mission: 'standard' },
             { label: '❄️ Zamieć',          theme: 'zamiec',       mission: 'standard' },
             { label: '🪦 Nekropolia',       theme: 'nekropolia',   mission: 'standard' },
             { label: '🐊 Bagno (błoto)',   theme: 'bagno',        mission: 'standard' },
@@ -25976,7 +26085,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             whitehouse:  { sym: '🏛', label: 'Biały Dom' },
             pentagon:    { sym: '🛡', label: 'Pentagon' },
             kremlin:     { sym: '☭', label: 'Kreml' },
-            zhongnanhai: { sym: '🏯', label: 'Zhongnanhai' },
+            zhongnanhai: { sym: '🏯', label: 'Zakazane Miasto' },
             las:         { sym: '🌲', label: 'Ciemny Las' },
             szpital:     { sym: '🏥', label: 'Szpital Psychiatryczny' },
             studnia:     { sym: '🕳', label: 'Studnia' },
@@ -49715,7 +49824,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 text: 'Najpotężniejszy z władców koszmarów. Rosły dowódca w ciemnej zbroi, z płaszczem koloru zakrzepłej krwi.\\n\\n' +
                       'Nie przyzywa pomocników - nie potrzebuje ich. Z daleka strzela celnie, z bliska tnie szablą. ' +
                       'Nie cofa się i nie odpuszcza. Samotny wojownik nie ma z nim szans: Generał staje do walki ' +
-                      'tylko z oddziałem liczącym co najmniej trzech. Dowodzi na Kremlu, w Białym Domu i w Zhongnanhai.',
+                      'tylko z oddziałem liczącym co najmniej trzech. Dowodzi na Kremlu, w Białym Domu i w Zakazanym Mieście.',
                 stats: [['Punkty życia', '55'], ['Punkty ruchu', '12'], ['Premia do celności', '+15%'],
                         ['Styl walki', 'strzał (5 obr.), szabla wręcz (7 obr.)']]
             },
@@ -49939,7 +50048,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                       'Stado wybiera jedną ofiarę - zwykle najsłabszego z oddziału - i osacza ją ze wszystkich stron, ' +
                       'nie zważając na resztę. Dopiero gdy ofiara padnie, przerzuca się na następnego. ' +
                       'Pojedynczy ogar nie jest groźny; groźne jest to, że nigdy nie jest pojedynczy. ' +
-                      'Grasuje na Kremlu, w Białym Domu, w Zhongnanhai, w kraterze wulkanu i wśród grobów - ' +
+                      'Grasuje na Kremlu, w Białym Domu, w Zakazanym Mieście, w kraterze wulkanu i wśród grobów - ' +
                       'najczęściej tam, gdzie czeka Koszmar.',
                 stats: [['Punkty życia', '9'], ['Punkty ruchu', '18'], ['Premia do celności', 'brak'],
                         ['Styl walki', 'wręcz, stadem (4 obr.)']]
@@ -52263,7 +52372,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             stacja:      ['Opuszczona Stacja', 'Stacja Prypeć', 'Dworzec Towarowy', 'Bocznica w Czarnej Hucie', 'Stacja Rozrządowa'],
             alcatraz:    ['Alcatraz', 'Więzienie w Sing Sing', 'Twierdza Szlisselburg', 'Zakład w Rikers'],
             otchlan:     ['Przedsionek Piekieł', 'Włości Baala', 'Dolina Popiołów', 'Czeluść'],
-            kremlin:     ['Kreml'], whitehouse: ['Biały Dom'], pentagon: ['Pentagon'], zhongnanhai: ['Zhongnanhai']
+            kremlin:     ['Kreml'], whitehouse: ['Biały Dom'], pentagon: ['Pentagon'], zhongnanhai: ['Zakazane Miasto']
         };
 
         // Nazwa planszy na tę misję - zapamiętana, żeby nie zmieniała się w trakcie
