@@ -13068,6 +13068,23 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             zrodlo.connect(glos); glos.connect(ctx.destination); zrodlo.start();
         }
 
+        // --- ZWIERZĘTA KARUZELI (Quaternius, CC0) ---
+        const ZWIERZETA_KARUZELI = ['Horse', 'Llama', 'Zebra', 'Horse', 'Sheep', 'Pig'];
+        let zwierzetaProto = null, zwierzetaCzekaja = [];
+        function wstawZwierze(g) { g.add(zwierzetaProto.getObjectByName('zwierze_' + g.userData.zwierze).clone()); }
+        function loadZwierzeta() {
+            if (typeof THREE.GLTFLoader === 'undefined') return;
+            wczytajGlbBezAnimacji('models/zwierzeta_karuzeli.glb', new THREE.GLTFLoader(), gltf => {
+                gltf.scene.traverse(ch => {
+                    if (!ch.isMesh) return;
+                    const k = ch.material.color;
+                    ch.material = new THREE.MeshLambertMaterial({ color: k, emissive: k.clone().multiplyScalar(0.3) });
+                });
+                zwierzetaProto = gltf.scene;
+                zwierzetaCzekaja.forEach(wstawZwierze); zwierzetaCzekaja = [];
+            });
+        }
+
         // --- WIATY Z ATRAKCJAMI ---
         let wiatyProto = null, wiatyCzekaja = [], pasyJarmarku = null;
         function wstawWiate(g) {
@@ -16689,7 +16706,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // misji każda przeszkoda istniała podwójnie, a po wczytaniu zapisu na scenie
             // zostawały przeszkody z poprzedniej planszy.
             obstacleMeshes.forEach(m => scene.remove(m));
-            obstacleMeshes = []; budowleZDachem = []; budowleCzekaja = []; diabelskieKola = []; diabelskiCzekaja = []; przejscieCzeka = []; wiatyCzekaja = []; zarowkiJarmarku = []; biegacze = [];
+            obstacleMeshes = []; budowleZDachem = []; budowleCzekaja = []; diabelskieKola = []; diabelskiCzekaja = []; przejscieCzeka = []; wiatyCzekaja = []; zwierzetaCzekaja = []; zarowkiJarmarku = []; biegacze = [];
             if (gameMode === 'dream') renderThemedLandmarkDecor();   // kasowane razem z przeszkodami, więc rysowane razem z nimi
             strachy = [];
             kominyWulkanu = [];
@@ -17871,8 +17888,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         const a = (k / 6) * Math.PI * 2;
                         const drazek = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.3, 5), new THREE.MeshLambertMaterial({ color: 0xa89a7a }));
                         drazek.position.set(Math.cos(a) * 1.1, 1.35, Math.sin(a) * 1.1); g.add(drazek);
-                        const konik = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.4, 0.6), new THREE.MeshLambertMaterial({ color: 0xc8bca0 }));
-                        konik.position.set(Math.cos(a) * 1.1, 0.8 + (k % 2) * 0.35, Math.sin(a) * 1.1);
+                        const konik = new THREE.Group();
+                        konik.userData.zwierze = ZWIERZETA_KARUZELI[k];
+                        if (zwierzetaProto) wstawZwierze(konik); else zwierzetaCzekaja.push(konik);
+                        konik.position.set(Math.cos(a) * 1.1, 0.45 + (k % 2) * 0.32, Math.sin(a) * 1.1);
                         konik.rotation.y = -a; g.add(konik);
                     }
                     g.position.set(pos.x, ty, pos.z);
@@ -54025,6 +54044,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         loadDiabelski();
         loadPrzejscie();
         loadWiaty();
+        loadZwierzeta();
         loadTreeModels();     // modele drzew - ciężkie pliki, więc z limitem na planszę
         loadChatkaModel();    // chatka na palach z Blendera (Amazonia)
         loadHouseModels();    // modele domów - brak pliku oznacza dom rysowany w kodzie
