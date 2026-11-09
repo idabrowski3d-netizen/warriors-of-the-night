@@ -9927,6 +9927,26 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     obstacleMap.delete(`${p.x},${p.z}`);
                     return false;
                 });
+                // Reszta nie leży luzem: wyposażenie w dwóch szpalerach wzdłuż katedry, parami według rodzaju,
+                // mury-osłony w równych rzędach na placach od północy i południa
+                const MURY = ['wall-resistant', 'wall-destructible'], miejscaMurow = [], miejscaWyposazenia = [];
+                for (let z = -90; z <= 90; z += 6) miejscaWyposazenia.push([-18, z], [18, z]);
+                [-98, -90, 90, 98].forEach(z => { for (let x = -60; x <= 60; x += 6) if (x) miejscaMurow.push([x, z]); });
+                const luzem = obstaclePositions.filter(p => !p.plan && !p.type.startsWith('house')).sort((a, b) => a.type < b.type ? -1 : 1);
+                luzem.forEach(p => { obstacleGrid[p.x + offsetX][p.z + offsetZ] = null; obstacleMap.delete(`${p.x},${p.z}`); });
+                const bezMiejsca = new Set(luzem);
+                luzem.forEach(p => {
+                    const miejsca = MURY.includes(p.type) ? miejscaMurow : miejscaWyposazenia;
+                    while (miejsca.length) {
+                        const [x, z] = miejsca.shift();
+                        if (obstacleGrid[x + offsetX][z + offsetZ] !== null) continue;
+                        p.x = x; p.z = z; p.obrot = x < 0 ? Math.PI / 2 : -Math.PI / 2;
+                        obstacleGrid[x + offsetX][z + offsetZ] = p; obstacleMap.set(`${x},${z}`, p);
+                        bezMiejsca.delete(p);
+                        break;
+                    }
+                });
+                obstaclePositions = obstaclePositions.filter(p => !bezMiejsca.has(p));
             }
             // Ruiny: skupiska zwalisk rozsiane po całej planszy, po jednym na oczko siatki
             const ruinyPlanszy = currentCombatTheme && RUINY_PLANSZE[currentCombatTheme.id];
