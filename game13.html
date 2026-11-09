@@ -7000,7 +7000,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const urzadzGmach = (h, t) => {
                     h.zabytek = true; h.podloga = t.podloga;
                     if (t.plaskiDach) obstaclePositions.forEach(p => { if (p.houseId === h.id && p.type === 'house-roof') p.flatRoof = true; });
-                    if (t.kolorFasady !== undefined) obstaclePositions.forEach(p => { if (p.houseId === h.id && p.type !== 'house-roof') p.wallColor = t.kolorFasady; });
+                    if (t.kolorFasady !== undefined) obstaclePositions.forEach(p => { if (p.houseId === h.id && p.type !== 'house-roof') { p.wallColor = t.kolorFasady; p.gladka = t.gladkaFasada; } });
                     (t.sciany || []).forEach(([u0, v0, u1, v1, ...przejscia]) => {
                         for (let u = u0; u <= u1; u++) for (let v = v0; v <= v1; v++)
                             if (przejscia.indexOf(u0 === u1 ? v : u) === -1)
@@ -7017,46 +7017,68 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const rzad = (u0, u1, v, typ, obrot) => { const r = []; for (let u = u0; u <= u1; u++) r.push([u, v, typ, obrot]); return r; };
 
                 if (currentCombatTheme.id === 'whitehouse') {
-                    const W = 29, D = 17;
-                    const doorZ = 0;
-                    const doors = [[Math.floor(W/2)-1, 0], [Math.floor(W/2), 0]];
+                    // Układ wg planu piętra reprezentacyjnego Latrobe; front (z=0) to strona północna
+                    const W = 33, D = 17;
+                    const doors = [[15,0], [16,0], [17,0], [0,8], [W-1,8]];
                     const windows = [
-                        ...evenSpacedAvoiding(1, D-2, 5, []).map(z => [0, z]),
-                        ...evenSpacedAvoiding(1, D-2, 5, []).map(z => [W-1, z]),
-                        ...[3, 6, 9, 18, 21, 24].map(x => [x, 0]), ...[3, 6, 9, 14, 19, 22, 25].map(x => [x, D-1])
+                        ...[3,5,11,13].flatMap(z => [[0,z], [W-1,z]]),
+                        ...[2,5,8,12,20,24,27,30].map(x => [x, 0]), ...[2,5,8,11,21,24,27,30].map(x => [x, D-1])
                     ];
                     const b = placeSpecialBuilding(W, D, 0xf5f5f0, { text: 'BIAŁY DOM', bg: '#222222' }, 2, doors, windows);
                     if (b) {
                         combatLandmarkPos = { x: b.x, z: b.z };
                         const hData = houses.find(h => h.centerX === b.x && h.centerZ === b.z);
                         if (hData) {
-                            // Balustrada na płaskim dachu
-                            for (let x = hData.minX + 1; x < hData.maxX; x += 2) [hData.minZ, hData.maxZ].forEach(z => themedLandmarkDecor.push({ type: 'blank', x, z, y: 4.27, color: 0xf0ece0, wzdluzX: true, houseId: hData.id }));
-                            for (let z = hData.minZ + 2; z < hData.maxZ; z += 2) [hData.minX, hData.maxX].forEach(x => themedLandmarkDecor.push({ type: 'blank', x, z, y: 4.27, color: 0xf0ece0, wzdluzX: false, houseId: hData.id }));
-                            // Portyk północny: tylko środek fasady, jak w oryginale
-                            for (let i = 0; i < 6; i++) themedLandmarkDecor.push({ type: 'column', x: b.x - 5 + i * 2, z: hData.minZ - 1.2, height: 3.2, color: 0xf0ede0 });
-                            themedLandmarkDecor.push({ type: 'pediment', x: b.x, z: hData.minZ - 1.2, width: 12, color: 0xf0ede0 });
-                            // Półokrągły portyk południowy, przed Gabinetem Owalnym
-                            for (let i = 0; i <= 6; i++) { const a = i * Math.PI / 6; themedLandmarkDecor.push({ type: 'column', x: b.x + Math.cos(a) * 5, z: hData.maxZ + .8 + Math.sin(a) * 3, height: 3.2, color: 0xf0ede0 }); }
-                            urzadzGmach(hData, { plaskiDach: true, podloga: 'plyty', kolorScian: 0xe8e4d8, kolorFasady: 0xf0ece0,
-                                sciany: [[9,1,9,8,4], [19,1,19,8,4], [1,9,27,9,4,14,24], [9,10,9,15], [19,10,19,15]],
+                            const BIEL = 0xf0ede0, sx = hData.minX + 16, x0 = hData.minX - .5, x1 = hData.maxX + .5, z0 = hData.minZ - .5, z1 = hData.maxZ + .5, id = hData.id;
+                            // Balustrada na płaskim dachu, przerwana nad oboma portykami
+                            [[x0,z0,sx-6,z0], [sx+6,z0,x1,z0], [x0,z1,sx-6,z1], [sx+6,z1,x1,z1], [x0,z0,x0,z1], [x1,z0,x1,z1]].forEach(([a,c,e,f]) => themedLandmarkDecor.push({ type: 'balustrada', x0: a, z0: c, x1: e, z1: f, y: 4.2, color: BIEL, houseId: id }));
+                            // Kominy i maszt z flagą
+                            [[8,4],[24,4],[8,12],[24,12]].forEach(([u,v]) => themedLandmarkDecor.push({ type: 'kloc', x: hData.minX + u, z: hData.minZ + v, y: 4.8, sx: 1, sy: 1.2, sz: .7, color: 0xe8e4d8, houseId: id }));
+                            themedLandmarkDecor.push({ type: 'kloc', x: sx, z: hData.minZ + 8, y: 6.2, sx: .08, sy: 4, sz: .08, color: 0xd8d8d8, houseId: id });
+                            themedLandmarkDecor.push({ type: 'kloc', x: sx + .62, z: hData.minZ + 8, y: 7.7, sx: 1.2, sy: .8, sz: .03, color: 0xffffff, flaga: true, houseId: id });
+                            // Portyk północny: cztery kolumny na pełną wysokość, tympanon, posadzka
+                            [-4.5,-1.5,1.5,4.5].forEach(d => themedLandmarkDecor.push({ type: 'column', x: sx + d, z: z0 - 3.4, height: 4, color: BIEL }));
+                            [-4.5,4.5].forEach(d => themedLandmarkDecor.push({ type: 'column', x: sx + d, z: z0 - .9, height: 4, color: BIEL }));
+                            themedLandmarkDecor.push({ type: 'pediment', x: sx, z: z0 - 2, width: 12, gleb: 4.6, dy: .6, color: BIEL });
+                            themedLandmarkDecor.push({ type: 'kloc', x: sx, z: z0 - 2, y: .04, sx: 11, sy: .08, sz: 4.4, color: 0xd8d4c6 });
+                            // Naczółki okien parteru od frontu
+                            [2,5,8,24,27,30].forEach((u, i) => themedLandmarkDecor.push({ type: 'naczolek', x: hData.minX + u, z: z0 - .08, luk: i % 2 === 1, color: BIEL }));
+                            // Strona południowa: wypukły ryzalit Gabinetu Owalnego i półkolisty portyk
+                            themedLandmarkDecor.push({ type: 'polwalec', x: sx, z: z1, y: 2.05, r: 3.4, h: 4.1, color: BIEL });
+                            for (let i = 0; i <= 6; i++) { const a = i * Math.PI / 6; themedLandmarkDecor.push({ type: 'column', x: sx + Math.cos(a) * 5.6, z: z1 + Math.sin(a) * 5.6, height: 4, color: BIEL }); }
+                            themedLandmarkDecor.push({ type: 'polwalec', x: sx, z: z1, y: 4.1, r: 6.2, h: .3, color: BIEL });
+                            themedLandmarkDecor.push({ type: 'balustrada', x: sx, z: z1, r: 6.1, y: 4.25, color: BIEL, houseId: id });
+                            for (let u = -3; u <= 3; u++) for (let v = 1; v <= 3; v++) if (u * u + v * v <= 13) addObstacle(sx + u, hData.maxZ + v, 'house-wall', { houseId: id, wallColor: BIEL, destructible: false, floors: 1, bezBryly: true });
+                            // Ogród: fontanna z czerwoną rabatą i żywopłotem od frontu, fontanna z boku od południa
+                            const naTrawie = (x, z) => { const mx = x + offsetX, mz = z + offsetZ; return mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth && obstacleGrid[mx][mz] === null && terrainTypeMap[mx][mz] < 2; };
+                            for (let d = -9; d <= 9; d++) { if (d && naTrawie(sx + d, hData.minZ - 8)) addObstacle(sx + d, hData.minZ - 8, 'hedge', { hedgeColor: 0x2d5c2a }); if (d % 2 === 0 && Math.abs(d) >= 4 && naTrawie(sx + d, hData.maxZ + 12)) addObstacle(sx + d, hData.maxZ + 12, 'hedge', { hedgeColor: 0x2d5c2a }); }
+                            themedLandmarkDecor.push({ type: 'kloc', x: sx, z: hData.minZ - 10, y: .08, sx: 19, sy: .16, sz: 1.6, color: 0xc81e1e });
+                            [[sx, hData.minZ - 13], [sx + 11, hData.maxZ + 7]].forEach(([x, z]) => { if (naTrawie(x, z)) addObstacle(x, z, 'fountain'); });
+                            urzadzGmach(hData, { plaskiDach: true, podloga: 'plyty', kolorScian: 0xe8e4d8, kolorFasady: 0xf0ece0, gladkaFasada: true,
+                                sciany: [[8,1,8,15,4,8], [9,7,31,7,11,15,16,17,23,28], [9,10,31,10,11,16,22,28], [13,1,13,6,4], [19,1,19,6,4], [26,1,26,6,4], [13,11,13,15,13], [19,11,19,15,13], [24,11,24,15,13]],
                                 meble: [
-                                    // Sala Gabinetu: długi stół z krzesłami, flaga i popiersie
-                                    ...stolNarad(3, 6, 4, 'stol_narad', 'krzeslo_gmachu'), [2,4,'krzeslo_gmachu',P2], [1,1,'flaga_usa'], [8,1,'popiersie_marmur'], [1,8,'kwietnik_wazon'],
+                                    // Sala Wschodnia na całą głębokość skrzydła
+                                    [2,2,'fortepian_gmachu'], [1,6,'sofa_kremowa',P2], [1,10,'sofa_kremowa',P2], [1,1,'kwietnik_wazon'], [1,15,'kwietnik_wazon'], [7,1,'popiersie_marmur'], [7,15,'popiersie_marmur'],
+                                    // Klatka schodowa
+                                    ...rzad(9, 12, 1, 'regal_ksiag', 0), [9,6,'popiersie_marmur'],
                                     // Hol wejściowy z kolumnadą
-                                    [11,3,'kolumna_marmur'], [17,3,'kolumna_marmur'], [11,6,'kolumna_marmur'], [17,6,'kolumna_marmur'], [10,1,'rzezba_marmur'], [18,1,'rzezba_marmur'], [12,1,'kwietnik_wazon'], [16,1,'kwietnik_wazon'],
-                                    // Sala Wschodnia: fortepian, sofy pod ścianą
-                                    [26,2,'fortepian_gmachu'], [22,8,'sofa_kremowa',PI], [26,8,'sofa_kremowa',PI], [20,8,'kwietnik_wazon'], [27,8,'kwietnik_wazon'], [27,1,'popiersie_marmur'], [20,1,'popiersie_marmur'],
-                                    // Biblioteka
-                                    ...rzad(1, 8, 15, 'regal_ksiag', PI), [2,12,'sofa_kremowa',0], [6,12,'sofa_kremowa',0], [4,13,'stolik_kawowy'], [8,10,'kwietnik_wazon'], [1,10,'fotel_gmachu',P2],
-                                    // Gabinet Owalny: biurko Resolute, dwie sofy naprzeciw siebie
-                                    [14,14,'biurko_resolute',PI], [14,15,'fotel_gmachu',PI], [12,15,'flaga_usa'], [16,15,'flaga_usa'], [12,12,'sofa_kremowa',P2], [16,12,'sofa_kremowa',-P2], [14,12,'stolik_kawowy'], [10,15,'popiersie_marmur'], [18,15,'popiersie_marmur'], [10,10,'kwietnik_wazon'], [18,10,'kwietnik_wazon'],
+                                    [14,3,'kolumna_marmur'], [18,3,'kolumna_marmur'], [14,5,'kolumna_marmur'], [18,5,'kolumna_marmur'], [14,1,'rzezba_marmur'], [18,1,'rzezba_marmur'],
+                                    // Mała jadalnia, biblioteka
+                                    ...stolNarad(21, 24, 3, 'stol_narad', 'krzeslo_gmachu'), [20,1,'kwietnik_wazon'], [25,1,'flaga_usa'], ...rzad(27, 31, 1, 'regal_ksiag', 0), [30,5,'sofa_kremowa',-P2], [31,6,'kwietnik_wazon'],
+                                    // Korytarz poprzeczny
+                                    ...[10,14,18,26,30].map(u => [u, 9, 'popiersie_marmur']), [31,8,'kwietnik_wazon'],
+                                    // Zielony Salon
+                                    [9,13,'sofa_kremowa',P2], [10,13,'stolik_kawowy'], [9,15,'popiersie_marmur'], [12,15,'kwietnik_wazon'],
+                                    // Gabinet Owalny
+                                    [16,14,'biurko_resolute',PI], [16,15,'fotel_gmachu',PI], [14,15,'flaga_usa'], [18,15,'flaga_usa'], [14,12,'sofa_kremowa',P2], [18,12,'sofa_kremowa',-P2], [16,12,'stolik_kawowy'],
+                                    // Niebieski Salon
+                                    [21,15,'sofa_kremowa',PI], [22,15,'sofa_kremowa',PI], [20,15,'kwietnik_wazon'], [23,15,'kwietnik_wazon'],
                                     // Jadalnia Państwowa
-                                    ...stolNarad(22, 26, 13, 'stol_narad', 'krzeslo_gmachu'), ...rzad(20, 22, 10, 'regal_ksiag', 0), [27,10,'kwietnik_wazon']
+                                    ...stolNarad(26, 30, 13, 'stol_narad', 'krzeslo_gmachu'), [25,15,'kwietnik_wazon'], [31,15,'kwietnik_wazon'], [25,11,'popiersie_marmur'], [31,11,'popiersie_marmur']
                                 ],
-                                dywany: [[13,1,15,8,0x8a1a22,0xc8a040], [22,3,25,6,0xc8a860,0x8a6a2a], [11,11,17,14,0x24386a,0xc8a040], [2,10,7,14,0x6a2a2a,0xb89a50]],
-                                obrazy: [[12,-.3,0,0x4a5a7a,0xc8b090], [16,-.3,0,0x5a4a3a,0xc8b090], [-.3,2,P2,0x3a4a5a,0xd8c8a8], [-.3,6,P2,0x5a3a2a,0xd8c8a8], [22,-.3,0,0x4a6a5a,0xe0d0a0], [25,-.3,0,0x6a4a3a,0xe0d0a0], [11,16+.3,PI,0x3a4a6a,0xc8b090], [17,16+.3,PI,0x6a3a3a,0xc8b090], [28+.3,12,-P2,0x4a4a5a,0xd8c8a8]],
-                                zyrandole: [[14,4], [23,4], [24,13]] });
+                                dywany: [[3,3,5,13,0xc8a860,0x8a6a2a], [15,1,17,6,0x8a1a22,0xc8a040], [9,8,31,9,0x8a1a22,0xc8a040], [15,11,17,14,0x24386a,0xc8a040], [26,12,30,14,0x6a2a2a,0xb89a50]],
+                                obrazy: [[.55,4,P2,0x3a4a5a,0xd8c8a8], [.55,12,P2,0x5a3a2a,0xd8c8a8], [31.45,4,-P2,0x4a6a5a,0xe0d0a0], [31.45,13,-P2,0x4a4a5a,0xd8c8a8], [10,6.45,PI,0x4a5a7a,0xc8b090], [22,6.45,PI,0x5a4a3a,0xc8b090], [21,10.55,0,0x3a4a6a,0xc8b090], [28.5,15.45,PI,0x6a3a3a,0xc8b090]],
+                                zyrandole: [[4,4], [4,8], [4,12], [16,3], [16,13], [22.5,3], [28,13]] });
                         }
                     }
                 } else if (currentCombatTheme.id === 'pentagon') {
@@ -10482,14 +10504,47 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const col = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.4, d.height, 10), new THREE.MeshLambertMaterial({ color: d.color }));
                     col.position.set(d.x, ty + d.height / 2, d.z);
                     scene.add(col); obstacleMeshes.push(col);
+                } else if (d.type === 'kloc') {
+                    let mat = new THREE.MeshLambertMaterial({ color: d.color });
+                    if (d.flaga) { const c = document.createElement('canvas'); c.width = 76; c.height = 52; const g = c.getContext('2d'); for (let i = 0; i < 13; i++) { g.fillStyle = i % 2 ? '#fff' : '#b22234'; g.fillRect(0, i * 4, 76, 4); } g.fillStyle = '#3c3b6e'; g.fillRect(0, 0, 32, 28); g.fillStyle = '#fff'; for (let i = 0; i < 6; i++) for (let j = 0; j < 4; j++) g.fillRect(3 + i * 5, 3 + j * 6, 2, 2); mat = new THREE.MeshLambertMaterial({ map: new THREE.CanvasTexture(c) }); }
+                    const k = new THREE.Mesh(new THREE.BoxGeometry(d.sx, d.sy, d.sz), mat);
+                    k.position.set(d.x, ty + d.y, d.z);
+                    if (d.houseId !== undefined) k.userData = { type: 'house-roof', x: d.x, z: d.z, houseId: d.houseId };
+                    scene.add(k); obstacleMeshes.push(k);
+                } else if (d.type === 'polwalec') {
+                    // Połowa walca wypukła ku +z: ryzalit Gabinetu Owalnego i strop półkolistego portyku
+                    const m = new THREE.Mesh(new THREE.CylinderGeometry(d.r, d.r, d.h, 28, 1, false, -Math.PI / 2, Math.PI), new THREE.MeshLambertMaterial({ color: d.color }));
+                    m.position.set(d.x, ty + d.y, d.z);
+                    if (d.houseId !== undefined) m.userData = { type: 'house-roof', x: d.x, z: d.z, houseId: d.houseId };
+                    scene.add(m); obstacleMeshes.push(m);
+                } else if (d.type === 'balustrada') {
+                    // Tralki i poręcz: odcinek x0,z0-x1,z1 albo półkole o promieniu r
+                    const M = new THREE.MeshLambertMaterial({ color: d.color });
+                    const dl = d.r ? Math.PI * d.r : Math.hypot(d.x1 - d.x0, d.z1 - d.z0), n = Math.round(dl / 0.45);
+                    const tralki = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.05, 0.08, 0.42, 5), M, n + 1), mx = new THREE.Matrix4();
+                    for (let i = 0; i <= n; i++) {
+                        const f = i / n;
+                        if (d.r) mx.setPosition(d.x + Math.cos(f * Math.PI) * d.r, ty + d.y + 0.21, d.z + Math.sin(f * Math.PI) * d.r);
+                        else mx.setPosition(d.x0 + (d.x1 - d.x0) * f, ty + d.y + 0.21, d.z0 + (d.z1 - d.z0) * f);
+                        tralki.setMatrixAt(i, mx);
+                    }
+                    let porecz;
+                    if (d.r) { porecz = new THREE.Mesh(new THREE.TorusGeometry(d.r, 0.08, 6, 28, Math.PI), M); porecz.rotation.x = Math.PI / 2; porecz.position.set(d.x, ty + d.y + 0.46, d.z); }
+                    else { porecz = new THREE.Mesh(new THREE.BoxGeometry(d.x1 - d.x0 + 0.16, 0.1, d.z1 - d.z0 + 0.16), M); porecz.position.set((d.x0 + d.x1) / 2, ty + d.y + 0.46, (d.z0 + d.z1) / 2); }
+                    [tralki, porecz].forEach(m => { m.userData = { type: 'house-roof', x: d.x0 === undefined ? d.x : d.x0, z: d.z0 === undefined ? d.z : d.z0, houseId: d.houseId }; scene.add(m); obstacleMeshes.push(m); });
+                } else if (d.type === 'naczolek') {
+                    // Naczółek nad oknem: na zmianę trójkątny i łukowy
+                    const m = new THREE.Mesh(d.luk ? new THREE.CylinderGeometry(0.62, 0.62, 0.16, 12, 1, false, -Math.PI / 2, Math.PI) : new THREE.CylinderGeometry(0.8, 0.8, 0.16, 3), new THREE.MeshLambertMaterial({ color: d.color }));
+                    m.rotation.x = -Math.PI / 2; if (!d.luk) m.scale.z = 0.5;
+                    m.position.set(d.x, ty + 2.0, d.z); scene.add(m); obstacleMeshes.push(m);
                 } else if (d.type === 'pediment') {
                     const bar = new THREE.Mesh(new THREE.BoxGeometry(d.width, 0.5, 1.2), new THREE.MeshLambertMaterial({ color: d.color }));
-                    bar.position.set(d.x, ty + 3.6, d.z);
+                    bar.position.set(d.x, ty + 3.6 + (d.dy || 0), d.z); if (d.gleb) bar.scale.z = d.gleb / 1.2;
                     scene.add(bar); obstacleMeshes.push(bar);
                     // Płaski trójkąt tympanonu: graniastosłup o osi wzdłuż głębokości portyku
                     const tri = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1.2, 3), new THREE.MeshLambertMaterial({ color: d.color, transparent: true, opacity: 1.0 }));
-                    tri.rotation.x = -Math.PI / 2; tri.scale.set(d.width / 1.732, 1, 1.3 / 1.5);
-                    tri.position.set(d.x, ty + 4.3, d.z);
+                    tri.rotation.x = -Math.PI / 2; tri.scale.set(d.width / 1.732, (d.gleb || 1.2) / 1.2, 1.3 / 1.5);
+                    tri.position.set(d.x, ty + 4.3 + (d.dy || 0), d.z);
                     tri.userData = { type: 'house-roof', x: d.x, z: d.z };
                     scene.add(tri); obstacleMeshes.push(tri);
                 } else if (d.type === 'tower') {
@@ -18984,7 +19039,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const barwaSciany = pos.wallColor !== undefined ? pos.wallColor : 0xaa5555;
                     for (let f = 0; f < floors; f++) {
                         // Faktura muru (cegły/bloki) w barwie ściany - zamiast gładkiej płyty
-                        const wallMat = new THREE.MeshLambertMaterial({ map: teksturaScianyBud(barwaSciany), transparent: true, opacity: 1.0 });
+                        const wallMat = new THREE.MeshLambertMaterial(Object.assign(pos.gladka ? { color: barwaSciany } : { map: teksturaScianyBud(barwaSciany) }, { transparent: true, opacity: 1.0 }));
                         if (pos.destroyedLevels && pos.destroyedLevels.indexOf(f) !== -1) continue; // ten kwadrat już wybity
                         const boki = bokiDomu(pos);
                         if (boki) {
