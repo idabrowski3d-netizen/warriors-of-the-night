@@ -10041,8 +10041,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
 
             // Mokradła: część drzew jest straszna; wzór i rola zapisane przy polu, bo plansza rysuje się wielokrotnie
-            if (currentCombatTheme && currentCombatTheme.id === 'bagno') obstaclePositions.forEach(p => {
-                if (p.type !== 'tree' || Math.random() >= 0.45) return;
+            // Na Wulkanie nic innego nie rośnie: kilkadziesiąt strasznych drzew z dala od lawy
+            const naWulkanie = !!currentCombatTheme && currentCombatTheme.id === 'wulkan';
+            if (naWulkanie) for (let n = 0, t = 0; n < 32 && t < 3000; t++) {
+                const x = Math.floor(Math.random() * (mapWidth - 12)) + 6 - offsetX, z = Math.floor(Math.random() * (mapDepth - 12)) + 6 - offsetZ;
+                let wolne = isWithinPlayBounds(x, z) && !isObstacle(x, z);
+                for (let dx = -1; dx <= 1 && wolne; dx++) for (let dz = -1; dz <= 1 && wolne; dz++) if (terrainTypeMap[x + dx + offsetX][z + dz + offsetZ] >= 2) wolne = false;
+                if (wolne) { addObstacle(x, z, 'tree'); n++; }
+            }
+            if (naWulkanie || (currentCombatTheme && currentCombatTheme.id === 'bagno')) obstaclePositions.forEach(p => {
+                if (p.type !== 'tree' || (!naWulkanie && Math.random() >= 0.45)) return;
                 const n = Math.floor(Math.random() * 5);
                 p.straszne = true; p.wzorStraszny = 'drzewo_straszne_' + n;
                 if (n % 2 === 0 && Math.random() < 0.35) p.dziupla = true;
@@ -40151,14 +40159,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
             return w;
         }
-        function naMokradlach() { return !!currentCombatTheme && currentCombatTheme.id === 'bagno'; }
+        function maStraszneDrzewa() { return !!currentCombatTheme && ['bagno', 'wulkan'].includes(currentCombatTheme.id); }
         function karaSzeptow(s) {
-            if (!naMokradlach() || !s || !s.mesh || (s.level || 0) !== 0) return 0;
+            if (!maStraszneDrzewa() || !s || !s.mesh || (s.level || 0) !== 0) return 0;
             return strasznePrzy(Math.round(s.mesh.position.x), Math.round(s.mesh.position.z), SZEPTY_ZASIEG).length ? SZEPTY_KARA : 0;
         }
         // Co turę: kto stoi przy strasznym drzewie, słyszy je i nabiera lęku
         function tikSzeptow() {
-            if (!naMokradlach() || gameOver) return;
+            if (!maStraszneDrzewa() || gameOver) return;
             soldiers.forEach(s => {
                 if (s.isDead || s.isNPC || !s.mesh || !karaSzeptow(s)) return;
                 dodajTraume(s, 'szepty');
@@ -40217,7 +40225,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
         // Po każdym kroku: uśpione drzewa budzą się na dwa pola, dziuple oddają lokatorów
         function tikStrasznychDrzew(s) {
-            if (!naMokradlach() || !s || s.isDead || s.isNPC || !s.mesh || (s.level || 0) !== 0) return;
+            if (!maStraszneDrzewa() || !s || s.isDead || s.isNPC || !s.mesh || (s.level || 0) !== 0) return;
             strasznePrzy(Math.round(s.mesh.position.x), Math.round(s.mesh.position.z), 2).forEach(o => {
                 if (o.drzewiec) obudzDrzewca(o);
                 else if (o.dziupla) wylegZDziupli(o);
