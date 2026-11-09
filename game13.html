@@ -2850,7 +2850,7 @@
                 : undefined;   // wygładzanie krawędzi zostaje mimo postprocessingu
             kompozytor = new THREE.EffectComposer(renderer, rt);
             kompozytor.addPass(new THREE.RenderPass(scene, camera));
-            kompozytor.addPass(new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.55, 0.5, 0.82));
+            kompozytor.addPass(new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.38, 0.5, 0.82));
             kompozytor.addPass(new THREE.ShaderPass(KlimatShader));
         }
         // Pył w powietrzu: drobinki dryfujące wokół miejsca, na które patrzy kamera,
