@@ -2600,7 +2600,7 @@
         const beton_wiezienny = (tlo, jasny, ciemny) => (ctx, T) => { ctx.fillStyle = tlo; ctx.fillRect(0, 0, T, T); for (let i = 0; i < 300; i++) { ctx.fillStyle = i % 2 ? jasny : ciemny; ctx.globalAlpha = .35; ctx.fillRect(Math.random() * T, Math.random() * T, 1, 1); } for (let i = 0; i < 6; i++) { ctx.fillStyle = '#3a3226'; ctx.globalAlpha = .18; ctx.fillRect(Math.random() * T, Math.random() * T, 3 + Math.random() * 6, 14 + Math.random() * 24); } ctx.globalAlpha = 1; for (let s = 0; s < 3; s++) { let x = Math.random() * T, y = Math.random() * T, k = Math.random() * 6.283; for (let i = 0; i < 35; i++) { k += (Math.random() - .5) * .8; x = (x + Math.cos(k) + T) % T; y = (y + Math.sin(k) + T) % T; ctx.fillStyle = ciemny; ctx.fillRect(x, y, 1, 1); } } };
         const linoleum = (tlo, jasny, ciemny) => (ctx, T) => { const K = T / 4; for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) { ctx.fillStyle = (a + b) % 2 ? tlo : jasny; ctx.fillRect(a * K, b * K, K, K); } for (let i = 0; i < 14; i++) { ctx.fillStyle = ciemny; ctx.globalAlpha = .3; ctx.beginPath(); ctx.ellipse(Math.random() * T, Math.random() * T, 3 + Math.random() * 10, 2 + Math.random() * 6, Math.random() * 3, 0, 6.283); ctx.fill(); } ctx.globalAlpha = 1; for (let i = 0; i < 90; i++) { ctx.fillStyle = ciemny; ctx.fillRect(Math.random() * T, Math.random() * T, 1 + Math.random() * 3, 1); } };
         // Linoleum po latach: wytarte ścieżki, rozdarcia do podkładu, przypalenia, brud w fugach
-        const zuzyte = (wzor) => (ctx, T) => { wzor(ctx, T);
+        const zuzyte = (wzor) => (ctx, T) => { if (typeof zdjeciaSzpitala !== 'undefined' && zdjeciaSzpitala.baza) { ctx.drawImage(zdjeciaSzpitala.baza, 0, 0, T, T); return; } wzor(ctx, T);
             for (let i = 0; i < 7; i++) { ctx.fillStyle = 'rgba(60,52,38,' + (.12 + Math.random() * .2) + ')'; ctx.beginPath(); ctx.ellipse(Math.random() * T, Math.random() * T, 8 + Math.random() * 24, 4 + Math.random() * 12, Math.random() * 3, 0, 6.283); ctx.fill(); }
             for (let i = 0; i < 3; i++) { const x = Math.random() * T, y = Math.random() * T; ctx.fillStyle = '#2c261e'; ctx.beginPath(); ctx.moveTo(x, y); for (let k = 0; k < 7; k++) ctx.lineTo(x + (Math.random() - .5) * T * .28, y + (Math.random() - .5) * T * .28); ctx.closePath(); ctx.fill(); }
             ctx.strokeStyle = 'rgba(25,22,18,.6)'; ctx.lineWidth = 1; for (let i = 0; i < 9; i++) { let x = Math.random() * T, y = Math.random() * T; ctx.beginPath(); ctx.moveTo(x, y); for (let k = 0; k < 5; k++) { x += (Math.random() - .5) * 26; y += (Math.random() - .5) * 26; ctx.lineTo(x, y); } ctx.stroke(); } };
@@ -10618,7 +10618,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     scene.add(col); obstacleMeshes.push(col);
                 } else if (d.type === 'posadzka_szpital') {
                     const tx = teksturaPosadzkiSzpitala(d.rodzaj).clone(); tx.repeat.set(d.w / 4, d.d / 4); tx.needsUpdate = true;
-                    const m = new THREE.Mesh(new THREE.PlaneGeometry(d.w, d.d), new THREE.MeshLambertMaterial({ map: tx, emissive: 0x444444, emissiveMap: tx }));
+                    const m = new THREE.Mesh(new THREE.PlaneGeometry(d.w, d.d), new THREE.MeshLambertMaterial(SZPITAL_ZDJECIA ? { map: tx, color: [0x5f6f5a, 0x5a5a52, 0x4c4a44, 0x5a5a56, 0x5a4a38, 0x705046][d.rodzaj] } : { map: tx, emissive: 0x444444, emissiveMap: tx }));
                     m.rotation.x = -Math.PI / 2; m.position.set(d.x, ty + d.poziom * FLOOR_HEIGHT + .008 + d.wyzej, d.z);
                     m.userData = { type: 'house-wall', x: d.x, z: d.z, houseId: d.houseId, wallLevel: d.poziom };
                     scene.add(m); obstacleMeshes.push(m);
@@ -15582,11 +15582,31 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const tx = new THREE.CanvasTexture(c); tx.wrapS = tx.wrapT = THREE.RepeatWrapping;
             return blachyWagonow[barwa] = tx;
         }
+        // Tekstury ze zdjęć (ambientCG, CC0). false przywraca wersje rysowane kodem.
+        const SZPITAL_ZDJECIA = true;
+        const zdjeciaSzpitala = {};
+        ['s0', 's1', 's2', 's3', 's4', 's5', 's6', 's7', 'p0', 'p1', 'p2', 'p3', 'p4', 'p5', 'baza'].forEach(n => { if (!SZPITAL_ZDJECIA) return; const im = new Image(); im.onload = () => { zdjeciaSzpitala[n] = im; }; im.src = 'models/tekstury_szpital/' + n + '.jpg'; });
+        // Zdjęcie plus to, czego na zdjęciu nie ma: lamperia, kreski na ścianie, zabrudzenie przy podłodze
+        function scianaZeZdjecia(n) {
+            const c = document.createElement('canvas'); c.width = 512; c.height = 256; const x = c.getContext('2d'), R = Math.random, im = zdjeciaSzpitala['s' + n];
+            x.drawImage(im, 0, 0, 512, 256);
+            const lamperia = { 0: '#7fa08c', 1: '#9a7a55', 2: '#6f9a9c', 7: '#7488a8' }[n];
+            x.globalCompositeOperation = 'multiply';
+            if (lamperia) { x.fillStyle = lamperia; x.fillRect(0, 146, 512, 110); x.fillStyle = n === 7 ? '#c4d0dc' : '#e4e2cc'; x.fillRect(0, 0, 512, 146); }
+            if (n === 3 || n === 6) { x.fillStyle = '#8c8c7c'; x.fillRect(0, 0, 512, 256); }
+            const g = x.createLinearGradient(0, 190, 0, 256); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(92,84,68,1)'); x.fillStyle = g; x.fillRect(0, 190, 512, 66);
+            x.globalCompositeOperation = 'source-over';
+            if (lamperia) { x.fillStyle = 'rgba(32,38,32,.85)'; x.fillRect(0, 143, 512, 4); }
+            if (n === 7) { x.strokeStyle = 'rgba(22,18,16,.8)'; x.lineWidth = 1.5; for (let i = 0; i < 7; i++) { const gx = R() * 470, gy = 25 + R() * 170; for (let k = 0; k < 5; k++) { x.beginPath(); x.moveTo(gx + k * 8, gy); x.lineTo(gx + k * 8, gy + 24); x.stroke(); } x.beginPath(); x.moveTo(gx - 5, gy + 19); x.lineTo(gx + 37, gy + 4); x.stroke(); } x.fillStyle = 'rgba(88,14,12,.62)'; for (let i = 0; i < 6; i++) { const px = R() * 480, py = 50 + R() * 130; x.fillRect(px, py, 9, 18); [-6, 11, 16].forEach(o => x.fillRect(px + o, py - 7, 3, 16)); } }
+            const tx = new THREE.CanvasTexture(c); tx.wrapS = tx.wrapT = THREE.RepeatWrapping;
+            return tx;
+        }
         const tynkiSzpitala = {}, plamySzpitala = {};
         let posadzkaPietraSzpitala = null;
         // Olejna lamperia, wyblakły tynk, odpadające płaty, zacieki, pleśń przy podłodze, pęknięcia
         function teksturaScianySzpitala(n) {
             if (tynkiSzpitala[n]) return tynkiSzpitala[n];
+            if (zdjeciaSzpitala['s' + n]) return tynkiSzpitala[n] = scianaZeZdjecia(n);
             const c = document.createElement('canvas'); c.width = 512; c.height = 128; const x = c.getContext('2d'), R = Math.random; x.scale(4, 1);
             const [gora, dol] = [['#a8ab94', '#56705f'], ['#b0a88e', '#6a5238'], ['#9aa596', '#4f6a68'], ['#c4c6bc', '#c4c6bc'], ['#8a5040', '#8a5040'], ['#7e7f7a', '#65665f'], ['#a89a72', '#6b5f48'], ['#7f8fa0', '#46566a']][n];
             x.fillStyle = gora; x.fillRect(0, 0, 128, 128);
@@ -15607,6 +15627,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const posadzkiSzpitala = {};
         function teksturaPosadzkiSzpitala(n) {
             if (posadzkiSzpitala[n]) return posadzkiSzpitala[n];
+            if (zdjeciaSzpitala['p' + n]) { const c = document.createElement('canvas'); c.width = c.height = 512; c.getContext('2d').drawImage(zdjeciaSzpitala['p' + n], 0, 0, 512, 512); const fx = new THREE.CanvasTexture(c); fx.wrapS = fx.wrapT = THREE.RepeatWrapping; return posadzkiSzpitala[n] = fx; }
             const T = 256, c = document.createElement('canvas'); c.width = c.height = T; const x = c.getContext('2d'), R = Math.random;
             x.fillStyle = ['#65735f', '#b4b4a6', '#8b8679', '#6c6b66', '#6a4a30', '#7a4a3c'][n]; x.fillRect(0, 0, T, T);
             if (n === 0 || n === 5) for (let a = 0; a < 8; a++) for (let b = 0; b < 8; b++) { x.fillStyle = (a + b) % 2 ? 'rgba(25,25,18,.22)' : 'rgba(225,215,190,.1)'; x.fillRect(a * 32, b * 32, 32, 32); }
