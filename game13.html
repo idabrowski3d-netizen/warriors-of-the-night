@@ -20748,6 +20748,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Nazwy klipów podajemy wprost, bo bywają różne (attack vs fight).
         // ========================================================
         const ENEMY_MODELS = {
+            ogar:    { plik: 'models/ogar.glb', idle: 'Idle', walk: 'Walking', atak: 'Atak', smierc: 'Smierc', koloryZPliku: true, wysokosc: 1.35, obrot: -Math.PI / 2 },
             zombie:  { plik: 'models/zombie.glb',  idle: 'zombie_idle',  walk: 'zombie_walk',
                        atak: 'zombie_attack',  smierc: 'zombie_death',  cios: 'zombie_hit',
                        specjalna: 'zombie_up',  wysokosc: 1.98 },   // +10% wzrostu; zombie_up - wychodzenie z grobu
@@ -21045,6 +21046,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             grupa.add(klon);
 
             const cfg = ENEMY_MODELS[typ];
+            if (cfg.obrot) klon.rotation.y = cfg.obrot;
             const mixer = new THREE.AnimationMixer(klon);
             const akcje = {};
             Object.keys(wpis.klipy).forEach(n => { akcje[n] = mixer.clipAction(wpis.klipy[n]); });
@@ -28433,7 +28435,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Nie da się jej zabić - można ją tylko odpędzić. Wraca w kolejnych snach.
         // ========================================================
         // Model z Blendera: szata, kaptur, czaszka, kościste dłonie, kosa. Unosi się nad ziemią i lekko faluje.
-        let smiercProto = null;
+        let smiercProto = null, otoczenieMetalu = null;
+        // Mała mapa otoczenia dla metalu: jasne niebo, ciemna ziemia i pas chłodnego światła
+        function mapaOtoczeniaMetalu() {
+            if (otoczenieMetalu) return otoczenieMetalu;
+            const sciana = (g, d, smuga) => { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'), l = x.createLinearGradient(0, 0, 0, 128); l.addColorStop(0, g); l.addColorStop(1, d); x.fillStyle = l; x.fillRect(0, 0, 128, 128); if (smuga) { x.fillStyle = 'rgba(255,255,255,.95)'; x.fillRect(0, 42, 128, 12); x.fillStyle = 'rgba(160,215,255,.8)'; x.fillRect(38, 0, 16, 128); } return c; };
+            const bok = sciana('#b8c8dc', '#20242c', true), gora = sciana('#f2f6ff', '#c8d4e4'), dol = sciana('#14161a', '#08090b');
+            otoczenieMetalu = new THREE.CubeTexture([bok, bok, gora, dol, bok, bok]); otoczenieMetalu.needsUpdate = true;
+            return otoczenieMetalu;
+        }
         function loadSmierc() {
             if (typeof THREE.GLTFLoader === 'undefined') return;
             wczytajGlbBezAnimacji('models/smierc.glb', new THREE.GLTFLoader(), gltf => {
@@ -28441,7 +28451,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (!ch.isMesh) return;
                     const czern = ch.material.name === 'Czern';
                     if (ch.material.map) ch.material.map.encoding = THREE.LinearEncoding;
-                    ch.material = czern ? new THREE.MeshBasicMaterial({ color: 0x000000 }) : new THREE.MeshLambertMaterial({ map: ch.material.map, side: THREE.DoubleSide });
+                    const stal = ch.material.name === 'Stal';
+                    ch.material = czern ? new THREE.MeshBasicMaterial({ color: 0x000000 }) : stal ? new THREE.MeshStandardMaterial({ map: ch.material.map, color: 0xffffff, metalness: .92, roughness: .2, envMap: mapaOtoczeniaMetalu(), envMapIntensity: 2.4, side: THREE.DoubleSide }) : new THREE.MeshLambertMaterial({ map: ch.material.map, side: THREE.DoubleSide });
                     ch.castShadow = !czern;
                 });
                 smiercProto = gltf.scene;
@@ -28532,6 +28543,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // i osaczają ją ze wszystkich stron, nie zważając na resztę oddziału.
         // ========================================================
         function createHellhoundMesh() {
+            const zModelu = buildEnemyModelInstance('ogar');
+            if (zModelu) { const sw = new THREE.PointLight(0xff3a18, 0.6, 5, 1.7); sw.position.set(0, 1.1, 1); zModelu.add(sw); return zModelu; }
             const g = new THREE.Group();
             const s = 1.25;
             const siersc = new THREE.MeshLambertMaterial({ color: 0x141116 });
