@@ -8642,13 +8642,29 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const zGran = (mapDepth - offsetZ) - 14;
                     const przejscie = osX;                              // brama tam, gdzie autostrada
                     for (let x = -offsetX; x < mapWidth - offsetX; x++) {
-                        if (Math.abs(x - przejscie) <= 7) continue;     // brama graniczna - szeroka jak droga
+                        if (Math.abs(x - przejscie) <= 8) continue;     // brama graniczna - szeroka jak droga
                         const mx = x + offsetX, mz = zGran + offsetZ;
                         if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
                         if (obstacleGrid[mx][mz]) continue;
                         addObstacle(x, zGran, 'granica-plot');
                     }
                     granicaZ = zGran;
+                    // Przejście graniczne: trzy wysepki z budkami, między nimi dwa pasy. Na zachodnim opuszczony
+                    // szlaban, wschodni otwarty - droga przez granicę zawsze zostaje. Po bokach dwie wieże.
+                    addObstacle(osX, zGran, 'przejscie');
+                    const zajmij = (x0, x1, z0, z1) => { for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) addObstacle(osX + x, zGran + z, 'wesole-czesc'); };
+                    [-7, 0, 7].forEach(s => zajmij(s - 1, s + 1, -5, 5));
+                    zajmij(-5, -2, -3, -3);
+                    [-13, 13].forEach(s => zajmij(s - 1, s + 1, -4, -2));
+                    // Kaktusy i kępy wysokiej trawy skupiskami, z dala od asfaltu i przejścia
+                    for (let n = 0; n < 34; n++) {
+                        const sx = Math.floor(Math.random() * (mapWidth - 16)) + 8 - offsetX, sz = Math.floor(Math.random() * (mapDepth - 16)) + 8 - offsetZ;
+                        const typ = n % 2 ? 'kaktus' : 'kepa_wysoka', ile = typ === 'kaktus' ? 1 + Math.floor(Math.random() * 3) : 3 + Math.floor(Math.random() * 4);
+                        for (let i = 0; i < ile; i++) {
+                            const x = sx + Math.floor(Math.random() * 7) - 3, z = sz + Math.floor(Math.random() * 7) - 3;
+                            if (isWithinPlayBounds(x, z) && !isObstacle(x, z) && terrainTypeMap[x + offsetX][z + offsetZ] < 2 && Math.abs(z - zGran) > 7) addObstacle(x, z, typ);
+                        }
+                    }
 
                     // Auta: gęsto na autostradzie i poboczach, rzadziej dalej.
                     // Część z nich kryje wroga - drzwi otworzą się, gdy oddział podejdzie.
@@ -12988,6 +13004,96 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             zrodlo.connect(glos); glos.connect(ctx.destination); zrodlo.start();
         }
 
+        // --- SICARIO: przejście graniczne, kępy wysokiej trawy i biegacze stepowe ---
+        let przejscieProto = null, przejscieCzeka = [], biegacze = [], biegaczNastepny = 0, biegaczGeo = null, biegaczMat = null, matKepy = null;
+        const kepyGeo = [];
+        function wstawPrzejscie(g) {
+            g.add(przejscieProto.clone());
+            const c = document.createElement('canvas'); c.width = 1024; c.height = 64;
+            const x = c.getContext('2d');
+            x.fillStyle = '#e4e4e0'; x.fillRect(0, 0, 1024, 64); x.fillStyle = '#123d2a'; x.font = 'bold 46px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+            x.fillText('U.S. BORDER INSPECTION  -  GARITA', 512, 34);
+            const mat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c) });
+            [[6.57, 0], [-6.57, Math.PI]].forEach(([z, obrot]) => {
+                const p = new THREE.Mesh(new THREE.PlaneGeometry(14, 0.6), mat);
+                p.position.set(0, 5.9, z); p.rotation.y = obrot; g.add(p);
+            });
+        }
+        function loadPrzejscie() {
+            if (typeof THREE.GLTFLoader === 'undefined') return;
+            wczytajGlbBezAnimacji('models/przejscie.glb', new THREE.GLTFLoader(), gltf => {
+                gltf.scene.traverse(ch => {
+                    if (!ch.isMesh) return;
+                    const m = ch.material;
+                    if (m.map) m.map.encoding = THREE.LinearEncoding;
+                    ch.material = new THREE.MeshLambertMaterial({ map: m.map, color: m.map ? 0xffffff : m.color });
+                    ch.castShadow = ch.receiveShadow = true;
+                });
+                przejscieProto = gltf.scene;
+                przejscieCzeka.forEach(wstawPrzejscie); przejscieCzeka = [];
+            });
+        }
+        // Jedna bryła na kępę: źdźbła jako wygięte trójkąty, trzy wspólne warianty
+        function MAT_KEPY_WYSOKIEJ() { return matKepy || (matKepy = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide })); }
+        function kepaWysokaGeo(wariant) {
+            if (kepyGeo[wariant]) return kepyGeo[wariant];
+            const poz = [], kol = [];
+            for (let i = 0; i < 46; i++) {
+                const a = Math.random() * 6.28, r = Math.random() * 0.42, x = Math.cos(a) * r, z = Math.sin(a) * r, h = 1.0 + Math.random() * 0.8;
+                const odchyl = r * 0.9 + Math.random() * 0.25, s = 0.035 + Math.random() * 0.03, px = -Math.sin(a) * s, pz = Math.cos(a) * s;
+                const sx = x + Math.cos(a) * odchyl * 0.3, sz = z + Math.sin(a) * odchyl * 0.3, sy = h * 0.62, kx = x + Math.cos(a) * odchyl, kz = z + Math.sin(a) * odchyl;
+                poz.push(x - px, 0, z - pz, x + px, 0, z + pz, sx + px * 0.7, sy, sz + pz * 0.7, x - px, 0, z - pz, sx + px * 0.7, sy, sz + pz * 0.7, sx - px * 0.7, sy, sz - pz * 0.7,
+                         sx - px * 0.7, sy, sz - pz * 0.7, sx + px * 0.7, sy, sz + pz * 0.7, kx, h, kz);
+                const c = 0.72 + Math.random() * 0.28;
+                for (let v = 0; v < 9; v++) { const j = v < 3 ? 0.55 : 1; kol.push(0.74 * c * j, 0.62 * c * j, 0.33 * c * j); }
+            }
+            const g = new THREE.BufferGeometry();
+            g.setAttribute('position', new THREE.Float32BufferAttribute(poz, 3));
+            g.setAttribute('color', new THREE.Float32BufferAttribute(kol, 3));
+            g.computeVertexNormals();
+            return kepyGeo[wariant] = g;
+        }
+        // Biegacz: splątane suche pędy w kuli, toczony wiatrem z zachodu na wschód
+        function zbudujBiegacza() {
+            if (!biegaczGeo) {
+                const poz = [];
+                const naKuli = () => { const a = Math.random() * 6.28, y = Math.random() * 2 - 1, r = Math.sqrt(1 - y * y) * 0.55; return [Math.cos(a) * r, y * 0.55, Math.sin(a) * r]; };
+                for (let i = 0; i < 110; i++) {
+                    const p = naKuli(), q = naKuli(), s = 0.02;
+                    poz.push(p[0] - s, p[1], p[2], p[0] + s, p[1] + s, p[2], q[0], q[1], q[2], p[0], p[1] - s, p[2] + s, p[0], p[1] + s, p[2] - s, q[0], q[1], q[2]);
+                }
+                biegaczGeo = new THREE.BufferGeometry();
+                biegaczGeo.setAttribute('position', new THREE.Float32BufferAttribute(poz, 3));
+                biegaczGeo.computeVertexNormals();
+                biegaczMat = new THREE.MeshLambertMaterial({ color: 0x9a7a48, side: THREE.DoubleSide });
+            }
+            return new THREE.Mesh(biegaczGeo, biegaczMat);
+        }
+        function animujBiegacze() {
+            if (!currentCombatTheme || currentCombatTheme.id !== 'sicario' || gameMode !== 'dream' || gameOver) return;
+            const teraz = performance.now();
+            if (teraz > biegaczNastepny && biegacze.length < 4) {
+                biegaczNastepny = teraz + 7000 + Math.random() * 9000;
+                const m = zbudujBiegacza(), z = Math.floor(Math.random() * (mapDepth - 20)) + 10 - offsetZ;
+                m.position.set(-offsetX + 1, 0, z);
+                m.userData.unitType = 'fx'; m.raycast = () => {};
+                scene.add(m); obstacleMeshes.push(m);
+                biegacze.push({ m, v: 3 + Math.random() * 2.5, faza: Math.random() * 6.28, dryf: (Math.random() - 0.5) * 0.5, t: teraz, wysokosc: 0 });
+            }
+            biegacze = biegacze.filter(b => {
+                const dt = Math.min(0.05, (teraz - b.t) / 1000); b.t = teraz;
+                const m = b.m, cx = Math.round(m.position.x), cz = Math.round(m.position.z);
+                m.position.x += b.v * dt; m.position.z += b.dryf * dt + Math.sin(teraz * 0.0013 + b.faza) * dt * 0.7;
+                const mx = cx + offsetX, mz = cz + offsetZ;
+                if (mx >= mapWidth - 1 || mz < 0 || mz >= mapDepth) { scene.remove(m); const i = obstacleMeshes.indexOf(m); if (i >= 0) obstacleMeshes.splice(i, 1); return false; }
+                b.wysokosc += ((isObstacle(cx + 1, cz) || isObstacle(cx, cz) ? 2.2 : 0) - b.wysokosc) * Math.min(1, dt * 7);   // przeskakuje przeszkodę
+                m.position.y = getTerrainY(cx, cz) + 0.55 + b.wysokosc + Math.abs(Math.sin(teraz * 0.004 * b.v + b.faza)) * 0.45;
+                m.rotation.z -= b.v * dt / 0.55; m.rotation.x += b.dryf * dt;
+                m.visible = visibleGrid[mx][mz] === 1;
+                return true;
+            });
+        }
+
         let rzezbyProto = null, rzezbyCzekaja = [];
         function loadRzezby() {
             if (typeof THREE.GLTFLoader === 'undefined') return;
@@ -16493,7 +16599,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // misji każda przeszkoda istniała podwójnie, a po wczytaniu zapisu na scenie
             // zostawały przeszkody z poprzedniej planszy.
             obstacleMeshes.forEach(m => scene.remove(m));
-            obstacleMeshes = []; budowleZDachem = []; budowleCzekaja = []; diabelskieKola = []; diabelskiCzekaja = [];
+            obstacleMeshes = []; budowleZDachem = []; budowleCzekaja = []; diabelskieKola = []; diabelskiCzekaja = []; przejscieCzeka = []; biegacze = [];
             if (gameMode === 'dream') renderThemedLandmarkDecor();   // kasowane razem z przeszkodami, więc rysowane razem z nimi
             strachy = [];
             kominyWulkanu = [];
@@ -17638,6 +17744,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     g.rotation.y = pos.obrot * Math.PI / 2;
                     dolozRuine(g, pos.wzor);
                     scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'przejscie') {
+                    const g = new THREE.Group();
+                    g.position.set(pos.x, ty, pos.z);
+                    if (przejscieProto) wstawPrzejscie(g); else przejscieCzeka.push(g);
+                    scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'kepa_wysoka') {
+                    const m = new THREE.Mesh(kepaWysokaGeo(Math.abs(pos.x * 7 + pos.z) % 3), MAT_KEPY_WYSOKIEJ());
+                    m.position.set(pos.x, ty, pos.z); m.rotation.y = pos.x * 1.7 + pos.z;
+                    m.castShadow = true;
+                    scene.add(m); obstacleMeshes.push(m);
                 }
                 else if (pos.type === 'neon_szyld' || pos.type === 'wesole-czesc' || pos.type === 'wrak-czesc' || pos.type === 'ruiny-czesc') { /* niewidoczna część dużej konstrukcji */ }
                 else if (pos.type === 'karuzela') {
@@ -49051,6 +49169,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             updateHeartPrison(time);
             updateWaterAmbience();
             animujDiabelskie();
+            animujBiegacze();
             updateWeatherParticles(dt);
             animujPlatkiRoz(dt);
             updateCloudShadows(dt);
@@ -53802,6 +53921,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         loadBudowle();
         loadRzezby();
         loadDiabelski();
+        loadPrzejscie();
         loadTreeModels();     // modele drzew - ciężkie pliki, więc z limitem na planszę
         loadChatkaModel();    // chatka na palach z Blendera (Amazonia)
         loadHouseModels();    // modele domów - brak pliku oznacza dom rysowany w kodzie
