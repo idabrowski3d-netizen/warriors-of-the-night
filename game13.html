@@ -7637,6 +7637,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     for (let z = -grZ + 1; z < grZ; z++) for (const x of [-grX, grX]) addObstacle(x, z, 'wall-resistant', { plan: true });
 
                     const BRYLA = [[-52, -31, -2, 18], [-1, -24, 53, 18], [-2, 19, 9, 25], [10, 19, 53, 30]];
+                    szpitalBryla = BRYLA;
                     const OGRODY = [[-13, -31, -2, -9], [-41, -2, -30, 18], [31, -16, 38, 4], [10, 8, 19, 30]];
                     const PUSTKI = [[-12, -15, -3, -10], [-40, -1, -31, 11], [32, -8, 37, 3], [11, 9, 18, 29]];   // otwory w stropie nad ogrodami
                     const w = (l, x, z) => l.some(([a, c, e, f]) => x >= a && x <= e && z >= c && z <= f);
@@ -10394,6 +10395,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         function buildTerrainMeshes() {
+            // Dziedziniec szpitala jest jednolity: bez ślepych łat ziemi po domach ogólnego generatora
+            if (currentCombatTheme && currentCombatTheme.id === 'szpital' && szpitalBryla)
+                for (let mx = 0; mx < mapWidth; mx++) for (let mz = 0; mz < mapDepth; mz++)
+                    if (riverGrid[mx][mz] !== 1 && !szpitalBryla.some(([a, c, e, f]) => mx - offsetX >= a && mx - offsetX <= e && mz - offsetZ >= c && mz - offsetZ <= f)) terrainTypeMap[mx][mz] = 0;
             if (terrainMeshes && terrainMeshes.length > 0) {
                 terrainMeshes.forEach(m => {
                     scene.remove(m);
@@ -15364,7 +15369,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 return 0;
             }
             // Ulice pod gołym niebem to nie wnętrza - łaty desek i płyt robiły tam chaos
-            if (!id || id === 'ostoja' || id === 'newyork' || id === 'pozar' || id === 'katedra' || id === 'cyber') return 0;
+            if (!id || id === 'ostoja' || id === 'newyork' || id === 'pozar' || id === 'katedra' || id === 'cyber' || id === 'szpital') return 0;
             if (MURY_ZAMIAST_GLAZOW.indexOf(id) === -1) return 0;
             let polozonych = 0;
             for (let i = 0; i < 70 && polozonych < 30; i++) {
@@ -15651,7 +15656,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return new THREE.MeshLambertMaterial({ map: posadzkaPietraSzpitala, emissive: 0x777777, emissiveMap: posadzkaPietraSzpitala, transparent: true, opacity: 1 });
         }
         // Piętro ma ten sam układ co parter, więc te same meble stoją piętro wyżej
-        let szpitalMeble = new Set();
+        let szpitalMeble = new Set(), szpitalBryla = null;
         function powielMebleSzpitala() {
             if (!currentCombatTheme || currentCombatTheme.id !== 'szpital') return 0;
             let n = 0;
