@@ -2599,6 +2599,11 @@
         const pustynia_granicy = (tlo, jasny, ciemny) => (ctx, T) => { ctx.fillStyle = tlo; ctx.fillRect(0, 0, T, T); for (let i = 0; i < 16; i++) { ctx.fillStyle = i % 2 ? jasny : ciemny; ctx.globalAlpha = .3; ctx.beginPath(); ctx.ellipse(Math.random() * T, Math.random() * T, 8 + Math.random() * 16, 4 + Math.random() * 8, Math.random() * 3, 0, 6.283); ctx.fill(); } ctx.globalAlpha = 1; for (let i = 0; i < 45; i++) { const x = Math.random() * T, y = Math.random() * T, r = 1 + Math.random() * 2; ctx.fillStyle = ciemny; ctx.fillRect(x, y + 1, r * 2, r); ctx.fillStyle = jasny; ctx.fillRect(x, y, r * 2, r); } };
         const beton_wiezienny = (tlo, jasny, ciemny) => (ctx, T) => { ctx.fillStyle = tlo; ctx.fillRect(0, 0, T, T); for (let i = 0; i < 300; i++) { ctx.fillStyle = i % 2 ? jasny : ciemny; ctx.globalAlpha = .35; ctx.fillRect(Math.random() * T, Math.random() * T, 1, 1); } for (let i = 0; i < 6; i++) { ctx.fillStyle = '#3a3226'; ctx.globalAlpha = .18; ctx.fillRect(Math.random() * T, Math.random() * T, 3 + Math.random() * 6, 14 + Math.random() * 24); } ctx.globalAlpha = 1; for (let s = 0; s < 3; s++) { let x = Math.random() * T, y = Math.random() * T, k = Math.random() * 6.283; for (let i = 0; i < 35; i++) { k += (Math.random() - .5) * .8; x = (x + Math.cos(k) + T) % T; y = (y + Math.sin(k) + T) % T; ctx.fillStyle = ciemny; ctx.fillRect(x, y, 1, 1); } } };
         const linoleum = (tlo, jasny, ciemny) => (ctx, T) => { const K = T / 4; for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) { ctx.fillStyle = (a + b) % 2 ? tlo : jasny; ctx.fillRect(a * K, b * K, K, K); } for (let i = 0; i < 14; i++) { ctx.fillStyle = ciemny; ctx.globalAlpha = .3; ctx.beginPath(); ctx.ellipse(Math.random() * T, Math.random() * T, 3 + Math.random() * 10, 2 + Math.random() * 6, Math.random() * 3, 0, 6.283); ctx.fill(); } ctx.globalAlpha = 1; for (let i = 0; i < 90; i++) { ctx.fillStyle = ciemny; ctx.fillRect(Math.random() * T, Math.random() * T, 1 + Math.random() * 3, 1); } };
+        // Linoleum po latach: wytarte ścieżki, rozdarcia do podkładu, przypalenia, brud w fugach
+        const zuzyte = (wzor) => (ctx, T) => { wzor(ctx, T);
+            for (let i = 0; i < 7; i++) { ctx.fillStyle = 'rgba(60,52,38,' + (.12 + Math.random() * .2) + ')'; ctx.beginPath(); ctx.ellipse(Math.random() * T, Math.random() * T, 8 + Math.random() * 24, 4 + Math.random() * 12, Math.random() * 3, 0, 6.283); ctx.fill(); }
+            for (let i = 0; i < 3; i++) { const x = Math.random() * T, y = Math.random() * T; ctx.fillStyle = '#2c261e'; ctx.beginPath(); ctx.moveTo(x, y); for (let k = 0; k < 7; k++) ctx.lineTo(x + (Math.random() - .5) * T * .28, y + (Math.random() - .5) * T * .28); ctx.closePath(); ctx.fill(); }
+            ctx.strokeStyle = 'rgba(25,22,18,.6)'; ctx.lineWidth = 1; for (let i = 0; i < 9; i++) { let x = Math.random() * T, y = Math.random() * T; ctx.beginPath(); ctx.moveTo(x, y); for (let k = 0; k < 5; k++) { x += (Math.random() - .5) * 26; y += (Math.random() - .5) * 26; ctx.lineTo(x, y); } ctx.stroke(); } };
         const zyly = (ctx, T, barwa, ile) => { ctx.strokeStyle = barwa; ctx.globalAlpha = .35; for (let i = 0; i < ile; i++) { let x = Math.random() * T, y = Math.random() * T; ctx.lineWidth = .5 + Math.random(); ctx.beginPath(); ctx.moveTo(x, y); for (let k = 0; k < 7; k++) { x += (Math.random() - .35) * T / 6; y += (Math.random() - .5) * T / 6; ctx.lineTo(x, y); } ctx.stroke(); } ctx.globalAlpha = 1; };
         const romby_katedry = (jasny, ciemny, zloto) => (ctx, T) => { ctx.fillStyle = jasny; ctx.fillRect(0, 0, T, T); zyly(ctx, T, '#6e675a', 7); ctx.fillStyle = ciemny; ctx.beginPath(); ctx.moveTo(T / 2, T * .1); ctx.lineTo(T * .9, T / 2); ctx.lineTo(T / 2, T * .9); ctx.lineTo(T * .1, T / 2); ctx.closePath(); ctx.fill(); ctx.strokeStyle = zloto; ctx.lineWidth = 2; ctx.stroke(); zyly(ctx, T, '#a59a84', 3); ctx.fillStyle = zloto; ctx.fillRect(T / 2 - 4, T / 2 - 4, 8, 8); ctx.fillStyle = '#4a453b'; ctx.fillRect(0, 0, T, 1); ctx.fillRect(0, 0, 1, T); };
         const plyty_katedry = (a, b, fuga) => (ctx, T) => { const H = T / 2; [[0, 0, T], [0, H, H], [H, H, H]].forEach(([x, y, w], i) => { ctx.fillStyle = i % 2 ? b : a; ctx.fillRect(x, y, w, H); ctx.fillStyle = fuga; ctx.fillRect(x, y, w, 1.5); ctx.fillRect(x, y, 1.5, H); }); zyly(ctx, T, fuga, 9); };
@@ -2640,7 +2645,7 @@
             nekropolia: { sidewalk: plyty_nekropolii('#5a5444', '#6e6856', '#34302a'), grass: plyty_nekropolii('#4a4a3e', '#5e5e50', '#2c2c24'), dirt: plyty_nekropolii('#5c5240', '#6e6450', '#38301f') },
             klaustrofobia: { sidewalk: bruk_tunelu('#423d37', '#5a544c', '#2a2622'), grass: bruk_tunelu('#3a3632', '#4f4a44', '#25221f'), dirt: bruk_tunelu('#4a443c', '#605a50', '#2e2a24') },
             katedra: { sidewalk: romby_katedry('#8a8272', '#201e1b', '#7a6a4a'), dirt: plyty_katedry('#716a5b', '#5b5549', '#332f27'), grass: darn_cmentarna('#3e4436', '#555c48', '#2c3026'), road: dywan_katedry('#6c1420', '#c9a227', '#3e0a12') },
-            szpital: { sidewalk: linoleum('#8a8c84', '#9ea096', '#66685f'), grass: linoleum('#5e6358', '#6d7266', '#44483f'), dirt: linoleum('#7a7a6e', '#8c8c80', '#57574e'), road: linoleum('#8a8c84', '#9ea096', '#66685f') },
+            szpital: { sidewalk: zuzyte(linoleum('#7c7f72', '#8c8e80', '#55574e')), road: zuzyte(linoleum('#7c7f72', '#8c8e80', '#55574e')) },
             alcatraz: { grass: beton_wiezienny('#6e6b63', '#85827a', '#4c4a44'), dirt: beton_wiezienny('#8a857a', '#a09b90', '#625e55'), road: beton_wiezienny('#5a5751', '#706d66', '#3c3a36') },
             sicario: { grass: pustynia_granicy('#b09468', '#c9ae80', '#8a7350'), dirt: pustynia_granicy('#c8a070', '#dcb88a', '#a07e54') },
             pozar: { grass: zgliszcza('#3a322c', '#55493e', '#141110'), dirt: zgliszcza('#4a3e32', '#65564a', '#1a1512'), road: zgliszcza('#35312f', '#4c4744', '#121010') },
@@ -7619,91 +7624,104 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // izolatki z ciężkimi drzwiami i trzy generatory w piwnicy
                 if (currentCombatTheme && currentCombatTheme.id === 'szpital') {
                     generatory = [];
-                    const grX = offsetX - 3, grZ = offsetZ - 3;
-                    // Mur zewnętrzny zakładu
-                    for (let x = -grX; x <= grX; x++)
-                        for (const z of [-grZ, grZ]) if (isWithinPlayBounds(x, z)) addObstacle(x, z, 'wall-resistant');
-                    for (let z = -grZ; z <= grZ; z++)
-                        for (const x of [-grX, grX]) if (isWithinPlayBounds(x, z)) addObstacle(x, z, 'wall-resistant');
-                    // Posadzka: linoleum na całej powierzchni
-                    for (let x = -grX + 1; x < grX; x++)
-                        for (let z = -grZ + 1; z < grZ; z++) {
-                            const mx = x + offsetX, mz = z + offsetZ;
-                            if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) continue;
-                            terrainTypeMap[mx][mz] = 3;
-                            heightMap[mx][mz] = 0;
-                            if (obstacleGrid[mx][mz]) obstacleGrid[mx][mz] = null;
-                        }
+                    // Układ wg rzutów: dwa skrzydła z pasami pokoi przy elewacjach, świetlice i pokoje
+                    // obsługi w środku, cztery ogrody zimowe, trzy klatki schodowe, dwie kondygnacje.
+                    const grX = offsetX - 3, grZ = offsetZ - 3, PI = Math.PI, P2 = PI / 2;
+                    houses.forEach(h => { h.minX = h.maxX = h.minZ = h.maxZ = h.centerX = h.centerZ = -9999; });
+                    obstaclePositions = []; bridgePositions = []; obstacleMap.clear(); crosswalkZs.length = 0; parkingBays.length = 0;
+                    for (let mx = 0; mx < mapWidth; mx++) for (let mz = 0; mz < mapDepth; mz++) { obstacleGrid[mx][mz] = null; terrainTypeMap[mx][mz] = 0; heightMap[mx][mz] = 0; }
+                    const zespol = { specjalny: true, zabytek: true, id: houses.length, minX: -9999, maxX: -9999, minZ: -9999, maxZ: -9999, centerX: -9999, centerZ: -9999 };
+                    houses.push(zespol);
+                    // Mur zakładu wokół dziedzińca
+                    for (let x = -grX; x <= grX; x++) for (const z of [-grZ, grZ]) addObstacle(x, z, 'wall-resistant', { plan: true });
+                    for (let z = -grZ + 1; z < grZ; z++) for (const x of [-grX, grX]) addObstacle(x, z, 'wall-resistant', { plan: true });
 
-                    // Dwa korytarze wzdłuż osi Z, a między nimi rzędy sal
-                    const korytarze = [-Math.round(grX / 2), Math.round(grX / 2)];
-                    const SALA = 10;
-                    for (let z = -grZ + SALA; z < grZ - 2; z += SALA) {
-                        for (let x = -grX + 1; x < grX; x++) {
-                            if (korytarze.some(k => Math.abs(x - k) <= 2)) continue;   // korytarze zostają drożne
-                            if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) continue;
-                            addObstacle(x, z, 'wall-destructible');
-                        }
+                    const BRYLA = [[-52, -31, -2, 18], [-1, -24, 53, 18], [-2, 19, 9, 25], [10, 19, 53, 30]];
+                    const OGRODY = [[-13, -31, -2, -9], [-41, -2, -30, 18], [31, -16, 38, 4], [10, 8, 19, 30]];
+                    const PUSTKI = [[-12, -15, -3, -10], [-40, -1, -31, 11], [32, -8, 37, 3], [11, 9, 18, 29]];   // otwory w stropie nad ogrodami
+                    const w = (l, x, z) => l.some(([a, c, e, f]) => x >= a && x <= e && z >= c && z <= f);
+                    for (let x = -52; x <= 53; x++) for (let z = -31; z <= 30; z++) if (w(BRYLA, x, z)) {
+                        const mx = x + offsetX, mz = z + offsetZ;
+                        if (!w(OGRODY, x, z)) terrainTypeMap[mx][mz] = 3;
+                        if (!w(PUSTKI, x, z)) floorGrid[1][mx][mz] = 1;
                     }
-                    // Ścianki działowe między salami + drzwi
-                    for (let z = -grZ + 2; z < grZ - 2; z++) {
-                        for (const k of korytarze) {
-                            for (const bok of [-3, 3]) {
-                                const x = k + bok;
-                                if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) continue;
-                                if ((z + offsetZ) % 7 < 2) continue;      // przejścia do sal
-                                addObstacle(x, z, 'wall-destructible');
+                    const pole = (x, z) => addObstacle(x, z, 'house-wall', { houseId: zespol.id, wallColor: 0x9aa08c, destructible: false, floors: 2, bezBryly: true, plan: true });
+                    const mur = (xa, za, xb, zb, przerwy) => {
+                        const x0 = Math.min(xa, xb), x1 = Math.max(xa, xb), z0 = Math.min(za, zb), z1 = Math.max(za, zb);
+                        const poX = z0 === z1, a = poX ? x0 : z0, c = poX ? x1 : z1, wolne = v => (przerwy || []).some(([p, k]) => v >= p && v <= k);
+                        for (let v = a, st = null; v <= c + 1; v++) {
+                            if (v <= c && !wolne(v)) { if (st === null) st = v; pole(poX ? v : x0, poX ? z0 : v); }
+                            else if (st !== null) {
+                                const k = v - 1;
+                                [0, 1].forEach(poziom => themedLandmarkDecor.push({ type: 'mur_prosty', x: poX ? (st + k) / 2 : x0, z: poX ? z0 : (st + k) / 2, x0: poX ? st : x0, z0: poX ? z0 : st, x1: poX ? k : x0, z1: poX ? z0 : k, color: 0x9aa08c, cap: 0x6a6a60, poziom, zuzyta: true, houseId: zespol.id }));
+                                st = null;
                             }
                         }
-                    }
-
-                    // Izolatki: małe cele z wyściełanymi ścianami wzdłuż jednej ściany
-                    for (let z = -grZ + 6; z < grZ - 8; z += 8) {
-                        const x0 = -grX + 2;
-                        for (let x = x0; x <= x0 + 4; x++)
-                            for (let dz = 0; dz <= 4; dz++) {
-                                const zz = z + dz;
-                                if (!isWithinPlayBounds(x, zz)) continue;
-                                const brzeg = (x === x0 || x === x0 + 4 || dz === 0 || dz === 4);
-                                const drzwi = (x === x0 + 4 && dz === 2);
-                                if (brzeg && !drzwi && !isObstacle(x, zz)) addObstacle(x, zz, 'wysciolka');
-                            }
-                    }
-
-                    // Sprzęt: łóżka, wózki, kroplówki
-                    for (let i = 0; i < 90; i++) {
-                        const x = Math.floor(Math.random() * (grX * 2 - 6)) - grX + 3;
-                        const z = Math.floor(Math.random() * (grZ * 2 - 6)) - grZ + 3;
-                        if (!isWithinPlayBounds(x, z) || isObstacle(x, z)) continue;
-                        const los = Math.random();
-                        addObstacle(x, z, los < 0.45 ? 'lozko' : (los < 0.72 ? 'wozek' : (los < 0.9 ? 'kroplowka' : 'regal')));
-                    }
-
-                    // Generatory rozstawione tak, żeby ich kręgi pokrywały szpital.
-                    // Przy trzech oddział startował nieraz 40 pól od najbliższego,
-                    // przy promieniu 26 - czyli zawsze w zupełnej ciemności.
-                    // Rozstaw dobrany pomiarem: dziesięć sztuk, 80% powierzchni w zasięgu.
-                    // Gęściej (18 sztuk, 99%) światło przestawało być zasobem.
-                    const miejscaGen = [];
-                    const krokGen = Math.max(14, Math.round(GEN_PROMIEN * 1.6));
-                    for (let gz = -grZ + 8; gz <= grZ - 8; gz += krokGen) {
-                        korytarze.forEach((kx, i) => {
-                            // Co drugi rząd przesunięty - kręgi zachodzą na siebie naprzemiennie
-                            const przesun = (Math.round((gz + grZ) / krokGen) % 2) ? Math.round(krokGen / 2) : 0;
-                            miejscaGen.push({ x: kx, z: Math.min(grZ - 8, gz + przesun) });
-                        });
-                    }
-                    miejscaGen.forEach(m => {
-                        let gx = m.x, gz = m.z;
-                        for (let t = 0; t < 200; t++) {
-                            if (isWithinPlayBounds(gx, gz) && !isObstacle(gx, gz)) break;
-                            gx = m.x + Math.floor(Math.random() * 7) - 3;
-                            gz = m.z + Math.floor(Math.random() * 7) - 3;
+                    };
+                    const pokoj = (x0, z0, x1, z1, drzwi, scianki) => { mur(x0, z0, x1, z0, drzwi); mur(x0, z1, x1, z1); mur(x0, z0 + 1, x0, z1 - 1); mur(x1, z0 + 1, x1, z1 - 1); (scianki || []).forEach(x => mur(x, z0 + 1, x, z1 - 1)); };
+                    szpitalMeble = new Set();
+                    const mebel = (x, z, typ, obrot) => { if (obstacleGrid[x + offsetX][z + offsetZ] !== null) return; addObstacle(x, z, typ, { obrot: obrot || 0, plan: true }); szpitalMeble.add(x + ',' + z); };
+                    // Pas pokoi przy elewacji: zewn - rząd muru zewnętrznego, kor - ściana od korytarza
+                    const pokoje = (poX, a, b, zewn, kor, krok) => {
+                        const kier = Math.sign(kor - zewn), P = (s, g) => poX ? [s, g] : [g, s], drzwi = [];
+                        const obrotL = poX ? (kier > 0 ? 0 : PI) : (kier > 0 ? P2 : -P2);
+                        for (let s = a; s < b; s += krok) {
+                            const k = Math.min(b, s + krok), sr = s + Math.floor((k - s) / 2);
+                            drzwi.push([sr, sr]);
+                            if (s > a) { const [x0, z0] = P(s, zewn + kier), [x1, z1] = P(s, kor - kier); mur(x0, z0, x1, z1); }
+                            if (k - s < 4) continue;
+                            mebel(...P(s + 1, zewn + kier), 'lozko', obrotL); mebel(...P(k - 1, zewn + kier), 'lozko', obrotL);
+                            mebel(...P(s + 1, zewn + 3 * kier), 'kroplowka'); mebel(...P(k - 1, kor - kier), 'szafka_lekarska', obrotL + PI);
+                            // Okna w murze zewnętrznym, na obu kondygnacjach
+                            const [ox, oz] = P(sr, zewn);
+                            [0, 1].forEach(poziom => themedLandmarkDecor.push({ type: 'kloc', x: ox, z: oz, y: 1.25 + poziom * FLOOR_HEIGHT, sx: poX ? 1.5 : 1, sy: .85, sz: poX ? 1 : 1.5, color: 0x1c2428, poziom, houseId: zespol.id }));
                         }
-                        if (!isWithinPlayBounds(gx, gz) || isObstacle(gx, gz)) return;
-                        addObstacle(gx, gz, 'generator');
-                        generatory.push({ x: gx, z: gz, wlaczony: false, tury: 0 });
+                        const [xa, za] = P(a, kor), [xb, zb] = P(b, kor); mur(xa, za, xb, zb, drzwi);
+                    };
+
+                    // Elewacje z wejściem głównym i dwoma bocznymi
+                    mur(-52, -31, -2, -31); mur(-2, -30, -2, -25); mur(-1, -24, 53, -24); mur(53, -23, 53, 30, [[-2, 0]]); mur(9, 30, 52, 30);
+                    mur(9, 25, 9, 29); mur(-2, 25, 9, 25, [[2, 5]]); mur(-2, 19, -2, 24); mur(-52, 18, -2, 18); mur(-52, -30, -52, 17, [[-4, -2]]);
+                    // Pasy pokoi
+                    pokoje(true, -44, -13, -31, -23, 5); pokoje(false, -23, 18, -52, -44, 6); pokoje(true, -30, -2, 18, 11, 5);
+                    pokoje(true, -2, 31, -24, -16, 5); pokoje(false, -24, 18, 53, 41, 6); pokoje(true, 19, 41, 30, 22, 5);
+                    mur(41, 18, 52, 18); mur(41, 19, 41, 29, [[24, 25]]);
+                    // Ogrody zimowe: wejścia od strony, gdzie piętro ma jeszcze podłogę
+                    mur(-13, -30, -13, -10, [[-20, -18]]); mur(-13, -9, -3, -9); mur(-2, -23, -2, -10);
+                    mur(-41, -2, -30, -2); mur(-41, -1, -41, 17, [[13, 15]]); mur(-30, -1, -30, 17);
+                    mur(32, -16, 38, -16); mur(31, -15, 31, 3, [[-14, -12]]); mur(38, -15, 38, 3); mur(31, 4, 38, 4);
+                    pokoj(10, 8, 19, 29, [[14, 15]], []);
+                    // Pomieszczenia obsługi, klatki schodowe
+                    pokoj(-42, -21, -30, -13, [[-37, -35]]); pokoj(-29, -21, -22, -13, [[-26, -25]]);
+                    pokoj(-41, -10, -30, -5, [[-39, -39], [-35, -35], [-31, -31]], [-37, -33]);
+                    pokoj(-13, -7, -3, -2, [[-8, -7]]); pokoj(-18, 2, -6, 9, [[-15, -15], [-9, -9]], [-12]);
+                    pokoj(1, -9, 6, -4, [[3, 4]]); pokoj(9, -11, 20, -2, [[12, 12], [18, 18]], [15]); pokoj(2, 2, 8, 9, [[4, 6]]); pokoj(11, 0, 19, 5, [[14, 15]]);
+                    pokoj(31, 7, 39, 12, [[32, 32], [35, 35], [38, 38]], [34, 37]); pokoj(31, 14, 39, 21, [[34, 35]]);
+                    [[-38, -18], [4, 5], [33, 18]].forEach(([x, z]) => {
+                        for (let a = 0; a < 2; a++) for (let c = 0; c < 2; c++) { holeGrid[0][x + a + offsetX][z + c + offsetZ] = 1; floorGrid[1][x + a + offsetX][z + c + offsetZ] = 1; }
+                        for (let s = 0; s < 5; s++) themedLandmarkDecor.push({ type: 'kloc', x: x + .5, z: z - .2 + s * .35, y: .2 + s * .4, sx: 2, sy: .4, sz: .4, color: 0x70706a });
                     });
+                    // Otwory ogrodów na piętrze ogrodzone barierką
+                    PUSTKI.forEach(([a, c, e, f]) => [[a, c, e, c], [a, f, e, f], [a, c, a, f], [e, c, e, f]].forEach(([p, q, r, s]) => themedLandmarkDecor.push({ type: 'balustrada', x0: p - .5, z0: q - .5, x1: r + .5, z1: s + .5, y: FLOOR_HEIGHT, color: 0x5a5e58 })));
+                    OGRODY.forEach(([a, c, e, f]) => { for (let x = a + 2; x < e - 1; x += 3) for (let z = c + 2; z < f - 1; z += 4) addObstacle(x, z, 'tree', { plan: true }); });
+                    // Świetlice: stoły w równych rzędach; izolatki z wyściółką; lada w holu
+                    const stol = (x0, x1, z) => { for (let x = x0; x <= x1; x++) { mebel(x, z, 'stol_narad'); mebel(x, z - 1, 'krzeslo_gmachu', 0); mebel(x, z + 1, 'krzeslo_gmachu', PI); } };
+                    stol(-27, -22, -6); stol(-27, -22, 0); stol(23, 28, -8); stol(23, 28, 2); stol(23, 28, 14);
+                    [-40, -36, -32].forEach(x => [0, 1, 2].forEach(k => mebel(x + k, -6, 'wysciolka')));
+                    for (let x = -1; x <= 5; x++) if (x !== 2) mebel(x, 20, 'regal', 0);
+                    [-1, 8].forEach(x => mebel(x, 24, 'wozek_inwalidzki', 0));
+
+                    // Generatory w korytarzach: kręgi światła zachodzą na siebie, ale nie pokrywają wszystkiego
+                    [[-43, -15], [-43, 8], [-20, -20], [-24, 7], [-8, 13], [-6, -14], [8, -13], [25, -14], [40, -10], [40, 12], [25, 18], [3, 14]].forEach(([x, z]) => {
+                        if (obstacleGrid[x + offsetX][z + offsetZ] !== null) return;
+                        addObstacle(x, z, 'generator', { plan: true }); generatory.push({ x, z, wlaczony: false, tury: 0 });
+                    });
+                    // Zacieki i ślady zużycia na posadzkach obu kondygnacji
+                    for (let i = 0; i < 170; i++) {
+                        const x = -52 + Math.floor(Math.random() * 106), z = -31 + Math.floor(Math.random() * 62);
+                        if (!w(BRYLA, x, z) || w(OGRODY, x, z) || obstacleGrid[x + offsetX][z + offsetZ] !== null) continue;
+                        themedLandmarkDecor.push({ type: 'plama_szpital', x, z, poziom: i % 2, houseId: zespol.id, r: 1 + Math.random() * 2.2, w: i % 3 });
+                    }
                 }
 
                 // STUDNIA: okrągły szyb, osiem kondygnacji. Z każdej odchodzą
@@ -10548,13 +10566,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const ty = getTerrainY(Math.round(d.x), Math.round(d.z));
                 if (d.type === 'mur_prosty') {
                     const dl = Math.hypot(d.x1 - d.x0, d.z1 - d.z0) + 1;
-                    const tekstura = teksturaScianyBud(d.color).clone();
-                    tekstura.wrapS = THREE.RepeatWrapping; tekstura.repeat.set(dl, 1); tekstura.needsUpdate = true;
+                    const tekstura = (d.zuzyta ? teksturaScianySzpitala(Math.floor(Math.abs(d.x * 3 + d.z * 7)) % 3) : teksturaScianyBud(d.color)).clone();
+                    tekstura.wrapS = THREE.RepeatWrapping; tekstura.repeat.set(d.zuzyta ? dl / 4 : dl, 1); tekstura.needsUpdate = true;
                     const kw = d.wys || 1;
                     [[dl, 2 * kw, .8, kw, new THREE.MeshLambertMaterial({ map: tekstura, transparent: true })], [dl + .1, .14, .95, 2 * kw + .05, new THREE.MeshLambertMaterial({ color: d.cap || d.color, transparent: true })]].forEach(([w, g, gr, y, mat]) => {
                         const m = new THREE.Mesh(new THREE.BoxGeometry(w, g, gr), mat);
-                        m.position.set(d.x, ty + y, d.z); m.rotation.y = -Math.atan2(d.z1 - d.z0, d.x1 - d.x0);
-                        m.userData = { type: 'house-wall', x: d.x, z: d.z, houseId: d.houseId };
+                        m.position.set(d.x, ty + y + (d.poziom || 0) * FLOOR_HEIGHT, d.z); m.rotation.y = -Math.atan2(d.z1 - d.z0, d.x1 - d.x0);
+                        m.userData = { type: 'house-wall', x: d.x, z: d.z, houseId: d.houseId, wallLevel: d.poziom };
                         scene.add(m); obstacleMeshes.push(m);
                     });
                 } else if (d.type === 'dywan') {
@@ -10601,6 +10619,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const col = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.4, d.height, 10), new THREE.MeshLambertMaterial({ color: d.color }));
                     col.position.set(d.x, ty + d.height / 2, d.z);
                     scene.add(col); obstacleMeshes.push(col);
+                } else if (d.type === 'plama_szpital') {
+                    const m = new THREE.Mesh(new THREE.PlaneGeometry(d.r, d.r), new THREE.MeshLambertMaterial({ map: teksturaPlamySzpitala(d.w), transparent: true, depthWrite: false }));
+                    m.rotation.x = -Math.PI / 2; m.rotation.z = d.x * 1.7 + d.z;
+                    m.position.set(d.x, ty + d.poziom * FLOOR_HEIGHT + .02, d.z);
+                    m.userData = { type: 'house-wall', x: d.x, z: d.z, houseId: d.houseId, wallLevel: d.poziom };
+                    scene.add(m); obstacleMeshes.push(m);
                 } else if (d.type === 'pociag') {
                     const g = new THREE.Group(); g.position.set(d.x, d.y0, d.z);
                     if (pociagiProto) wstawPociag([g, d]); else pociagiCzekaja.push([g, d]);
@@ -10641,7 +10665,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     if (d.flaga) { const c = document.createElement('canvas'); c.width = 76; c.height = 52; const g = c.getContext('2d'); for (let i = 0; i < 13; i++) { g.fillStyle = i % 2 ? '#fff' : '#b22234'; g.fillRect(0, i * 4, 76, 4); } g.fillStyle = '#3c3b6e'; g.fillRect(0, 0, 32, 28); g.fillStyle = '#fff'; for (let i = 0; i < 6; i++) for (let j = 0; j < 4; j++) g.fillRect(3 + i * 5, 3 + j * 6, 2, 2); mat = new THREE.MeshLambertMaterial({ map: new THREE.CanvasTexture(c) }); }
                     const k = new THREE.Mesh(new THREE.BoxGeometry(d.sx, d.sy, d.sz), mat);
                     k.position.set(d.x, ty + d.y, d.z);
-                    if (d.houseId !== undefined) k.userData = { type: 'house-roof', x: d.x, z: d.z, houseId: d.houseId };
+                    if (d.poziom !== undefined) k.userData = { type: 'house-wall', x: d.x, z: d.z, houseId: d.houseId, wallLevel: d.poziom };
+                    else if (d.houseId !== undefined) k.userData = { type: 'house-roof', x: d.x, z: d.z, houseId: d.houseId };
                     scene.add(k); obstacleMeshes.push(k);
                 } else if (d.type === 'polwalec') {
                     // Połowa walca wypukła ku +z: ryzalit Gabinetu Owalnego i strop półkolistego portyku
@@ -15554,6 +15579,43 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const tx = new THREE.CanvasTexture(c); tx.wrapS = tx.wrapT = THREE.RepeatWrapping;
             return blachyWagonow[barwa] = tx;
         }
+        const tynkiSzpitala = {}, plamySzpitala = {};
+        let posadzkaPietraSzpitala = null;
+        // Olejna lamperia, wyblakły tynk, odpadające płaty, zacieki, pleśń przy podłodze, pęknięcia
+        function teksturaScianySzpitala(n) {
+            if (tynkiSzpitala[n]) return tynkiSzpitala[n];
+            const c = document.createElement('canvas'); c.width = 512; c.height = 128; const x = c.getContext('2d'), R = Math.random; x.scale(4, 1);
+            x.fillStyle = ['#a8ab94', '#b0a88e', '#9aa596'][n]; x.fillRect(0, 0, 128, 128);
+            x.fillStyle = ['#56705f', '#5e6b56', '#4f6a68'][n]; x.fillRect(0, 74, 128, 54); x.fillStyle = '#2f3a32'; x.fillRect(0, 72, 128, 3);
+            for (let i = 0; i < 7; i++) { const px = R() * 128, py = R() * 118; x.fillStyle = '#7a7466'; x.beginPath(); x.moveTo(px, py); for (let k = 0; k < 8; k++) x.lineTo(px + (R() - .5) * 14, py + (R() - .5) * 30); x.closePath(); x.fill(); x.strokeStyle = 'rgba(30,28,22,.65)'; x.lineWidth = 1.5; x.stroke(); }
+            for (let i = 0; i < 9; i++) { const px = R() * 128, py = R() * 30, g = x.createLinearGradient(0, py, 0, py + 80); g.addColorStop(0, 'rgba(82,58,30,.6)'); g.addColorStop(1, 'rgba(82,58,30,0)'); x.fillStyle = g; x.fillRect(px, py, .6 + R() * 2.4, 80); }
+            for (let i = 0; i < 26; i++) { x.fillStyle = 'rgba(' + (18 + R() * 16 | 0) + ',' + (30 + R() * 16 | 0) + ',22,' + (.1 + R() * .22) + ')'; x.beginPath(); x.ellipse(R() * 128, 104 + R() * 24, 1 + R() * 4, 2 + R() * 10, 0, 0, 7); x.fill(); }
+            x.strokeStyle = 'rgba(20,18,14,.7)'; x.lineWidth = 1; for (let i = 0; i < 5; i++) { let px = R() * 128, py = R() * 128; x.beginPath(); x.moveTo(px, py); for (let k = 0; k < 7; k++) { px += (R() - .5) * 20; py += 4 + R() * 12; x.lineTo(px, py); } x.stroke(); }
+            const tx = new THREE.CanvasTexture(c); tx.wrapS = tx.wrapT = THREE.RepeatWrapping;
+            return tynkiSzpitala[n] = tx;
+        }
+        function teksturaPlamySzpitala(n) {
+            if (plamySzpitala[n]) return plamySzpitala[n];
+            const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), kol = ['60,20,14', '34,28,18', '70,62,38'][n];
+            for (let i = 0; i < 22; i++) { const px = 32 + (Math.random() - .5) * 42, py = 32 + (Math.random() - .5) * 42, r = 2 + Math.random() * 10, g = x.createRadialGradient(px, py, 0, px, py, r); g.addColorStop(0, 'rgba(' + kol + ',.5)'); g.addColorStop(1, 'rgba(' + kol + ',0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); }
+            return plamySzpitala[n] = new THREE.CanvasTexture(c);
+        }
+        function materialStropuSzpitala() {
+            if (!posadzkaPietraSzpitala) { const c = document.createElement('canvas'); c.width = c.height = 128; WZORY_TERENU.szpital.sidewalk(c.getContext('2d'), 128); posadzkaPietraSzpitala = new THREE.CanvasTexture(c); }
+            return new THREE.MeshLambertMaterial({ map: posadzkaPietraSzpitala, emissive: 0x777777, emissiveMap: posadzkaPietraSzpitala, transparent: true, opacity: 1 });
+        }
+        // Piętro ma ten sam układ co parter, więc te same meble stoją piętro wyżej
+        let szpitalMeble = new Set();
+        function powielMebleSzpitala() {
+            if (!currentCombatTheme || currentCombatTheme.id !== 'szpital') return 0;
+            let n = 0;
+            obstacleMeshes.slice().forEach(m => {
+                if (!szpitalMeble.has(Math.round(m.position.x) + ',' + Math.round(m.position.z)) || (m.userData && m.userData.type)) return;
+                const k = m.clone(true); k.position.y += FLOOR_HEIGHT; k.userData = { type: 'house-wall', x: m.position.x, z: m.position.z, wallLevel: 1 };
+                scene.add(k); obstacleMeshes.push(k); n++;
+            });
+            return n;
+        }
         function przyciemnij(hex, ile) {
             const k = (hex === undefined ? 0x6b4a3a : hex);
             const r = Math.round(((k >> 16) & 255) * ile);
@@ -16983,8 +17045,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Tylko przy pierwszym rysowaniu planszy: potem dochodzą cele misji, których ruszać nie wolno
             const zostaje = ['zachod-sciana', 'house-roof', 'house-wall', 'house-door', 'house-window', 'wall-resistant'];
             const doSprzatania = houses.filter(h => (h.zachod || h.zabytek) && !h.posprzatany);
-            const zakazane = doSprzatania.length && currentCombatTheme && currentCombatTheme.id === 'zhongnanhai';
-            const zbedny = (p) => p.obrot === undefined && (zostaje.indexOf(p.type) === -1 || (zakazane && p.type === 'wall-resistant')) && !p.plan && (zakazane ||
+            const zakazane = doSprzatania.length && currentCombatTheme && ['zhongnanhai', 'szpital'].includes(currentCombatTheme.id);
+            if (zakazane) houses.forEach(h => { if (!h.zabytek) h.minX = h.maxX = h.minZ = h.maxZ = h.centerX = h.centerZ = -9999; });
+            const obcyDom = (p) => zakazane && p.houseId !== undefined && houses[p.houseId] && !houses[p.houseId].zabytek;
+            const zbedny = (p) => obcyDom(p) || p.obrot === undefined && (zostaje.indexOf(p.type) === -1 || (zakazane && p.type === 'wall-resistant')) && !p.plan && (zakazane ||
                 doSprzatania.some(h => p.x >= h.minX && p.x <= h.maxX && p.z >= h.minZ && p.z <= h.maxZ));
             doSprzatania.forEach(h => { h.posprzatany = true; });
             obstaclePositions = obstaclePositions.filter(p => {
@@ -19382,6 +19446,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             postawWrotaIzb();
             // Drzewa z modeli stawiamy RAZEM, na końcu - jednym wywołaniem na siatkę
             postawZebraneDrzewa();
+            powielMebleSzpitala();
             const drzewLacznie = obstaclePositions.filter(p => p.type === 'tree').length;
             if (drzewLacznie > 0) console.info(`[drzewa] Na planszy: ${drzewLacznie} (z modelu ${drzewZModeluNaPlanszy}, z kodu ${drzewZKodu}, wywołań rysowania ${drzewaZbiorcze.length})`);
 
@@ -21539,7 +21604,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             for (let L = 1; L < MAX_LEVELS; L++) {
                 for (let mx = 0; mx < mapWidth; mx++) {
                     for (let mz = 0; mz < mapDepth; mz++) {
-                        if (floorGrid[L][mx][mz] === 1) spots.push({ x: mx - offsetX, z: mz - offsetZ, L: L });
+                        if (floorGrid[L][mx][mz] === 1 && !(currentCombatTheme.id === 'szpital' && obstacleGrid[mx][mz])) spots.push({ x: mx - offsetX, z: mz - offsetZ, L: L });
                     }
                 }
             }
@@ -48261,7 +48326,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // Strop też dostaje teksturę - dotąd był jednolitą płytą koloru
                 const wWiezy = !!(currentCombatTheme && currentCombatTheme.id === 'wieza');
                 const wStudni = !!(currentCombatTheme && currentCombatTheme.id === 'studnia');
-                const matStropu = (typeof materialPosadzki === 'function')
+                const matStropu = (currentCombatTheme && currentCombatTheme.id === 'szpital') ? materialStropuSzpitala() : (typeof materialPosadzki === 'function')
                     ? materialPosadzki(wStudni ? STUDNIA_POSADZKI[L] : wWiezy ? WIEZA_POSADZKI[L] : (FLOOR_COLORS[L] || 0x8a7f70), 1, { transparent: true, opacity: 1 })
                     : new THREE.MeshLambertMaterial({ color: FLOOR_COLORS[L] || 0x8a7f70, transparent: true, opacity: 1 });
                 const inst = new THREE.InstancedMesh(geo, matStropu, tiles.length);
