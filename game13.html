@@ -40614,7 +40614,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             // Ogień pożera osłony i zabudowę
             let zniszczone = 0;
-            const doWybuchu = [], doPrzeskoku = [];
+            const doWybuchu = [];
             for (let i = obstaclePositions.length - 1; i >= 0; i--) {
                 const p = obstaclePositions[i];
                 const mx = p.x + offsetX, mz = p.z + offsetZ;
@@ -40635,12 +40635,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 zniszczone++;
                 if (p.type === 'tree') {
                     schowajDrzewo(p.x, p.z);
-                    if (p.straszne) doPrzeskoku.push(p);
                     const d = enemies.find(e => e.type === 'drzewiec' && !e.isDead && Math.round(e.mesh.position.x) === p.x && Math.round(e.mesh.position.z) === p.z);
                     if (d) zginalWOgniu(d);
                 }
             }
-            doPrzeskoku.forEach(p => zapalPole(p.x, p.z, 2));   // suche, powykręcane drzewo sypie iskrami na sąsiednie
             doWybuchu.forEach(destroyObstacle);
 
             // Ogień wypala klosze i oprawy - po pożarze zostaje ciemność
