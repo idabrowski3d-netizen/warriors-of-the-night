@@ -13255,6 +13255,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function loadTreeModels() {
             if (typeof THREE.GLTFLoader === 'undefined') return;
+            wczytajGlbBezAnimacji('models/drzewa_straszne.glb', new THREE.GLTFLoader(), gltf => {
+                gltf.scene.updateMatrixWorld(true);
+                gltf.scene.traverse(ch => {
+                    if (ch.isMesh) { if (ch.material.map) ch.material.map.encoding = THREE.LinearEncoding; ch.castShadow = true; ch.receiveShadow = false; }
+                    if (/^drzewo_straszne_\d$/.test(ch.name)) drzewaModele[ch.name] = { proto: ch, gotowy: true, straszne: true };
+                });
+            });
             for (let nr = 1; nr <= DRZEW_WZOROW; nr++) {
                 drzewaModele[nr] = { proto: null, gotowy: false };
                 try {
@@ -13299,7 +13306,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }, 9000);
         }
 
-        function limitDrzewModeli() { return trybOszczedny ? DRZEW_MAKS_TELEFON : DRZEW_MAKS_Z_MODELU; }
+        function limitDrzewModeli() { return trybOszczedny ? DRZEW_MAKS_TELEFON : currentCombatTheme && currentCombatTheme.id === 'bagno' ? 620 : DRZEW_MAKS_Z_MODELU; }
 
         // Zwraca true, gdy udało się postawić drzewo z modelu
         // Rysowanie ZBIORCZE: wszystkie kopie tej samej siatki idą do karty graficznej
@@ -13311,7 +13318,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function zglosDrzewoDoModelu(x, y, z) {
             if (drzewaDoPostawienia.length >= limitDrzewModeli()) return false;
-            const dostepne = Object.keys(drzewaModele).filter(k => drzewaModele[k].gotowy);
+            // Mokradła rosną wyłącznie powykręcane, a poza nimi tych drzew nie ma
+            const bagno = !!currentCombatTheme && currentCombatTheme.id === 'bagno';
+            const dostepne = Object.keys(drzewaModele).filter(k => drzewaModele[k].gotowy && !!drzewaModele[k].straszne === bagno);
             if (dostepne.length === 0) return false;
             drzewaDoPostawienia.push({ x: x, y: y, z: z,
                 nr: dostepne[Math.floor(Math.random() * dostepne.length)] });
