@@ -6581,7 +6581,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 return false;
             }
 
-            function placeSpecialBuilding(W, D, roofColor, signInfo, floors, doorCells, windowCells, windowStyle, wymusz) {
+            function placeSpecialBuilding(W, D, roofColor, signInfo, floors, doorCells, windowCells, windowStyle, wymusz, skrzydla) {
                 let startX, startZ, isOverlap = true, attempts = 0;
                 // wymusz = {x, z} - lewy górny róg narzucony przez planszę.
                 // Sprawdzamy kolizje tak samo jak przy losowaniu, ale nie szukamy
@@ -6646,16 +6646,22 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     specjalny: true,   // kościół, szpital, szkoła... - model domu ich NIE zastępuje
                     id: houseId,
                     minX: startX, maxX: startX + W - 1, minZ: startZ, maxZ: startZ + D - 1,
-                    centerX: roofCenterX, centerZ: roofCenterZ
+                    centerX: roofCenterX, centerZ: roofCenterZ,
+                    skrzydla: skrzydla && skrzydla.map(([u0, v0, u1, v1]) => [startX + u0, startZ + v0, startX + u1, startZ + v1])
                 });
-                addObstacle(roofCenterX, roofCenterZ, 'house-roof', {
+                // Budynek ze skrzydeł: osobny płat dachu na każde, dziedziniec zostaje odkryty
+                if (skrzydla) skrzydla.forEach(([u0, v0, u1, v1], i) => addObstacle(startX + u0, startZ + v0, 'house-roof', {
+                    x: startX + (u0 + u1) / 2, z: startZ + (v0 + v1) / 2, roofScaleX: (u1 - u0 + 1) / 5, roofScaleZ: (v1 - v0 + 1) / 5, roofColor: roofColor, flatRoof: true, specialSign: i ? undefined : signInfo, floors: floors, houseId: houseId
+                }));
+                else addObstacle(roofCenterX, roofCenterZ, 'house-roof', {
                     roofScaleX: W / 5, roofScaleZ: D / 5, roofColor: roofColor, specialSign: signInfo, floors: floors, houseId: houseId
                 });
+                const wBryle = (x, z) => skrzydla ? skrzydla.some(([u0, v0, u1, v1]) => x >= u0 && x <= u1 && z >= v0 && z <= v1) : x >= 0 && x < W && z >= 0 && z < D;
                 const doorSet = new Set(doorCells.map(([dx, dz]) => `${dx},${dz}`));
                 const windowSet = new Set((windowCells || []).map(([wx, wz]) => `${wx},${wz}`));
                 for(let x = 0; x < W; x++) {
                     for(let z = 0; z < D; z++) {
-                        if (x === 0 || x === W - 1 || z === 0 || z === D - 1) {
+                        if (wBryle(x, z) && [-1, 0, 1].some(a => [-1, 0, 1].some(c => !wBryle(x + a, z + c)))) {
                             const extra = { houseId: houseId, wallColor: 0xaa5555, destructible: false, floors: floors, windowStyle: windowStyle };
                             if (doorSet.has(`${x},${z}`)) addObstacle(startX + x, startZ + z, 'house-door', extra);
                             else if (windowSet.has(`${x},${z}`)) addObstacle(startX + x, startZ + z, 'house-window', extra);
@@ -7056,44 +7062,66 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 } else if (currentCombatTheme.id === 'pentagon') {
                     buildPentagonRing();
                 } else if (currentCombatTheme.id === 'kremlin') {
-                    const W = 30, D = 22;
-                    const doors = [[Math.floor(W/2), 0]];
-                    const windows = [...evenSpacedAvoiding(1, W-2, 8, []).map(x => [x, D-1]), ...[4, 9, 21, 26].map(x => [x, 0])];
-                    const b = placeSpecialBuilding(W, D, 0x8b2e2e, { text: 'KREML', bg: '#8b2e2e' }, 2, doors, windows);
+                    // Układ wg planu II piętra pałacu: skrzydła wokół dziedzińca, sala kolumnowa, wieża i aneks
+                    const W = 40, D = 35;
+                    const SKRZYDLA = [[0,0,29,6], [19,7,29,17], [5,7,18,9], [0,7,4,24], [19,18,39,24], [30,15,39,17], [0,25,32,30], [25,31,32,34], [10,10,16,17]];
+                    const doors = [[18,0], [8,0], [7,9], [4,15], [29,10], [14,30]];
+                    const windows = [...[3,5,11,14,21,24,27].map(x => [x, 0]), ...[3,6,9,12,14].map(z => [29, z]), ...[2,5,9,12,18,21,24].map(x => [x, 30]), ...[9,12,18,21].map(z => [0, z]), ...[12,20,23].map(z => [4, z]), ...[7,10,17].map(x => [x, 25]), ...[33,36].map(x => [x, 15]), ...[19,22].map(z => [39, z]), ...[27,30].map(x => [x, 34])];
+                    const b = placeSpecialBuilding(W, D, 0x8b2e2e, { text: 'KREML', bg: '#8b2e2e' }, 2, doors, windows, undefined, undefined, SKRZYDLA);
                     if (b) {
                         combatLandmarkPos = { x: b.x, z: b.z };
                         const hData = houses.find(h => h.centerX === b.x && h.centerZ === b.z);
                         if (hData) {
-                            [[hData.minX, hData.minZ], [hData.maxX, hData.minZ], [hData.minX, hData.maxZ], [hData.maxX, hData.maxZ]].forEach(([tx, tz]) => {
-                                themedLandmarkDecor.push({ type: 'tower', x: tx, z: tz, height: 6, color: 0x8b2e2e, roofColor: 0x2e6b3e, houseId: hData.id });
+                            const bryla = (u, v) => SKRZYDLA.some(([u0, v0, u1, v1]) => u >= u0 && u <= u1 && v >= v0 && v <= v1);
+                            [[0,0], [29,0], [0,30], [25,34], [32,34], [39,15], [39,24]].forEach(([u, v]) => {
+                                themedLandmarkDecor.push({ type: 'tower', x: hData.minX + u, z: hData.minZ + v, height: 6, color: 0x8b2e2e, roofColor: 0x2e6b3e, houseId: hData.id });
                             });
-                            // Wieża Spasska z zegarem nad bramą
-                            themedLandmarkDecor.push({ type: 'tower', x: b.x, z: hData.minZ - 1.6, height: 8, color: 0x8b2e2e, roofColor: 0x2e6b3e });
-                            themedLandmarkDecor.push({ type: 'zegar', x: b.x, z: hData.minZ - 2.9, y: 6.4 });
-                            // Blanki w kształcie jaskółczego ogona na całym obwodzie
-                            for (let x = hData.minX + 2; x < hData.maxX - 1; x += 2) [hData.minZ, hData.maxZ].forEach(z => themedLandmarkDecor.push({ type: 'blank', x, z, y: 4.27, color: 0x8b2e2e, wzdluzX: true, houseId: hData.id }));
-                            for (let z = hData.minZ + 2; z < hData.maxZ - 1; z += 2) [hData.minX, hData.maxX].forEach(x => themedLandmarkDecor.push({ type: 'blank', x, z, y: 4.27, color: 0x8b2e2e, wzdluzX: false, houseId: hData.id }));
-                            // Złote cebule soboru nad środkiem dachu
-                            [[0,0,1.5], [-5,-4,1], [5,-4,1], [-5,4,1], [5,4,1]].forEach(([dx, dz, r]) => themedLandmarkDecor.push({ type: 'kopula', x: b.x + dx, z: b.z + dz, y: 4.4, r, houseId: hData.id }));
-                            urzadzGmach(hData, { plaskiDach: true, podloga: 'deski', kolorScian: 0xe8dcc0,
-                                sciany: [[7,1,7,20,6,17], [22,1,22,20,6,17], [8,13,21,13,15], [1,12,6,12], [23,12,28,12]],
-                                meble: [
-                                    // Sala Jerzego: biało-złote kolumny, posągi
-                                    ...[3,7,11].flatMap(v => [[9,v,'kolumna_zlota'], [20,v,'kolumna_zlota']]), [8,1,'rzezba_marmur'], [21,1,'rzezba_marmur'], [8,12,'kwietnik_wazon'], [21,12,'kwietnik_wazon'], [12,1,'popiersie_marmur'], [18,1,'popiersie_marmur'],
-                                    // Sala Tronowa
-                                    [14,19,'tron_kremlowski',PI], [16,19,'tron_kremlowski',PI], [13,20,'flaga_rosji'], [17,20,'flaga_rosji'], [9,20,'popiersie_marmur'], [20,20,'popiersie_marmur'], [9,15,'sofa_czerwona',P2], [20,15,'sofa_czerwona',-P2], [9,18,'sofa_czerwona',P2], [20,18,'sofa_czerwona',-P2],
-                                    // Gabinet narad
-                                    ...stolNarad(2, 5, 6, 'stol_narad', 'krzeslo_gmachu'), ...rzad(1, 6, 1, 'regal_ksiag', 0), [1,11,'flaga_rosji'], [6,11,'kwietnik_wazon'],
-                                    // Kaplica z ikonami
-                                    ...rzad(1, 6, 20, 'kiot_ikon', PI), [1,14,'samowar_wielki'], [3,16,'stolik_kawowy'], [6,13,'kwietnik_wazon'],
-                                    // Biblioteka carska
-                                    ...rzad(23, 28, 1, 'regal_ksiag', 0), [25,5,'sofa_czerwona',0], [25,7,'stolik_kawowy'], [28,11,'kwietnik_wazon'], [23,11,'popiersie_marmur'],
-                                    // Salon
-                                    ...rzad(25, 28, 20, 'regal_ksiag', PI), [25,14,'biurko_resolute',0], [25,13,'fotel_gmachu',0], [28,13,'flaga_rosji'], [28,17,'fotel_gmachu',-P2], [26,17,'fortepian_gmachu']
+                            // Wieża Spasska z zegarem nad główną bramą
+                            themedLandmarkDecor.push({ type: 'tower', x: hData.minX + 18, z: hData.minZ - 1.6, height: 8, color: 0x8b2e2e, roofColor: 0x2e6b3e });
+                            themedLandmarkDecor.push({ type: 'zegar', x: hData.minX + 18, z: hData.minZ - 2.9, y: 6.4 });
+                            // Blanki w kształcie jaskółczego ogona wzdłuż całego obrysu, także od dziedzińca
+                            for (let u = 1; u < W - 1; u += 2) for (let v = 0; v < D; v++) if (bryla(u, v) && (!bryla(u, v - 1) || !bryla(u, v + 1))) themedLandmarkDecor.push({ type: 'blank', x: hData.minX + u, z: hData.minZ + v, y: 4.27, color: 0x8b2e2e, wzdluzX: true, houseId: hData.id });
+                            for (let v = 1; v < D - 1; v += 2) for (let u = 0; u < W; u++) if (bryla(u, v) && (!bryla(u - 1, v) || !bryla(u + 1, v))) themedLandmarkDecor.push({ type: 'blank', x: hData.minX + u, z: hData.minZ + v, y: 4.27, color: 0x8b2e2e, wzdluzX: false, houseId: hData.id });
+                            // Złote cebule: największa nad kaplicą w dziedzińcu
+                            [[13,13.5,1.5], [11,5,1], [18,3,1], [25.5,8,1], [28.5,32,1], [36,21,1]].forEach(([u, v, r]) => themedLandmarkDecor.push({ type: 'kopula', x: hData.minX + u, z: hData.minZ + v, y: 4.4, r, houseId: hData.id }));
+                            urzadzGmach(hData, { podloga: 'deski', kolorScian: 0xe8dcc0,
+                                sciany: [
+                                    // Skrzydło frontowe i wielka sala kolumnowa
+                                    [13,1,13,5,3], [22,1,22,17,3,12], [1,6,21,6,3,9,15,21],
+                                    // Galeria od dziedzińca i przejście do sali ośmiobocznej
+                                    [4,7,4,9,8], [19,7,19,9], [20,13,21,13,20],
+                                    // Skrzydło zachodnie
+                                    [1,12,3,12,2], [1,18,3,18,2], [1,24,3,24,2],
+                                    // Sale środkowe, aneks
+                                    [20,18,28,18,21,26], [25,19,25,23,22], [29,19,29,23,22], [29,15,29,17,16], [33,19,33,23,21], [30,18,38,18,32], [20,24,32,24,23,31],
+                                    // Amfilada północna i wieża
+                                    [6,26,6,29,27], [11,26,11,29,27], [16,26,16,29,27], [21,25,21,29,27], [26,25,26,29,27], [26,30,31,30,28]
                                 ],
-                                dywany: [[14,1,16,12,0x8a1a22,0xc8a040], [14,14,16,18,0x8a1a22,0xc8a040], [2,3,6,9,0x5a2030,0xc8a040], [24,4,27,8,0x5a2030,0xc8a040]],
-                                obrazy: [[12,-.3,0,0x7a5a2a,0xe0c070], [18,-.3,0,0x7a5a2a,0xe0c070], [10,21+.3,PI,0x5a2a2a,0xe0c070], [19,21+.3,PI,0x5a2a2a,0xe0c070], [-.3,4,P2,0x3a3a4a,0xc8b090], [29+.3,15,-P2,0x4a3a2a,0xc8b090], [29+.3,6,-P2,0x3a4a3a,0xc8b090], [-.3,16,P2,0x7a5a2a,0xe0c070]],
-                                zyrandole: [[15,4], [15,9], [15,16], [4,6], [25,15]] });
+                                meble: [
+                                    // Sala Jerzego: dwa rzędy kolumn jak na planie
+                                    ...[3,6,10].flatMap(u => [[u,2,'kolumna_zlota'], [u,4,'kolumna_zlota']]), [1,1,'rzezba_marmur'], [12,1,'rzezba_marmur'], [1,5,'kwietnik_wazon'], [12,5,'kwietnik_wazon'],
+                                    // Sala Tronowa
+                                    [17,5,'tron_kremlowski',PI], [19,5,'tron_kremlowski',PI], [16,5,'flaga_rosji'], [20,5,'flaga_rosji'], [14,5,'popiersie_marmur'], [14,2,'sofa_czerwona',P2], [21,2,'sofa_czerwona',-P2],
+                                    // Sala kolumnowa
+                                    ...[3,6,9,12,15].flatMap(v => [[24,v,'kolumna_zlota'], [27,v,'kolumna_zlota']]), [23,1,'popiersie_marmur'], [28,1,'popiersie_marmur'], [25,17,'rzezba_marmur'],
+                                    // Galeria i kaplica z ikonami
+                                    [8,7,'popiersie_marmur'], [12,7,'popiersie_marmur'], [18,8,'kwietnik_wazon'],
+                                    ...rzad(11, 15, 16, 'kiot_ikon', PI), [11,12,'kwietnik_wazon'], [15,12,'kwietnik_wazon'],
+                                    // Skrzydło zachodnie: biblioteka, sala narad, salon
+                                    [1,7,'regal_ksiag',0], [2,7,'regal_ksiag',0], [1,11,'kwietnik_wazon'], [1,13,'flaga_rosji'], [1,16,'sofa_czerwona',P2], [3,17,'kwietnik_wazon'], [1,20,'fotel_gmachu',P2], [1,21,'stolik_kawowy'], [1,23,'regal_ksiag',PI], [3,23,'regal_ksiag',PI],
+                                    // Amfilada
+                                    [2,29,'flaga_rosji'], [4,29,'flaga_rosji'], ...rzad(7, 10, 29, 'regal_ksiag', PI), [13,28,'biurko_resolute',PI], [13,29,'fotel_gmachu',PI], [12,29,'flaga_rosji'], [15,29,'flaga_rosji'], [17,29,'sofa_czerwona',PI], [20,29,'sofa_czerwona',PI], [18,28,'stolik_kawowy'],
+                                    ...stolNarad(23, 24, 28, 'stol_narad', 'krzeslo_gmachu'), [27,29,'regal_ksiag',PI], ...rzad(29, 31, 29, 'regal_ksiag', PI),
+                                    // Wieża
+                                    [30,32,'biurko_resolute',PI], [30,33,'fotel_gmachu',PI], [31,33,'flaga_rosji'], [26,33,'regal_ksiag',PI], [27,33,'regal_ksiag',PI],
+                                    // Sale środkowe i aneks
+                                    ...rzad(20, 24, 23, 'kiot_ikon', PI), [27,20,'samowar_wielki'], [26,23,'popiersie_marmur'], [28,23,'popiersie_marmur'], [30,23,'sofa_czerwona',P2], [32,23,'sofa_czerwona',-P2], [36,21,'fortepian_gmachu'], [36,23,'sofa_czerwona',PI], [38,19,'kwietnik_wazon'], [34,19,'kwietnik_wazon'], ...rzad(34, 37, 16, 'regal_ksiag', 0),
+                                    // Dziedziniec: w osi kaplicy, po bokach symetrycznie
+                                    [13,21,'dzwon_carski'], [8,21,'armata_brazowa',P2], [18,21,'armata_brazowa',-P2], ...[11,13,15,17].map(v => [6, v, 'kwietnik_wazon']), ...[11,13,15,17].map(v => [18, v, 'kwietnik_wazon'])
+                                ],
+                                dywany: [[2,3,11,3,0x5a2030,0xc8a040], [18,1,18,4,0x8a1a22,0xc8a040], [25,2,26,16,0x8a1a22,0xc8a040], [11,10,15,15,0x5a2030,0xc8a040], [5,7,18,8,0x8a1a22,0xc8a040]],
+                                obrazy: [[18,5.45,PI,0x7a5a2a,0xe0c070], [22.55,8,P2,0x5a2a2a,0xe0c070], [28.45,8,-P2,0x5a2a2a,0xe0c070], [13.5,3,P2,0x3a3a4a,0xc8b090], [33.55,21,P2,0x4a3a2a,0xc8b090]],
+                                zyrandole: [[6.5,3], [18,3], [25.5,5], [25.5,12], [13,13], [13.5,28], [36,21]] });
                         }
                     }
                 } else if (currentCombatTheme.id === 'zhongnanhai') {
@@ -15088,7 +15116,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const PODLOGI_WNETRZ = ['plyty', 'wytarte', 'deski'];
         function ozdobPodlogiWnetrz() {
             const id = currentCombatTheme ? currentCombatTheme.id : '';
-            houses.forEach(h => { if (h.podloga) polozPlatPodlogi(h.minX + 1, h.minZ + 1, h.maxX - 1, h.maxZ - 1, h.podloga, getTerrainY(h.centerX, h.centerZ), 1); });
+            houses.forEach(h => { if (h.podloga) (h.skrzydla || [[h.minX + 1, h.minZ + 1, h.maxX - 1, h.maxZ - 1]]).forEach(([x0, z0, x1, z1]) => polozPlatPodlogi(x0, z0, x1, z1, h.podloga, getTerrainY(h.centerX, h.centerZ), 1)); });
             if (id === 'ambush') {
                 houses.forEach(h => { if (h.zachod) polozPlatPodlogi(h.minX + 1, h.minZ + 1, h.maxX - 1, h.maxZ - 1, 'deski', getTerrainY(h.centerX, h.centerZ), 1); });
                 return 0;
