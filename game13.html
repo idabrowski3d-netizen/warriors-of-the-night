@@ -6401,6 +6401,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     zwolnij(cx + pl.x0 - 1, cx + x1 + 1, cz + pl.z0 - 1, cz + z1 + 1);
                     rz.forEach((w, j) => [...w].forEach((c, i) => { if ('#Ro'.includes(c)) pola.push([i + pl.x0, j + pl.z0]); }));
                     budowla(nazwa, cx, cz, 0, pola, pl.x0, x1, pl.z0, z1);
+                    // Środek to pola zamknięte przegrodą z czterech stron - portyk i narożniki prostokąta już nie
+                    const przegroda = (i, j, di, dj) => { for (i += di, j += dj; rz[j] && rz[j][i]; i += di, j += dj) if ('#RD'.includes(rz[j][i])) return true; return false; };
+                    const wnetrze = {};
+                    rz.forEach((w, j) => [...w].forEach((c, i) => { if ('.D'.includes(c) && [[1, 0], [-1, 0], [0, 1], [0, -1]].every(([a, b]) => przegroda(i, j, a, b))) wnetrze[(cx + i + pl.x0) + ',' + (cz + j + pl.z0)] = 1; }));
+                    obstaclePositions[obstaclePositions.length - 1].wnetrze = wnetrze;
                     urzadzWnetrze(nazwa, cx, cz);
                 });
                 // Cmentarz: aleja główna, pięć poprzecznych, między nimi kwatery
@@ -47656,7 +47661,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function updateFloorVisibility() {
             odswiezZnacznikiPrzejsc();
-            budowleZDachem.forEach(g => { const b = g.userData.budowla; g.userData.dach.visible = !soldiers.some(s => { if (s.isDead || !s.mesh) return false; const x = Math.round(s.mesh.position.x), z = Math.round(s.mesh.position.z); return x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1; }); });
+            budowleZDachem.forEach(g => { const b = g.userData.budowla; g.userData.dach.visible = !soldiers.some(s => { if (s.isDead || !s.mesh) return false; const x = Math.round(s.mesh.position.x), z = Math.round(s.mesh.position.z); return b.wnetrze ? b.wnetrze[x + ',' + z] : x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1; }); });
             chatkiNaPlanszy.forEach(c => { if (c.dach) c.dach.visible = c.ziemia ? !soldiers.some(s => !s.isDead && s.mesh && Math.abs(Math.round(s.mesh.position.x) - c.x) <= 1 && Math.abs(Math.round(s.mesh.position.z) - c.z) <= 1) : viewLevel < 1; });   // dach chatki nie zasłania wnętrza
             const lvl = viewLevel;
             // W Wieży kondygnacje leżą jedna NAD drugą i strop zasłania to, co niżej,
