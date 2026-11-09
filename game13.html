@@ -28432,8 +28432,34 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // --- ŚMIERĆ ---
         // Nie da się jej zabić - można ją tylko odpędzić. Wraca w kolejnych snach.
         // ========================================================
+        // Model z Blendera: szata, kaptur, czaszka, kościste dłonie, kosa. Unosi się nad ziemią i lekko faluje.
+        let smiercProto = null;
+        function loadSmierc() {
+            if (typeof THREE.GLTFLoader === 'undefined') return;
+            wczytajGlbBezAnimacji('models/smierc.glb', new THREE.GLTFLoader(), gltf => {
+                gltf.scene.traverse(ch => {
+                    if (!ch.isMesh) return;
+                    const czern = ch.material.name === 'Czern';
+                    if (ch.material.map) ch.material.map.encoding = THREE.LinearEncoding;
+                    ch.material = czern ? new THREE.MeshBasicMaterial({ color: 0x000000 }) : new THREE.MeshLambertMaterial({ map: ch.material.map, side: THREE.DoubleSide });
+                    ch.castShadow = !czern;
+                });
+                smiercProto = gltf.scene;
+            });
+        }
         function createDeathMesh() {
             const g = new THREE.Group();
+            if (smiercProto) {
+                const model = smiercProto.clone(); g.add(model);
+                let wahadlo = null;
+                model.traverse(ch => { if (ch.isMesh && !wahadlo) wahadlo = ch; });
+                if (wahadlo) wahadlo.onBeforeRender = () => { const t = performance.now() * .0012; model.position.y = .06 + Math.sin(t) * .06; model.rotation.z = Math.sin(t * .7) * .012; };
+                const zrenica = new THREE.MeshBasicMaterial({ color: 0x7fe8ff });
+                [-.08, .08].forEach(b => { const oko = new THREE.Mesh(new THREE.SphereGeometry(.013, 8, 6), zrenica); oko.position.set(b, 3.435, .525); model.add(oko); });
+                const blask = new THREE.PointLight(0x5fd8ff, .45, 9, 1.6); blask.position.set(0, 2.9, 1.6); g.add(blask);
+                g.userData.yOffset = 0; g.userData.unitType = 'smierc';
+                return g;
+            }
             const s = 2.0;   // dwukrotnie wyższa od wojownika
             const plotno = new THREE.MeshLambertMaterial({ color: 0x14121a });
 
@@ -54658,6 +54684,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         loadDiabelski();
         loadPrzejscie();
         loadPociagi();
+        loadSmierc();
         loadWiaty();
         loadZwierzeta();
         loadTreeModels();     // modele drzew - ciężkie pliki, więc z limitem na planszę
