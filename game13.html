@@ -13318,9 +13318,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function zglosDrzewoDoModelu(x, y, z) {
             if (drzewaDoPostawienia.length >= limitDrzewModeli()) return false;
-            // Mokradła rosną wyłącznie powykręcane, a poza nimi tych drzew nie ma
-            const bagno = !!currentCombatTheme && currentCombatTheme.id === 'bagno';
-            const dostepne = Object.keys(drzewaModele).filter(k => drzewaModele[k].gotowy && !!drzewaModele[k].straszne === bagno);
+            // Powykręcane drzewa rosną tylko na Mokradłach, wymieszane ze zwykłymi
+            const straszne = !!currentCombatTheme && currentCombatTheme.id === 'bagno' && Math.random() < 0.45;
+            const dostepne = Object.keys(drzewaModele).filter(k => drzewaModele[k].gotowy && !!drzewaModele[k].straszne === straszne);
             if (dostepne.length === 0) return false;
             drzewaDoPostawienia.push({ x: x, y: y, z: z,
                 nr: dostepne[Math.floor(Math.random() * dostepne.length)] });
