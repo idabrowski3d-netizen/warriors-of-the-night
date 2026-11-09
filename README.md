@@ -16,6 +16,7 @@ Opcje: `--tury` (także tura wrogów), `--zrzuty` (zrzuty do `zrzuty_testu/`), `
 - `models/budowle.glb` - budowle wokół Katedry, grobowce i kurhany, wykonane w Blenderze; tekstury ambientCG (CC0).
 - `models/diabelski.glb` - diabelski młyn wykonany w Blenderze; tekstury rdzy, farby i betonu generowane skryptem.
 - `models/przejscie.glb` - przejście graniczne z budkami, szlabanami i wieżami, wykonane w Blenderze.
+- `models/pociagi_rdza.glb` - lokomotywy i wagony z Train Kit autorstwa Kenney (kenney.nl, CC0), postarzone rdzą w Blenderze.
 - `models/wiaty.glb` - wiaty z atrakcjami wesołego miasteczka, wykonane w Blenderze.
 - `models/chatka_kurza.glb` - chatka na kurzej łapie, wykonana w Blenderze; tekstury generowane skryptem.
 - `models/drzewa_straszne.glb` - pięć powykręcanych drzew Mokradeł, generowanych skryptem w Blenderze.
