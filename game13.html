@@ -3881,18 +3881,53 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
             return teksturyNeonowWesolych[napis] = new THREE.CanvasTexture(c);
         }
-        function bryłaNeonuWesolego(wpis) {
+        const NAZWY_WIAT = { strzelnica: ['STRZELNICA', '#40ff70'], loteria: ['LOTERIA', '#ffe060'], pierscienie: ['PIERŚCIENIE', '#ff50c0'] };
+        function bryłaNeonuWesolego(wpis, przodem) {
             const g = new THREE.Group(), stal = new THREE.MeshLambertMaterial({ color: 0x35323a });
             const maszt = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 2.6, 6), stal);
-            maszt.position.y = -1.35; g.add(maszt);
+            maszt.position.y = -1.35; maszt.visible = !przodem; g.add(maszt);
             const tablica = new THREE.Mesh(new THREE.BoxGeometry(3.5, 1.3, 0.12), new THREE.MeshLambertMaterial({ color: 0x17151c }));
             g.add(tablica);
+            if (przodem) {   // na wiacie: ramka z żarówek, rząd pod markizą i po słupkach
+                const p = [], z = przodem * 0.14;
+                for (let x = -1.8; x <= 1.81; x += 0.24) p.push([x, 0.72, z], [x, -0.72, z]);
+                for (let y = -0.5; y <= 0.51; y += 0.24) p.push([-1.86, y, z], [1.86, y, z]);
+                for (let x = -3.5; x <= 3.51; x += 0.3) p.push([x, -1.05, z - przodem * 0.1]);
+                for (let y = -1.3; y >= -3.61; y -= 0.28) p.push([-3.35, y, z], [3.35, y, z]);
+                dodajZarowkiJarmarku(g, p, [new THREE.Color(wpis[1]).getHex(), 0xfff2b0], 0.075);
+            }
             const tekst = new THREE.MeshBasicMaterial({ map: teksturaNeonuWesolego(wpis), transparent: true, depthWrite: false, opacity: 1 });
             [[0.07, 0], [-0.07, Math.PI]].forEach(([z, obrot]) => {
                 const p = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 1.2), tekst);
                 p.position.z = z; p.rotation.y = obrot; g.add(p);
             });
             return g;
+        }
+
+        // Żarówki jarmarku: jeden InstancedMesh na zestaw, biegnące światło przez przemianę kolorów
+        let zarowkiJarmarku = [], zarowkiTakt = -1;
+        function dodajZarowkiJarmarku(g, punkty, paleta, promien, x, z) {
+            const m = new THREE.InstancedMesh(new THREE.SphereGeometry(promien, 6, 4), new THREE.MeshBasicMaterial({ color: 0xffffff }), punkty.length);
+            const mac = new THREE.Matrix4();
+            punkty.forEach((p, i) => { m.setMatrixAt(i, mac.makeTranslation(p[0], p[1], p[2])); m.setColorAt(i, new THREE.Color(paleta[0])); });
+            m.frustumCulled = false;
+            g.add(m);
+            zarowkiJarmarku.push({ m, paleta: paleta.map(k => new THREE.Color(k)), x, z });
+            return m;
+        }
+        function migotanieJarmarku(czas) {
+            const takt = Math.floor(czas / 130);
+            if (takt === zarowkiTakt) return;
+            zarowkiTakt = takt;
+            const c = new THREE.Color();
+            zarowkiJarmarku.forEach(j => {
+                for (let i = 0; i < j.m.count; i++) {
+                    c.copy(j.paleta[(i >> 2) % j.paleta.length]);
+                    if ((i + takt) % 4 === 0) c.multiplyScalar(0.2);
+                    j.m.setColorAt(i, c);
+                }
+                j.m.instanceColor.needsUpdate = true;
+            });
         }
 
         function dodajZrodlo(rodzaj, x, z, y, bryla, barwa, mocLampy, zasieg) {
@@ -5175,6 +5210,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             obstaclePositions.filter(o => o.type === 'neon_szyld').forEach(o => {
                 const wpis = NEONY_WESOLE[o.napis];
                 dodajZrodlo('neon', o.x, o.z, getTerrainY(o.x, o.z) + 3.2, bryłaNeonuWesolego(wpis), new THREE.Color(wpis[1]).getHex(), noc ? 1.6 : 1.0, 11);
+                zrodlaBlasku[zrodlaBlasku.length - 1].szyld = true;
+            });
+
+            obstaclePositions.filter(o => o.type === 'wiata').forEach((o, i) => {
+                const wpis = NAZWY_WIAT[o.model], przod = o.obrot ? -1 : 1;
+                dodajZrodlo('neon', o.x, o.z + przod * 1.5, getTerrainY(o.x, o.z) + 3.95, bryłaNeonuWesolego(wpis, przod), new THREE.Color(wpis[1]).getHex(), i % 2 ? 0 : 1.3, 10);
                 zrodlaBlasku[zrodlaBlasku.length - 1].szyld = true;
             });
 
@@ -8712,6 +8753,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     postaw('diabelski', 1, 2, 7, 4);
                     postaw('karuzela', 3, 1);
                     postaw('namiot', 6, 1);
+                    // Wiaty z atrakcjami: dwie pierzeje naprzeciw siebie, szyldami do alejki
+                    const rodzajeWiat = ['strzelnica', 'loteria', 'pierscienie'];
+                    let nrWiaty = 0;
+                    [[-12, 0], [12, Math.PI]].forEach(([rz, obrot]) => [-27, -9, 9, 27].forEach(kol => {
+                        for (const dx of [0, 3, -3, 6, -6]) {
+                            const x = kol + dx; let wolne = true;
+                            for (let a = -4; a <= 4 && wolne; a++) for (let c = -2; c <= 2 && wolne; c++) if (!isWithinPlayBounds(x + a, rz + c) || isObstacle(x + a, rz + c)) wolne = false;
+                            if (!wolne) continue;
+                            for (let a = -3; a <= 3; a++) for (let c = -1; c <= 1; c++) addObstacle(x + a, rz + c, (a === 0 && c === 0) ? 'wiata' : 'wesole-czesc', (a === 0 && c === 0) ? { model: rodzajeWiat[nrWiaty++ % 3], obrot } : undefined);
+                            break;
+                        }
+                    }));
                     // Neony na masztach, w dwóch równych rzędach; pole masztu szukane tuż obok, gdy coś tam stoi
                     const hasla = NEONY_WESOLE.map((_, i) => i).sort(() => Math.random() - 0.5);
                     [-30, 30].forEach(rz => [-45, -15, 15, 45].forEach(kol => {
@@ -12042,7 +12095,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function renderZarowkiWesole() {
             zarowkiWesole.forEach(o => scene.remove(o)); zarowkiWesole = [];
             const kolory = [0xff4a4a, 0xffd84a, 0x4affb0, 0x9a6aff, 0xff7ad0];
-            for (let i = 0; i < 16; i++) {
+            for (let i = 0; i < 8; i++) {
                 let x = null, z = null;
                 for (let t = 0; t < 120; t++) {
                     const cx = Math.floor(Math.random() * (mapWidth - 20)) + 10 - offsetX;
@@ -12082,7 +12135,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const lampion = new THREE.SphereGeometry(0.17, 8, 6), slup = new THREE.CylinderGeometry(0.05, 0.07, 4.2, 5);
             const matSlup = new THREE.MeshLambertMaterial({ color: 0x3a3438 }), matSznur = new THREE.LineBasicMaterial({ color: 0x18161a });
             const macierz = new THREE.Matrix4(), kolor = new THREE.Color();
-            [-36, -12, 12, 36].forEach(z => {
+            [-36, -20, 0, 20, 36].forEach(z => {
                 for (let x = -36; x < 36; x += 12) {
                     const x2 = x + 12;
                     let drozny = wolne(x, z) && wolne(x2, z);
@@ -12957,6 +13010,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             g.add(m);
             const kolo = m.getObjectByName('diabelski_kolo');
             diabelskieKola.push({ kolo, gondole: kolo.children.filter(c => /gondola/.test(c.name)), g });
+            const R = 6.5, p = [];
+            [-0.62, 0.62].forEach(z => { for (let k = 0; k < 72; k++) p.push([Math.cos(k / 72 * 6.283) * R, Math.sin(k / 72 * 6.283) * R, z]); });
+            dodajZarowkiJarmarku(kolo, p, [0xff30c0, 0xffffff, 0xff30c0], 0.12, g.position.x, g.position.z);
+            const szprycha = new THREE.InstancedMesh(new THREE.BoxGeometry(R - 0.5, 0.05, 0.05), new THREE.MeshBasicMaterial({ color: 0xff1aa8 }), 24);
+            const mac = new THREE.Matrix4(), q = new THREE.Quaternion(), os = new THREE.Vector3(0, 0, 1), skala = new THREE.Vector3(1, 1, 1);
+            for (let i = 0; i < 24; i++) {
+                const a = (i % 12) / 12 * 6.283, poz = new THREE.Vector3(Math.cos(a) * (R + 0.5) / 2, Math.sin(a) * (R + 0.5) / 2, i < 12 ? -0.6 : 0.6);
+                szprycha.setMatrixAt(i, mac.compose(poz, q.setFromAxisAngle(os, a), skala));
+            }
+            szprycha.frustumCulled = false; kolo.add(szprycha);
+            const luna = new THREE.PointLight(0xff30c0, 1.8, 24, 1.4); luna.position.y = 0; kolo.add(luna);
         }
         function loadDiabelski() {
             if (typeof THREE.GLTFLoader === 'undefined') return;
@@ -13002,6 +13066,32 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             zrodlo.buffer = diabelskiSkrzyp; zrodlo.playbackRate.value = 0.8 + Math.random() * 0.35;
             glos.gain.value = 0.4 * bliskosc * bliskosc;
             zrodlo.connect(glos); glos.connect(ctx.destination); zrodlo.start();
+        }
+
+        // --- WIATY Z ATRAKCJAMI ---
+        let wiatyProto = null, wiatyCzekaja = [], pasyJarmarku = null;
+        function wstawWiate(g) {
+            const w = wiatyProto.getObjectByName('wiata_' + g.userData.model).clone();
+            w.position.set(0, 0, 0); g.add(w);
+        }
+        function loadWiaty() {
+            if (typeof THREE.GLTFLoader === 'undefined') return;
+            wczytajGlbBezAnimacji('models/wiaty.glb', new THREE.GLTFLoader(), gltf => {
+                gltf.scene.traverse(ch => {
+                    if (!ch.isMesh) return;
+                    const k = ch.material.color;   // farba jarmarku świeci własnym światłem także nocą
+                    ch.material = new THREE.MeshLambertMaterial({ color: k, emissive: k.clone().multiplyScalar(0.4) });
+                });
+                wiatyProto = gltf.scene;
+                wiatyCzekaja.forEach(wstawWiate); wiatyCzekaja = [];
+            });
+        }
+        function materialPasow(a, b) {
+            const c = document.createElement('canvas'); c.width = 256; c.height = 8;
+            const x = c.getContext('2d');
+            for (let i = 0; i < 16; i++) { x.fillStyle = i % 2 ? b : a; x.fillRect(i * 16, 0, 16, 8); }
+            const t = new THREE.CanvasTexture(c);
+            return new THREE.MeshLambertMaterial({ map: t, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: 0.45, side: THREE.DoubleSide });
         }
 
         // --- SICARIO: przejście graniczne, kępy wysokiej trawy i biegacze stepowe ---
@@ -16599,7 +16689,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // misji każda przeszkoda istniała podwójnie, a po wczytaniu zapisu na scenie
             // zostawały przeszkody z poprzedniej planszy.
             obstacleMeshes.forEach(m => scene.remove(m));
-            obstacleMeshes = []; budowleZDachem = []; budowleCzekaja = []; diabelskieKola = []; diabelskiCzekaja = []; przejscieCzeka = []; biegacze = [];
+            obstacleMeshes = []; budowleZDachem = []; budowleCzekaja = []; diabelskieKola = []; diabelskiCzekaja = []; przejscieCzeka = []; wiatyCzekaja = []; zarowkiJarmarku = []; biegacze = [];
             if (gameMode === 'dream') renderThemedLandmarkDecor();   // kasowane razem z przeszkodami, więc rysowane razem z nimi
             strachy = [];
             kominyWulkanu = [];
@@ -17757,6 +17847,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     m.castShadow = true;
                     scene.add(m); obstacleMeshes.push(m);
                 }
+                else if (pos.type === 'wiata') {
+                    const g = new THREE.Group();
+                    g.position.set(pos.x, ty, pos.z); g.rotation.y = pos.obrot; g.userData.model = pos.model;
+                    if (wiatyProto) wstawWiate(g); else wiatyCzekaja.push(g);
+                    scene.add(g); obstacleMeshes.push(g);
+                }
                 else if (pos.type === 'neon_szyld' || pos.type === 'wesole-czesc' || pos.type === 'wrak-czesc' || pos.type === 'ruiny-czesc') { /* niewidoczna część dużej konstrukcji */ }
                 else if (pos.type === 'karuzela') {
                     const g = new THREE.Group();
@@ -17766,8 +17862,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     podloga.position.y = 0.11; g.add(podloga);
                     const slup = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.6, 8), new THREE.MeshLambertMaterial({ color: 0x8a7a5a }));
                     slup.position.y = 1.4; g.add(slup);
-                    const daszek = new THREE.Mesh(new THREE.ConeGeometry(1.7, 0.9, 12), new THREE.MeshLambertMaterial({ color: plotno[Math.floor(Math.random() * 4)] }));
-                    daszek.position.y = 2.9; daszek.rotation.z = 0.08; g.add(daszek);   // przekrzywiony ze starości
+                    const daszek = new THREE.Mesh(new THREE.ConeGeometry(1.7, 0.9, 16), materialPasow('#d8182c', '#f4ecd8'));
+                    daszek.position.y = 2.9; g.add(daszek);
+                    { const p = []; for (let k = 0; k < 40; k++) p.push([Math.cos(k / 40 * 6.283) * 1.72, 2.46, Math.sin(k / 40 * 6.283) * 1.72]);
+                      for (let k = 0; k < 8; k++) for (let s = 1; s < 5; s++) p.push([Math.cos(k / 8 * 6.283) * 1.72 * (1 - s / 5), 2.46 + 0.9 * s / 5, Math.sin(k / 8 * 6.283) * 1.72 * (1 - s / 5)]);
+                      dodajZarowkiJarmarku(g, p, [0xfff0a8, 0xffb030], 0.05, pos.x, pos.z); }
                     for (let k = 0; k < 6; k++) {
                         const a = (k / 6) * Math.PI * 2;
                         const drazek = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.3, 5), new THREE.MeshLambertMaterial({ color: 0xa89a7a }));
@@ -17784,9 +17883,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const kolory = [0x7a2f4a, 0x3f6b5a, 0x6a5a2a];
                     const k1 = kolory[Math.floor(Math.random() * 3)];
                     const sciany = new THREE.Mesh(new THREE.CylinderGeometry(1.35, 1.35, 1.3, 10, 1, true),
-                        new THREE.MeshLambertMaterial({ color: k1, side: THREE.DoubleSide }));
+                        materialPasow(['#d8182c', '#1a5fd0', '#e0a010'][kolory.indexOf(k1)], '#f4ecd8'));
                     sciany.position.y = 0.65; g.add(sciany);
-                    const dach = new THREE.Mesh(new THREE.ConeGeometry(1.5, 1.3, 10), new THREE.MeshLambertMaterial({ color: 0xd8d0c0 }));
+                    { const p = []; for (let k = 0; k < 32; k++) p.push([Math.cos(k / 32 * 6.283) * 1.52, 1.32, Math.sin(k / 32 * 6.283) * 1.52]); dodajZarowkiJarmarku(g, p, [0xff50b0, 0xffe060], 0.05, pos.x, pos.z); }
+                    const dach = new THREE.Mesh(new THREE.ConeGeometry(1.5, 1.3, 16), materialPasow(['#d8182c', '#1a5fd0', '#e0a010'][kolory.indexOf(k1)], '#f4ecd8'));
                     dach.position.y = 1.95; g.add(dach);
                     const flaga = new THREE.Mesh(new THREE.PlaneGeometry(0.35, 0.22), new THREE.MeshLambertMaterial({ color: 0xa8231f, side: THREE.DoubleSide }));
                     flaga.position.set(0.18, 2.75, 0); g.add(flaga);
@@ -32934,6 +33034,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
             });
 
+            zarowkiJarmarku.forEach(j => { if (j.x !== undefined) j.m.visible = odkryte(j.x, j.z); });
             zarowkiWesole.forEach(g => { if (g.userData.lampion) g.visible = odkryte(Math.round(g.position.x) + 6, Math.round(g.position.z)); });
 
             // Źródła blasku chowamy tak samo - neon za nieodkrytym murem nie może
@@ -49113,6 +49214,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             przesunWidokDrazkiem(dt);
             pulsujPoswiate(time);
             migotanieZarowek(time);
+            migotanieJarmarku(time);
             drganiePodpisuLustrzaka(time);
             animujRoje(time);
             animujGasicieli(time);
@@ -53922,6 +54024,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         loadRzezby();
         loadDiabelski();
         loadPrzejscie();
+        loadWiaty();
         loadTreeModels();     // modele drzew - ciężkie pliki, więc z limitem na planszę
         loadChatkaModel();    // chatka na palach z Blendera (Amazonia)
         loadHouseModels();    // modele domów - brak pliku oznacza dom rysowany w kodzie

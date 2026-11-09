@@ -16,3 +16,4 @@ Opcje: `--tury` (także tura wrogów), `--zrzuty` (zrzuty do `zrzuty_testu/`), `
 - `models/budowle.glb` - budowle wokół Katedry, grobowce i kurhany, wykonane w Blenderze; tekstury ambientCG (CC0).
 - `models/diabelski.glb` - diabelski młyn wykonany w Blenderze; tekstury rdzy, farby i betonu generowane skryptem.
 - `models/przejscie.glb` - przejście graniczne z budkami, szlabanami i wieżami, wykonane w Blenderze.
+- `models/wiaty.glb` - wiaty z atrakcjami wesołego miasteczka, wykonane w Blenderze.
