@@ -10040,6 +10040,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
             }
 
+            // Mokradła: część drzew jest straszna; wzór i rola zapisane przy polu, bo plansza rysuje się wielokrotnie
+            if (currentCombatTheme && currentCombatTheme.id === 'bagno') obstaclePositions.forEach(p => {
+                if (p.type !== 'tree' || Math.random() >= 0.45) return;
+                const n = Math.floor(Math.random() * 5);
+                p.straszne = true; p.wzorStraszny = 'drzewo_straszne_' + n;
+                if (n % 2 === 0 && Math.random() < 0.35) p.dziupla = true;
+                else if (Math.random() < 0.12) p.drzewiec = true;
+            });
+
             // Wnętrze katedry trzyma się planu - żadnych przypadkowych przeszkód między filarami
             if (isKatedraMap && katedraObszar) {
                 const k = katedraObszar;
@@ -13316,11 +13325,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const kolorDrzewa = new THREE.Color();
         const drzewaDoPostawienia = [];   // zbieramy pozycje, stawiamy raz na końcu
 
-        function zglosDrzewoDoModelu(x, y, z) {
+        function zglosDrzewoDoModelu(x, y, z, pos) {
             if (drzewaDoPostawienia.length >= limitDrzewModeli()) return false;
-            // Powykręcane drzewa rosną tylko na Mokradłach, wymieszane ze zwykłymi
-            const straszne = !!currentCombatTheme && currentCombatTheme.id === 'bagno' && Math.random() < 0.45;
-            const dostepne = Object.keys(drzewaModele).filter(k => drzewaModele[k].gotowy && !!drzewaModele[k].straszne === straszne);
+            // Powykręcane drzewa rosną tylko tam, gdzie plansza je oznaczyła
+            const straszne = !!(pos && pos.straszne);
+            const dostepne = Object.keys(drzewaModele).filter(k => drzewaModele[k].gotowy && !!drzewaModele[k].straszne === straszne && (!straszne || k === pos.wzorStraszny));
             if (dostepne.length === 0) return false;
             drzewaDoPostawienia.push({ x: x, y: y, z: z,
                 nr: dostepne[Math.floor(Math.random() * dostepne.length)] });
@@ -16793,7 +16802,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         g.rotation.y = Math.random() * Math.PI * 2;
                         scene.add(g); obstacleMeshes.push(g);
                     }
-                    else if (!zglosDrzewoDoModelu(pos.x, ty, pos.z)) { createTree(pos.x, ty, pos.z); drzewZKodu++; }
+                    else if (!zglosDrzewoDoModelu(pos.x, ty, pos.z, pos)) { createTree(pos.x, ty, pos.z); drzewZKodu++; }
                 }
                 else if (pos.type === 'kapliczka') {
                     const shrine = createKapliczka();
@@ -25349,7 +25358,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Nowe rasy mają własne bryły, nie budujemy ich z createCharacter
             const CUSTOM_ENEMY_MESH = { summoner: createSummonerMesh, stalker: createStalkerMesh, wisp: createWispMesh, koszmar: createBossMesh, zombie: createZombieMesh, vampire: createVampireMesh, strzyga: createStrzygaMesh,
                                         spider_small: () => createSpiderMesh(false), spider_big: () => createSpiderMesh(true),
-                                        robot: createRobotMesh, droid: createDroidMesh, klaun: createClownMesh, robak: createWormMesh, general: createGeneralMesh, femina: createFeminaMesh, bozek: createBozekMesh,
+                                        drzewiec: createDrzewiecMesh, robot: createRobotMesh, droid: createDroidMesh, klaun: createClownMesh, robak: createWormMesh, general: createGeneralMesh, femina: createFeminaMesh, bozek: createBozekMesh,
                                         // Nowsi wrogowie - bez tych wpisów po wczytaniu wracali jako zwykła postać
                                         ogar: createHellhoundMesh, glizda: createGlizdaMesh, gargulec: createGargulecMesh,
                                         blizniaki: createBlizniakiMesh, matrona: createMatronaMesh, topielec: createTopielecMesh,
@@ -32531,6 +32540,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             zalobnica: 'ŻAŁOBNICA',
             gargulec: 'GARGULEC',
             bozek: 'KAMIENNY BOŻEK',
+            drzewiec: 'PRZEBUDZONE DRZEWO',
             blizniaki: 'BLIŹNIAKI',
             topielec: 'TOPIELEC',
             matrona: 'CZARNA MATRONA',
@@ -33404,7 +33414,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const classInfo = WARRIOR_CLASSES[soldier.class] || WARRIOR_CLASSES.uniwersalna;
             const psycheBonus = getPsycheAccuracyBonus(soldiers.indexOf(soldier));
             const wound = getWoundPenaltyPercent(soldier); // ranny wojownik celuje gorzej
-            return (soldier.accuracyBonus || 0) + (soldier.isKneeling ? 20 : 0) - moralePenalty + classInfo.rangedAccuracyMod + psycheBonus - wound;
+            return (soldier.accuracyBonus || 0) + (soldier.isKneeling ? 20 : 0) - moralePenalty + classInfo.rangedAccuracyMod + psycheBonus - wound - karaSzeptow(soldier);
         }
 
         // Najpierw maluje się plansza ładowania, dopiero potem budujemy misję (to chwilę blokuje stronę)
@@ -37748,6 +37758,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     podniesPochodnie(active);
                     // Ołtarz bożka, posąg w nawie, grota za wodospadem
                     tikSwiatyni(active);
+                    tikStrasznychDrzew(active);
                     // Ofiara przy palu: żywego odwiązać, za martwego się pomodlić
                     tikPali(active);
                     // Wspomnienie śpiącego leżące na drodze
@@ -37829,6 +37840,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             tikSladowNaSniegu();
             tikOgluszenia();
             tikCiemnosci();
+            tikSzeptow();
             tikPobojowiska();
             tikLodu();
             tikGeneratorow();
@@ -40093,15 +40105,164 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Drzewo z lianami: kto zatrzyma się tuż obok, może zostać oplątany na 1-2 tury.
         // To samo spętanie co pajęczyna (webbedTurns) - szarpanie się i pomoc towarzysza działają.
         const LIANY_SZANSA = 0.35;
+        const KORZENIE_SZANSA = 0.3;
+        // Korzenie wyrastają z ziemi i owijają się spiralą wokół wojownika
+        function oplatKorzeniami(s) {
+            if (!s || s.isDead || s.isNPC || isSoldierWebbed(s)) return false;
+            s.webbedTurns = 1 + (Math.random() < 0.5 ? 1 : 0);
+            s.webLiany = true;
+            const g = new THREE.Group(), mat = new THREE.MeshLambertMaterial({ color: 0x2c1e14 });
+            g.userData.unitType = 'fx';
+            g.position.y = -(s.mesh.userData.yOffset || 0);
+            const pedy = [];
+            for (let i = 0; i < 4; i++) {
+                const a0 = i / 4 * 6.283, skret = i % 2 ? 1 : -1, pkt = [];
+                pkt.push(new THREE.Vector3(Math.cos(a0) * 1.05, -0.1, Math.sin(a0) * 1.05), new THREE.Vector3(Math.cos(a0) * 0.78, 0.02, Math.sin(a0) * 0.78));
+                for (let k = 0; k <= 24; k++) {
+                    const f = k / 24, a = a0 + skret * f * 10.5, r = 0.5 - f * 0.14 + Math.sin(f * 19 + i) * 0.03;
+                    pkt.push(new THREE.Vector3(Math.cos(a) * r, 0.08 + f * (1.05 + i * 0.13), Math.sin(a) * r));
+                }
+                const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pkt), 90, 0.055 - i * 0.005, 5, false);
+                geo.setDrawRange(0, 0);
+                const m = new THREE.Mesh(geo, mat); m.castShadow = true; g.add(m); pedy.push(m);
+            }
+            s.mesh.add(g);
+            s.webMesh = g;
+            const start = performance.now();
+            activeAnimations.push(() => {
+                const f = Math.min(1, (performance.now() - start) / 900);
+                pedy.forEach(m => m.geometry.setDrawRange(0, Math.floor(m.geometry.index.count * f * (2 - f) / 3) * 3));
+                return f >= 1;
+            });
+            showFloatingWarning(`Korzenie oplatają: ${s.name}!`);
+            updateUI(`Spod ziemi wyrastają korzenie i zaciskają się na ${s.name} - ${s.webbedTurns === 1 ? 'tura' : '2 tury'} unieruchomienia albo pomoc towarzysza.`);
+            if (typeof playFileSfx === 'function') playFileSfx(AudioFiles.wallHit, 0.35);
+            return true;
+        }
+
+        // --- STRASZNE DRZEWA NA MOKRADŁACH ---
+        const SZEPTY_ZASIEG = 2, SZEPTY_KARA = 15, DZIUPLE_NARAZ = 5;
+        const DRZEWIEC_HP = 18, DRZEWIEC_CIOS = 4, DRZEWIEC_ZASIEG = 2;
+        function strasznePrzy(x, z, r) {
+            const w = [];
+            for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
+                const o = obstacleMap.get((x + dx) + ',' + (z + dz));
+                if (o && o.type === 'tree' && o.straszne) w.push(o);
+            }
+            return w;
+        }
+        function naMokradlach() { return !!currentCombatTheme && currentCombatTheme.id === 'bagno'; }
+        function karaSzeptow(s) {
+            if (!naMokradlach() || !s || !s.mesh || (s.level || 0) !== 0) return 0;
+            return strasznePrzy(Math.round(s.mesh.position.x), Math.round(s.mesh.position.z), SZEPTY_ZASIEG).length ? SZEPTY_KARA : 0;
+        }
+        // Co turę: kto stoi przy strasznym drzewie, słyszy je i nabiera lęku
+        function tikSzeptow() {
+            if (!naMokradlach() || gameOver) return;
+            soldiers.forEach(s => {
+                if (s.isDead || s.isNPC || !s.mesh || !karaSzeptow(s)) return;
+                dodajTraume(s, 'szepty');
+                updateUI(`${s.name} słyszy szept z pnia - drżą ręce, celność -${SZEPTY_KARA}%.`);
+            });
+        }
+        function createDrzewiecMesh() {
+            const g = new THREE.Group();
+            const cel = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 4, 6), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+            cel.position.y = 2; g.add(cel);
+            const oko = new THREE.MeshBasicMaterial({ color: 0xff3a10 });
+            [-0.16, 0.16].forEach(dx => {
+                const o = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), oko);
+                o.position.set(dx, 1.75, 0.36); o.scale.set(1.3, 0.7, 0.6); g.add(o);
+            });
+            const usta = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.1, 0.04), new THREE.MeshBasicMaterial({ color: 0x180400 }));
+            usta.position.set(0, 1.42, 0.37); g.add(usta);
+            const kora = new THREE.MeshLambertMaterial({ color: 0x3a2c22 }), ramiona = [];
+            [-1, 1].forEach(st => {
+                const r = new THREE.Group(); r.position.set(st * 0.22, 2.0, 0.1);
+                const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.1, 1.9, 5), kora);
+                ped.position.y = 0.95; r.add(ped);
+                r.rotation.z = -st * 0.9; r.rotation.x = 0.5; g.add(r); ramiona.push(r);
+            });
+            g.userData.yOffset = 0; g.userData.unitType = 'drzewiec'; g.userData.ramiona = ramiona;
+            return g;
+        }
+        function obudzDrzewca(o) {
+            o.drzewiec = false; o.obudzony = true;
+            const m = createDrzewiecMesh(), y = getTerrainY(o.x, o.z);
+            m.position.set(o.x, y, o.z);
+            scene.add(m);
+            enemies.push({ mesh: m, type: 'drzewiec', hp: DRZEWIEC_HP, maxHp: DRZEWIEC_HP, ap: 8, maxAp: 8, accuracyBonus: 0, isDead: false, facingAngle: 0, level: 0, zaalarmowany: true });
+            refreshEnemyPositions();
+            showFloatingWarning('Drzewo otwiera oczy!');
+            updateUI('Pień pęka w grymasie, a gałęzie zaczynają się ruszać. Nie zejdzie z miejsca, ale sięgnie na dwa pola.');
+            playFileSfx(AudioFiles.wallHit, 0.7);
+            updateFoW();
+        }
+        function wylegZDziupli(o) {
+            o.dziupla = false;
+            if (enemies.filter(e => e.zDziupli && !e.isDead).length >= DZIUPLE_NARAZ) return;
+            for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) {
+                const x = o.x + dx, z = o.z + dz;
+                if (!isWithinPlayBounds(x, z) || isObstacle(x, z) || isUnitAtLevel(x, z, 0, null)) continue;
+                const m = createSpiderMesh(false);
+                m.position.set(x, getLevelY(x, z, 0) + m.userData.yOffset, z);
+                scene.add(m);
+                enemies.push({ mesh: m, type: 'spider_small', hp: 6, maxHp: 6, ap: 14, maxAp: 14, accuracyBonus: 0, isDead: false, facingAngle: 0, level: 0, zDziupli: true });
+                refreshEnemyPositions();
+                showFloatingWarning('Coś wypełza z dziupli!');
+                updateUI('Z dziupli wysuwają się długie odnóża - pająk wyłazi prosto na oddział.');
+                updateFoW();
+                return;
+            }
+        }
+        // Po każdym kroku: uśpione drzewa budzą się na dwa pola, dziuple oddają lokatorów
+        function tikStrasznychDrzew(s) {
+            if (!naMokradlach() || !s || s.isDead || s.isNPC || !s.mesh || (s.level || 0) !== 0) return;
+            strasznePrzy(Math.round(s.mesh.position.x), Math.round(s.mesh.position.z), 2).forEach(o => {
+                if (o.drzewiec) obudzDrzewca(o);
+                else if (o.dziupla) wylegZDziupli(o);
+            });
+        }
+        // Tura przebudzonego drzewa: stoi w miejscu, bije gałęzią najbliższego w zasięgu, czasem puszcza korzenie
+        function turaDrzewca(e) {
+            const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z);
+            const cel = soldiers.filter(s => !s.isDead && s.mesh && (s.level || 0) === 0 && Math.max(Math.abs(Math.round(s.mesh.position.x) - ex), Math.abs(Math.round(s.mesh.position.z) - ez)) <= DRZEWIEC_ZASIEG)
+                .sort((a, b) => Math.hypot(a.mesh.position.x - ex, a.mesh.position.z - ez) - Math.hypot(b.mesh.position.x - ex, b.mesh.position.z - ez))[0];
+            if (!cel) return false;
+            e.mesh.rotation.y = Math.atan2(cel.mesh.position.x - ex, cel.mesh.position.z - ez);
+            const ramiona = e.mesh.userData.ramiona || [], start = performance.now();
+            activeAnimations.push(() => {
+                const f = Math.min(1, (performance.now() - start) / 420);
+                ramiona.forEach(r => { r.rotation.x = 0.5 + Math.sin(f * Math.PI) * 1.3; });
+                return f >= 1;
+            });
+            applyDamageToUnit(cel, DRZEWIEC_CIOS, e);
+            updateUI(`Gałąź smaga ${cel.name}! (-${DRZEWIEC_CIOS} HP)`);
+            if (cel.hp <= 0) { playDyingSfx(); killUnitWithAnim(cel); refreshPlayerPositions(); }
+            else if (Math.random() < 0.5) oplatKorzeniami(cel);
+            checkGameOver();
+            return true;
+        }
+        // Spalone drzewo znika z rysowania zbiorczego
+        function schowajDrzewo(x, z) {
+            const zero = new THREE.Matrix4().makeScale(0, 0, 0);
+            drzewaZbiorcze.forEach(im => {
+                const pola = im.userData.polaKopii; if (!pola) return;
+                pola.forEach((p, q) => { if (p.x === x && p.z === z) { im.userData.macierze[q] = zero; im.setMatrixAt(q, zero); im.instanceMatrix.needsUpdate = true; } });
+            });
+        }
+
         function sprawdzLiany(s) {
             if (!s || s.isDead || !s.mesh || isSoldierWebbed(s) || (s.level || 0) !== 0) return false;
             const x = Math.round(s.mesh.position.x), z = Math.round(s.mesh.position.z);
-            let obok = false;
+            let obok = false, korzenie = false;
             for (let dx = -1; dx <= 1 && !obok; dx++)
                 for (let dz = -1; dz <= 1 && !obok; dz++) {
                     const o = obstacleMap.get(`${x + dx},${z + dz}`);
                     if (o && o.type === 'drzewo_liany') obok = true;
+                    if (o && o.type === 'tree' && o.straszne) korzenie = true;
                 }
+            if (korzenie && !obok && Math.random() < KORZENIE_SZANSA) return oplatKorzeniami(s);
             if (!obok || Math.random() >= LIANY_SZANSA) return false;
             s.webbedTurns = 1 + (Math.random() < 0.5 ? 1 : 0);
             s.webLiany = true;
@@ -40453,7 +40614,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             // Ogień pożera osłony i zabudowę
             let zniszczone = 0;
-            const doWybuchu = [];
+            const doWybuchu = [], doPrzeskoku = [];
             for (let i = obstaclePositions.length - 1; i >= 0; i--) {
                 const p = obstaclePositions[i];
                 const mx = p.x + offsetX, mz = p.z + offsetZ;
@@ -40472,7 +40633,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 obstacleMap.delete(`${p.x},${p.z}`);
                 obstacleGrid[mx][mz] = null;
                 zniszczone++;
+                if (p.type === 'tree') {
+                    schowajDrzewo(p.x, p.z);
+                    if (p.straszne) doPrzeskoku.push(p);
+                    const d = enemies.find(e => e.type === 'drzewiec' && !e.isDead && Math.round(e.mesh.position.x) === p.x && Math.round(e.mesh.position.z) === p.z);
+                    if (d) zginalWOgniu(d);
+                }
             }
+            doPrzeskoku.forEach(p => zapalPole(p.x, p.z, 2));   // suche, powykręcane drzewo sypie iskrami na sąsiednie
             doWybuchu.forEach(destroyObstacle);
 
             // Ogień wypala klosze i oprawy - po pożarze zostaje ciemność
@@ -43087,7 +43255,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const FOBIA_RYTUAL_LASKA = 25, FOBIA_RYTUAL_DNI = 3, FOBIA_RYTUAL_KAPLICA = 2;
         // Skąd bierze się trauma. Nazwa źródła decyduje potem, JAKA fobia zostanie.
         const TR = { piorun: 34, roj: 26, krew: 20, zjawa: 30, ciasno: 12, otwarte: 10, ciemnosc: 18,
-                     panika: 16, rana: 14 };
+                     panika: 16, rana: 14, szepty: 8 };
         const TRAUMA_FOBIA = { piorun: 'keraunofobia', roj: 'entomofobia', krew: 'hematofobia',
                                zjawa: 'tanatofobia', ciasno: 'klaustrofobia', otwarte: 'agorafobia',
                                ciemnosc: 'nyktofobia' };
@@ -45675,6 +45843,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // BLIŹNIAKI: dwie głowy, dwa sektory, dwa strzały na turę - i lewitacja
             if (e.type === 'blizniaki') { turaBlizniakow(e); return; }
 
+            if (e.type === 'drzewiec') { const bil = turaDrzewca(e); e.ap = 0; currentEnemyIndex++; setTimeout(processNextEnemy, bil ? 600 : 15); return; }
             // BOŻEK: dopóki śpi na cokole, nie robi nic
             if (e.type === 'bozek' && e.uspiony) { e.ap = 0; currentEnemyIndex++; setTimeout(processNextEnemy, 15); return; }
             // KAPŁAN BOŻKA: obrzęd przy ołtarzu zajmuje mu całą turę
