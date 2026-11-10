@@ -28,3 +28,7 @@ mov/source/
 Thumbs.db
 desktop.ini
 zrzuty_testu/
+
+# Modele z CGTrader (Royalty Free) - tylko lokalnie
+models/nekromanta.glb
+models/gniewar.glb

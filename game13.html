@@ -20748,6 +20748,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Nazwy klipów podajemy wprost, bo bywają różne (attack vs fight).
         // ========================================================
         const ENEMY_MODELS = {
+            nekromanta: { plik: 'models/nekromanta.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Czar', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 2.6 },
+            gniewar: { plik: 'models/gniewar.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Ryk', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 2.3 },
             matrona: { plik: 'models/matrona.glb', idle: 'spider_idle', walk: 'spider_walk', atak: 'spider_attack', smierc: 'spider_death', koloryZPliku: true, wysokosc: 2.3 },
             glizda:  { plik: 'models/glizda.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', smierc: 'Smierc', koloryZPliku: true, wysokosc: 2.8 },
             stalker: { plik: 'models/pelzacz.glb', idle: 'Idle', walk: 'Walk', atak: 'Attack1', smierc: 'Die', koloryZPliku: true, wysokosc: 0.9 },
@@ -24878,6 +24880,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 { typ: 'obzeracz',   hp: 22, ap: 7,  opis: 'Obżeracz' },
                 { typ: 'zalobnica',  hp: 15, ap: 4,  opis: 'Żałobnica' },
                 { typ: 'koszmar',   hp: 20, ap: 10, opis: 'Koszmar (boss)', boss: true },
+                { typ: 'nekromanta', hp: 30, ap: 11, opis: 'Nekromanta (boss)', boss: true },
+                { typ: 'gniewar',   hp: 18, ap: 11, opis: 'Gniewar' },
                 { typ: 'general',   hp: 55, ap: 12, opis: 'Generał (boss)', boss: true },
                 { typ: 'femina',    hp: 34, ap: 11, opis: 'Femina (boss)', boss: true },
                 { typ: 'smierc',    hp: SMIERC_HP, ap: 12, opis: 'Śmierć', nieDoZabicia: true }
@@ -24914,7 +24918,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 skorpion_maly: () => createScorpionMesh('maly'),
                 skorpion: () => createScorpionMesh('sredni'),
                 skorpion_duzy: () => createScorpionMesh('duzy'),
-                koszmar: createBossMesh, general: createGeneralMesh, femina: createFeminaMesh,
+                koszmar: createBossMesh, nekromanta: createNekromantaMesh, gniewar: createGniewarMesh, general: createGeneralMesh, femina: createFeminaMesh,
                 smierc: createDeathMesh
             };
 
@@ -25775,7 +25779,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 standard: { body: 0xff4444, face: 0xaaffaa, scale: 1 }
             };
             // Nowe rasy mają własne bryły, nie budujemy ich z createCharacter
-            const CUSTOM_ENEMY_MESH = { summoner: createSummonerMesh, stalker: createStalkerMesh, wisp: createWispMesh, koszmar: createBossMesh, zombie: createZombieMesh, vampire: createVampireMesh, strzyga: createStrzygaMesh,
+            const CUSTOM_ENEMY_MESH = { nekromanta: createNekromantaMesh, gniewar: createGniewarMesh, summoner: createSummonerMesh, stalker: createStalkerMesh, wisp: createWispMesh, koszmar: createBossMesh, zombie: createZombieMesh, vampire: createVampireMesh, strzyga: createStrzygaMesh,
                                         spider_small: () => createSpiderMesh(false), spider_big: () => createSpiderMesh(true),
                                         drzewiec: createDrzewiecMesh, robot: createRobotMesh, droid: createDroidMesh, klaun: createClownMesh, robak: createWormMesh, general: createGeneralMesh, femina: createFeminaMesh, bozek: createBozekMesh,
                                         // Nowsi wrogowie - bez tych wpisów po wczytaniu wracali jako zwykła postać
@@ -30305,6 +30309,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const MATRONA_CELNOSC_ZA_STOPIEN = 4;
         const MATRONA_AP_ZA_STOPIEN = 2;
 
+        function createNekromantaMesh() { return buildEnemyModelInstance('nekromanta') || createBossMesh(); }
+        function createGniewarMesh() { return buildEnemyModelInstance('gniewar') || createCharacter(0x557733, 0x668844, 0x111111, 1.6, 'gniewar'); }
+
         function createMatronaMesh() {
             const zModelu = buildEnemyModelInstance('matrona');
             if (zModelu) return zModelu;
@@ -31668,7 +31675,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Od jakiego etapu rozwoju pojawia się dany wróg. Czego tu nie ma, pojawia się od początku.
         const ETAP_WROGA = {
             stalker: 2, summoner: 2, skorpion: 2, roj: 2, ogar: 2, strzyga: 2, robot: 2,
-            brute: 3, glizda: 3, spider_big: 3, gargulec: 3, poborca: 3, lustrzak: 3,
+            brute: 3, gniewar: 3, glizda: 3, spider_big: 3, gargulec: 3, poborca: 3, lustrzak: 3,
             vampire: 4, obzeracz: 4, gasiciel: 4, zalobnica: 4, wydrazony: 4, matrona: 4, skorpion_duzy: 4,
             oltarznik: 5, bluznierca: 5, blizniaki: 5, bezimienny: 5
         };
@@ -32004,6 +32011,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     // Cmentarzysko: wampiry i strzygi po połowie
                     if (Math.random() < 0.5) { type = 'vampire'; maxHp = 15; maxAp = 12; mesh = createVampireMesh(); }
                     else { type = 'strzyga'; maxHp = 9; maxAp = 18; mesh = createStrzygaMesh(); }
+                } else if (Math.random() < 0.1) {
+                    // Ork berserker: wyłącznie wręcz, topory tną mocniej niż pięści Kolosa
+                    type = 'gniewar'; maxHp = 18; maxAp = 11; mesh = createGniewarMesh();
                 } else if (rand < 0.06) {
                     type = 'strzyga'; maxHp = 9; maxAp = 18;
                     mesh = createStrzygaMesh();
@@ -32996,7 +33006,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             zombie: 'ZOMBIE', vampire: 'DRAKULA', strzyga: 'STRZYGA',
             robot: 'ROBOT', droid: 'DROID', ogar: 'OGAR PIEKIELNY',
             skorpion_maly: 'SKORPION ZWINNY', skorpion: 'SKORPION', skorpion_duzy: 'SKORPION PANCERNY',
-            koszmar: 'KOSZMAR', smierc: 'ŚMIERĆ', glizda: 'GLIZDA', lustrzak: 'LUSTRZAK',
+            koszmar: 'KOSZMAR', nekromanta: 'NEKROMANTA', gniewar: 'GNIEWAR', smierc: 'ŚMIERĆ', glizda: 'GLIZDA', lustrzak: 'LUSTRZAK',
             bezimienny: 'BEZIMIENNY', bluznierca: 'BLUŹNIERCA', poborca: 'POBORCA',
             oltarznik: 'OŁTARZNIK', roj: 'RÓJ', wydrazony: 'WYDRĄŻONY', gasiciel: 'GASICIEL', obzeracz: 'OBŻERACZ',
             zalobnica: 'ŻAŁOBNICA',
@@ -35119,14 +35129,21 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     ? ({ kremlin: 0.5, whitehouse: 0.5, zhongnanhai: 0.5, amazonia: 0.2 }[currentCombatTheme.id] || 0)
                     : 0;
                 const jestFemina = !jestGeneral && Math.random() < feminaSzansa;
-                const bm = jestGeneral
+                // NEKROMANTA: u siebie na cmentarzach, gdzie indziej rzadziej
+                const nekromantaSzansa = currentCombatTheme && ['cmentarzysko', 'nekropolia', 'pobojowisko'].includes(currentCombatTheme.id) ? 0.5 : 0.15;
+                const jestNekromanta = !jestGeneral && !jestFemina && Math.random() < nekromantaSzansa;
+                const bm = jestNekromanta ? createNekromantaMesh() : jestGeneral
                     ? (buildEnemyModelInstance('general') || createGeneralMesh())
                     : jestFemina
                     ? (buildEnemyModelInstance('femina') || createFeminaMesh())
                     : (buildEnemyModelInstance('koszmar') || createBossMesh());
                 bm.position.set(bx, getTerrainY(bx, bz), bz);
                 scene.add(bm);
-                const boss = jestGeneral ? {
+                const boss = jestNekromanta ? {
+                    mesh: bm, type: 'nekromanta', hp: 30, maxHp: 30, ap: 11, maxAp: 11,
+                    accuracyBonus: 10, isDead: false, facingAngle: 0, level: 0,
+                    isBoss: true, bossTurn: 0, hasOpened: false
+                } : jestGeneral ? {
                     mesh: bm, type: 'general', hp: 55, maxHp: 55, ap: 12, maxAp: 12,
                     accuracyBonus: 15, isDead: false, facingAngle: 0, level: 0,
                     isBoss: true, bossTurn: 0, hasOpened: true
@@ -35139,6 +35156,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     accuracyBonus: 5, isDead: false, facingAngle: 0, level: 0,
                     isBoss: true, bossTurn: 0, hasOpened: false
                 };
+                if (jestNekromanta) {
+                    showFloatingWarning('Sen prowadzi NEKROMANTA');
+                    updateUI('Tym snem włada NEKROMANTA. Martwi wstają na jej skinienie - dopadnijcie ją, zanim ziemia się zapełni.');
+                }
                 if (jestFemina) {
                     showFloatingWarning('Sen prowadzi FEMINA');
                     updateUI('Tym snem włada FEMINA - szamanka. Nie zbliża się, lecz gdy poczuje zagrożenie, wezwie pomoc.');
@@ -35148,7 +35169,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     updateUI('Na tej ziemi dowodzi GENERAŁ - najgroźniejszy z władców koszmarów. Działajcie razem.');
                 }
                 enemies.push(boss);
-                noteEnemyEncountered('koszmar');
+                noteEnemyEncountered(jestNekromanta ? 'nekromanta' : 'koszmar');
                 refreshEnemyPositions();
 
             } else if (currentMissionType === 'artifact') {
@@ -35253,8 +35274,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         // Więzień uznany za uwolnionego, gdy któryś wojownik stanie tuż obok, a drzwi lochu są wybite
         // KOSZMAR przyzywa potwora obok wskazanego pola
-        function summonMonsterNear(tx, tz, lvl) {
-            const kinds = [
+        function summonMonsterNear(tx, tz, lvl, tylkoMartwi) {
+            const kinds = tylkoMartwi ? [
+                { type: 'zombie', hp: 4, ap: 8, acc: 0, build: () => buildEnemyModelInstance('zombie') || createZombieMesh() }
+            ] : [
                 { type: 'standard', hp: 10, ap: 10, acc: 0,  build: () => createCharacter(0xff4444, 0xaaffaa, 0x111111, 1, 'standard') },
                 { type: 'fast',     hp: 7,  ap: 10, acc: 10, build: () => createCharacter(0xcc00ff, 0xddbbdd, 0x111111, 0.7, 'fast') },
                 { type: 'stalker',  hp: 8,  ap: 20, acc: 0,  build: () => createStalkerMesh() },
@@ -36963,7 +36986,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z), ey = getLevelY(ex, ez, e.level || 0);
                 const dist = Math.abs(px - ex) + Math.abs(pz - ez);
                 // Wręcz tylko na tej samej kondygnacji
-                if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'summoner' || e.type === 'zombie' || e.type === 'strzyga' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big' || e.type === 'smierc' || e.type === 'ogar' || e.type === 'robak') return ((e.level || 0) === (active.level || 0) && Math.max(Math.abs(px - ex), Math.abs(pz - ez)) === 1 && Math.abs(ey - py) <= 1 && e.type !== 'summoner');
+                if (e.type === 'brute' || e.type === 'gniewar' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'summoner' || e.type === 'zombie' || e.type === 'strzyga' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big' || e.type === 'smierc' || e.type === 'ogar' || e.type === 'robak') return ((e.level || 0) === (active.level || 0) && Math.max(Math.abs(px - ex), Math.abs(pz - ez)) === 1 && Math.abs(ey - py) <= 1 && e.type !== 'summoner');
                 return (dist <= getVisionRange() && czyWidacPrzez(ex, ey+1, ez, px, py+0.5, pz) && !floorsBlockShot(ex, ez, e.level || 0, px, pz, active.level || 0));
             });
 
@@ -39045,7 +39068,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 return LOD_BAZA + Math.floor(ciezar / LOD_NA_CIEZAR);
             }
             // Wrogowie: duże bestie obciążają lód mocniej niż drobne
-            if (['brute', 'smierc', 'general', 'koszmar', 'oltarznik', 'robot', 'bezimienny'].includes(u.type)) return LOD_BAZA + 2;
+            if (['brute', 'gniewar', 'smierc', 'general', 'koszmar', 'nekromanta', 'oltarznik', 'robot', 'bezimienny'].includes(u.type)) return LOD_BAZA + 2;
             if (['wisp', 'roj', 'spider_small', 'fast'].includes(u.type)) return 1;
             return LOD_BAZA;
         }
@@ -40027,7 +40050,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return przy.length ? przy : kryjowki.filter(k => isFarFromSquad(k.x, k.z, ZASADZKA_OD_ODDZIALU));
         }
 
-        const WALCZA_WRECZ = ['brute', 'stalker', 'wisp', 'zombie', 'robot', 'spider_small', 'spider_big', 'robak',
+        const WALCZA_WRECZ = ['brute', 'gniewar', 'stalker', 'wisp', 'zombie', 'robot', 'spider_small', 'spider_big', 'robak',
                               'smierc', 'ogar', 'glizda', 'lustrzak', 'bezimienny', 'oltarznik', 'wydrazony', 'gasiciel', 'obzeracz'];
         // Strzelcy czający się w domach i chatkach: startują w środku i nie ruszają się,
         // dopóki wojownik nie podejdzie na 7 pól (albo ich nie zrani - wtedy też wstają).
@@ -47824,12 +47847,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // a nie teleportuje wprost pod nogi wojowników.
                 const bx = ex, bz = ez;
                 const bLvl = eLvl;
+                const nazwaBossa = e.type === 'nekromanta' ? 'NEKROMANTA' : 'KOSZMAR';
+                const martwi = e.type === 'nekromanta';   // Nekromanta wskrzesza wyłącznie zombie
                 if (!e.hasOpened) {
                     e.hasOpened = true;
                     let n = 0;
                     animWroga(e, 'specjalna', true);   // gest przywołania
-                    for (let i = 0; i < 3; i++) if (summonMonsterNear(bx, bz, bLvl)) n++;
-                    updateUI(`KOSZMAR budzi się i przyzywa ${n} potwory!`);
+                    for (let i = 0; i < 3; i++) if (summonMonsterNear(bx, bz, bLvl, martwi)) n++;
+                    updateUI(`${nazwaBossa} budzi się i przyzywa ${n} potwory!`);
                     updateFoW();
                     currentEnemyIndex++; setTimeout(processNextEnemy, 350);
                     return;
@@ -47838,9 +47863,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const summonNow = (e.bossTurn % 2 === 0); // co druga tura przyzywa
                 if (summonNow) {
                     animWroga(e, 'specjalna', true);
-                    if (summonMonsterNear(bx, bz, bLvl)) {
+                    if (summonMonsterNear(bx, bz, bLvl, martwi)) {
                         faceTowards(e, bpx, bpz);
-                        updateUI('KOSZMAR przyzywa kolejnego potwora!');
+                        updateUI(`${nazwaBossa} przyzywa kolejnego potwora!`);
                         updateFoW();
                         currentEnemyIndex++; setTimeout(processNextEnemy, 300);
                         return;
@@ -47852,7 +47877,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     faceTowards(e, bpx, bpz);
                     playFileSfx(AudioFiles.laserShot, 0.6);
                     const hit = Math.random() < 0.7;
-                    updateUI('KOSZMAR ciska kulą ognia!');
+                    updateUI(`${nazwaBossa} ciska kulą ognia!`);
                     animWroga(e, 'atak', true);   // boss strzela
                     createProjectile(ex, ey + 1.6, ez, bpx, bpy + 0.5, bpz, hit, null, () => {
                         if (hit) {
@@ -48035,8 +48060,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
             }
 
-            if (e.type === 'brute' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'zombie' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big' || e.type === 'smierc' || e.type === 'ogar' || e.type === 'robak' || e.type === 'glizda' || e.type === 'lustrzak' || e.type === 'bezimienny' || e.type === 'oltarznik' || e.type === 'wydrazony' || e.type === 'gasiciel' || e.type === 'obzeracz' || e.type === 'zalobnica' || e.type === 'bozek') {
-                const meleeCostE = (e.type === 'brute') ? shootCost : 3; // szybsze rasy uderzają taniej
+            if (e.type === 'brute' || e.type === 'gniewar' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'zombie' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big' || e.type === 'smierc' || e.type === 'ogar' || e.type === 'robak' || e.type === 'glizda' || e.type === 'lustrzak' || e.type === 'bezimienny' || e.type === 'oltarznik' || e.type === 'wydrazony' || e.type === 'gasiciel' || e.type === 'obzeracz' || e.type === 'zalobnica' || e.type === 'bozek') {
+                const meleeCostE = (e.type === 'brute' || e.type === 'gniewar') ? shootCost : 3; // szybsze rasy uderzają taniej
                 const chebDystans = Math.max(Math.abs(px - ex), Math.abs(pz - ez));
                 if (e.ap >= meleeCostE && tLvl === eLvl && chebDystans === 1 && Math.abs(ey - py) <= 1) {
                     if (e.type === 'glizda' || e.type === 'spider_small') {   // limit ataków w turze: glizda 2, mały pająk 3
@@ -48060,7 +48085,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         return;
                     }
                     e.ap -= meleeCostE;
-                    updateUI(e.type === 'brute' ? "DUŻY OBCY: Cios wręcz!"
+                    updateUI(e.type === 'gniewar' ? "GNIEWAR rąbie toporami!" : e.type === 'brute' ? "DUŻY OBCY: Cios wręcz!"
                         : (e.type === 'stalker' ? "PEŁZACZ rzuca się na cel!"
                         : (e.type === 'zombie' ? "ZOMBIE wczepia się pazurami!"
                         : (e.type === 'bozek') ? "KAMIENNY BOŻEK miażdży kamienną pięścią!"
@@ -48073,6 +48098,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     slideObject(e.mesh, px, py + e.mesh.userData.yOffset, pz, 150, () => {
                         let meleeDmgBaza = 3;
                         if (e.type === 'brute') meleeDmgBaza = 6;
+                        else if (e.type === 'gniewar') meleeDmgBaza = 7;
                         else if (e.type === 'stalker') meleeDmgBaza = 4;
                         else if (e.type === 'zombie') meleeDmgBaza = 3;
                         else if (e.type === 'robot') meleeDmgBaza = 5;
@@ -48120,7 +48146,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     return;
                 }
             } else {
-                if (e.type !== 'summoner' && e.type !== 'zombie' && e.type !== 'strzyga' && e.type !== 'robot' && e.type !== 'spider_small' && e.type !== 'spider_big' && e.type !== 'smierc' && e.type !== 'ogar' && e.type !== 'robak' && e.ap >= shootCost && dist <= getVisionRange() && checkLineOfSight3D(ex, ey+1, ez, px, py+0.5, pz) && !floorsBlockShot(ex, ez, eLvl, px, pz, tLvl)) {
+                if (e.type !== 'summoner' && e.type !== 'gniewar' && e.type !== 'zombie' && e.type !== 'strzyga' && e.type !== 'robot' && e.type !== 'spider_small' && e.type !== 'spider_big' && e.type !== 'smierc' && e.type !== 'ogar' && e.type !== 'robak' && e.ap >= shootCost && dist <= getVisionRange() && checkLineOfSight3D(ex, ey+1, ez, px, py+0.5, pz) && !floorsBlockShot(ex, ez, eLvl, px, pz, tLvl)) {
                     // Lód leci w obie strony: część strzelców ma po jednym ładunku
                     const lodemWrog = (e.ladunkiMrozace > 0) && !bestTarget.isNPC &&
                                       !czyZamrozony(bestTarget) && Math.random() < AMU_WROG_SZANSA;
@@ -50049,6 +50075,19 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 stats: [['Punkty życia', '20'], ['Punkty ruchu', '10'], ['Premia do celności', '+5%'], ['Styl walki', 'kula ognia (7 obr.) i przyzywanie']]
             },
             {
+                id: 'nekromanta', title: 'Nekromanta',
+                text: 'Wysoka, wychudła kobieta o szarej skórze, z kosą w dłoni i ludzkimi czaszkami zatkniętymi za plecami. ' +
+                      'Tam, gdzie stanie, ziemia przestaje trzymać swoich zmarłych.\\n\\n' +
+                      'Na widok wojownika wskrzesza trzy zombie, a potem na przemian ciska ogniem i podnosi kolejnego trupa. Zabij ją, a reszta przestanie się liczyć.',
+                stats: [['Punkty życia', '30'], ['Punkty ruchu', '11'], ['Premia do celności', '+10%'], ['Styl walki', 'kula ognia (7 obr.) i wskrzeszanie zombie']]
+            },
+            {
+                id: 'gniewar', title: 'Gniewar',
+                text: 'Ork berserker z dwoma toporami, zbudowany jak taran. Nie zna strachu ani odwrotu.\\n\\n' +
+                      'Nie strzela. Idzie prosto na najbliższego i rąbie - cios Gniewara boli bardziej niż pięść Kolosa.',
+                stats: [['Punkty życia', '18'], ['Punkty ruchu', '11'], ['Premia do celności', 'brak'], ['Styl walki', 'wyłącznie wręcz, topory (7 obr.)']]
+            },
+            {
                 id: 'robot', title: 'Robot Bojowy',
                 text: 'Stalowy humanoid z parą rogów na hełmie i świecącymi żyłami wzdłuż torsu. Zamiast twarzy ma wąski wizjer.\\n\\n' +
                       'Nie strzela - podchodzi i uderza pięścią jak młotem. Pancerz czyni go wytrzymałym, ' +
@@ -50519,6 +50558,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 robot:    createRobotMesh,
                 droid:    createDroidMesh,
                 koszmar:  createBossMesh,
+                nekromanta: createNekromantaMesh,
+                gniewar:  createGniewarMesh,
                 ogar:     createHellhoundMesh,
                 smierc:   createDeathMesh,
                 klaun:    createClownMesh,
