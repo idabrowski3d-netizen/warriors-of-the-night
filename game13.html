@@ -20748,6 +20748,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Nazwy klipów podajemy wprost, bo bywają różne (attack vs fight).
         // ========================================================
         const ENEMY_MODELS = {
+            matrona: { plik: 'models/matrona.glb', idle: 'spider_idle', walk: 'spider_walk', atak: 'spider_attack', smierc: 'spider_death', koloryZPliku: true, wysokosc: 2.3 },
             glizda:  { plik: 'models/glizda.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', smierc: 'Smierc', koloryZPliku: true, wysokosc: 2.8 },
             stalker: { plik: 'models/pelzacz.glb', idle: 'Idle', walk: 'Walk', atak: 'Attack1', smierc: 'Die', koloryZPliku: true, wysokosc: 0.9 },
             ogar:    { plik: 'models/ogar.glb', idle: 'Idle', walk: 'Walking', atak: 'Atak', smierc: 'Smierc', koloryZPliku: true, wysokosc: 1.35, obrot: -Math.PI / 2 },
@@ -30305,6 +30306,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const MATRONA_AP_ZA_STOPIEN = 2;
 
         function createMatronaMesh() {
+            const zModelu = buildEnemyModelInstance('matrona');
+            if (zModelu) return zModelu;
             const g = new THREE.Group();
             const chityna = new THREE.MeshLambertMaterial({ color: 0x16121a });
             const chityna2 = new THREE.MeshLambertMaterial({ color: 0x2a2130 });
