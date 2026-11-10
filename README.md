@@ -17,6 +17,8 @@ Opcje: `--tury` (także tura wrogów), `--zrzuty` (zrzuty do `zrzuty_testu/`), `
 - `models/diabelski.glb` - diabelski młyn wykonany w Blenderze; tekstury rdzy, farby i betonu generowane skryptem.
 - `models/przejscie.glb` - przejście graniczne z budkami, szlabanami i wieżami, wykonane w Blenderze.
 - `models/tekstury_szpital/` - tekstury ścian i posadzek szpitala z ambientCG (ambientcg.com, CC0).
+- `models/nekromanta.glb` - "Necromancer", dremorn (https://www.cgtrader.com/free-3d-models/character/fantasy-character/necromancer-3d-low-poly-model), CGTrader Royalty Free License (no AI), wyeksportowany do glTF.
+- `models/gniewar.glb` - "Ork Berserker", dremorn (https://www.cgtrader.com/free-3d-models/character/fantasy-character/ork-berserker), CGTrader Royalty Free License (no AI), wyeksportowany do glTF.
 - `models/pelzacz.glb` - "Roach", Atmostatic (https://opengameart.org/content/roach-game-ready-and-animated), CC-BY-SA, wyeksportowany do glTF.
 - `models/ogar.glb` - ogar piekielny przerobiony z wilka z "Animal Pack Vol.2", Quaternius (https://opengameart.org/content/animated-animales-low-poly), CC0.
 - `models/smierc.glb` - postać Śmierci z kosą, wykonana w Blenderze.
