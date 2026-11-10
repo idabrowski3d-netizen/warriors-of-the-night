@@ -24,6 +24,7 @@ Opcje: `--tury` (także tura wrogów), `--zrzuty` (zrzuty do `zrzuty_testu/`), `
 - `models/rogacz.glb` - "Monster 1 demon with claws", estrele (https://www.cgtrader.com/free-3d-models/character/fantasy-character/monster-1-16e2532b-fdb4-40a7-afee-97c74e494c7a), CGTrader Royalty Free License (no AI), wyeksportowany do glTF.
 - `models/szkieletor.glb` - "Human Skeleton", mehrannaseri (https://www.cgtrader.com/free-3d-models/character/human-anatomy/human-skeleton-c94759ce-746d-4b8e-a352-8d1d6836157c), CGTrader Royalty Free License (no AI). Zmiany: uproszczona siatka, wlasny szkielet i animacje, eksport do GLB.
 - `models/furiat.glb` - "Infernal dog", dremorn (https://www.cgtrader.com/free-3d-models/character/fantasy-character/3d-model-infernal-dog), CGTrader Royalty Free License (no AI). Zmiany: dodane animacje, eksport do GLB.
+- `models/mamut.glb` - "Prehistoric mammoth skeleton with prominent curved tusks" (https://www.cgtrader.com/free-3d-models/character/human-anatomy/prehistoric-mammoth-skeleton-with-prominent-curved-tusks), Oleg Verenko (CGTrader), Royalty Free License (no AI). Zmiany: wlasny szkielet i animacje, eksport do GLB.
 - `models/pelzacz.glb` - "Roach", Atmostatic (https://opengameart.org/content/roach-game-ready-and-animated), CC-BY-SA, wyeksportowany do glTF.
 - `models/ogar.glb` - ogar piekielny przerobiony z wilka z "Animal Pack Vol.2", Quaternius (https://opengameart.org/content/animated-animales-low-poly), CC0.
 - `models/smierc.glb` - postać Śmierci z kosą, wykonana w Blenderze.
