@@ -10020,7 +10020,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // meble. Rozrzut roślinności biegnie PO jego zbudowaniu i stawiał
             // drzewa wprost na podłodze pokoi (111 ze 111 drzew na deskach).
             const wnetrzeNaCalosc = currentCombatTheme && currentCombatTheme.id === 'dom';
-            if (isVolcanoMap || isKatedraMap || isCyberMap || wnetrzeNaCalosc || currentCombatTheme.id === 'zhongnanhai') {
+            if (isVolcanoMap || isKatedraMap || isCyberMap || wnetrzeNaCalosc || (currentCombatTheme && currentCombatTheme.id === 'zhongnanhai')) {
                 // Wulkan, katedra, siatka cyfrowa i wnętrze domu - żadnej roślinności
             } else if (isSaharaMap) {
                 // Sahara - drzewa rosną wyłącznie w kilku skupiskach (oazy), nie rozrzucone po pustyni
@@ -10195,7 +10195,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     stoi++;
                 }
             });
-            const cornfieldPatchCount = (isVolcanoMap || isSaharaMap || isNYMap || isKatedraMap || isFloodMap || isCyberMap || currentCombatTheme.id === 'zhongnanhai') ? 0 : 7;
+            const cornfieldPatchCount = (isVolcanoMap || isSaharaMap || isNYMap || isKatedraMap || isFloodMap || isCyberMap || (currentCombatTheme && currentCombatTheme.id === 'zhongnanhai')) ? 0 : 7;
             for (let p = 0; p < cornfieldPatchCount; p++) {
                 let centerX = Math.floor(Math.random() * mapWidth) - offsetX;
                 let centerZ = Math.floor(Math.random() * mapDepth) - offsetZ;
@@ -26604,6 +26604,41 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     }
                 }
             });
+        }
+
+        // Nić duszy: niebieska, falująca, półprzezroczysta lina między duszą a ciałem.
+        // Nocą w mieście biegnie od ciała śpiącego w łóżku do latającego bohatera,
+        // we śnie od każdego wojownika pionowo w niebo.
+        let lozkoBohatera = null, cialoSpiace = null; const linyDuszy = [];
+        const linaCzas = { value: 0 };
+        const linaMat = new THREE.MeshBasicMaterial({ color: 0x4aa8ff, transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+        linaMat.onBeforeCompile = sh => {
+            sh.uniforms.uT = linaCzas;
+            sh.vertexShader = 'uniform float uT;\n' + sh.vertexShader.replace('#include <begin_vertex>',
+                '#include <begin_vertex>\n float fa = sin(3.14159 * position.y); float L = length(vec3(modelMatrix[1])) * position.y;\n' +
+                ' transformed.x += fa * (0.35 * sin(L * 1.1 - uT * 2.6) + 0.1 * sin(L * 3.0 + uT * 4.1));\n' +
+                ' transformed.z += fa * 0.3 * cos(L * 0.8 - uT * 2.1);');
+        };
+        const linaGeo = new THREE.CylinderGeometry(0.075, 0.075, 1, 8, 120, true); linaGeo.translate(0, 0.5, 0);
+        const OS_Y = new THREE.Vector3(0, 1, 0);
+        function ustawLine(i, a, b) {
+            let m = linyDuszy[i];
+            if (!m) { m = linyDuszy[i] = new THREE.Mesh(linaGeo, linaMat); m.frustumCulled = false; m.renderOrder = 5; }
+            if (!m.parent) scene.add(m);
+            const d = b.clone().sub(a); m.position.copy(a); m.scale.set(1, d.length(), 1); m.quaternion.setFromUnitVectors(OS_Y, d.normalize());
+        }
+        function updateLinyDuszy(dt) {
+            linaCzas.value += dt || 0.016; let n = 0;
+            const noc = gameMode === 'presentNight';
+            if (cialoSpiace) cialoSpiace.visible = noc;
+            if (noc && hero && lozkoBohatera) {
+                const a = lozkoBohatera.getWorldPosition(new THREE.Vector3()); a.y += 0.8;
+                ustawLine(n++, a, hero.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)));
+            } else if (gameMode === 'dream') soldiers.forEach(s => {
+                if (s.isDead || !s.mesh || !s.mesh.visible) return;
+                const a = s.mesh.position.clone(); a.y += 1.1; ustawLine(n++, a, a.clone().add(new THREE.Vector3(0, 60, 0)));
+            });
+            for (let i = n; i < linyDuszy.length; i++) if (linyDuszy[i].parent) linyDuszy[i].parent.remove(linyDuszy[i]);
         }
 
         function startPresentNightMode() {
@@ -49308,6 +49343,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (ok(lx, db.maxZ - 2) && ok(lx, db.maxZ - 1)) {
                     const g = lozko(lx, db.maxZ - 2, false); g.rotation.y = Math.PI;
                     box(g, 0.92, 0.04, 0.9, M(0x3a6a4a), 0, 0.66, -0.3);
+                    // ciało bohatera śpi tu nocą, kiedy jego dusza lata po mieście
+                    cialoSpiace = grupa(lx, db.maxZ - 1.5); cialoSpiace.rotation.y = Math.PI; cialoSpiace.visible = false;
+                    const glowa = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), M(0xd9a988)); glowa.position.set(0, 0.8, -0.66); cialoSpiace.add(glowa);
+                    box(cialoSpiace, 0.55, 0.16, 1.15, M(0x3a6a4a), 0, 0.74, 0.22);
+                    lozkoBohatera = cialoSpiace;
                     if (ok(lx + 1, db.maxZ - 1)) { const s = grupa(lx + 1, db.maxZ - 1); zajmij(lx + 1, db.maxZ - 1, 'regal');
                         box(s, 0.45, 0.5, 0.4, drewno, 0, 0.25, 0); box(s, 0.1, 0.25, 0.1, ciemne, 0, 0.62, 0);
                         const k = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.2, 10, 1, true), M(0xf0d890)); k.position.set(0, 0.82, 0); s.add(k); }
@@ -50110,6 +50150,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             } else {
                 handleEdgeScroll();
             }
+            updateLinyDuszy(dt);
             if (soldiers.length > 0 || isExploreMode()) renderMinimap();
             updateShadowFollow();
             updateCloudSea(dt);
