@@ -13507,7 +13507,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
         }
 
-        let rzezbyProto = null, rzezbyCzekaja = [], aniolProto = null;
+        let rzezbyProto = null, rzezbyCzekaja = [], aniolProto = null, patronProto = null;
         function loadRzezby() {
             if (typeof THREE.GLTFLoader === 'undefined') return;
             wczytajGlbBezAnimacji('models/aniol_rzezba.glb', new THREE.GLTFLoader(), gltf => {
@@ -13518,6 +13518,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 });
                 aniolProto = gltf.scene;
             }, err => console.warn('[rzezby] Nie wczytano models/aniol_rzezba.glb', err));
+            wczytajGlbBezAnimacji('models/patron.glb', new THREE.GLTFLoader(), gltf => { patronProto = gltf.scene; }, err => console.warn('[patron] Nie wczytano models/patron.glb', err));
             wczytajGlbBezAnimacji('models/rzezby.glb', new THREE.GLTFLoader(), gltf => {
                 const figury = gltf.scene.children.slice();
                 figury.forEach(f => f.traverse(ch => {
@@ -28183,16 +28184,23 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const g = new THREE.Group();
             const glow = new THREE.MeshBasicMaterial({ color: 0xfff6d8, transparent: true, opacity: 0.42, depthWrite: false });
             const wingMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false });
+            const zlotoMat = new THREE.MeshBasicMaterial({ color: 0xffd98a, transparent: true, opacity: 0.55, depthWrite: false });
+            // aureola
+            const halo = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.045, 8, 18),
+                new THREE.MeshBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.85, depthWrite: false }));
+            halo.rotation.x = Math.PI / 2; halo.position.y = 2.62; g.add(halo);
+            if (patronProto) halo.position.y = 2.72;
+            if (patronProto) {
+                const p = patronProto.clone();
+                p.traverse(ch => { if (ch.isMesh) ch.material = ch.material.name === 'skrzydla' ? wingMat : ch.material.name === 'zbroja' ? zlotoMat : glow; });
+                g.add(p);
+            } else {
             const robe = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.7, 10), glow);
             robe.position.y = 0.9; g.add(robe);
             const torso = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 10), glow);
             torso.scale.set(1, 1.2, 0.8); torso.position.y = 1.75; g.add(torso);
             const head = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 10), glow);
             head.position.y = 2.25; g.add(head);
-            // aureola
-            const halo = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.045, 8, 18),
-                new THREE.MeshBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.85, depthWrite: false }));
-            halo.rotation.x = Math.PI / 2; halo.position.y = 2.62; g.add(halo);
             // skrzydła
             [-1, 1].forEach(side => {
                 const wing = new THREE.Mesh(new THREE.ConeGeometry(0.42, 1.6, 6), wingMat);
@@ -28207,6 +28215,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             blade.position.set(0.5, 1.9, 0.2); blade.rotation.z = -0.35; g.add(blade);
             const guard = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.08, 0.08), bladeMat);
             guard.position.set(0.42, 1.3, 0.2); g.add(guard);
+            }
             const light = new THREE.PointLight(0xfff0b8, 1.6, 14, 1.3);
             light.position.y = 2.0; g.add(light);
             g.scale.set(3, 3, 3);      // trzykrotnie wyższy od wojownika
