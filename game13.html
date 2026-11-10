@@ -20748,6 +20748,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Nazwy klipów podajemy wprost, bo bywają różne (attack vs fight).
         // ========================================================
         const ENEMY_MODELS = {
+            stalker: { plik: 'models/pelzacz.glb', idle: 'Idle', walk: 'Walk', atak: 'Attack1', smierc: 'Die', koloryZPliku: true, wysokosc: 0.9 },
             ogar:    { plik: 'models/ogar.glb', idle: 'Idle', walk: 'Walking', atak: 'Atak', smierc: 'Smierc', koloryZPliku: true, wysokosc: 1.35, obrot: -Math.PI / 2 },
             zombie:  { plik: 'models/zombie.glb',  idle: 'zombie_idle',  walk: 'zombie_walk',
                        atak: 'zombie_attack',  smierc: 'zombie_death',  cios: 'zombie_hit',
@@ -31611,6 +31612,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         function createStalkerMesh() {
+            const zModelu = buildEnemyModelInstance('stalker');
+            if (zModelu) return zModelu;
             const g = new THREE.Group();
             const bodyMat = new THREE.MeshLambertMaterial({ color: 0x1f6b4a });
             const body = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 8), bodyMat);

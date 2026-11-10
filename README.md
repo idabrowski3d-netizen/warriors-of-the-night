@@ -17,6 +17,7 @@ Opcje: `--tury` (także tura wrogów), `--zrzuty` (zrzuty do `zrzuty_testu/`), `
 - `models/diabelski.glb` - diabelski młyn wykonany w Blenderze; tekstury rdzy, farby i betonu generowane skryptem.
 - `models/przejscie.glb` - przejście graniczne z budkami, szlabanami i wieżami, wykonane w Blenderze.
 - `models/tekstury_szpital/` - tekstury ścian i posadzek szpitala z ambientCG (ambientcg.com, CC0).
+- `models/pelzacz.glb` - "Roach", Atmostatic (https://opengameart.org/content/roach-game-ready-and-animated), CC-BY-SA, wyeksportowany do glTF.
 - `models/ogar.glb` - ogar piekielny przerobiony z wilka z "Animal Pack Vol.2", Quaternius (https://opengameart.org/content/animated-animales-low-poly), CC0.
 - `models/smierc.glb` - postać Śmierci z kosą, wykonana w Blenderze.
 - `models/pociagi_rdza.glb` - lokomotywy i wagony z Train Kit autorstwa Kenney (kenney.nl, CC0), postarzone rdzą w Blenderze.
