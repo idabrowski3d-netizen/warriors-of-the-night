@@ -13507,9 +13507,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
         }
 
-        let rzezbyProto = null, rzezbyCzekaja = [];
+        let rzezbyProto = null, rzezbyCzekaja = [], aniolProto = null;
         function loadRzezby() {
             if (typeof THREE.GLTFLoader === 'undefined') return;
+            wczytajGlbBezAnimacji('models/aniol_rzezba.glb', new THREE.GLTFLoader(), gltf => {
+                gltf.scene.traverse(ch => {
+                    if (!ch.isMesh) return;
+                    ch.material = new THREE.MeshLambertMaterial({ color: 0xb8b2a6 });
+                    ch.castShadow = true;
+                });
+                aniolProto = gltf.scene;
+            }, err => console.warn('[rzezby] Nie wczytano models/aniol_rzezba.glb', err));
             wczytajGlbBezAnimacji('models/rzezby.glb', new THREE.GLTFLoader(), gltf => {
                 const figury = gltf.scene.children.slice();
                 figury.forEach(f => f.traverse(ch => {
@@ -18641,6 +18649,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const plinth = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.9, 1.0), stoneMat);
                     plinth.position.set(pos.x, ty + 0.45, pos.z);
                     scene.add(plinth); obstacleMeshes.push(plinth);
+                    if (aniolProto && Math.abs(pos.x * 3 + pos.z) % 3 === 0) {   // co trzecia figura to modlący się anioł
+                        const a = aniolProto.clone();
+                        a.position.set(pos.x, ty + 0.9, pos.z);
+                        a.rotation.y = pos.obrot === undefined ? Math.PI : pos.obrot;
+                        scene.add(a); obstacleMeshes.push(a);
+                        return;
+                    }
                     if (pos.plan) {   // katedra: figury ze skanów, twarzą do wejścia
                         const g = new THREE.Group();
                         g.position.set(pos.x, ty + 0.9, pos.z); g.rotation.y = pos.obrot === undefined ? Math.PI : pos.obrot;
