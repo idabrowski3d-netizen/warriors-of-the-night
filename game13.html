@@ -20763,6 +20763,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Nazwy klipów podajemy wprost, bo bywają różne (attack vs fight).
         // ========================================================
         const ENEMY_MODELS = {
+            zakonnica: { plik: 'models/zakonnica.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Czar', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 1.9, alphaTest: 0.5 },
             mamut: { plik: 'models/mamut.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Ryk', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 2.5 },
             furiat: { plik: 'models/furiat.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Ryk', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 1.5 },
             zalobnica: { plik: 'models/zalobnica.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Czar', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 2.2 },
@@ -20988,7 +20989,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                     map: m.map || null,
                                     color: m.map ? 0xffffff : wlasne ? m.color : 0xa08890,
                                     emissive: wlasne && m.emissive ? m.emissive : 0x000000,
-                                    skinning: !!ch.isSkinnedMesh, side: THREE.DoubleSide
+                                    skinning: !!ch.isSkinnedMesh, side: THREE.DoubleSide, alphaTest: cfg.alphaTest || 0
                                 });
                             });
                             ch.material = Array.isArray(ch.material) ? nowe : nowe[0];
@@ -33062,7 +33063,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             matrona: 'CZARNA MATRONA',
             zmienny: 'ZMIENNOKSZTAŁTNY',
             spider_small: 'PAJĄK', spider_big: 'WIELKI PAJĄK', klaun: 'KLAUN', robak: 'ROBAK', general: 'GENERAŁ', femina: 'FEMINA',
-            zakonnik: 'ZAKONNIK', inkwizytor: 'INKWIZYTOR'
+            zakonnik: 'ZAKONNIK', zakonnica: 'ZAKONNICA', inkwizytor: 'INKWIZYTOR'
         };
 
         function nazwaWroga(e) {
@@ -46170,7 +46171,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // i właśnie o to chodzi: przychodzą po was ci, którzy uważają się za swoich.
         const OBLEZENIE_SKLAD = [
             { typ: 'zakonnik',   hp: 11, ap: 10, waga: 5, budowa: () => buildEnemyModelInstance('zakonnik') || createZakonnikMesh(false) },
-            { typ: 'zakonnik',   hp: 11, ap: 10, waga: 4, budowa: () => buildEnemyModelInstance('zakonnik') || createZakonnikMesh(false) },
+            { typ: 'zakonnica',  hp: 11, ap: 10, waga: 4, budowa: () => buildEnemyModelInstance('zakonnica') || createZakonnikMesh(false) },
             { typ: 'inkwizytor', hp: 17, ap: 9,  waga: 2, budowa: () => buildEnemyModelInstance('inkwizytor') || createZakonnikMesh(true) }
         ];
         const OBLEZENIE_UDZIAL_ZAKONU = 0.7;   // reszta to przyprowadzone demony
