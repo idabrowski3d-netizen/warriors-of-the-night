@@ -20748,6 +20748,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Nazwy klipów podajemy wprost, bo bywają różne (attack vs fight).
         // ========================================================
         const ENEMY_MODELS = {
+            dark_warrior: { plik: 'models/dark_warrior.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', atakWrecz: 'Atak', specjalna: 'Czar', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 3.0 },
             nekromanta: { plik: 'models/nekromanta.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Czar', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 2.6 },
             gniewar: { plik: 'models/gniewar.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Ryk', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 2.3 },
             matrona: { plik: 'models/matrona.glb', idle: 'spider_idle', walk: 'spider_walk', atak: 'spider_attack', smierc: 'spider_death', koloryZPliku: true, wysokosc: 2.3 },
@@ -24881,6 +24882,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 { typ: 'zalobnica',  hp: 15, ap: 4,  opis: 'Żałobnica' },
                 { typ: 'koszmar',   hp: 20, ap: 10, opis: 'Koszmar (boss)', boss: true },
                 { typ: 'nekromanta', hp: 30, ap: 11, opis: 'Nekromanta (boss)', boss: true },
+                { typ: 'dark_warrior', hp: 40, ap: 12, opis: 'Dark Warrior (boss)', boss: true },
                 { typ: 'gniewar',   hp: 18, ap: 11, opis: 'Gniewar' },
                 { typ: 'general',   hp: 55, ap: 12, opis: 'Generał (boss)', boss: true },
                 { typ: 'femina',    hp: 34, ap: 11, opis: 'Femina (boss)', boss: true },
@@ -24918,7 +24920,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 skorpion_maly: () => createScorpionMesh('maly'),
                 skorpion: () => createScorpionMesh('sredni'),
                 skorpion_duzy: () => createScorpionMesh('duzy'),
-                koszmar: createBossMesh, nekromanta: createNekromantaMesh, gniewar: createGniewarMesh, general: createGeneralMesh, femina: createFeminaMesh,
+                koszmar: createBossMesh, dark_warrior: createDarkWarriorMesh, nekromanta: createNekromantaMesh, gniewar: createGniewarMesh, general: createGeneralMesh, femina: createFeminaMesh,
                 smierc: createDeathMesh
             };
 
@@ -25779,7 +25781,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 standard: { body: 0xff4444, face: 0xaaffaa, scale: 1 }
             };
             // Nowe rasy mają własne bryły, nie budujemy ich z createCharacter
-            const CUSTOM_ENEMY_MESH = { nekromanta: createNekromantaMesh, gniewar: createGniewarMesh, summoner: createSummonerMesh, stalker: createStalkerMesh, wisp: createWispMesh, koszmar: createBossMesh, zombie: createZombieMesh, vampire: createVampireMesh, strzyga: createStrzygaMesh,
+            const CUSTOM_ENEMY_MESH = { dark_warrior: createDarkWarriorMesh, nekromanta: createNekromantaMesh, gniewar: createGniewarMesh, summoner: createSummonerMesh, stalker: createStalkerMesh, wisp: createWispMesh, koszmar: createBossMesh, zombie: createZombieMesh, vampire: createVampireMesh, strzyga: createStrzygaMesh,
                                         spider_small: () => createSpiderMesh(false), spider_big: () => createSpiderMesh(true),
                                         drzewiec: createDrzewiecMesh, robot: createRobotMesh, droid: createDroidMesh, klaun: createClownMesh, robak: createWormMesh, general: createGeneralMesh, femina: createFeminaMesh, bozek: createBozekMesh,
                                         // Nowsi wrogowie - bez tych wpisów po wczytaniu wracali jako zwykła postać
@@ -30309,6 +30311,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const MATRONA_CELNOSC_ZA_STOPIEN = 4;
         const MATRONA_AP_ZA_STOPIEN = 2;
 
+        function createDarkWarriorMesh() { return buildEnemyModelInstance('dark_warrior') || createGeneralMesh(); }
         function createNekromantaMesh() { return buildEnemyModelInstance('nekromanta') || createBossMesh(); }
         function createGniewarMesh() { return buildEnemyModelInstance('gniewar') || createCharacter(0x557733, 0x668844, 0x111111, 1.6, 'gniewar'); }
 
@@ -33006,7 +33009,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             zombie: 'ZOMBIE', vampire: 'DRAKULA', strzyga: 'STRZYGA',
             robot: 'ROBOT', droid: 'DROID', ogar: 'OGAR PIEKIELNY',
             skorpion_maly: 'SKORPION ZWINNY', skorpion: 'SKORPION', skorpion_duzy: 'SKORPION PANCERNY',
-            koszmar: 'KOSZMAR', nekromanta: 'NEKROMANTA', gniewar: 'GNIEWAR', smierc: 'ŚMIERĆ', glizda: 'GLIZDA', lustrzak: 'LUSTRZAK',
+            koszmar: 'KOSZMAR', dark_warrior: 'DARK WARRIOR', nekromanta: 'NEKROMANTA', gniewar: 'GNIEWAR', smierc: 'ŚMIERĆ', glizda: 'GLIZDA', lustrzak: 'LUSTRZAK',
             bezimienny: 'BEZIMIENNY', bluznierca: 'BLUŹNIERCA', poborca: 'POBORCA',
             oltarznik: 'OŁTARZNIK', roj: 'RÓJ', wydrazony: 'WYDRĄŻONY', gasiciel: 'GASICIEL', obzeracz: 'OBŻERACZ',
             zalobnica: 'ŻAŁOBNICA',
@@ -35132,14 +35135,20 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // NEKROMANTA: u siebie na cmentarzach, gdzie indziej rzadziej
                 const nekromantaSzansa = currentCombatTheme && ['cmentarzysko', 'nekropolia', 'pobojowisko'].includes(currentCombatTheme.id) ? 0.5 : 0.15;
                 const jestNekromanta = !jestGeneral && !jestFemina && Math.random() < nekromantaSzansa;
-                const bm = jestNekromanta ? createNekromantaMesh() : jestGeneral
+                // DARK WARRIOR: samotny szermierz, może wypaść na każdej mapie
+                const jestDark = !jestGeneral && !jestFemina && !jestNekromanta && Math.random() < 0.2;
+                const bm = jestDark ? createDarkWarriorMesh() : jestNekromanta ? createNekromantaMesh() : jestGeneral
                     ? (buildEnemyModelInstance('general') || createGeneralMesh())
                     : jestFemina
                     ? (buildEnemyModelInstance('femina') || createFeminaMesh())
                     : (buildEnemyModelInstance('koszmar') || createBossMesh());
                 bm.position.set(bx, getTerrainY(bx, bz), bz);
                 scene.add(bm);
-                const boss = jestNekromanta ? {
+                const boss = jestDark ? {
+                    mesh: bm, type: 'dark_warrior', hp: 40, maxHp: 40, ap: 12, maxAp: 12,
+                    accuracyBonus: 15, isDead: false, facingAngle: 0, level: 0,
+                    isBoss: true, bossTurn: 0, hasOpened: true
+                } : jestNekromanta ? {
                     mesh: bm, type: 'nekromanta', hp: 30, maxHp: 30, ap: 11, maxAp: 11,
                     accuracyBonus: 10, isDead: false, facingAngle: 0, level: 0,
                     isBoss: true, bossTurn: 0, hasOpened: false
@@ -35156,6 +35165,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     accuracyBonus: 5, isDead: false, facingAngle: 0, level: 0,
                     isBoss: true, bossTurn: 0, hasOpened: false
                 };
+                if (jestDark) {
+                    showFloatingWarning('Sen prowadzi DARK WARRIOR');
+                    updateUI('Tym snem włada DARK WARRIOR. Nie przywołuje nikogo i nie strzela - idzie po was z mieczem.');
+                }
                 if (jestNekromanta) {
                     showFloatingWarning('Sen prowadzi NEKROMANTA');
                     updateUI('Tym snem włada NEKROMANTA. Martwi wstają na jej skinienie - dopadnijcie ją, zanim ziemia się zapełni.');
@@ -35169,7 +35182,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     updateUI('Na tej ziemi dowodzi GENERAŁ - najgroźniejszy z władców koszmarów. Działajcie razem.');
                 }
                 enemies.push(boss);
-                noteEnemyEncountered(jestNekromanta ? 'nekromanta' : 'koszmar');
+                noteEnemyEncountered(jestDark ? 'dark_warrior' : jestNekromanta ? 'nekromanta' : 'koszmar');
                 refreshEnemyPositions();
 
             } else if (currentMissionType === 'artifact') {
@@ -39068,7 +39081,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 return LOD_BAZA + Math.floor(ciezar / LOD_NA_CIEZAR);
             }
             // Wrogowie: duże bestie obciążają lód mocniej niż drobne
-            if (['brute', 'gniewar', 'smierc', 'general', 'koszmar', 'nekromanta', 'oltarznik', 'robot', 'bezimienny'].includes(u.type)) return LOD_BAZA + 2;
+            if (['brute', 'gniewar', 'smierc', 'general', 'koszmar', 'nekromanta', 'dark_warrior', 'oltarznik', 'robot', 'bezimienny'].includes(u.type)) return LOD_BAZA + 2;
             if (['wisp', 'roj', 'spider_small', 'fast'].includes(u.type)) return 1;
             return LOD_BAZA;
         }
@@ -47755,7 +47768,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
             // GENERAŁ: nie przywołuje - walczy sam. Z bliska tnie szablą (do dwóch razy),
             // z daleka strzela celnie, a gdy nie ma celu na widoku - naciera.
-            if (e.type === 'general') {
+            if (e.type === 'general' || e.type === 'dark_warrior') {
+                const mroczny = e.type === 'dark_warrior';   // ta sama taktyka, ale tylko miecz
                 if (e.ap >= getEffectiveMaxAp(e)) e.generalAkcji = 0;
                 const gx = Math.round(e.mesh.position.x), gz = Math.round(e.mesh.position.z);
                 const gy = getLevelY(gx, gz, eLvl);
@@ -47772,7 +47786,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 faceTowards(e, cx, cz);
                 const zadaj = (dmg, opis) => {
                     applyDamageToUnit(cel, dmg, e);
-                    updateUI(`GENERAŁ ${opis} (-${dmg})`);
+                    updateUI(`${mroczny ? 'DARK WARRIOR' : 'GENERAŁ'} ${opis} (-${dmg})`);
                     playFileSfx(AudioFiles.enemyOuch, 0.6);
                     if (cel.hp <= 0) { playDyingSfx(); killUnitWithAnim(cel, () => refreshPlayerPositions()); }
                     checkGameOver();
@@ -47781,12 +47795,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (cd === 1 && e.ap >= 3) {
                     e.ap -= 3; e.generalAkcji = (e.generalAkcji || 0) + 1;
                     animWroga(e, 'atakWrecz', true);
-                    if (!tryMeleeInterrupt(e, cel)) zadaj(7, 'tnie szablą!');
+                    if (!tryMeleeInterrupt(e, cel)) zadaj(mroczny ? 9 : 7, mroczny ? 'tnie mieczem!' : 'tnie szablą!');
                     if (!gameOver) setTimeout(processNextEnemy, 450);
                     return;
                 }
                 // Z daleka - celny strzał
-                if (cd <= getVisionRange() && e.ap >= shootCost && czyWidacPrzez(gx, gy + 1, gz, cx, cy + 0.5, cz) &&
+                if (!mroczny && cd <= getVisionRange() && e.ap >= shootCost && czyWidacPrzez(gx, gy + 1, gz, cx, cy + 0.5, cz) &&
                     checkLineOfSight3D(gx, gy + 2, gz, cx, cy + 0.5, cz)) {
                     e.ap -= shootCost; e.generalAkcji = (e.generalAkcji || 0) + 1;
                     animWroga(e, 'atak', true);
@@ -50075,6 +50089,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 stats: [['Punkty życia', '20'], ['Punkty ruchu', '10'], ['Premia do celności', '+5%'], ['Styl walki', 'kula ognia (7 obr.) i przyzywanie']]
             },
             {
+                id: 'dark_warrior', title: 'Dark Warrior',
+                text: 'Rycerz w ptasiej masce, z kolczastym słońcem nad głową i długą peleryną. Słońce, które nosi, od dawna nie świeci.\\n\\n' +
+                      'Nie przywołuje sług i nie strzela. Idzie prosto na najbliższego wojownika i tnie mieczem, do trzech akcji na turę.',
+                stats: [['Punkty życia', '40'], ['Punkty ruchu', '12'], ['Premia do celności', '+15%'], ['Styl walki', 'wyłącznie miecz (9 obr.)']]
+            },
+            {
                 id: 'nekromanta', title: 'Nekromanta',
                 text: 'Wysoka, wychudła kobieta o szarej skórze, z kosą w dłoni i ludzkimi czaszkami zatkniętymi za plecami. ' +
                       'Tam, gdzie stanie, ziemia przestaje trzymać swoich zmarłych.\\n\\n' +
@@ -50558,6 +50578,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 robot:    createRobotMesh,
                 droid:    createDroidMesh,
                 koszmar:  createBossMesh,
+                dark_warrior: createDarkWarriorMesh,
                 nekromanta: createNekromantaMesh,
                 gniewar:  createGniewarMesh,
                 ogar:     createHellhoundMesh,
