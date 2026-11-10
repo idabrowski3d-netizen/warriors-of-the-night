@@ -26620,10 +26620,26 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 ' transformed.z += fa * 0.3 * cos(L * 0.8 - uT * 2.1);');
         };
         const linaGeo = new THREE.CylinderGeometry(0.075, 0.075, 1, 8, 120, true); linaGeo.translate(0, 0.5, 0);
+        // poświata: dwie szersze, coraz bledsze warstwy wokół rdzenia
+        const linaPoswiata = [[0.22, 0.55], [0.55, 0.32]].map(([r, op]) => {
+            const g = new THREE.CylinderGeometry(r, r, 1, 10, 120, true); g.translate(0, 0.5, 0);
+            const m = linaMat.clone(); m.opacity = op;
+            m.onBeforeCompile = sh => {   // ruch jak rdzeń + miękki brzeg: gaśnie tam, gdzie patrzymy na krawędź rury
+                linaMat.onBeforeCompile(sh);
+                sh.vertexShader = 'varying float vSrod;\n' + sh.vertexShader.replace('#include <project_vertex>',
+                    '#include <project_vertex>\n vSrod = abs(dot(normalize(normalMatrix * normal), normalize(-mvPosition.xyz)));');
+                sh.fragmentShader = 'varying float vSrod;\n' + sh.fragmentShader.replace('#include <tonemapping_fragment>',
+                    'gl_FragColor *= vSrod * vSrod;\n#include <tonemapping_fragment>');
+            };
+            return [g, m];
+        });
         const OS_Y = new THREE.Vector3(0, 1, 0);
         function ustawLine(i, a, b) {
             let m = linyDuszy[i];
-            if (!m) { m = linyDuszy[i] = new THREE.Mesh(linaGeo, linaMat); m.frustumCulled = false; m.renderOrder = 5; }
+            if (!m) {
+                m = linyDuszy[i] = new THREE.Mesh(linaGeo, linaMat); m.frustumCulled = false; m.renderOrder = 5;
+                linaPoswiata.forEach(([g, mt]) => { const p = new THREE.Mesh(g, mt); p.frustumCulled = false; p.renderOrder = 5; m.add(p); });
+            }
             if (!m.parent) scene.add(m);
             const d = b.clone().sub(a); m.position.copy(a); m.scale.set(1, d.length(), 1); m.quaternion.setFromUnitVectors(OS_Y, d.normalize());
         }
