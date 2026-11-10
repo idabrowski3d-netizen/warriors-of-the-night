@@ -20764,6 +20764,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Nazwy klipów podajemy wprost, bo bywają różne (attack vs fight).
         // ========================================================
         const ENEMY_MODELS = {
+            skorpion: { plik: 'models/skorpion.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Czar', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 1.3 },
             robot: { plik: 'models/cyborg.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Czar', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 2.3 },
             hell_warrior: { plik: 'models/hell_warrior.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Czar', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 2.6 },
             zakonnica: { plik: 'models/zakonnica.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Czar', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 1.9, alphaTest: 0.5 },
@@ -28689,6 +28690,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const pancerz = new THREE.MeshLambertMaterial({ color: barwa });
             const ciemny = new THREE.MeshLambertMaterial({ color: 0x241a14 });
             const jadMat = new THREE.MeshBasicMaterial({ color: 0x9ade4a });
+            const model = buildEnemyModelInstance('skorpion');
+            if (model) {
+                model.traverse(ch => { if (ch.isMesh && ch.material.name === 'pancerz') { ch.material = ch.material.clone(); ch.material.color.setHex(barwa); } });
+                model.scale.setScalar(skala);
+                return model;
+            }
 
             // Tułów z segmentów
             for (let i = 0; i < 3; i++) {
