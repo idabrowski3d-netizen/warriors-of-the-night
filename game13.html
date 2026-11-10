@@ -20764,6 +20764,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Nazwy klipów podajemy wprost, bo bywają różne (attack vs fight).
         // ========================================================
         const ENEMY_MODELS = {
+            robot: { plik: 'models/cyborg.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Czar', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 2.3 },
             hell_warrior: { plik: 'models/hell_warrior.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Czar', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 2.6 },
             zakonnica: { plik: 'models/zakonnica.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Czar', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 1.9, alphaTest: 0.5 },
             mamut: { plik: 'models/mamut.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Ryk', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 2.5 },
@@ -24876,7 +24877,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 { typ: 'zombie',    hp: 4,  ap: 8,  opis: 'Zombie II', model: 'zombie2' },
                 { typ: 'vampire',   hp: 15, ap: 12, opis: 'Drakula' },
                 { typ: 'strzyga',   hp: 9,  ap: 18, opis: 'Strzyga' },
-                { typ: 'robot',     hp: 14, ap: 11, opis: 'Robot' },
+                { typ: 'robot',     hp: 14, ap: 11, opis: 'Cyborg' },
                 { typ: 'droid',     hp: 8,  ap: 12, opis: 'Droid' },
                 { typ: 'ogar',      hp: 9,  ap: 18, opis: 'Ogar piekielny' },
                 { typ: 'klaun',     hp: 11, ap: 12, opis: 'Klaun' },
@@ -28225,7 +28226,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         // Robot bojowy - humanoid z rogami, walczy wręcz
-        function createRobotMesh() {
+        function createRobotMesh() { return buildEnemyModelInstance('robot') || createRobotMeshProsty(); }
+        function createRobotMeshProsty() {
             const g = new THREE.Group();
             const stal = new THREE.MeshLambertMaterial({ color: 0x2a3644 });
             const neon = new THREE.MeshBasicMaterial({ color: 0x35d6ff });
@@ -33060,7 +33062,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             standard: 'ROZPRUWACZ', fast: 'SZYBKI (Zwiadowca)', brute: 'DUŻY (Walka wręcz)',
             summoner: 'PRZYWOŁYWACZ', stalker: 'SKRADAJĄCY', wisp: 'DUSZEK',
             zombie: 'ZOMBIE', vampire: 'DRAKULA', strzyga: 'STRZYGA',
-            robot: 'ROBOT', droid: 'DROID', ogar: 'OGAR PIEKIELNY',
+            robot: 'CYBORG', droid: 'DROID', ogar: 'OGAR PIEKIELNY',
             skorpion_maly: 'SKORPION ZWINNY', skorpion: 'SKORPION', skorpion_duzy: 'SKORPION PANCERNY',
             koszmar: 'KOSZMAR', dark_warrior: 'DARK WARRIOR', nekromanta: 'NEKROMANTA', gniewar: 'GNIEWAR', rogacz: 'ROGACZ', hell_warrior: 'HELL WARRIOR', mamut: 'MAMUT', furiat: 'FURIAT', szkieletor: 'SZKIELETOR', smierc: 'ŚMIERĆ', glizda: 'GLIZDA', lustrzak: 'LUSTRZAK',
             bezimienny: 'BEZIMIENNY', bluznierca: 'BLUŹNIERCA', poborca: 'POBORCA',
@@ -48226,7 +48228,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         : (e.type === 'stalker' ? "PEŁZACZ rzuca się na cel!"
                         : (e.type === 'zombie' ? "ZOMBIE wczepia się pazurami!"
                         : (e.type === 'bozek') ? "KAMIENNY BOŻEK miażdży kamienną pięścią!"
-                        : (e.type === 'robot' ? "ROBOT uderza stalową pięścią!" : "DUSZEK uderza i gaśnie!"))));
+                        : (e.type === 'robot' ? "CYBORG uderza stalową pięścią!" : "DUSZEK uderza i gaśnie!"))));
                     animWroga(e, 'atak', true);
                     if (e.type === 'zombie') playFileSfx(AudioFiles.zombieAttack, 0.7);
                     faceTowards(e, px, pz);
@@ -50265,8 +50267,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 stats: [['Punkty życia', '18'], ['Punkty ruchu', '11'], ['Premia do celności', 'brak'], ['Styl walki', 'wyłącznie wręcz, topory (7 obr.)']]
             },
             {
-                id: 'robot', title: 'Robot Bojowy',
-                text: 'Stalowy humanoid z parą rogów na hełmie i świecącymi żyłami wzdłuż torsu. Zamiast twarzy ma wąski wizjer.\\n\\n' +
+                id: 'robot', title: 'Cyborg',
+                text: 'Stalowy humanoid w płytach pancerza, ze świecącym rdzeniem w piersi i neonowymi żyłami na rękach. Zamiast twarzy ma wąski wizjer.\\n\\n' +
                       'Nie strzela - podchodzi i uderza pięścią jak młotem. Pancerz czyni go wytrzymałym, ' +
                       'ale w zwarciu można go uprzedzić ciosem miecza. Pilnuje cyberprzestrzeni i ośrodków władzy.',
                 stats: [['Punkty życia', '14'], ['Punkty ruchu', '11'], ['Premia do celności', 'brak'], ['Styl walki', 'wyłącznie wręcz (5 obr.)']]
