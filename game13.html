@@ -4888,7 +4888,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 znane: (n) => `Nadgryziona padlina - tak żywi się ${n}.`
             },
             pazury: {
-                typy: ['brute', 'ogar', 'furiat', 'smierc', 'gargulec', 'bezimienny', 'wydrazony'],
+                typy: ['brute', 'ogar', 'furiat', 'hell_warrior', 'smierc', 'gargulec', 'bezimienny', 'wydrazony'],
                 ile: 2, promien: 13, buduj: () => bryłaPazurow(), naMurze: true,
                 mgliste: 'Bruzdy po pazurach na murze, wyżej niż sięga człowiek.',
                 znane: (n) => `Pazury na murze - tędy przechodził ${n}.`
@@ -20763,6 +20763,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Nazwy klipów podajemy wprost, bo bywają różne (attack vs fight).
         // ========================================================
         const ENEMY_MODELS = {
+            hell_warrior: { plik: 'models/hell_warrior.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Czar', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 2.6 },
             zakonnica: { plik: 'models/zakonnica.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Czar', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 1.9, alphaTest: 0.5 },
             mamut: { plik: 'models/mamut.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Ryk', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 2.5 },
             furiat: { plik: 'models/furiat.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Ryk', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 1.5 },
@@ -24903,6 +24904,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 { typ: 'dark_warrior', hp: 40, ap: 12, opis: 'Dark Warrior (boss)', boss: true },
                 { typ: 'gniewar',   hp: 18, ap: 11, opis: 'Gniewar' },
                 { typ: 'rogacz',    hp: 20, ap: 13, opis: 'Rogacz' },
+                { typ: 'hell_warrior', hp: 22, ap: 12, opis: 'Hell Warrior' },
                 { typ: 'mamut',     hp: 26, ap: 14, opis: 'Mamut' },
                 { typ: 'furiat',    hp: 12, ap: 16, opis: 'Furiat' },
                 { typ: 'szkieletor', hp: 8, ap: 12, opis: 'Szkieletor' },
@@ -24942,7 +24944,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 skorpion_maly: () => createScorpionMesh('maly'),
                 skorpion: () => createScorpionMesh('sredni'),
                 skorpion_duzy: () => createScorpionMesh('duzy'),
-                koszmar: createBossMesh, dark_warrior: createDarkWarriorMesh, nekromanta: createNekromantaMesh, gniewar: createGniewarMesh, rogacz: createRogaczMesh, mamut: createMamutMesh, furiat: createFuriatMesh, szkieletor: createSzkieletorMesh, general: createGeneralMesh, femina: createFeminaMesh,
+                koszmar: createBossMesh, dark_warrior: createDarkWarriorMesh, nekromanta: createNekromantaMesh, gniewar: createGniewarMesh, rogacz: createRogaczMesh, hell_warrior: createHellWarriorMesh, mamut: createMamutMesh, furiat: createFuriatMesh, szkieletor: createSzkieletorMesh, general: createGeneralMesh, femina: createFeminaMesh,
                 smierc: createDeathMesh
             };
 
@@ -25803,7 +25805,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 standard: { body: 0xff4444, face: 0xaaffaa, scale: 1 }
             };
             // Nowe rasy mają własne bryły, nie budujemy ich z createCharacter
-            const CUSTOM_ENEMY_MESH = { dark_warrior: createDarkWarriorMesh, nekromanta: createNekromantaMesh, gniewar: createGniewarMesh, rogacz: createRogaczMesh, mamut: createMamutMesh, furiat: createFuriatMesh, szkieletor: createSzkieletorMesh, summoner: createSummonerMesh, stalker: createStalkerMesh, wisp: createWispMesh, koszmar: createBossMesh, zombie: createZombieMesh, vampire: createVampireMesh, strzyga: createStrzygaMesh,
+            const CUSTOM_ENEMY_MESH = { dark_warrior: createDarkWarriorMesh, nekromanta: createNekromantaMesh, gniewar: createGniewarMesh, rogacz: createRogaczMesh, hell_warrior: createHellWarriorMesh, mamut: createMamutMesh, furiat: createFuriatMesh, szkieletor: createSzkieletorMesh, summoner: createSummonerMesh, stalker: createStalkerMesh, wisp: createWispMesh, koszmar: createBossMesh, zombie: createZombieMesh, vampire: createVampireMesh, strzyga: createStrzygaMesh,
                                         spider_small: () => createSpiderMesh(false), spider_big: () => createSpiderMesh(true),
                                         drzewiec: createDrzewiecMesh, robot: createRobotMesh, droid: createDroidMesh, klaun: createClownMesh, robak: createWormMesh, general: createGeneralMesh, femina: createFeminaMesh, bozek: createBozekMesh,
                                         // Nowsi wrogowie - bez tych wpisów po wczytaniu wracali jako zwykła postać
@@ -30337,6 +30339,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function createNekromantaMesh() { return buildEnemyModelInstance('nekromanta') || createBossMesh(); }
         function createFuriatMesh() { return buildEnemyModelInstance('furiat') || createHellhoundMesh(); }
         function createMamutMesh() { return buildEnemyModelInstance('mamut') || createCharacter(0xd8d2c0, 0xe8e2d0, 0x111111, 1.9, 'mamut'); }
+        function createHellWarriorMesh() { return buildEnemyModelInstance('hell_warrior') || createCharacter(0x882211, 0xcc4411, 0x111111, 1.5, 'hell_warrior'); }
         function createRogaczMesh() { return buildEnemyModelInstance('rogacz') || createCharacter(0x883322, 0x994433, 0x111111, 1.5, 'rogacz'); }
         function createSzkieletorMesh() { return buildEnemyModelInstance('szkieletor') || createCharacter(0xd8d2c0, 0xe8e2d0, 0x111111, 0.9, 'szkieletor'); }
         function createGniewarMesh() { return buildEnemyModelInstance('gniewar') || createCharacter(0x557733, 0x668844, 0x111111, 1.6, 'gniewar'); }
@@ -31706,7 +31709,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Od jakiego etapu rozwoju pojawia się dany wróg. Czego tu nie ma, pojawia się od początku.
         const ETAP_WROGA = {
             stalker: 2, summoner: 2, skorpion: 2, roj: 2, ogar: 2, strzyga: 2, robot: 2,
-            brute: 3, gniewar: 3, szkieletor: 2, rogacz: 4, furiat: 3, mamut: 4, glizda: 3, spider_big: 3, gargulec: 3, poborca: 3, lustrzak: 3,
+            brute: 3, gniewar: 3, szkieletor: 2, rogacz: 4, furiat: 3, mamut: 4, hell_warrior: 5, glizda: 3, spider_big: 3, gargulec: 3, poborca: 3, lustrzak: 3,
             vampire: 4, obzeracz: 4, gasiciel: 4, zalobnica: 4, wydrazony: 4, matrona: 4, skorpion_duzy: 4,
             oltarznik: 5, bluznierca: 5, blizniaki: 5, bezimienny: 5
         };
@@ -32048,6 +32051,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 } else if (!enemies.some(o => o.type === 'mamut') && Math.random() < 0.06) {
                     // Jeden na misję: dwa szarżujące mamuty nie zostawiłyby planszy
                     type = 'mamut'; maxHp = 26; maxAp = 14; mesh = createMamutMesh();
+                } else if (Math.random() < 0.06) {
+                    type = 'hell_warrior'; maxHp = 22; maxAp = 12; mesh = createHellWarriorMesh();
                 } else if (Math.random() < 0.08) {
                     // Piekielny ogar: nisko przy ziemi, zawsze pierwszy przy celu
                     type = 'furiat'; maxHp = 12; maxAp = 16; mesh = createFuriatMesh();
@@ -33048,7 +33053,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             zombie: 'ZOMBIE', vampire: 'DRAKULA', strzyga: 'STRZYGA',
             robot: 'ROBOT', droid: 'DROID', ogar: 'OGAR PIEKIELNY',
             skorpion_maly: 'SKORPION ZWINNY', skorpion: 'SKORPION', skorpion_duzy: 'SKORPION PANCERNY',
-            koszmar: 'KOSZMAR', dark_warrior: 'DARK WARRIOR', nekromanta: 'NEKROMANTA', gniewar: 'GNIEWAR', rogacz: 'ROGACZ', mamut: 'MAMUT', furiat: 'FURIAT', szkieletor: 'SZKIELETOR', smierc: 'ŚMIERĆ', glizda: 'GLIZDA', lustrzak: 'LUSTRZAK',
+            koszmar: 'KOSZMAR', dark_warrior: 'DARK WARRIOR', nekromanta: 'NEKROMANTA', gniewar: 'GNIEWAR', rogacz: 'ROGACZ', hell_warrior: 'HELL WARRIOR', mamut: 'MAMUT', furiat: 'FURIAT', szkieletor: 'SZKIELETOR', smierc: 'ŚMIERĆ', glizda: 'GLIZDA', lustrzak: 'LUSTRZAK',
             bezimienny: 'BEZIMIENNY', bluznierca: 'BLUŹNIERCA', poborca: 'POBORCA',
             oltarznik: 'OŁTARZNIK', roj: 'RÓJ', wydrazony: 'WYDRĄŻONY', gasiciel: 'GASICIEL', obzeracz: 'OBŻERACZ',
             zalobnica: 'ŻAŁOBNICA',
@@ -37038,7 +37043,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z), ey = getLevelY(ex, ez, e.level || 0);
                 const dist = Math.abs(px - ex) + Math.abs(pz - ez);
                 // Wręcz tylko na tej samej kondygnacji
-                if (e.type === 'brute' || e.type === 'gniewar' || e.type === 'rogacz' || e.type === 'furiat' || e.type === 'mamut' || e.type === 'szkieletor' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'summoner' || e.type === 'zombie' || e.type === 'strzyga' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big' || e.type === 'smierc' || e.type === 'ogar' || e.type === 'robak') return ((e.level || 0) === (active.level || 0) && Math.max(Math.abs(px - ex), Math.abs(pz - ez)) === 1 && Math.abs(ey - py) <= 1 && e.type !== 'summoner');
+                if (e.type === 'brute' || e.type === 'gniewar' || e.type === 'rogacz' || e.type === 'hell_warrior' || e.type === 'furiat' || e.type === 'mamut' || e.type === 'szkieletor' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'summoner' || e.type === 'zombie' || e.type === 'strzyga' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big' || e.type === 'smierc' || e.type === 'ogar' || e.type === 'robak') return ((e.level || 0) === (active.level || 0) && Math.max(Math.abs(px - ex), Math.abs(pz - ez)) === 1 && Math.abs(ey - py) <= 1 && e.type !== 'summoner');
                 return (dist <= getVisionRange() && czyWidacPrzez(ex, ey+1, ez, px, py+0.5, pz) && !floorsBlockShot(ex, ez, e.level || 0, px, pz, active.level || 0));
             });
 
@@ -39120,7 +39125,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 return LOD_BAZA + Math.floor(ciezar / LOD_NA_CIEZAR);
             }
             // Wrogowie: duże bestie obciążają lód mocniej niż drobne
-            if (['brute', 'gniewar', 'rogacz', 'mamut', 'smierc', 'general', 'koszmar', 'nekromanta', 'dark_warrior', 'oltarznik', 'robot', 'bezimienny'].includes(u.type)) return LOD_BAZA + 2;
+            if (['brute', 'gniewar', 'rogacz', 'hell_warrior', 'mamut', 'smierc', 'general', 'koszmar', 'nekromanta', 'dark_warrior', 'oltarznik', 'robot', 'bezimienny'].includes(u.type)) return LOD_BAZA + 2;
             if (['wisp', 'roj', 'spider_small', 'fast'].includes(u.type)) return 1;
             return LOD_BAZA;
         }
@@ -40103,7 +40108,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         const MAMUT_KOSZT = 5, MAMUT_ROZBIEG = 3, MAMUT_CIOS = 4, MAMUT_CIOS_ROZPED = 6, MAMUT_SCIANA = 4;
-        const WALCZA_WRECZ = ['brute', 'gniewar', 'rogacz', 'furiat', 'mamut', 'szkieletor', 'stalker', 'wisp', 'zombie', 'robot', 'spider_small', 'spider_big', 'robak',
+        const WALCZA_WRECZ = ['brute', 'gniewar', 'rogacz', 'hell_warrior', 'furiat', 'mamut', 'szkieletor', 'stalker', 'wisp', 'zombie', 'robot', 'spider_small', 'spider_big', 'robak',
                               'smierc', 'ogar', 'glizda', 'lustrzak', 'bezimienny', 'oltarznik', 'wydrazony', 'gasiciel', 'obzeracz'];
         // Strzelcy czający się w domach i chatkach: startują w środku i nie ruszają się,
         // dopóki wojownik nie podejdzie na 7 pól (albo ich nie zrani - wtedy też wstają).
@@ -48183,7 +48188,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
             }
 
-            if (e.type === 'brute' || e.type === 'gniewar' || e.type === 'rogacz' || e.type === 'furiat' || e.type === 'szkieletor' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'zombie' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big' || e.type === 'smierc' || e.type === 'ogar' || e.type === 'robak' || e.type === 'glizda' || e.type === 'lustrzak' || e.type === 'bezimienny' || e.type === 'oltarznik' || e.type === 'wydrazony' || e.type === 'gasiciel' || e.type === 'obzeracz' || e.type === 'zalobnica' || e.type === 'bozek') {
+            if (e.type === 'brute' || e.type === 'gniewar' || e.type === 'rogacz' || e.type === 'hell_warrior' || e.type === 'furiat' || e.type === 'szkieletor' || e.type === 'stalker' || e.type === 'wisp' || e.type === 'zombie' || e.type === 'robot' || e.type === 'spider_small' || e.type === 'spider_big' || e.type === 'smierc' || e.type === 'ogar' || e.type === 'robak' || e.type === 'glizda' || e.type === 'lustrzak' || e.type === 'bezimienny' || e.type === 'oltarznik' || e.type === 'wydrazony' || e.type === 'gasiciel' || e.type === 'obzeracz' || e.type === 'zalobnica' || e.type === 'bozek') {
                 const meleeCostE = (e.type === 'brute' || e.type === 'gniewar') ? shootCost : 3; // szybsze rasy uderzają taniej
                 const chebDystans = Math.max(Math.abs(px - ex), Math.abs(pz - ez));
                 if (e.ap >= meleeCostE && tLvl === eLvl && chebDystans === 1 && Math.abs(ey - py) <= 1) {
@@ -48208,7 +48213,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         return;
                     }
                     e.ap -= meleeCostE;
-                    updateUI(e.type === 'furiat' ? "FURIAT wgryza się w cel!" : e.type === 'rogacz' ? "ROGACZ rozdziera pazurami!" : e.type === 'szkieletor' ? "SZKIELETOR drapie kościstą dłonią!" : e.type === 'gniewar' ? "GNIEWAR rąbie toporami!" : e.type === 'brute' ? "DUŻY OBCY: Cios wręcz!"
+                    updateUI(e.type === 'hell_warrior' ? "HELL WARRIOR tnie płonącym mieczem!" : e.type === 'furiat' ? "FURIAT wgryza się w cel!" : e.type === 'rogacz' ? "ROGACZ rozdziera pazurami!" : e.type === 'szkieletor' ? "SZKIELETOR drapie kościstą dłonią!" : e.type === 'gniewar' ? "GNIEWAR rąbie toporami!" : e.type === 'brute' ? "DUŻY OBCY: Cios wręcz!"
                         : (e.type === 'stalker' ? "PEŁZACZ rzuca się na cel!"
                         : (e.type === 'zombie' ? "ZOMBIE wczepia się pazurami!"
                         : (e.type === 'bozek') ? "KAMIENNY BOŻEK miażdży kamienną pięścią!"
@@ -48223,6 +48228,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         if (e.type === 'brute') meleeDmgBaza = 6;
                         else if (e.type === 'gniewar') meleeDmgBaza = 7;
                         else if (e.type === 'rogacz') meleeDmgBaza = 6;
+                        else if (e.type === 'hell_warrior') meleeDmgBaza = 8;
                         else if (e.type === 'furiat') meleeDmgBaza = 5;
                         else if (e.type === 'szkieletor') meleeDmgBaza = 3;
                         else if (e.type === 'stalker') meleeDmgBaza = 4;
@@ -48272,7 +48278,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     return;
                 }
             } else {
-                if (e.type !== 'summoner' && e.type !== 'gniewar' && e.type !== 'rogacz' && e.type !== 'furiat' && e.type !== 'szkieletor' && e.type !== 'zombie' && e.type !== 'strzyga' && e.type !== 'robot' && e.type !== 'spider_small' && e.type !== 'spider_big' && e.type !== 'smierc' && e.type !== 'ogar' && e.type !== 'robak' && e.ap >= shootCost && dist <= getVisionRange() && checkLineOfSight3D(ex, ey+1, ez, px, py+0.5, pz) && !floorsBlockShot(ex, ez, eLvl, px, pz, tLvl)) {
+                if (e.type !== 'summoner' && e.type !== 'gniewar' && e.type !== 'rogacz' && e.type !== 'hell_warrior' && e.type !== 'furiat' && e.type !== 'szkieletor' && e.type !== 'zombie' && e.type !== 'strzyga' && e.type !== 'robot' && e.type !== 'spider_small' && e.type !== 'spider_big' && e.type !== 'smierc' && e.type !== 'ogar' && e.type !== 'robak' && e.ap >= shootCost && dist <= getVisionRange() && checkLineOfSight3D(ex, ey+1, ez, px, py+0.5, pz) && !floorsBlockShot(ex, ez, eLvl, px, pz, tLvl)) {
                     // Lód leci w obie strony: część strzelców ma po jednym ładunku
                     const lodemWrog = (e.ladunkiMrozace > 0) && !bestTarget.isNPC &&
                                       !czyZamrozony(bestTarget) && Math.random() < AMU_WROG_SZANSA;
@@ -50226,6 +50232,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 stats: [['Punkty życia', '26'], ['Punkty ruchu', '14'], ['Premia do celności', 'brak'], ['Styl walki', 'szarża (4 obr., z rozbiegu 6, o ścianę +4)']]
             },
             {
+                id: 'hell_warrior', title: 'Hell Warrior',
+                text: 'Zwęglony wojownik w pancerzu, który wciąż się żarzy. Niesie miecz dłuższy niż ramię człowieka.\\n\\n' +
+                      'Nie strzela. Idzie prosto na cel i tnie jednym, ciężkim ciosem.',
+                stats: [['Punkty życia', '22'], ['Punkty ruchu', '12'], ['Premia do celności', 'brak'], ['Styl walki', 'wyłącznie miecz (8 obr.)']]
+            },
+            {
                 id: 'rogacz', title: 'Rogacz',
                 text: 'Rogaty demon o długich szponach, przygarbiony jak zwierzę przed skokiem.\\n\\n' +
                       'Nie strzela. Szybko skraca dystans i rozdziera pazurami. Lepiej zatrzymać go, zanim dobiegnie.',
@@ -50718,6 +50730,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 nekromanta: createNekromantaMesh,
                 gniewar:  createGniewarMesh,
                 rogacz:   createRogaczMesh,
+                hell_warrior: createHellWarriorMesh,
                 mamut:    createMamutMesh,
                 furiat:   createFuriatMesh,
                 szkieletor: createSzkieletorMesh,
