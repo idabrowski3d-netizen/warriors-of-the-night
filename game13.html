@@ -38443,6 +38443,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             tikPiorunow();
             // Podczas zasadzki zwykłe posiłki Złego milczą - fal wystarczy
             if (!ambushAktywny && combatTurnCounter > 1 && (combatTurnCounter - 1) % POSILKI_CO_ILE_RUND === 0) przyslijPosilki();
+            else if (!ambushAktywny && combatTurnCounter > 1 && combatTurnCounter % POSILKI_CO_ILE_RUND === 0) zapowiedzPortal();
             checkCivilianScream();
             // Zabezpieczenie: gdyby wampir zginął w inny sposób, trans i tak pryska
             soldiers.forEach(s => { if (s.hypnotizedBy && s.hypnotizedBy.isDead) { s.hypnotizedBy = null; } });
@@ -46109,6 +46110,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (i !== -1) portalePosilkow.splice(i, 1);
         }
         function zamknijPortale() {
+            zgasMiganie();
             portalePosilkow.forEach(p => { if (p.chmura) { usunChmure(p.chmura); p.chmura = null; } });
             portalePosilkow.slice().forEach(zamknijPortal);
             portalePosilkow = [];
@@ -46120,6 +46122,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
         }
         function animujPortale(time) {
+            animujMiganie(time);
             portalePosilkow.forEach(p => {
                 const u = p.mesh && p.mesh.userData;
                 if (!u) return;
@@ -46129,6 +46132,48 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     u.rdzen.scale.set(s, s, s);
                 }
                 if (u.swiatlo) u.swiatlo.intensity = 1.1 + Math.sin(time * 0.004) * 0.4;
+            });
+        }
+
+        // Turę przed otwarciem portalu światła w jego okolicy zaczynają migać -
+        // lampy, świece, latarnie. Gasną w miganiu dopiero, gdy portal się otworzy.
+        const PORTAL_MIGANIE_ZASIEG = 9;
+        let zapowiedzPortalu = null;   // { x, z, swiatla: [{ l, baza }] }
+        function zapowiedzPortal() {
+            if (gameOver || gameMode !== 'dream') return;
+            zgasMiganie();
+            const zywi = soldiers.filter(s => !s.isDead && !s.isNPC && !s.isEscortee && !s.isAngel);
+            const pole = zywi.length ? miejsceNaPortal(zywi, null) : null;
+            if (!pole) return;
+            // światła i to, co świeci samo z siebie: płomienie, żarówki, poświaty
+            const swiatla = [], blaski = [], w = new THREE.Vector3();
+            const swieci = m => m && (m.isMeshBasicMaterial || m.isSpriteMaterial || (m.emissive && m.emissive.getHex() !== 0 && m.emissiveIntensity > 0));
+            scene.traverse(o => {
+                if (!o.visible || o === scene) return;
+                const jestSwiatlem = (o.isPointLight || o.isSpotLight) && o.intensity > 0;
+                if (!jestSwiatlem && !((o.isMesh || o.isSprite) && swieci(o.material))) return;
+                for (let r = o; r; r = r.parent) if (r.userData && r.userData.unitType) return;   // nie jednostki, efekty i nić duszy
+                if (o.material === linaMat) return;
+                o.getWorldPosition(w);
+                if (Math.hypot(w.x - pole.x, w.z - pole.z) > PORTAL_MIGANIE_ZASIEG) return;
+                if (jestSwiatlem) swiatla.push({ l: o, baza: o.intensity }); else blaski.push(o);
+            });
+            zapowiedzPortalu = { x: pole.x, z: pole.z, swiatla: swiatla, blaski: blaski };
+        }
+        function zgasMiganie() {
+            if (!zapowiedzPortalu) return;
+            zapowiedzPortalu.swiatla.forEach(s => { s.l.intensity = s.baza; });
+            zapowiedzPortalu.blaski.forEach(o => { o.visible = true; });
+            zapowiedzPortalu = null;
+        }
+        function animujMiganie(time) {
+            if (!zapowiedzPortalu) return;
+            zapowiedzPortalu.swiatla.forEach((s, i) => {
+                const r = Math.sin(time * 0.019 + i * 1.7) + Math.sin(time * 0.047 + i * 4.1);
+                s.l.intensity = s.baza * (r > 0.7 ? 0.05 : (Math.random() < 0.1 ? 0.35 : 1));
+            });
+            zapowiedzPortalu.blaski.forEach((o, i) => {
+                o.visible = !(Math.sin(time * 0.019 + i * 1.7) + Math.sin(time * 0.047 + i * 4.1) > 0.7 || Math.random() < 0.06);
             });
         }
 
@@ -46157,7 +46202,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // PORTAL: wrogowie mają wyjść na oczach oddziału, a nie wyrosnąć gdzieś
             // za mgłą. Jeśli w polu widzenia znajdzie się miejsce, otwieramy tam
             // portal i posiłki wychodzą z niego.
-            const polePortalu = miejsceNaPortal(zywi, celDrogi);
+            // Miejsce zapowiedziane migotaniem świateł, o ile wciąż wolne i z drogą do oddziału
+            const zap = zapowiedzPortalu; zgasMiganie();
+            const polePortalu = (zap && canStandAt(zap.x, zap.z, 0) && !isUnitAtLevel(zap.x, zap.z, 0, null) &&
+                (!celDrogi || findPath(zap.x, zap.z, celDrogi[0], celDrogi[1], 0, zywi[0]))) ? zap : miejsceNaPortal(zywi, celDrogi);
             const portal = polePortalu ? otworzPortal(polePortalu.x, polePortalu.z) : null;
 
             let przybylo = 0;
