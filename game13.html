@@ -20763,6 +20763,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Nazwy klipów podajemy wprost, bo bywają różne (attack vs fight).
         // ========================================================
         const ENEMY_MODELS = {
+            zalobnica: { plik: 'models/zalobnica.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Czar', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 2.2 },
             rogacz: { plik: 'models/rogacz.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Ryk', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 2.4 },
             szkieletor: { plik: 'models/szkieletor.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Czar', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 1.9 },
             dark_warrior: { plik: 'models/dark_warrior.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', atakWrecz: 'Atak', specjalna: 'Czar', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 3.0 },
@@ -31271,6 +31272,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const ZALOBNICA_CIOS = 8;         // z bliska nie ma już nic z dziecka
 
         function createZalobnicaMesh() {
+            const zModelu = buildEnemyModelInstance('zalobnica');
+            if (zModelu) return zModelu;
             const g = new THREE.Group();
             const calun = new THREE.MeshLambertMaterial({ color: 0xd3d3dd, transparent: true, opacity: 0.88 });
             const cien = new THREE.MeshLambertMaterial({ color: 0x3a3742 });
@@ -50200,8 +50203,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             },
             {
                 id: 'zalobnica', title: 'Żałobnica',
-                text: 'Zgarbiona postać w całunie, z włosami opadającymi do ziemi. Pod kapturem nie ma twarzy. ' +
-                      'Ręce trzyma złożone, jakby niosła dziecko - ale nic w nich nie ma.\n\n' +
+                text: 'Widmowa panna młoda w postrzępionej sukni, z wiankiem na welonie. Pod welonem nie ma twarzy. ' +
+                      'Ręce unosi do twarzy, jakby wciąż opłakiwała kogoś, kto nie przyszedł.\n\n' +
                       'Nigdzie nie idzie i na nikogo nie poluje. Stoi w mgle i płacze głosem małego dziecka. ' +
                       'Słychać ją z osiemnastu pól, zza ścian i za zakrętami, z miejsca, którego nie widać.\n\n' +
                       'Wojownik, który to usłyszy, musi się oprzeć - a to nie jest walka z potworem, tylko ' +
