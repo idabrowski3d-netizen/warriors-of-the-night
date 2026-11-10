@@ -20844,13 +20844,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Ludzie Zakonu. Model dochodzi osobno - do tego czasu gra buduje
             // zastępczą bryłę w kodzie, więc oblężenie działa i bez pliku.
             // Wystarczy wgrać models/zakonnik.glb z animacjami o tych nazwach.
-            zakonnik:   { plik: 'models/zakonnik.glb', idle: 'zakonnik_idle', walk: 'zakonnik_walk',
-                          atak: 'zakonnik_attack', smierc: 'zakonnik_death', cios: 'zakonnik_hit',
-                          wysokosc: 1.95 },
+            zakonnik:   { plik: 'models/zakonnik.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Czar',
+                          smierc: 'Smierc', cios: 'Cios', koloryZPliku: true, wysokosc: 1.95 },
             // Inkwizytor to ten sam model, tylko wyższy - dopóki nie dostanie własnego
-            inkwizytor: { plik: 'models/zakonnik.glb', idle: 'zakonnik_idle', walk: 'zakonnik_walk',
-                          atak: 'zakonnik_attack', smierc: 'zakonnik_death', cios: 'zakonnik_hit',
-                          wysokosc: 2.2 }
+            inkwizytor: { plik: 'models/zakonnik.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Czar',
+                          smierc: 'Smierc', cios: 'Cios', koloryZPliku: true, wysokosc: 2.2 }
         };
 
         const wrogModele = {};   // typ -> { proto, klipy, gotowy }
