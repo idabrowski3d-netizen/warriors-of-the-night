@@ -13154,7 +13154,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Nazwy elementów w pliku: house1_dach (dach), door/door2 (drzwi),
         // window* (okna), garage_door (brama).
         // ========================================================
-        const DOMOW_WZOROW = 12;
+        const DOMOW_WZOROW = 15;
         const DOM_MIN_DLUGOSC = 8;   // dłuższy bok domu ma mieć co najmniej tyle pól
         const domyModele = {};        // nr -> { proto, gotowy }
         let domyInstancje = [];       // postawione domy: { grupa, dach, drzwi[], srodek }
@@ -14122,6 +14122,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 ch.material = kopia;
             });
 
+            // Jesienią i zimą z części kominów leci leciutki dym
+            const wylotKomina = grupa.getObjectByName('dym');
+            if (wylotKomina && (currentSeason === 'jesien' || currentSeason === 'zima') && Math.random() < 0.6) dodajDymKomina(wylotKomina);
+
             domyInstancje.push({
                 houseId: h.id,          // bez tego dach i ściany wiązały się z niewłaściwym domem
                 minX: oMinX, maxX: oMaxX, minZ: oMinZ, maxZ: oMaxZ,
@@ -14143,8 +14147,35 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return false;
         }
 
+        // Dym z komina: kilka miękkich, bladych kłębków unoszących się i rozpływających
+        let dymTekstura = null, dymCzas = 0; const dymyKominow = [];
+        function dodajDymKomina(wylot) {
+            if (!dymTekstura) {
+                const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d');
+                const g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+                x.fillStyle = g; x.fillRect(0, 0, 64, 64); dymTekstura = new THREE.CanvasTexture(c);
+            }
+            const klebki = [];
+            for (let i = 0; i < 8; i++) {
+                const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: dymTekstura, color: 0xc8c8c8, transparent: true, opacity: 0, depthWrite: false }));
+                s.userData.faza = i / 8; wylot.add(s); klebki.push(s);
+            }
+            dymyKominow.push(klebki);
+        }
+        function updateDymKominow() {
+            const t = performance.now() / 1000;
+            dymyKominow.forEach(kl => kl.forEach(s => {
+                const f = (t / 6 + s.userData.faza) % 1;      // 6 s życia kłębka
+                const sk = 1 / Math.max(1e-3, s.parent.getWorldScale(new THREE.Vector3()).x);
+                s.position.set((f * 0.6 + Math.sin(f * 6 + s.userData.faza * 9) * 0.15) * sk, f * 2.4 * sk, 0);
+                s.scale.setScalar((0.35 + f * 1.1) * sk);
+                s.material.opacity = 0.16 * Math.sin(Math.PI * f);
+            }));
+        }
+
         // Płynny obrót skrzydeł do zadanego kąta
         function updateDrzwiModeli() {
+            updateDymKominow();
             domyInstancje.forEach(d => d.drzwi.forEach(m => {
                 if (m.userData.celObrotu === undefined) return;
                 const r = m.rotation.y;
@@ -17186,7 +17217,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             wyczyscWrotaIzb();
             autaKryjowki = [];
             efektyPiekla = [];
-            domyInstancje = [];
+            domyInstancje = []; dymyKominow.length = 0;
             if (currentCombatTheme && (currentCombatTheme.id === 'amazonia' || currentCombatTheme.id === 'zamiec' || maWiatraki())) renderChatki();
             let drzewZKodu = 0;
 
