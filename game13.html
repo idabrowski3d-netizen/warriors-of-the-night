@@ -10220,6 +10220,20 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 for (let dx = -1; dx <= 1 && wolne; dx++) for (let dz = -1; dz <= 1 && wolne; dz++) if (terrainTypeMap[x + dx + offsetX][z + dz + offsetZ] >= 2) wolne = false;
                 if (wolne) { addObstacle(x, z, 'tree'); n++; }
             }
+            // Jaskinie w skale na planszach pod gołym niebem: pagór 5x3 pola, wylot dwa pola przed środkiem
+            const JASKINIE_NA = ['alabama', 'amazonia', 'bagno', 'las', 'wulkan', 'sahara', 'parow', 'jezioro', 'lod', 'cmentarzysko', 'nekropolia', 'otchlan', 'pobojowisko', 'wyspy', 'trawa', 'koryto', 'pozar', 'spalony'];
+            if (currentCombatTheme && JASKINIE_NA.includes(currentCombatTheme.id)) for (let n = 0, ile = 1 + Math.floor(Math.random() * 3), t = 0; n < ile && t < 400; t++) {
+                const x = Math.floor(Math.random() * (mapWidth - 16)) + 8 - offsetX, z = Math.floor(Math.random() * (mapDepth - 16)) + 8 - offsetZ;
+                const k = Math.floor(Math.random() * 4), [fx, fz] = [[0, 1], [1, 0], [0, -1], [-1, 0]][k];
+                const pola = [];
+                for (let u = -2; u <= 2; u++) for (let v = -1; v <= 1; v++) pola.push([x + u * fz + v * fx, z + u * fx + v * fz]);
+                const wolne = ([px, pz]) => isWithinPlayBounds(px, pz) && !isObstacle(px, pz) && terrainTypeMap[px + offsetX][pz + offsetZ] < 2 && !isInsideAnyHouse(px, pz);
+                const wx = x + 2 * fx, wz = z + 2 * fz;
+                if (!pola.every(wolne) || !wolne([wx, wz])) continue;
+                addObstacle(x, z, 'jaskinia', { kat: k * Math.PI / 2, wx: wx, wz: wz });
+                pola.forEach(([px, pz]) => { if (px !== x || pz !== z) addObstacle(px, pz, 'jaskinia-skala'); });
+                n++;
+            }
             if (naWulkanie || (currentCombatTheme && currentCombatTheme.id === 'bagno')) obstaclePositions.forEach(p => {
                 if (p.type !== 'tree' || (!naWulkanie && Math.random() >= 0.45)) return;
                 const n = Math.floor(Math.random() * 5);
@@ -13507,7 +13521,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
         }
 
-        let rzezbyProto = null, rzezbyCzekaja = [], aniolProto = null, patronProto = null;
+        let rzezbyProto = null, rzezbyCzekaja = [], aniolProto = null, patronProto = null, jaskiniaProto = null; const jaskinieCzekaja = [];
         function loadRzezby() {
             if (typeof THREE.GLTFLoader === 'undefined') return;
             wczytajGlbBezAnimacji('models/aniol_rzezba.glb', new THREE.GLTFLoader(), gltf => {
@@ -13518,6 +13532,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 });
                 aniolProto = gltf.scene;
             }, err => console.warn('[rzezby] Nie wczytano models/aniol_rzezba.glb', err));
+            wczytajGlbBezAnimacji('models/jaskinia.glb', new THREE.GLTFLoader(), gltf => {
+                gltf.scene.traverse(ch => { if (ch.isMesh) { ch.castShadow = ch.receiveShadow = true; } });
+                jaskiniaProto = gltf.scene; jaskinieCzekaja.splice(0).forEach(g => g.add(jaskiniaProto.clone()));
+            }, err => console.warn('[jaskinia] Nie wczytano models/jaskinia.glb', err));
             wczytajGlbBezAnimacji('models/patron.glb', new THREE.GLTFLoader(), gltf => { patronProto = gltf.scene; }, err => console.warn('[patron] Nie wczytano models/patron.glb', err));
             wczytajGlbBezAnimacji('models/rzezby.glb', new THREE.GLTFLoader(), gltf => {
                 const figury = gltf.scene.children.slice();
@@ -18538,6 +18556,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     g.position.set(pos.x, ty, pos.z);
                     g.rotation.y = (Math.random() - 0.5) * 0.5;
                     g.rotation.z = (Math.random() - 0.5) * 0.12;   // przechylone ze starości
+                    scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'jaskinia') {
+                    const g = new THREE.Group();
+                    g.position.set(pos.x, ty - 0.1, pos.z); g.rotation.y = pos.kat; g.scale.setScalar(1.35);
+                    if (jaskiniaProto) g.add(jaskiniaProto.clone()); else jaskinieCzekaja.push(g);
                     scene.add(g); obstacleMeshes.push(g);
                 }
                 else if (pos.type === 'rock') {
@@ -46224,7 +46248,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const zap = zapowiedzPortalu; zgasMiganie();
             const polePortalu = (zap && canStandAt(zap.x, zap.z, 0) && !isUnitAtLevel(zap.x, zap.z, 0, null) &&
                 (!celDrogi || findPath(zap.x, zap.z, celDrogi[0], celDrogi[1], 0, zywi[0]))) ? zap : miejsceNaPortal(zywi, celDrogi);
-            const portal = polePortalu ? otworzPortal(polePortalu.x, polePortalu.z) : null;
+            // Czasem zamiast portalu wychodzą z jaskini w skale, o ile jest skąd dojść do oddziału
+            const jask = Math.random() < 0.5 ? obstaclePositions.filter(o => o.type === 'jaskinia' && isWithinPlayBounds(o.wx, o.wz) &&
+                canStandAt(o.wx, o.wz, 0) && (!celDrogi || findPath(o.wx, o.wz, celDrogi[0], celDrogi[1], 0, zywi[0])))
+                .map(o => ({ x: o.wx, z: o.wz })).sort(() => Math.random() - 0.5)[0] : null;
+            const portal = !jask && polePortalu ? otworzPortal(polePortalu.x, polePortalu.z) : null;
 
             let przybylo = 0;
             for (let i = 0; i < ilu; i++) {
@@ -46241,7 +46269,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 };
                 let spot = null;
                 // 0) z portalu - jeśli się otworzył, wychodzą tylko stamtąd
-                if (portal) spot = poleObokPortalu(portal);
+                if (portal || jask) spot = poleObokPortalu(portal || jask);
                 // 1) pierścień 50-65 pól wokół oddziału - gdy portal nie miał gdzie
                 // się otworzyć (oddział w ciasnym wnętrzu, wszystko zasłonięte)
                 // albo gdy wokół niego zabrakło wolnego pola. Bez tej furtki
@@ -46279,8 +46307,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Portal bez nikogo w środku to tylko dekoracja - gasimy go od razu
             if (przybylo === 0) { if (portal) zamknijPortal(portal); return; }
             updateFoW();
-            showFloatingWarning(portal ? 'Otwiera się portal!' : 'Zły przysłał posiłki!');
-            updateUI(portal
+            showFloatingWarning(portal ? 'Otwiera się portal!' : (jask ? 'Coś wychodzi z jaskini!' : 'Zły przysłał posiłki!'));
+            updateUI(jask ? 'Z ciemności jaskini w skale wychodzą wrogowie.' : portal
                 ? 'Powietrze pęka - w zasięgu wzroku kłębią się chmury, a w ich środku otwiera się portal. Nie widać, kto z niego wyjdzie.'
                 : `Sen drży - Zły przysyła posiłki. Nadchodzi ${przybylo} ${przybylo === 1 ? 'wróg' : 'wrogów'}.`);
             try { playFileSfx(AudioFiles.enemyOuch, 0.5); } catch (e) {}
