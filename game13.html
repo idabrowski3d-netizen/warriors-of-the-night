@@ -1477,6 +1477,19 @@
     </div>
 
     <script>
+        // Modele są skompresowane Draco - każdy GLTFLoader dostaje wspólny dekoder
+        (() => {
+            const G = THREE.GLTFLoader; let draco = null;
+            THREE.GLTFLoader = function (m) {
+                const l = new G(m);
+                if (THREE.DRACOLoader) {
+                    if (!draco) { draco = new THREE.DRACOLoader(); draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/'); draco.setDecoderConfig({ type: 'js' }); }
+                    l.setDRACOLoader(draco);
+                }
+                return l;
+            };
+            THREE.GLTFLoader.prototype = G.prototype;
+        })();
         // Lokalny serwer (python -m http.server) potrafi zerwać część z ~30 równoległych
         // pobrań .glb - model zostawał wtedy bryłą do końca gry. Każde wczytanie
         // modelu, w całej grze, dostaje więc trzy powtórki, zanim zgłosi błąd.
