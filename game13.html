@@ -26616,8 +26616,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             sh.uniforms.uT = linaCzas;
             sh.vertexShader = 'uniform float uT;\nvarying float vH;\n' + sh.vertexShader.replace('#include <begin_vertex>',
                 '#include <begin_vertex>\n vH = position.y; float fa = sin(3.14159 * position.y); float L = length(vec3(modelMatrix[1])) * position.y;\n' +
-                ' transformed.x += fa * (0.32 * sin(L * 0.7 - uT * 0.9) + 0.08 * sin(L * 1.9 + uT * 1.3));\n' +
-                ' transformed.z += fa * 0.24 * cos(L * 0.5 - uT * 0.7);');
+                ' transformed.x += fa * (0.64 * sin(L * 1.4 - uT * 0.9) + 0.08 * sin(L * 3.8 + uT * 1.3));\n' +
+                ' transformed.z += fa * 0.48 * cos(L * 1.0 - uT * 0.7);');
             sh.fragmentShader = 'varying float vH;\n' + sh.fragmentShader.replace('#include <tonemapping_fragment>',
                 'gl_FragColor *= 1.0 - 0.5 * vH;\n#include <tonemapping_fragment>');   // w górę coraz bledsza
         };
