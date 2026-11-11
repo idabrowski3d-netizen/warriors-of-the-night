@@ -25668,7 +25668,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 playerName: playerName,
                 czasGry: czasGry.getTime(),
                 zdrowieBohatera: zdrowieBohatera,
-                prologiPokazane: prologiPokazane,
+                prologiPokazane: prologiPokazane, fab: fab,
                 odwetyWykonane: odwetyWykonane,
                 ostoja: ostoja, ostojaBudowa: ostojaBudowa,
                 tropIndeks: tropIndeks, kartyRejestru: kartyRejestru.slice(), tropWybrany: tropWybrany,
@@ -25718,6 +25718,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (typeof data.czasGry === 'number') { czasGry = new Date(data.czasGry); odswiezZegar(); }
             zdrowieBohatera = data.zdrowieBohatera || null;
             prologiPokazane = Array.isArray(data.prologiPokazane) ? data.prologiPokazane : [];
+            fab = Object.assign({ kronika: [], wybory: {}, nici: [], znaleziska: [] }, data.fab || {});
             odwetyWykonane = Array.isArray(data.odwetyWykonane) ? data.odwetyWykonane : [];
             if (data.ostoja) ostoja = data.ostoja;
             if (typeof data.tropIndeks === 'number') tropIndeks = data.tropIndeks;
@@ -28117,8 +28118,223 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
         }
 
+        // ========================================================
+        // --- KRONIKA WYPRAWY, BLIZNY, WYBORY, NICI SNU, ZNALEZISKA, NARRATOR ---
+        // Warstwa opowieści nad misjami. Stan: fab (zapisywany z grą).
+        // ========================================================
+        let fab = { kronika: [], wybory: {}, nici: [], znaleziska: [] };
+        const losZ = a => a[Math.floor(Math.random() * a.length)];
+        const PRZYDOMKI = ['Jednooki', 'Ten, co uciekł strzydze', 'Połatany', 'Niezłomny', 'Siwy', 'Krzywa Ręka',
+                           'Ten, co wrócił', 'Bez Snu', 'Kulawy', 'Przypalony'];
+
+        // 1+2. Wpis do kroniki i blizny - liczone, póki oddział jeszcze stoi na planszy
+        function kronikaPoMisji() {
+            if (misjaTestowa || !soldiers.length) return;
+            const miejsce = currentCombatTheme ? (currentCombatTheme.__bazowaNazwa || currentCombatTheme.name) : 'nieznane miejsce';
+            const wygrana = lastMissionWon, polegli = [], blizny = [];
+            let zabici = 0, najlepszy = null;
+            soldiers.forEach(sd => {
+                if (sd.isNPC || sd.isEscortee || sd.isAngel || sd.summonedTurns > 0) return;
+                zabici += sd.kills || 0;
+                if (!najlepszy || (sd.kills || 0) > (najlepszy.kills || 0)) najlepszy = sd;
+                if (sd.isDead) { polegli.push(sd.name); return; }
+                const w = recruitedWarriors.find(x => x.name === sd.name);
+                if (w && sd.hp <= (sd.maxHp || 10) * 0.3) {
+                    w.blizny = (w.blizny || 0) + 1;
+                    if (!w.przydomek) w.przydomek = losZ(PRZYDOMKI.filter(n => !recruitedWarriors.some(x => x.przydomek === n))) || 'Stary';
+                    blizny.push(`${w.name} „${w.przydomek}”`);
+                }
+            });
+            const zd = [`Noc ${playerStats.mission + (wygrana ? 1 : 0)}. ${miejsce}.`,
+                wygrana ? losZ(['Śniący obudził się spokojny.', 'Koszmar pękł przed świtem.', 'Sen się domknął - tym razem po naszej myśli.'])
+                        : losZ(['Wycofaliśmy się. Sen został otwarty jak rana.', 'Nie zdążyliśmy. Śniący krzyczał do rana.']),
+                zabici ? `Padło ${zabici} istot${najlepszy && najlepszy.kills ? `, najwięcej z ręki ${najlepszy.name}` : ''}.` : 'Nikt nie dobył broni na darmo.'];
+            if (polegli.length) zd.push(`Lina pękła nad: ${polegli.join(', ')}.`);
+            if (blizny.length) zd.push(`Bliznę wyniósł ${blizny.join(', ')}.`);
+            fab.kronika.push(zd.join(' '));
+        }
+        const nazwaWojownika = w => w.przydomek ? `${w.name} „${w.przydomek}”` : w.name;
+
+        // 3. Wybory między misjami - każda scenka raz, skutki zostają w kronice
+        const WYBORY = [
+            { id: 'zakonnik', odMisji: 2, tekst: 'Pod drzwiami stoi zakonnik w przemoczonym habicie. Prosi o nocleg - mówi, że śni mu się ta sama rogata głowa.',
+              tak: ['Przyjmij go', () => { zdrowieBohatera = null; poziomNamierzenia++; }, 'Przyjąłem zakonnika. Opatrzył nam rany, ale od tej nocy ktoś obserwuje dom.'],
+              nie: ['Odpraw go', () => { playerStats.grace = Math.max(0, playerStats.grace - 5); }, 'Odprawiłem zakonnika. Długo stał w deszczu.'] },
+            { id: 'siekiera', odMisji: 5, tekst: 'W śnie z chatą drwala ktoś zostawił siekierę wbitą w pień. Na stylisku wyryto imię jednego z twoich.',
+              tak: ['Weź ją', () => { playerStats.grace += 5; }, 'Zabrałem siekierę ze snu. W dłoni jest cięższa, niż powinna.'],
+              nie: ['Zostaw', () => { recruitedWarriors.forEach(w => w.zwatpienie = Math.max(0, (w.zwatpienie || 0) - 1)); }, 'Siekiera została w pniu. Oddział odetchnął.'] },
+            { id: 'list', odMisji: 9, tekst: 'Matka zaginionej dziewczyny prosi, żebyś wszedł w sen jej córki. Ale córka nie śpi - nikt jej nie widział od tygodnia.',
+              tak: ['Obiecaj pomoc', () => { playerStats.goodDeeds++; poziomNamierzenia++; }, 'Obiecałem szukać zaginionej. Zakon dowie się, że pytam.'],
+              nie: ['Odmów', () => { recruitedWarriors.forEach(w => w.zwatpienie = (w.zwatpienie || 0) + 1); }, 'Odmówiłem matce. Oddział długo milczał.'] },
+            { id: 'nic', odMisji: 16, tekst: 'Jeden z wojowników przyznaje, że we śnie złapał za czyjąś linę. Była czarna i ciągnęła w dół, nie w górę.',
+              tak: ['Przetnij ją', () => { playerStats.grace += 10; }, 'Kazałem przeciąć czarną nić. Coś po drugiej stronie zawyło.'],
+              nie: ['Idź za nią', () => { fab.wybory.zaNicia = true; poziomNamierzenia += 2; }, 'Poszliśmy za czarną nicią. Wiemy już, dokąd prowadzi - i oni wiedzą, że wiemy.'] },
+            { id: 'zdrajca', odMisji: 30, tekst: 'Ktoś z miasta oferuje nazwiska ludzi Zakonu. W zamian chce, żebyś przestał wchodzić w sen jednego człowieka.',
+              tak: ['Zgódź się', () => { playerStats.grace += 15; fab.wybory.porzuconySen = true; }, 'Przyjąłem nazwiska. Jednego śniącego zostawiłem samego.'],
+              nie: ['Odrzuć', () => { poziomNamierzenia++; }, 'Odrzuciłem układ. Nie handluje się cudzymi nocami.'] }
+        ];
+        function sprobujWybor(wymus) {
+            if (!wymus && (gameMode !== 'present' || Math.random() > 0.5)) return false;
+            const w = wymus || WYBORY.find(x => playerStats.mission >= x.odMisji && !(x.id in fab.wybory));
+            if (!w) return false;
+            const wykonaj = o => { o[1](); fab.wybory[w.id] = o[0]; fab.kronika.push(o[2]); narrator(o[2]); };
+            showDialogue(`[Wybór]\n\n${w.tekst}`, w.tak[0], w.nie[0], () => wykonaj(w.tak), () => wykonaj(w.nie));
+            return true;
+        }
+
+        // 4. Wątek nici: kto ciągnie wojowników za liny duszy do nieba?
+        const NICI = [
+            { odMisji: 4, karta: 'Lina nad głową', tekst: 'Każdy z nas ma nad sobą jasną linę, sięgającą gdzieś poza niebo snu. Nikt jej nie przywiązywał.' },
+            { odMisji: 12, karta: 'Ktoś za nią trzyma', tekst: 'Gdy wojownik umierał, lina nie opadła - poszła w górę, jakby ktoś ją zwinął. Czyjaś ręka czeka po drugiej stronie.' },
+            { odMisji: 28, karta: 'Czarne nici', tekst: 'Ludzie Zakonu we snach też mają liny. Czarne. Prowadzą w dół, do tej samej rogatej głowy.' },
+            { odMisji: 44, karta: 'Dwie ręce', tekst: 'Jasne liny trzyma ktoś, kto nie chce, żebyśmy spadli. Czarne - ktoś, kto chce, żeby wszyscy spadli razem.' },
+            { odMisji: 60, karta: 'Splot', tekst: 'Nad trzema stolicami liny się splatają. Kto przetnie splot we śnie, zdecyduje, za którą ręką pójdzie świat.' }
+        ];
+        function sprawdzNic(wymus) {
+            const n = wymus || NICI.find(x => playerStats.mission >= x.odMisji && fab.nici.indexOf(x.odMisji) === -1);
+            if (!n) return false;
+            if (!wymus) fab.nici.push(n.odMisji);
+            pokazIntro(null, [{ karta: n.karta, tekst: n.tekst + (fab.wybory.zaNicia && n.odMisji >= 28 ? '\n\nWiesz to, bo kiedyś poszedłeś za czarną nicią.' : '') }], 'NICI SNU');
+            fab.kronika.push(`[Nici] ${n.karta}.`);
+            return true;
+        }
+
+        // 5. Znaleziska: list w chacie drwala, napis na mogile, zapiski w jaskini
+        const ZNALEZISKA = {
+            chata_drwala: ['List drwala: „Nie ścinaj dębu przy strumieniu. Ojciec mówił, że w nim śpi ktoś, kogo nie wolno budzić.”',
+                           'Rachunek za drewno dla klasztoru. Podpisany rogatym znakiem zamiast nazwiska.',
+                           'Dziecięcy rysunek: chata, drwal i nad nim jasna lina aż do chmur.'],
+            mogila: ['Na desce nagrobnej: „Zasnął i nie wrócił. 1894.” Ten sam rok, co w Rejestrze.',
+                     'Nagrobek bez imienia. Ktoś wydrapał tylko okrąg z rogatą głową.',
+                     '„Tu leży ten, który trzymał linę za innych.” Ziemia jest świeżo poruszona.'],
+            jaskinia: ['Na ścianie jaskini wyryto dziesiątki kresek - jak ktoś, kto liczył noce.',
+                       'Zeszyt w ceracie: „Oczy w ciemności nie są zwierzęce. One też śnią.”',
+                       'Zwój czarnej nici, ciepłej w dotyku. Prowadzi w głąb skały.']
+        };
+        let fabZnaleziska = [];   // na planszy: { x, z, typ, mesh }
+        function rozlozZnaleziska() {
+            fabZnaleziska.forEach(z => scene.remove(z.mesh)); fabZnaleziska = [];
+            if (gameMode !== 'dream') return;
+            Object.keys(ZNALEZISKA).forEach(typ => {
+                const mozliwe = obstaclePositions.filter(o => o.type === typ);
+                if (!mozliwe.length || Math.random() > 0.7) return;
+                const o = losZ(mozliwe);
+                const x = typ === 'chata_drwala' ? o.cx : (typ === 'jaskinia' ? o.wx : o.x), z = typ === 'chata_drwala' ? o.cz : (typ === 'jaskinia' ? o.wz : o.z + 1);
+                if (x === undefined) return;
+                const m = brylaWspomnienia(0); m.position.set(x, 0.05, z); scene.add(m);
+                fabZnaleziska.push({ x, z, typ, mesh: m });
+            });
+        }
+
+        // 7. Narrator: kilka zdań na ciemnym tle na początku i końcu snu
+        function narrator(tekst) {
+            let el = document.getElementById('narrator');
+            if (!el) {
+                el = document.createElement('div'); el.id = 'narrator';
+                el.style.cssText = 'position:fixed;left:0;right:0;top:38%;padding:26px 12%;background:linear-gradient(90deg,transparent,rgba(0,0,0,.82),transparent);' +
+                    'color:#e8dcc0;font:italic 22px Georgia,serif;text-align:center;pointer-events:none;opacity:0;transition:opacity 1.2s;z-index:9000';
+                document.body.appendChild(el);
+            }
+            el.textContent = tekst; el.style.opacity = 1;
+            clearTimeout(el._t); el._t = setTimeout(() => el.style.opacity = 0, 4200);
+        }
+        const NARRATOR_START = ['{m}. Mgła przyszła od strony, z której nikt nie przychodzi.', 'Noc {n}. Wchodzimy w sen: {m}.',
+                                'Ktoś śni o miejscu, które nazywa się {m}. Nie wie, że nie śni sam.', 'Liny napięły się nad głowami. {m}.'];
+        let fabTryb = null;
+        function updateFabuly() {
+            if (gameMode !== fabTryb) {
+                fabTryb = gameMode;
+                if (gameMode === 'dream') setTimeout(() => {
+                    if (gameMode !== 'dream') return;
+                    rozlozZnaleziska();
+                    const m = currentCombatTheme ? (currentCombatTheme.__bazowaNazwa || currentCombatTheme.name) : 'nieznane miejsce';
+                    narrator(losZ(NARRATOR_START).replace('{m}', m).replace('{n}', playerStats.mission + 1));
+                }, 1500);
+            }
+            if (gameMode !== 'dream') return;
+            for (let i = fabZnaleziska.length - 1; i >= 0; i--) {
+                const z = fabZnaleziska[i];
+                z.mesh.rotation.y += 0.02;
+                if (!soldiers.some(sd => !sd.isDead && sd.mesh && Math.hypot(sd.mesh.position.x - z.x, sd.mesh.position.z - z.z) < 1.6)) continue;
+                const t = losZ(ZNALEZISKA[z.typ].filter(t => fab.znaleziska.indexOf(t) === -1)) || losZ(ZNALEZISKA[z.typ]);
+                if (fab.znaleziska.indexOf(t) === -1) fab.znaleziska.push(t);
+                scene.remove(z.mesh); fabZnaleziska.splice(i, 1);
+                showFloatingWarning('Znalezisko'); updateUI(t); narrator(t);
+            }
+        }
+
+        // Kronika pod klawiszem J
+        function pokazKronike() {
+            const druz = recruitedWarriors.filter(w => w.blizny).map(w => `${nazwaWojownika(w)} - blizn: ${w.blizny}`);
+            const tekst = (fab.kronika.length ? fab.kronika.slice(-12).join('\n\n') : 'Kronika jest jeszcze pusta.') +
+                (druz.length ? '\n\n— Weterani —\n' + druz.join('\n') : '') +
+                (fab.znaleziska.length ? '\n\n— Znaleziska —\n' + fab.znaleziska.join('\n') : '');
+            showDialogue('[Kronika wyprawy]\n\n' + tekst, 'Zamknij', null, null, null);
+        }
+
+        // ---- PANEL TESTOWY HISTORII (F9) ----
+        // Wszystkie etapy fabuły w kolejności misji: skok, odtwarzanie po kolei, symulacja kampanii.
+        function etapyHistorii() {
+            const e = [{ m: 0, typ: 'Intro', nazwa: 'Narodziny bohatera', pokaz: () => pokazIntro(null) }];
+            PROLOGI.forEach(p => e.push({ m: p.odMisji, typ: 'Prolog', nazwa: p.tytul, pokaz: () => pokazIntro(null, p.karty, p.tytul) }));
+            NICI.forEach(n => e.push({ m: n.odMisji, typ: 'Nici', nazwa: n.karta, pokaz: () => sprawdzNic(n) }));
+            WYBORY.forEach(w => e.push({ m: w.odMisji, typ: 'Wybór', nazwa: w.tekst.slice(0, 50) + '…', pokaz: () => sprobujWybor(w) }));
+            INCYDENTY.forEach(i => e.push({ m: (PROLOGI.find(p => p.akt === i.odAktu) || {}).odMisji || 0, typ: 'Incydent', nazwa: i.tytul,
+                pokaz: () => showDialogue(`[${i.tytul}]\n\n${i.tekst}`, 'Dalej', null, null, null) }));
+            e.push({ m: 0, typ: 'Narrator', nazwa: 'Wejście w sen', pokaz: () => narrator(losZ(NARRATOR_START).replace('{m}', 'Cmentarzysko').replace('{n}', 7)) });
+            e.push({ m: 0, typ: 'Kronika', nazwa: 'Podgląd kroniki', pokaz: pokazKronike });
+            return e.sort((a, b) => a.m - b.m);
+        }
+        function ustawEtap(m) {   // stan kampanii tak, jakby gracz właśnie doszedł do misji m
+            playerStats.mission = m;
+            prologiPokazane = PROLOGI.filter(p => p.odMisji < m).map(p => p.akt);
+            fab.nici = NICI.filter(n => n.odMisji < m).map(n => n.odMisji);
+            WYBORY.forEach(w => { if (w.odMisji < m && !(w.id in fab.wybory)) fab.wybory[w.id] = w.tak[0]; if (w.odMisji >= m) delete fab.wybory[w.id]; });
+        }
+        let panelAuto = null;
+        function panelHistorii() {
+            let el = document.getElementById('panel-historii');
+            if (el) { el.remove(); clearInterval(panelAuto); return; }
+            el = document.createElement('div'); el.id = 'panel-historii';
+            el.style.cssText = 'position:fixed;right:12px;top:12px;bottom:12px;width:420px;overflow:auto;background:rgba(10,8,6,.94);color:#e8dcc0;' +
+                'font:13px sans-serif;padding:12px;z-index:9500;border:1px solid #6a5a40';
+            const et = etapyHistorii();
+            el.innerHTML = '<b>HISTORIA - TEST (F9)</b> <small>misja teraz: ' + playerStats.mission + '</small><br>' +
+                '<button id="ph-auto">▶ Odtwarzaj po kolei</button> <button id="ph-sym">Symulacja kampanii</button><div id="ph-log" style="white-space:pre-wrap;margin:6px 0;color:#b8c8a0"></div>' +
+                et.map((x, i) => `<div style="padding:3px 0;border-bottom:1px solid #2a241c">m.${x.m} <i>${x.typ}</i> ${x.nazwa} ` +
+                    `<button data-p="${i}">pokaż</button> <button data-s="${i}">skocz</button></div>`).join('');
+            document.body.appendChild(el);
+            el.querySelectorAll('[data-p]').forEach(b => b.onclick = () => et[+b.dataset.p].pokaz());
+            el.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { ustawEtap(et[+b.dataset.s].m); et[+b.dataset.s].pokaz(); el.remove(); panelHistorii(); });
+            el.querySelector('#ph-auto').onclick = () => {   // następny etap po zamknięciu okna albo co 6 s
+                clearInterval(panelAuto); let i = 0, t = 0;
+                panelAuto = setInterval(() => {
+                    const otwarte = dialogueOpen || (document.getElementById('intro-okno') || {}).offsetParent;
+                    if (otwarte && t++ < 12) return;
+                    t = 0; if (i >= et.length) { clearInterval(panelAuto); return; }
+                    el.querySelector('#ph-log').textContent = `etap ${i + 1}/${et.length}: ${et[i].typ} - ${et[i].nazwa}`;
+                    et[i++].pokaz();
+                }, 500);
+            };
+            el.querySelector('#ph-sym').onclick = () => {
+                const log = [];
+                for (let m = 0; m <= 75; m++) et.filter(x => x.m === m).forEach(x => log.push(`misja ${m}: ${x.typ} - ${x.nazwa}`));
+                el.querySelector('#ph-log').textContent = log.join('\n');
+            };
+        }
+        window.addEventListener('keydown', e => {
+            const a = document.activeElement;
+            if (a && /INPUT|TEXTAREA|SELECT/.test(a.tagName)) return;
+            if (e.key === 'F9') { e.preventDefault(); panelHistorii(); }
+            else if ((e.key === 'j' || e.key === 'J') && !dialogueOpen) pokazKronike();
+        });
+
         function returnToPresentFromDream() {
             manna = null; usunPlatkiRoz();
+            kronikaPoMisji();
+            fabZnaleziska.forEach(z => scene.remove(z.mesh)); fabZnaleziska = [];
+            narrator(lastMissionWon ? losZ(['Świt. Śniący przewraca się na drugi bok i śpi spokojnie.', 'Liny opadają. Wracamy do siebie.'])
+                                    : losZ(['Budzimy się z krzykiem. Sen został otwarty.', 'Ciemność puściła nas, ale nie śniącego.']));
             // Rany zapisujemy, ZANIM oddział zostanie usunięty ze sceny
             zapiszRanyPoMisji();
             soldiers.forEach(s => scene.remove(s.mesh));
@@ -28148,7 +28364,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Prolog kolejnego aktu - po przebudzeniu, gdy licznik misji przekroczy próg
             setTimeout(() => {
                 if (gameMode !== 'present') return;
-                if (!sprawdzProlog(null)) sprawdzIncydent();   // prolog ma pierwszeństwo
+                if (!sprawdzProlog(null) && !sprawdzNic() && !sprobujWybor()) sprawdzIncydent();   // prolog ma pierwszeństwo
             }, 900);
 
             // Punkty rozwoju przyznajemy tylko za wygraną misję - ich liczba zależy od Mądrości
@@ -50599,7 +50815,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             updatePochodnieStudni(time);
             updateDzwignieStudni();
             updateDymPostaci();
-            updateDymKominow(time); updateJaskin(); updatePlonacychZbroi();
+            updateDymKominow(time); updateJaskin(); updateFabuly(); updatePlonacychZbroi();
             updateCampfires(time);
             updateWarriorMixers(dt * spowolnienieCzasu);
             updateThemeMusic();
@@ -54587,7 +54803,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             czasGry = new Date();   // nowa gra startuje od bieżącej daty i godziny
             ostatniaKrew = null; ostatniSzpik = czasGry.getTime(); szpikOgloszony = false;
             zdrowieBohatera = null; ostatnieUczynki = null;
-            prologiPokazane = []; odwetyWykonane = []; uwiezieniWojownicy = [];
+            prologiPokazane = []; fab = { kronika: [], wybory: {}, nici: [], znaleziska: [] }; odwetyWykonane = []; uwiezieniWojownicy = [];
             ostoja = { kaplica: 0, skryptorium: 0, dzwonnica: 0, zbrojownia: 0, demonarium: 0, golebnik: 0, zielarnia: 0 };
             tropIndeks = 0; kartyRejestru = []; tropWybrany = false; tropWMisji = null;
             tropCelId = null; decyzjaFormularza = null;   // imionaWykreslone zostają - to ślad poprzednich przejść
