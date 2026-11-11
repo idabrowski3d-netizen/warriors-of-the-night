@@ -13553,6 +13553,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
         }
 
+        // Tekstura skały (Rock030 z ambientCG, CC0): proste bryły kamieni dostają spękaną powierzchnię
+        let _teksturaSkaly = null;
+        function teksturaSkaly() {
+            if (!_teksturaSkaly) { _teksturaSkaly = new THREE.TextureLoader().load('textures/skala.jpg'); _teksturaSkaly.wrapS = _teksturaSkaly.wrapT = THREE.RepeatWrapping; _teksturaSkaly.repeat.set(2, 1); }
+            return _teksturaSkaly;
+        }
         let rzezbyProto = null, rzezbyCzekaja = [], aniolProto = null, patronProto = null, jaskiniaProto = null; const jaskinieCzekaja = [];
         let chataDrwalaProto = null; const chatyDrwalaCzekaja = [], chatyDrwala = [];
         function loadRzezby() {
@@ -18639,9 +18645,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     scene.add(g); obstacleMeshes.push(g);
                 }
                 else if (pos.type === 'rock') {
-                    const ROCK_COLORS = [0x2e2a28, 0x3a332f, 0x241f1c, 0x463a30, 0x554538];
+                    const ROCK_COLORS = [0x6e6460, 0x80746c, 0x5a524c, 0x8c7866, 0x9a8470];   // jaśniej - tekstura skały przyciemnia
                     const rockColor = ROCK_COLORS[Math.floor(Math.random() * ROCK_COLORS.length)];
-                    const rockMat = new THREE.MeshLambertMaterial({ color: rockColor });
+                    const rockMat = new THREE.MeshLambertMaterial({ color: rockColor, map: teksturaSkaly() });
                     const rockHeight = 0.9 + Math.random() * 1.4;
                     const rock = new THREE.Mesh(new THREE.SphereGeometry(0.5 + Math.random() * 0.3, 6, 5), rockMat);
                     rock.scale.set(1 + Math.random() * 0.4, rockHeight, 1 + Math.random() * 0.4);

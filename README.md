@@ -29,6 +29,7 @@ Opcje: `--tury` (także tura wrogów), `--zrzuty` (zrzuty do `zrzuty_testu/`), `
 - `models/hell_warrior.glb` - "Hell Knight character", CG-Archion (https://www.cgtrader.com/free-3d-models/character/fantasy-character/hell-knight-character), CGTrader Royalty Free License (no AI). Zmiany: uproszczona siatka, poprawiony pancerz i miecz, wlasne kolory, szkielet i animacje, eksport do GLB.
 - `models/pelzacz.glb` - "Roach", Atmostatic (https://opengameart.org/content/roach-game-ready-and-animated), CC-BY-SA, wyeksportowany do glTF.
 - `models/chata_drwala.glb` - "Woodcutter's Cabin" z Blend Swap (https://www.blendswap.com/blends/view/86149), CC-BY-SA 3.0: chata z drzewami, krzakami i narzędziami, tekstury podpięte i zmniejszone, dach jako osobny obiekt.
+- `textures/skala.jpg` - Rock030 z ambientCG (https://ambientcg.com, CC0), kolor z cieniowaniem AO, na kamieniach.
 - `models/ogar.glb` - ogar piekielny przerobiony z wilka z "Animal Pack Vol.2", Quaternius (https://opengameart.org/content/animated-animales-low-poly), CC0.
 - `models/smierc.glb` - postać Śmierci z kosą, wykonana w Blenderze.
 - `models/pociagi_rdza.glb` - lokomotywy i wagony z Train Kit autorstwa Kenney (kenney.nl, CC0), postarzone rdzą w Blenderze.
