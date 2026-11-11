@@ -18593,7 +18593,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const g = new THREE.Group();
                     g.position.set(pos.x, ty - 0.1, pos.z); g.rotation.y = pos.kat; g.scale.setScalar(1.35);
                     if (jaskiniaProto) g.add(jaskiniaProto.clone()); else jaskinieCzekaja.push(g);
-                    dodajZycieJaskini(g);
+                    dodajZycieJaskini(g); pos.grupa = g;
                     scene.add(g); obstacleMeshes.push(g);
                 }
                 else if (pos.type === 'rock') {
@@ -32887,11 +32887,42 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
             jaskinieZycie.push({ g, mgla, oczy, nast: performance.now() / 1000 + 3 + Math.random() * 8, do: 0 });
         }
+        // Wojownik przy wylocie zawala jaskinię (2 PA): koniec posiłków stamtąd, ale huk niesie się daleko
+        function zawalJaskinie(s, tx, tz) {
+            const kl = obstaclePositions.find(o => o.x === tx && o.z === tz && (o.type === 'jaskinia' || o.type === 'jaskinia-skala'));
+            if (!kl) return false;
+            const j = obstaclePositions.filter(o => o.type === 'jaskinia' && !o.zawalona).sort((a, b) => Math.hypot(a.x - tx, a.z - tz) - Math.hypot(b.x - tx, b.z - tz))[0];
+            const sx = Math.round(s.mesh.position.x), sz = Math.round(s.mesh.position.z);
+            if (!j || Math.hypot(j.x - tx, j.z - tz) > 2.3 || Math.max(Math.abs(sx - j.wx), Math.abs(sz - j.wz)) > 1) return false;
+            if (s.ap < 2) { updateUI('Za mało PA, żeby zawalić jaskinię (potrzeba 2).'); return true; }
+            s.ap -= 2; j.zawalona = true;
+            const g = j.grupa, kam = new THREE.MeshLambertMaterial({ color: 0x4a443e, flatShading: true });
+            if (g) {
+                g.userData.zawalona = true;
+                for (let i = 0; i < 16; i++) {
+                    const k = new THREE.Mesh(new THREE.DodecahedronGeometry(0.22 + Math.random() * 0.2), kam);
+                    k.position.set((Math.random() - 0.5) * 1.4, 0.1 + Math.random() * 0.75, 0.7 + Math.random() * 0.6);
+                    k.rotation.set(Math.random() * 3, Math.random() * 3, 0); g.add(k);
+                }
+            }
+            const wy = getTerrainY(j.wx, j.wz);
+            for (let i = 0; i < 4; i++) klabDymu(j.wx + (Math.random() - 0.5), wy + 0.4, j.wz + (Math.random() - 0.5), 0x8a8070, 1.2 + Math.random() * 0.6, 2200, 1.2);
+            let zbudzonych = 0;
+            enemies.forEach(e => {
+                if (e.isDead || !e.mesh || e.zaalarmowany || e.zastygly) return;
+                if (Math.hypot(e.mesh.position.x - sx, e.mesh.position.z - sz) > 18) return;
+                e.zaalarmowany = true; e.patrol = null; zbudzonych++;
+            });
+            showFloatingWarning('Jaskinia zawalona!');
+            updateUI(`${s.name} zawala wejście do jaskini - nic już stamtąd nie wyjdzie.` + (zbudzonych ? ` Huk zwabił ${zbudzonych} wrogów.` : ''));
+            return true;
+        }
         function updateJaskin() {
             const t = performance.now() / 1000;
             for (let i = jaskinieZycie.length - 1; i >= 0; i--) {
                 const j = jaskinieZycie[i];
                 if (!j.g.parent) { jaskinieZycie.splice(i, 1); continue; }
+                if (j.g.userData.zawalona) { j.mgla.concat(j.oczy).forEach(m => { m.visible = false; }); jaskinieZycie.splice(i, 1); continue; }
                 j.mgla.forEach(m => {
                     const f = (t / 9 + m.userData.faza) % 1;   // mgła wypełza z wylotu i rozlewa się po ziemi
                     m.position.set(m.userData.x * (1 + f * 1.5), 0.25 + f * 0.15, 0.9 + f * 1.4);
@@ -38236,6 +38267,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     updateUI();
                     return;
                 }
+                if (zawalJaskinie(active, targetX, targetZ)) return;
 
                 if (naTymPolu !== -1) {
                     if (!czyMoznaPrzejac(naTymPolu)) return;
@@ -46374,7 +46406,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const polePortalu = (zap && canStandAt(zap.x, zap.z, 0) && !isUnitAtLevel(zap.x, zap.z, 0, null) &&
                 (!celDrogi || findPath(zap.x, zap.z, celDrogi[0], celDrogi[1], 0, zywi[0]))) ? zap : miejsceNaPortal(zywi, celDrogi);
             // Czasem zamiast portalu wychodzą z jaskini w skale, o ile jest skąd dojść do oddziału
-            const jask = Math.random() < 0.5 ? obstaclePositions.filter(o => o.type === 'jaskinia' && isWithinPlayBounds(o.wx, o.wz) &&
+            const jask = Math.random() < 0.5 ? obstaclePositions.filter(o => o.type === 'jaskinia' && !o.zawalona && isWithinPlayBounds(o.wx, o.wz) &&
                 canStandAt(o.wx, o.wz, 0) && (!celDrogi || findPath(o.wx, o.wz, celDrogi[0], celDrogi[1], 0, zywi[0])))
                 .map(o => ({ x: o.wx, z: o.wz })).sort(() => Math.random() - 0.5)[0] : null;
             const portal = !jask && polePortalu ? otworzPortal(polePortalu.x, polePortalu.z) : null;
