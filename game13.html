@@ -26669,6 +26669,41 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (!m.parent) scene.add(m);
             const d = b.clone().sub(a); m.position.copy(a); m.scale.set(1, d.length(), 1); m.quaternion.setFromUnitVectors(OS_Y, d.normalize());
         }
+        // Wrogowie - istoty z ciemności - pochłaniają światło: w promieniu 3 pól
+        // wszystko ku nim stopniowo ciemnieje. Wspólny dopisek do shaderów wszystkich materiałów
+        // plus ciemna plama na ziemi (przykrywa też trawę z własnym shaderem).
+        const CIEN_MAX = 24, CIEN_ZASIEG = 3;
+        const cienPoz = { value: Array.from({ length: CIEN_MAX }, () => new THREE.Vector3(1e5, 1e5, 1e5)) };
+        THREE.Material.prototype.onBeforeCompile = function (sh) {
+            if (this.userData.bezCienia || this.isSpriteMaterial || !sh.fragmentShader.includes('#include <fog_fragment>')) return;
+            sh.uniforms.uCien = cienPoz;
+            sh.vertexShader = 'varying vec3 vCienWp;\n' + sh.vertexShader.replace('#include <project_vertex>',
+                '#include <project_vertex>\n vec4 cWp = vec4(transformed, 1.0);\n#ifdef USE_INSTANCING\n cWp = instanceMatrix * cWp;\n#endif\n vCienWp = (modelMatrix * cWp).xyz;');
+            sh.fragmentShader = 'varying vec3 vCienWp;\nuniform vec3 uCien[' + CIEN_MAX + '];\n' + sh.fragmentShader.replace('#include <fog_fragment>',
+                'float cf = 1.0; for (int i = 0; i < ' + CIEN_MAX + '; i++) cf = min(cf, clamp(distance(vCienWp.xz, uCien[i].xz) / ' + CIEN_ZASIEG.toFixed(1) + ', 0.0, 1.0));\n' +
+                'gl_FragColor.rgb *= mix(0.03, 1.0, cf * cf);\n#include <fog_fragment>');
+        };
+        THREE.Material.prototype.customProgramCacheKey = function () { return this.onBeforeCompile.toString() + (this.userData.bezCienia ? 'b' : ''); };
+        const cienTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+            const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(0,0,0,0.95)'); gr.addColorStop(0.5, 'rgba(0,0,0,0.6)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+            g.fillStyle = gr; g.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c); })();
+        const cienPlamaMat = new THREE.MeshBasicMaterial({ map: cienTex, transparent: true, depthWrite: false });
+        cienPlamaMat.userData.bezCienia = true;
+        const cienPlamaGeo = new THREE.PlaneGeometry(CIEN_ZASIEG * 2, CIEN_ZASIEG * 2).rotateX(-Math.PI / 2);
+        const cienPlamy = [];
+        function updateCienWrogow() {
+            let n = 0;
+            if (gameMode === 'dream') enemies.forEach(e => {
+                if (e.isDead || !e.mesh || !e.mesh.visible || n >= CIEN_MAX) return;
+                const p = e.mesh.position; cienPoz.value[n].set(p.x, p.y + 0.9, p.z);
+                const pl = cienPlamy[n] || (cienPlamy[n] = new THREE.Mesh(cienPlamaGeo, cienPlamaMat));
+                if (!pl.parent) scene.add(pl); pl.renderOrder = 2; pl.position.set(p.x, p.y + 0.35, p.z); pl.visible = true; n++;
+                e.mesh.traverse(o => { [].concat(o.material || []).forEach(m => {   // sam wróg zostaje widoczny
+                    if (!m.userData.bezCienia) { m.userData.bezCienia = true; m.needsUpdate = true; } }); });
+            });
+            for (let i = n; i < CIEN_MAX; i++) { cienPoz.value[i].set(1e5, 1e5, 1e5); if (cienPlamy[i]) cienPlamy[i].visible = false; }
+        }
+
         function updateLinyDuszy(dt) {
             linaCzas.value += dt || 0.016; let n = 0;
             const noc = gameMode === 'presentNight';
@@ -50244,7 +50279,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             } else {
                 handleEdgeScroll();
             }
-            updateLinyDuszy(dt);
+            updateLinyDuszy(dt); updateCienWrogow();
             if (soldiers.length > 0 || isExploreMode()) renderMinimap();
             updateShadowFollow();
             updateCloudSea(dt);
