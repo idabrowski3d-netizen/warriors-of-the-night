@@ -26621,7 +26621,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         };
         const linaGeo = new THREE.CylinderGeometry(0.075, 0.075, 1, 8, 120, true); linaGeo.translate(0, 0.5, 0);
         // poświata: dwie szersze, coraz bledsze warstwy wokół rdzenia
-        const linaPoswiata = [].map(([r, op]) => {
+        const linaPoswiata = [[0.22, 0.55], [0.55, 0.32]].map(([r, op]) => {
             const g = new THREE.CylinderGeometry(r, r, 1, 10, 120, true); g.translate(0, 0.5, 0);
             const m = linaMat.clone(); m.opacity = op;
             m.onBeforeCompile = sh => {   // ruch jak rdzeń + miękki brzeg: gaśnie tam, gdzie patrzymy na krawędź rury
