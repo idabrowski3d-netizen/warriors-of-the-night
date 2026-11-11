@@ -26684,7 +26684,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // we śnie od każdego wojownika pionowo w niebo.
         let lozkoBohatera = null, cialoSpiace = null; const linyDuszy = [];
         const linaCzas = { value: 0 };
-        const linaMat = new THREE.MeshBasicMaterial({ color: 0x4aa8ff, transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+        const linaMat = new THREE.MeshBasicMaterial({ color: 0x4aa8ff, transparent: true, opacity: 0.25, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
         // uHp: 1 zdrowy, 0 umierający (blednie, drga, strzępi się), <0 zerwana lina gaśnie
         linaMat.onBeforeCompile = function (sh) {
             sh.uniforms.uT = linaCzas; sh.uniforms.uHp = this.userData.uHp || { value: 1 };
@@ -26700,9 +26700,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 'gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(dot(gl_FragColor.rgb, vec3(0.33))), rz * 0.7);\n' +
                 'gl_FragColor *= (1.0 - 0.5 * vH) * (1.0 - rz * 0.45 * (0.5 + 0.5 * sin(uT * 13.0))) * clamp(1.0 + min(uHp, 0.0), 0.0, 1.0);\n#include <tonemapping_fragment>');   // w górę coraz bledsza
         };
-        const linaGeo = new THREE.CylinderGeometry(0.0375, 0.0375, 1, 8, 120, true); linaGeo.translate(0, 0.5, 0);
+        const linaGeo = new THREE.CylinderGeometry(0.019, 0.019, 1, 8, 120, true); linaGeo.translate(0, 0.5, 0);
         // poświata: dwie szersze, coraz bledsze warstwy wokół rdzenia
-        const linaPoswiata = [[0.11, 0.55], [0.275, 0.32]].map(([r, op]) => {
+        const linaPoswiata = [[0.055, 0.275], [0.1375, 0.16]].map(([r, op]) => {
             const g = new THREE.CylinderGeometry(r, r, 1, 10, 120, true); g.translate(0, 0.5, 0);
             const m = linaMat.clone(); m.opacity = op;
             m.onBeforeCompile = function (sh) {   // ruch jak rdzeń + miękki brzeg: gaśnie tam, gdzie patrzymy na krawędź rury
