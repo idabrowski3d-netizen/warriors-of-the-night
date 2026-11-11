@@ -9257,7 +9257,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                 } else if (ch.typ === 'mogila') {
                                     // Kopczyk ziemi z krzyżykiem. Też może się otworzyć -
                                     // zombie wychodzi spod ziemi tak samo jak spod płyty.
-                                    addObstacle(gx, gz, 'mogila', { wariant: Math.floor(Math.random() * 3) });
+                                    addObstacle(gx, gz, 'mogila', { wariant: Math.floor(Math.random() * 3), obrot: kw.wPoprzek ? Math.PI / 2 : 0 });   // w rzędzie co pole leżą w poprzek rzędu
                                     sarcophagi.push({ x: gx, z: gz, size: 'small',
                                                       hasZombie: Math.random() < 0.4, opened: false, ziemna: true });
                                 } else if (ch.typ === 'krzyz_drewniany') {
@@ -19403,30 +19403,22 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 else if (pos.type === 'mogila') {
                     // Ziemny kopczyk z krzyżykiem - tak chowano zwykłych ludzi.
                     // Niski, więc widać ponad nim, ale wejść na niego nie sposób.
-                    const ziemiaMat = new THREE.MeshLambertMaterial({ color: 0x4a3c2c });
+                    // Cała mogiła w jednej grupie, obrócona w poprzek rzędu - sąsiednie się nie nakładają.
+                    const g = new THREE.Group();
                     const w = pos.wariant || 0;
                     const wys = 0.26 + w * 0.06;
-                    const kopiec = new THREE.Mesh(new THREE.BoxGeometry(0.85, wys, 1.5), ziemiaMat);
-                    kopiec.position.set(pos.x, ty + wys / 2, pos.z);
-                    kopiec.rotation.y = (w - 1) * 0.12;
-                    scene.add(kopiec); obstacleMeshes.push(kopiec);
-                    // Darń na wierzchu - mogiła zdążyła zarosnąć
-                    const darn = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.07, 1.34),
-                        new THREE.MeshLambertMaterial({ color: 0x3d4a2a }));
-                    darn.position.set(pos.x, ty + wys + 0.03, pos.z);
-                    darn.rotation.y = kopiec.rotation.y;
-                    scene.add(darn); obstacleMeshes.push(darn);
-                    // Krzyżyk w głowach
+                    const kopiec = new THREE.Mesh(new THREE.BoxGeometry(0.78, wys, 1.5), new THREE.MeshLambertMaterial({ color: 0x4a3c2c }));
+                    kopiec.position.y = wys / 2; g.add(kopiec);
+                    const darn = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.07, 1.34), new THREE.MeshLambertMaterial({ color: 0x3d4a2a }));
+                    darn.position.y = wys + 0.03; g.add(darn);   // mogiła zdążyła zarosnąć
                     const drewno = new THREE.MeshLambertMaterial({ color: 0x4e3a26 });
                     const przechyl = (w - 1) * 0.16;
                     const pion = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.62, 0.08), drewno);
-                    pion.position.set(pos.x, ty + wys + 0.31, pos.z - 0.62);
-                    pion.rotation.z = przechyl;
-                    scene.add(pion); obstacleMeshes.push(pion);
+                    pion.position.set(0, wys + 0.31, -0.62); pion.rotation.z = przechyl; g.add(pion);
                     const poziom = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.07, 0.07), drewno);
-                    poziom.position.set(pos.x + Math.sin(przechyl) * 0.12, ty + wys + 0.46, pos.z - 0.62);
-                    poziom.rotation.z = przechyl;
-                    scene.add(poziom); obstacleMeshes.push(poziom);
+                    poziom.position.set(Math.sin(przechyl) * 0.12, wys + 0.46, -0.62); poziom.rotation.z = przechyl; g.add(poziom);
+                    g.position.set(pos.x, ty, pos.z); g.rotation.y = (pos.obrot || 0) + (w - 1) * 0.04;
+                    scene.add(g); obstacleMeshes.push(g);
                 }
                 else if (pos.type === 'krzyz_drewniany') {
                     // Sam krzyż, bez kopca - grób już się zapadł. Przechylony,
