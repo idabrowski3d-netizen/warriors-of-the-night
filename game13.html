@@ -4177,6 +4177,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const TOPIELCE_NA_PLANSZE = 2;
 
         function createTopielecMesh() {
+            const zModelu = buildEnemyModelInstance('topielec'); if (zModelu) return zModelu;
             const g = new THREE.Group();
             const skora = new THREE.MeshLambertMaterial({ color: 0x5b8a9c });
             const skora2 = new THREE.MeshLambertMaterial({ color: 0x3f6b7a });
@@ -20820,6 +20821,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Nazwy klipów podajemy wprost, bo bywają różne (attack vs fight).
         // ========================================================
         const ENEMY_MODELS = {
+            gargulec: { plik: 'models/gargulec.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Czar', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 1.6 },
+            topielec: { plik: 'models/topielec.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Czar', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 1.75 },
+            drzewiec: { plik: 'models/drzewiec.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Czar', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 4.0 },
             skorpion: { plik: 'models/skorpion.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Czar', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 1.3 },
             robot: { plik: 'models/cyborg.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Czar', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 2.3 },
             hell_warrior: { plik: 'models/hell_warrior.glb', idle: 'Idle', walk: 'Walk', atak: 'Atak', specjalna: 'Czar', cios: 'Cios', smierc: 'Smierc', koloryZPliku: true, wysokosc: 2.6 },
@@ -21042,7 +21046,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                                 if (m.map) { m.map.encoding = THREE.LinearEncoding; m.map.needsUpdate = true; }
                                 // Model bez tekstur (kolorowany w Blenderze) zachowuje swoje barwy i świecenie
                                 const wlasne = cfg.koloryZPliku && !m.map;
-                                return new THREE.MeshLambertMaterial({
+                                return new THREE.MeshLambertMaterial({ name: m.name,
                                     map: m.map || null,
                                     color: m.map ? 0xffffff : wlasne ? m.color : 0xa08890,
                                     emissive: wlasne && m.emissive ? m.emissive : 0x000000,
@@ -28934,6 +28938,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const GARGULEC_ZYWY = 0x5f4a42;
 
         function createGargulecMesh() {
+            const zModelu = buildEnemyModelInstance('gargulec');
+            if (zModelu) {   // kamienna figura: poza 'Kamien' bez ruchu, barwy materiałów zmienia ozyjGargulec
+                const u = zModelu.userData, mat = {};
+                zModelu.traverse(ch => { if (ch.isMesh) { ch.material = ch.material.clone(); mat[ch.material.name] = ch.material; } });
+                u.kamienne = [mat.kamien, mat.kamien2]; u.materialOczu = mat.oko; u.skrzydla = [];
+                if (u.actions.Kamien) { u.actions.Idle.stop(); u.actions.Kamien.play(); u.currentAction = 'Kamien'; }
+                return zModelu;
+            }
             const g = new THREE.Group();
             const kamien = new THREE.MeshLambertMaterial({ color: GARGULEC_KAMIEN });
             const kamien2 = new THREE.MeshLambertMaterial({ color: 0x9b958a });
@@ -29029,6 +29041,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 });
                 if (u.materialOczu && u.materialOczu.color) u.materialOczu.color.setHex(0xff3311);
                 (u.skrzydla || []).forEach((sk, i) => { sk.rotation.y = (i === 0 ? -1 : 1) * 0.25; });
+                if (u.actions && u.actions.Kamien) { u.actions.Kamien.stop(); u.actions.Idle.play(); u.currentAction = 'Idle'; }
             }
             showFloatingWarning('Kamień pęka - GARGULEC ożywa!');
             updateUI('Figura na postumencie rusza się. GARGULEC rozkłada skrzydła!');
@@ -30127,6 +30140,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Skrzydła biją przez chwilę - bez tego lot wyglądałby jak sunięcie kamienia
         function machnijSkrzydlami(e) {
             const sk = e.mesh && e.mesh.userData && e.mesh.userData.skrzydla;
+            if (e.mesh && e.mesh.userData.isEnemyModel) { animWroga(e, 'specjalna', true); return; }
             if (!sk || !sk.length) return;
             const start = performance.now();
             activeAnimations.push((now) => {
@@ -41000,6 +41014,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
         }
         function createDrzewiecMesh() {
+            const zModelu = buildEnemyModelInstance('drzewiec'); if (zModelu) { zModelu.userData.ramiona = []; return zModelu; }
             const g = new THREE.Group();
             const cel = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 4, 6), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
             cel.position.y = 2; g.add(cel);
@@ -41023,6 +41038,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function obudzDrzewca(o) {
             o.drzewiec = false; o.obudzony = true;
             const m = createDrzewiecMesh(), y = getTerrainY(o.x, o.z);
+            if (m.userData.isEnemyModel) schowajDrzewo(o.x, o.z);   // drzewo samo staje się potworem
             m.position.set(o.x, y, o.z);
             scene.add(m);
             enemies.push({ mesh: m, type: 'drzewiec', hp: DRZEWIEC_HP, maxHp: DRZEWIEC_HP, ap: 8, maxAp: 8, accuracyBonus: 0, isDead: false, facingAngle: 0, level: 0, zaalarmowany: true });
