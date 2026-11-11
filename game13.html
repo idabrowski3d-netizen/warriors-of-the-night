@@ -10248,6 +10248,24 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 pola.forEach(([px, pz]) => { if (px !== x || pz !== z) addObstacle(px, pz, 'jaskinia-skala'); });
                 n++;
             }
+            // Chata drwala (Woodcutter's Cabin z Blend Swap, CC-BY-SA) z drzewami i krzakami wokół.
+            // Ściany blokują, środek jest wolny - wchodzi się przez otwarte drzwi od frontu.
+            const CHATA_NA = ['las', 'alabama', 'pobojowisko', 'parow', 'trawa', 'amazonia', 'jezioro', 'bagno'];
+            if (currentCombatTheme && CHATA_NA.includes(currentCombatTheme.id) && Math.random() < 0.6) for (let t = 0; t < 300; t++) {
+                const x = Math.floor(Math.random() * (mapWidth - 30)) + 15 - offsetX, z = Math.floor(Math.random() * (mapDepth - 30)) + 15 - offsetZ;
+                const k = Math.floor(Math.random() * 4), obr = ([u, v]) => [[u, v], [v, -u], [-u, -v], [-v, u]][k], swiat = uv => { const [a, b] = obr(uv); return [x + a, z + b]; };
+                const teren = []; for (let u = -5; u <= 9; u++) for (let v = -5; v <= 5; v++) teren.push(swiat([u, v]));
+                if (!teren.every(([px, pz]) => isWithinPlayBounds(px, pz) && !isObstacle(px, pz) && terrainTypeMap[px + offsetX][pz + offsetZ] < 2 && !isInsideAnyHouse(px, pz))) continue;
+                const sciany = [];
+                for (let u = -4; u <= 4; u++) for (const v of [-3, 3]) if (!(u === -2 && v === 3)) sciany.push([u, v]);   // drzwi w (-2, 3)
+                for (let v = -2; v <= 2; v++) sciany.push([-4, v], [4, v]);
+                for (let u = 5; u <= 7; u++) for (let v = -3; v <= 2; v++) sciany.push([u, v]);   // drwalnia z balami
+                sciany.push([8, 3], [5, 4]);   // pnie drzew
+                const [ax, az] = swiat([4, 0]);
+                addObstacle(ax, az, 'chata_drwala', { kat: k * Math.PI / 2, cx: x, cz: z, k: k });
+                sciany.forEach(uv => { const [px, pz] = swiat(uv); if (px !== ax || pz !== az) addObstacle(px, pz, 'chata-sciana'); });
+                break;
+            }
             if (naWulkanie || (currentCombatTheme && currentCombatTheme.id === 'bagno')) obstaclePositions.forEach(p => {
                 if (p.type !== 'tree' || (!naWulkanie && Math.random() >= 0.45)) return;
                 const n = Math.floor(Math.random() * 5);
@@ -13536,6 +13554,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         let rzezbyProto = null, rzezbyCzekaja = [], aniolProto = null, patronProto = null, jaskiniaProto = null; const jaskinieCzekaja = [];
+        let chataDrwalaProto = null; const chatyDrwalaCzekaja = [], chatyDrwala = [];
         function loadRzezby() {
             if (typeof THREE.GLTFLoader === 'undefined') return;
             wczytajGlbBezAnimacji('models/aniol_rzezba.glb', new THREE.GLTFLoader(), gltf => {
@@ -13546,6 +13565,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 });
                 aniolProto = gltf.scene;
             }, err => console.warn('[rzezby] Nie wczytano models/aniol_rzezba.glb', err));
+            wczytajGlbBezAnimacji('models/chata_drwala.glb', new THREE.GLTFLoader(), gltf => {
+                gltf.scene.traverse(c => { if (c.isMesh) { c.castShadow = c.receiveShadow = true; } });
+                chataDrwalaProto = gltf.scene; chatyDrwalaCzekaja.splice(0).forEach(postawChateDrwala);
+            });
             wczytajGlbBezAnimacji('models/jaskinia.glb', new THREE.GLTFLoader(), gltf => {
                 gltf.scene.traverse(ch => { if (ch.isMesh) { ch.castShadow = ch.receiveShadow = true; } });
                 jaskiniaProto = gltf.scene; jaskinieCzekaja.splice(0).forEach(g => g.add(jaskiniaProto.clone()));
@@ -18602,6 +18625,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     g.rotation.y = (Math.random() - 0.5) * 0.5;
                     g.rotation.z = (Math.random() - 0.5) * 0.12;   // przechylone ze starości
                     scene.add(g); obstacleMeshes.push(g);
+                }
+                else if (pos.type === 'chata_drwala') {
+                    const g = new THREE.Group(); g.position.set(pos.cx, getTerrainY(pos.cx, pos.cz), pos.cz); g.rotation.y = pos.kat;
+                    g.userData.chata = pos; scene.add(g); obstacleMeshes.push(g);
+                    if (chataDrwalaProto) postawChateDrwala(g); else chatyDrwalaCzekaja.push(g);
                 }
                 else if (pos.type === 'jaskinia') {
                     const g = new THREE.Group();
@@ -32982,7 +33010,26 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             updateUI(`${s.name} zawala wejście do jaskini - nic już stamtąd nie wyjdzie.` + (zbudzonych ? ` Huk zwabił ${zbudzonych} wrogów.` : ''));
             return true;
         }
+        function postawChateDrwala(g) {
+            const m = chataDrwalaProto.clone(); g.add(m);
+            const dach = m.getObjectByName('dach'); chatyDrwala.push({ g, dach, p: g.userData.chata });
+        }
+        // Dach znika, gdy ktoś z oddziału jest w środku - widać wnętrze
+        function updateChatDrwala() {
+            for (let i = chatyDrwala.length - 1; i >= 0; i--) {
+                const c = chatyDrwala[i];
+                if (!c.g.parent) { chatyDrwala.splice(i, 1); continue; }
+                const w = soldiers.some(s => {
+                    if (s.isDead || !s.mesh) return false;
+                    const dx = s.mesh.position.x - c.p.cx, dz = s.mesh.position.z - c.p.cz, a = -c.p.kat;
+                    const u = dx * Math.cos(a) + dz * Math.sin(a), v = -dx * Math.sin(a) + dz * Math.cos(a);
+                    return Math.abs(u) < 3.7 && Math.abs(v) < 2.7;
+                });
+                if (c.dach) c.dach.visible = !w;
+            }
+        }
         function updateJaskin() {
+            updateChatDrwala();
             const t = performance.now() / 1000;
             for (let i = jaskinieZycie.length - 1; i >= 0; i--) {
                 const j = jaskinieZycie[i];
