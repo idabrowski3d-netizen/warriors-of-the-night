@@ -30524,7 +30524,45 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function createNekromantaMesh() { return buildEnemyModelInstance('nekromanta') || createBossMesh(); }
         function createFuriatMesh() { return buildEnemyModelInstance('furiat') || createHellhoundMesh(); }
         function createMamutMesh() { return buildEnemyModelInstance('mamut') || createCharacter(0xd8d2c0, 0xe8e2d0, 0x111111, 1.9, 'mamut'); }
-        function createHellWarriorMesh() { return buildEnemyModelInstance('hell_warrior') || createCharacter(0x882211, 0xcc4411, 0x111111, 1.5, 'hell_warrior'); }
+        function createHellWarriorMesh() { return dodajPlonacaZbroje(buildEnemyModelInstance('hell_warrior') || createCharacter(0x882211, 0xcc4411, 0x111111, 1.5, 'hell_warrior')); }
+        // Zbroja Hell Warriora płonie, a z niego unosi się lekki dym
+        const plonaceZbroje = [];
+        function dodajPlonacaZbroje(g) {
+            if (!dymTekstura) dodajDymKomina(new THREE.Object3D()), dymyKominow.pop();
+            const p = [], d = [];
+            for (let i = 0; i < 28; i++) {
+                const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: dymTekstura, color: i % 3 ? 0xff6a18 : 0xffc040, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+                const a = Math.random() * 6.28; f.userData = { a, r: 0.22 + Math.random() * 0.12, y: 0.5 + Math.random() * 1.7, faza: Math.random() };
+                g.add(f); p.push(f);
+            }
+            for (let i = 0; i < 6; i++) {
+                const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: dymTekstura, color: 0x3a3430, transparent: true, opacity: 0, depthWrite: false }));
+                m.userData.faza = i / 6; g.add(m); d.push(m);
+            }
+            plonaceZbroje.push({ g, p, d });
+            return g;
+        }
+        function updatePlonacychZbroi() {
+            const t = performance.now() / 1000;
+            for (let i = plonaceZbroje.length - 1; i >= 0; i--) {
+                const z = plonaceZbroje[i];
+                if (!z.g.parent && z.ok) { plonaceZbroje.splice(i, 1); continue; }
+                if (z.g.parent) z.ok = true;
+                if (!z.g.visible) continue;
+                z.p.forEach(f => {
+                    const u = f.userData, k = (t * 1.6 + u.faza) % 1;   // języki ognia liżą zbroję i gasną w górze
+                    f.position.set(Math.cos(u.a) * u.r, u.y + k * 0.5, Math.sin(u.a) * u.r);
+                    f.scale.set(0.38 * (1 - k * 0.6), 0.6 * (1 - k * 0.4), 1);
+                    f.material.opacity = Math.sin(Math.PI * k) * (0.75 + 0.25 * Math.sin(t * 23 + u.a * 5));
+                });
+                z.d.forEach(m => {
+                    const k = (t / 4 + m.userData.faza) % 1;
+                    m.position.set(Math.sin(k * 5 + m.userData.faza * 9) * 0.2, 2.2 + k * 1.8, 0);
+                    m.scale.setScalar(0.4 + k * 0.9);
+                    m.material.opacity = 0.3 * Math.sin(Math.PI * k);
+                });
+            }
+        }
         function createRogaczMesh() { return buildEnemyModelInstance('rogacz') || createCharacter(0x883322, 0x994433, 0x111111, 1.5, 'rogacz'); }
         function createSzkieletorMesh() { return buildEnemyModelInstance('szkieletor') || createCharacter(0xd8d2c0, 0xe8e2d0, 0x111111, 0.9, 'szkieletor'); }
         function createGniewarMesh() { return buildEnemyModelInstance('gniewar') || createCharacter(0x557733, 0x668844, 0x111111, 1.6, 'gniewar'); }
@@ -41365,7 +41403,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (s !== cel && s.hp <= 0) { playDyingSfx(); killUnitWithAnim(s); refreshPlayerPositions(); }
             });
             [...enemies, ...npcs].forEach(u => {
-                if (!wZasiegu(u)) return;
+                if (!wZasiegu(u) || u.type === 'hell_warrior') return;   // Hell Warrior nie boi się ognia
                 u.ogienTury = 1;
                 if (u === cel) { if (!celTrafiony) u.hp -= ZAPAL_OBRAZENIA; return; }
                 u.hp -= ZAPAL_OBRAZENIA;
@@ -41465,7 +41503,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (u.isDead || !u.mesh) return;
                 const mx = Math.round(u.mesh.position.x) + offsetX, mz = Math.round(u.mesh.position.z) + offsetZ;
                 if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return;
-                if (ogienGrid[mx][mz] !== 1) { u.ogienTury = 0; return; }
+                if (ogienGrid[mx][mz] !== 1 || u.type === 'hell_warrior') { u.ogienTury = 0; return; }
                 u.hp -= planszowy ? POZAR_OBRAZENIA : obrazeniaZaleganiaWOgniu(u);
                 u.ogienTury = (u.ogienTury || 0) + 1;
                 if (u.hp <= 0) zginalWOgniu(u);
@@ -50411,7 +50449,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             updatePochodnieStudni(time);
             updateDzwignieStudni();
             updateDymPostaci();
-            updateDymKominow(time); updateJaskin();
+            updateDymKominow(time); updateJaskin(); updatePlonacychZbroi();
             updateCampfires(time);
             updateWarriorMixers(dt * spowolnienieCzasu);
             updateThemeMusic();
