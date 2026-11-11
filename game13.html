@@ -17238,6 +17238,55 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
         }
 
+        // Bryły składane z prostych kształtów dostają teksturę zależną od barwy materiału:
+        // brązy - drewno, szarości - kamień/beton/tynk/metal, zieleń - trawa (płaskie) lub mech (kuliste krzaki), reszta - tkanina.
+        // Tekstury są szare (CC0 z ambientCG), więc mnożą się z dotychczasową barwą i jej nie zmieniają.
+        const _detTex = {};
+        function detTekstura(n) {
+            if (!_detTex[n]) { const t = _detTex[n] = new THREE.TextureLoader().load('textures/det_' + n + '.jpg'); t.wrapS = t.wrapT = THREE.RepeatWrapping; }
+            return _detTex[n];
+        }
+        function rodzajPowierzchni(m) {
+            const hsl = {}; m.color.getHSL(hsl);
+            const { h, s, l } = hsl;
+            if (s < 0.1) return l < 0.16 ? 'metal' : l < 0.55 ? 'kamien' : l < 0.78 ? 'beton' : 'tynk';
+            if (h >= 0.02 && h <= 0.14) return l < 0.5 ? 'drewno' : 'tynk';
+            if (h > 0.16 && h < 0.46) return 'zielen';   // darń i krzaki
+            return 'tkanina';
+        }
+        function skalujUV(g) {   // 1 powtórzenie tekstury na metr, bez rozciągania na długich deskach
+            if (!g || g.userData.uvSk || !g.attributes.uv) return; g.userData.uvSk = true;
+            const uv = g.attributes.uv, p = g.parameters || {};
+            if (g.type === 'BoxGeometry' && uv.count === 24) {
+                const W = p.width || 1, H = p.height || 1, D = p.depth || 1, sk = [[D, H], [D, H], [W, D], [W, D], [W, H], [W, H]];
+                for (let i = 0; i < 24; i++) { const [a, b] = sk[i >> 2]; uv.setXY(i, uv.getX(i) * a, uv.getY(i) * b); }
+            } else if (g.type === 'CylinderGeometry' || g.type === 'ConeGeometry') {
+                const r = Math.max(p.radiusTop || 0, p.radiusBottom || 0, p.radius || 0) || 0.5;
+                for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 6.28 * r, uv.getY(i) * (p.height || 1));
+            } else if (g.type === 'SphereGeometry' || g.type === 'DodecahedronGeometry' || g.type === 'IcosahedronGeometry') {
+                const r = p.radius || 0.5;
+                for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 6.28 * r, uv.getY(i) * 3.14 * r);
+            } else return;
+            uv.needsUpdate = true;
+        }
+        function teksturujPrzeszkody() {
+            obstacleMeshes.forEach(o => o.traverse(ch => {
+                if (!ch.isMesh || !ch.material || Array.isArray(ch.material)) return;
+                const m = ch.material;
+                if (!(m.isMeshLambertMaterial || m.isMeshStandardMaterial || m.isMeshPhongMaterial)) return;
+                if (m.userData.det === false) return;
+                if (!m.userData.det) {
+                    const r = (m.map || m.transparent || (m.emissive && m.emissive.getHex() !== 0)) ? null : rodzajPowierzchni(m);
+                    m.userData.det = r || false;
+                    if (!r) return;
+                    const kula = /Sphere|Dodecahedron|Icosahedron/.test(ch.geometry.type);
+                    const n = r === 'zielen' ? (kula ? 'krzak' : 'trawa') : (r === 'drewno' && kula ? 'kamien' : r);   // brązowa bryła kulista to głaz, nie deska
+                    m.map = detTekstura(n); m.needsUpdate = true;
+                    if (r === 'zielen') { const q = {}; m.color.getHSL(q); m.color.setHSL(q.h, q.s * 0.6, q.l * 1.1); } else m.color.multiplyScalar(1.2);   // zieleń przygaszona, nie jaskrawa
+                }
+                skalujUV(ch.geometry);
+            }));
+        }
         function renderObstacles() {
             oczyscWnetrzaZachodu();
             usunSladyWspolczesnosci();
@@ -19641,6 +19690,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const drzewLacznie = obstaclePositions.filter(p => p.type === 'tree').length;
             if (drzewLacznie > 0) console.info(`[drzewa] Na planszy: ${drzewLacznie} (z modelu ${drzewZModeluNaPlanszy}, z kodu ${drzewZKodu}, wywołań rysowania ${drzewaZbiorcze.length})`);
 
+            teksturujPrzeszkody();
         }
 
         const highlightMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.4, depthWrite: false }));

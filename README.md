@@ -30,6 +30,7 @@ Opcje: `--tury` (także tura wrogów), `--zrzuty` (zrzuty do `zrzuty_testu/`), `
 - `models/pelzacz.glb` - "Roach", Atmostatic (https://opengameart.org/content/roach-game-ready-and-animated), CC-BY-SA, wyeksportowany do glTF.
 - `models/chata_drwala.glb` - "Woodcutter's Cabin" z Blend Swap (https://www.blendswap.com/blends/view/86149), CC-BY-SA 3.0: chata z drzewami, krzakami i narzędziami, tekstury podpięte i zmniejszone, dach jako osobny obiekt.
 - `textures/skala.jpg` - Rock030 z ambientCG (https://ambientcg.com, CC0), kolor z cieniowaniem AO, na kamieniach.
+- `textures/det_*.jpg` - szare tekstury szczegółu z ambientCG (CC0): Wood066, Rock030, Plaster003, Fabric030, Metal032, Concrete034, Grass004, Moss002; nakładane automatycznie na bryły przeszkód według barwy.
 - `models/ogar.glb` - ogar piekielny przerobiony z wilka z "Animal Pack Vol.2", Quaternius (https://opengameart.org/content/animated-animales-low-poly), CC0.
 - `models/smierc.glb` - postać Śmierci z kosą, wykonana w Blenderze.
 - `models/pociagi_rdza.glb` - lokomotywy i wagony z Train Kit autorstwa Kenney (kenney.nl, CC0), postarzone rdzą w Blenderze.
