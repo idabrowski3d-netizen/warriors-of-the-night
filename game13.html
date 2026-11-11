@@ -14162,7 +14162,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
             dymyKominow.push(klebki);
         }
-        function updateDymKominow() {
+        function updateDymDomow() {
             const t = performance.now() / 1000;
             dymyKominow.forEach(kl => kl.forEach(s => {
                 const f = (t / 6 + s.userData.faza) % 1;      // 6 s życia kłębka
@@ -14175,7 +14175,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         // Płynny obrót skrzydeł do zadanego kąta
         function updateDrzwiModeli() {
-            updateDymKominow();
+            updateDymDomow();
             domyInstancje.forEach(d => d.drzwi.forEach(m => {
                 if (m.userData.celObrotu === undefined) return;
                 const r = m.rotation.y;
@@ -18593,6 +18593,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     const g = new THREE.Group();
                     g.position.set(pos.x, ty - 0.1, pos.z); g.rotation.y = pos.kat; g.scale.setScalar(1.35);
                     if (jaskiniaProto) g.add(jaskiniaProto.clone()); else jaskinieCzekaja.push(g);
+                    dodajZycieJaskini(g);
                     scene.add(g); obstacleMeshes.push(g);
                 }
                 else if (pos.type === 'rock') {
@@ -32868,6 +32869,39 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 mat.opacity = 0.8 * (1 - p);
                 return false;
             });
+        }
+
+        // Jaskinia żyje: z wylotu sączy się mgła, a z ciemności czasem błysną czyjeś oczy
+        const jaskinieZycie = [];
+        function dodajZycieJaskini(g) {
+            if (!dymTekstura) dodajDymKomina(new THREE.Object3D()), dymyKominow.pop();   // tylko po teksturę
+            const mgla = [], oczy = [];
+            for (let i = 0; i < 7; i++) {
+                const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: dymTekstura, color: 0x9aa4a8, transparent: true, opacity: 0, depthWrite: false }));
+                m.userData.faza = i / 7; m.userData.x = (Math.random() - 0.5) * 0.7; g.add(m); mgla.push(m);
+            }
+            const kol = [0xff3a1a, 0xffd23a, 0x9cff5a][Math.floor(Math.random() * 3)];
+            for (const x of [-0.09, 0.09]) {
+                const o = new THREE.Sprite(new THREE.SpriteMaterial({ map: dymTekstura, color: kol, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+                o.position.set(x, 0.5, 0.55); o.scale.setScalar(0.09); g.add(o); oczy.push(o);
+            }
+            jaskinieZycie.push({ g, mgla, oczy, nast: performance.now() / 1000 + 3 + Math.random() * 8, do: 0 });
+        }
+        function updateJaskin() {
+            const t = performance.now() / 1000;
+            for (let i = jaskinieZycie.length - 1; i >= 0; i--) {
+                const j = jaskinieZycie[i];
+                if (!j.g.parent) { jaskinieZycie.splice(i, 1); continue; }
+                j.mgla.forEach(m => {
+                    const f = (t / 9 + m.userData.faza) % 1;   // mgła wypełza z wylotu i rozlewa się po ziemi
+                    m.position.set(m.userData.x * (1 + f * 1.5), 0.25 + f * 0.15, 0.9 + f * 1.4);
+                    m.scale.set(0.8 + f * 1.6, 0.45 + f * 0.5, 1);
+                    m.material.opacity = 0.32 * Math.sin(Math.PI * f);
+                });
+                if (t > j.nast) { j.do = t + 1.2 + Math.random() * 1.5; j.nast = j.do + 6 + Math.random() * 12; }
+                const mrug = t < j.do && Math.sin(t * 9) > -0.85;   // oczy mrugają, potem gasną
+                j.oczy.forEach(o => { o.material.opacity += ((mrug ? 1 : 0) - o.material.opacity) * 0.2; });
+            }
         }
 
         // Kominy wulkanu dymią bez przerwy, ale tylko te widoczne i blisko kamery
@@ -50345,7 +50379,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             updatePochodnieStudni(time);
             updateDzwignieStudni();
             updateDymPostaci();
-            updateDymKominow(time);
+            updateDymKominow(time); updateJaskin();
             updateCampfires(time);
             updateWarriorMixers(dt * spowolnienieCzasu);
             updateThemeMusic();
