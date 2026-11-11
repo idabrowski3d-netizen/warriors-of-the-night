@@ -38443,7 +38443,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         } else {
                             updateUI("Ten mur jest zbyt solidny - pocisk się odbił.");
                         }
-                        checkEnemyOverwatch(() => { if (!gameOver) { isPlayerTurn = true; autoSelectActiveSoldier(); } }, true);
+                        if (!gameOver) { isPlayerTurn = true; autoSelectActiveSoldier(); }
                     }, 'player');
                     return;
                 }
@@ -38486,7 +38486,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                             const rodzajAmu = nrPocisku === 1 ? pierwszyLadunek : null;
                             const poStrzale = () => {
                                 if (podwojny && nrPocisku === 1 && !clickedEnemy.isDead && !gameOver) { setTimeout(() => strzel(2), 250); return; }
-                                checkGameOver(); if(!gameOver) { checkEnemyOverwatch(() => { isPlayerTurn = true; autoSelectActiveSoldier(); }, true); }
+                                checkGameOver(); if(!gameOver) { isPlayerTurn = true; autoSelectActiveSoldier(); }   // warta wroga reaguje na ruch, nie na strzał
                             };
                             let targetCover = getCoverObstacle(targetX, targetZ, startX, startZ);
                             let shooterCover = getCoverObstacle(startX, startZ, targetX, targetZ);
