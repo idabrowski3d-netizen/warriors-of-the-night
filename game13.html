@@ -26616,12 +26616,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             sh.uniforms.uT = linaCzas;
             sh.vertexShader = 'uniform float uT;\n' + sh.vertexShader.replace('#include <begin_vertex>',
                 '#include <begin_vertex>\n float fa = sin(3.14159 * position.y); float L = length(vec3(modelMatrix[1])) * position.y;\n' +
-                ' transformed.x += fa * (0.35 * sin(L * 1.1 - uT * 2.6) + 0.1 * sin(L * 3.0 + uT * 4.1));\n' +
-                ' transformed.z += fa * 0.3 * cos(L * 0.8 - uT * 2.1);');
+                ' transformed.x += fa * (0.16 * sin(L * 0.7 - uT * 0.9) + 0.04 * sin(L * 1.9 + uT * 1.3));\n' +
+                ' transformed.z += fa * 0.12 * cos(L * 0.5 - uT * 0.7);');
         };
         const linaGeo = new THREE.CylinderGeometry(0.075, 0.075, 1, 8, 120, true); linaGeo.translate(0, 0.5, 0);
         // poświata: dwie szersze, coraz bledsze warstwy wokół rdzenia
-        const linaPoswiata = [[0.22, 0.55], [0.55, 0.32]].map(([r, op]) => {
+        const linaPoswiata = [].map(([r, op]) => {
             const g = new THREE.CylinderGeometry(r, r, 1, 10, 120, true); g.translate(0, 0.5, 0);
             const m = linaMat.clone(); m.opacity = op;
             m.onBeforeCompile = sh => {   // ruch jak rdzeń + miękki brzeg: gaśnie tam, gdzie patrzymy na krawędź rury
