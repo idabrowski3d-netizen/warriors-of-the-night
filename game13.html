@@ -19925,74 +19925,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return true;
         }
 
-        // Czy strop blokuje strzał między kondygnacjami. Otwory w podłogach przepuszczają.
-        function floorsBlockShot(x0, z0, lvl0, x1, z1, lvl1) {
-            if (!floorGrid || lvl0 === lvl1) return false;
-            const y0 = getLevelY(x0, z0, lvl0) + 1;   // wysokość lufy strzelca
-            const y1 = getLevelY(x1, z1, lvl1) + 0.5; // tors celu
-            const steps = Math.max(Math.abs(x1 - x0), Math.abs(z1 - z0));
-
-            // Strzał pionowo - liczy się strop dokładnie nad/pod nami
-            if (steps === 0) {
-                const loL = Math.min(lvl0, lvl1), hiL = Math.max(lvl0, lvl1);
-                for (let L = loL + 1; L <= hiL; L++) {
-                    if (hasFloorAt(x0, z0, L) && !hasHoleAt(x0, z0, L - 1)) return true;
-                }
-                return false;
-            }
-
-            // Śledzimy rzeczywisty tor pocisku i sprawdzamy, czy przebija jakąś płytę stropu.
-            // Sam strop, na którym stoi strzelec, go nie zasłania - dlatego liczy się przecięcie
-            // wysokości, a nie samo istnienie podłogi na trasie.
-            for (let i = 0; i < steps; i++) {
-                const tA = i / steps, tB = (i + 1) / steps;
-                const yA = y0 + (y1 - y0) * tA, yB = y0 + (y1 - y0) * tB;
-                const px = Math.round(x0 + (x1 - x0) * tB), pz = Math.round(z0 + (z1 - z0) * tB);
-                for (let L = 1; L < MAX_LEVELS; L++) {
-                    if (!hasFloorAt(px, pz, L) || hasHoleAt(px, pz, L - 1)) continue;
-                    const floorY = getTerrainY(px, pz) + L * FLOOR_HEIGHT;
-                    if ((yA - floorY) * (yB - floorY) < 0) return true; // tor przecina płytę stropu
-                }
-            }
-            return false;
-        }
-
-        // Zniszczenie jednego kafla ściany - powstaje wyrwa, przez którą widać i można przejść
-        // Pierwsza niszczalna ściana zasłaniająca linię między dwoma punktami
-        // Najbliższy otwór, którym jednostka na poziomie fromL może przejść w stronę toL
-        function findNearestHole(x, z, fromL, toL) {
-            if (!holeGrid) return null;
-            const goingUp = toL > fromL;
-            const gridLevel = goingUp ? fromL : fromL - 1; // otwór w stropie nad nami / w podłodze pod nami
-            if (gridLevel < 0 || gridLevel >= MAX_LEVELS - 1) return null;
-            let best = null, bestD = Infinity;
-            for (let mx = 0; mx < mapWidth; mx++) {
-                for (let mz = 0; mz < mapDepth; mz++) {
-                    if (holeGrid[gridLevel][mx][mz] !== 1) continue;
-                    const hx = mx - offsetX, hz = mz - offsetZ;
-                    if (!canStandAt(hx, hz, fromL)) continue;
-                    const d = Math.max(Math.abs(hx - x), Math.abs(hz - z));
-                    if (d < bestD) { bestD = d; best = { x: hx, z: hz, dist: d }; }
-                }
-            }
-            return best;
-        }
-
-        function findBlockingWall(x0, z0, x1, z1) {
-            const steps = Math.max(Math.abs(x1 - x0), Math.abs(z1 - z0));
-            if (steps === 0) return null;
-            for (let i = 1; i <= steps; i++) {
-                const t = i / steps;
-                const px = Math.round(x0 + (x1 - x0) * t), pz = Math.round(z0 + (z1 - z0) * t);
-                if (px === x1 && pz === z1) break;
-                const mx = px + offsetX, mz = pz + offsetZ;
-                if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return null;
-                const o = obstacleGrid[mx][mz];
-                if (o && (o.type === 'house-wall' || o.type === 'wall-destructible')) return { x: px, z: pz };
-            }
-            return null;
-        }
-
 
         function canStandAt(x, z, level) {
             if (!level) return !isObstacle(x, z);
@@ -55309,69 +55241,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             window.addEventListener('pointerdown', pierwszeDotkniecie);
         }
 
-        // ========================================================
-        // --- PEŁNY EKRAN ---
-        // Przeglądarki wymagają gestu użytkownika, więc włączamy go przy pierwszym
-        // dotknięciu ekranu tytułowego. iPhone nie wspiera tego mechanizmu -
-        // tam pełny ekran daje dopiero dodanie gry do ekranu głównego.
-        // ========================================================
-        function czyPelnyEkran() {
-            return !!(document.fullscreenElement || document.webkitFullscreenElement);
-        }
-
-        function wlaczPelnyEkran() {
-            const el = document.documentElement;
-            try {
-                if (czyPelnyEkran()) return;
-                const zadanie = el.requestFullscreen ? el.requestFullscreen({ navigationUI: 'hide' })
-                              : (el.webkitRequestFullscreen ? el.webkitRequestFullscreen() : null);
-                if (zadanie && zadanie.then) {
-                    zadanie.then(zablokujPoziomo).catch(() => {});
-                } else {
-                    zablokujPoziomo();
-                }
-            } catch (e) { /* przeglądarka nie pozwala - gra działa dalej w oknie */ }
-        }
-
-        function wylaczPelnyEkran() {
-            try {
-                if (document.exitFullscreen) document.exitFullscreen();
-                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-            } catch (e) {}
-        }
-
-        function zablokujPoziomo() {
-            // Gra jest czytelniejsza w poziomie - próbujemy zablokować obrót
-            try {
-                if (screen.orientation && screen.orientation.lock) {
-                    screen.orientation.lock('landscape').catch(() => {});
-                }
-            } catch (e) {}
-        }
-
-        function podepnijPelnyEkran() {
-            // Pierwsze dotknięcie/kliknięcie uruchamia pełny ekran - tylko na dotykowych
-            if (!naTelefonie) return;
-            const raz = () => {
-                wlaczPelnyEkran();
-                window.removeEventListener('pointerdown', raz);
-            };
-            window.addEventListener('pointerdown', raz);
-
-            // Przycisk przełączający, gdyby gracz wyszedł z pełnego ekranu
-            const b = document.createElement('button');
-            b.id = 'btn-pelny-ekran';
-            b.className = 'touch-btn';
-            b.title = 'Pełny ekran';
-            b.innerText = '⤢';
-            b.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (czyPelnyEkran()) wylaczPelnyEkran(); else wlaczPelnyEkran();
-            });
-            const kontener = document.getElementById('touch-buttons');
-            if (kontener) kontener.appendChild(b);
-        }
-
         function wlaczSterowanieDotykiem() {
             if (!naTelefonie) return;
             document.body.classList.add('mobilny');
@@ -55619,7 +55488,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         })();
 
         wlaczSterowanieDotykiem();
-        podepnijPelnyEkran();
         podepnijPelnyEkran();
         (function () {
             const chk = document.getElementById('chk-pelny-ekran');
