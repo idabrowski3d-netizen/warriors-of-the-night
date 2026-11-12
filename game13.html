@@ -26896,11 +26896,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 '#include <project_vertex>\n vec4 cWp = vec4(transformed, 1.0);\n#ifdef USE_INSTANCING\n cWp = instanceMatrix * cWp;\n#endif\n vCienWp = (modelMatrix * cWp).xyz;');
             sh.fragmentShader = 'varying vec3 vCienWp;\nuniform vec3 uCien[' + CIEN_MAX + '];\n' + sh.fragmentShader.replace('#include <fog_fragment>',
                 'float cf = 1.0; for (int i = 0; i < ' + CIEN_MAX + '; i++) cf = min(cf, clamp(distance(vCienWp.xz, uCien[i].xz) / ' + CIEN_ZASIEG.toFixed(1) + ', 0.0, 1.0));\n' +
-                'gl_FragColor.rgb *= mix(0.03, 1.0, cf * cf);\n#include <fog_fragment>');
+                'gl_FragColor.rgb *= mix(0.5, 1.0, cf * cf);\n#include <fog_fragment>');
         };
         THREE.Material.prototype.customProgramCacheKey = function () { return this.onBeforeCompile.toString() + (this.userData.bezCienia ? 'b' : ''); };
         const cienTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
-            const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(0,0,0,0.95)'); gr.addColorStop(0.5, 'rgba(0,0,0,0.6)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+            const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(0,0,0,0.48)'); gr.addColorStop(0.5, 'rgba(0,0,0,0.3)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
             g.fillStyle = gr; g.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c); })();
         const cienPlamaMat = new THREE.MeshBasicMaterial({ map: cienTex, transparent: true, depthWrite: false });
         cienPlamaMat.userData.bezCienia = true;
@@ -38543,6 +38543,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 // po każdym strzale, więc wróg z pełną pulą punktów strzelał dwa
                 // razy pod rząd, zanim w ogóle doszło do jego tury.
                 if (e.wartaRuch === wartaNrRuchu) return false;
+                // Reaguje tylko wróg, którego gracz widzi i który sam patrzy w stronę wojownika -
+                // inaczej niewidoczny strzelec bił do każdego ruchu, a gracz nie wiedział skąd.
+                if (!e.mesh.visible || !isInVisionCone(e, active.mesh.position.x, active.mesh.position.z)) return false;
                 const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z), ey = getLevelY(ex, ez, e.level || 0);
                 const dist = Math.abs(px - ex) + Math.abs(pz - ez);
                 // Wręcz tylko na tej samej kondygnacji
@@ -39937,6 +39940,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             tickSummonedObedience();
             doAutoSave();
             autoSelectActiveSoldier();
+            cameraFocusMesh = null; updateCameraPosition();   // po ruchu obcych i cywilów kamera od razu wraca do wojownika
             // Na początku tury gracza patron ma znów pełną pulę - niech od razu
             // z niej skorzysta, zamiast czekać na koniec tury.
             uruchomPatrona();
