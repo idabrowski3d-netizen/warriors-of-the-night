@@ -28385,6 +28385,23 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
             }
 
+            // ESKORTA: oddział startuje przy krawędzi przeciwnej do portalu
+            if (!floodStart && currentMissionType === 'escort') {
+                const margin = 8;
+                const cand = (escortEdge === 'north')
+                    ? { x: Math.floor(Math.random() * 40) - 20, z: -offsetZ + margin }
+                    : { x: Math.floor(Math.random() * 40) - 20, z: offsetZ - margin };
+                let best = null, bestD = -1;
+                for (let t = 0; t < 900; t++) {
+                    const jx = cand.x + Math.floor(Math.random() * 30) - 15;
+                    const jz = cand.z + Math.floor(Math.random() * 10) - 5;
+                    if (!isWithinPlayBounds(jx, jz) || isObstacle(jx, jz) || !isOpenSpot(jx, jz)) continue;
+                    const d = Math.abs(jz - ((escortEdge === 'north') ? offsetZ : -offsetZ));
+                    if (d > bestD) { bestD = d; best = { x: jx, z: jz }; }
+                }
+                if (best) { floodStart = best; clusterX = best.x; clusterZ = best.z; }
+            }
+
             if (!floodStart && currentMissionType === 'flood') {
                 // Mapa jest wąska i wysoka (100x200), więc krawędzie boczne leżą dwa razy
                 // bliżej środka. Startujemy zawsze od góry albo od dołu - to najdłuższa droga.
@@ -34904,6 +34921,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (typeof updateFloorVisibility === 'function') updateFloorVisibility();
         }
 
+        // Dawne nazwy odświeżania panelu - wszystkie prowadzą do updateUI
+        function odswiezPanel() { updateUI(); }
+        function updateAPBar() { updateUI(); }
+        function updateSoldierUI() { updateUI(); }
+        function updateHealthBars() { updateUI(); }
+        function przeliczBonusyEkwipunku() { updateUI(); }
+
         function updateUI(msg = "") {
             let active = getActiveSoldier();
             let currentAP = active ? active.ap : 0;
@@ -35399,20 +35423,6 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 scene.add(m);
                 heartPrison = { x: hx, z: hz, mesh: m, kind: kind, sin: sin, freed: false };
 
-            } else if (currentMissionType === 'escort') {
-                const margin = 8;
-                const cand = (escortEdge === 'north')
-                    ? { x: Math.floor(Math.random() * 40) - 20, z: -offsetZ + margin }
-                    : { x: Math.floor(Math.random() * 40) - 20, z: offsetZ - margin };
-                let best = null, bestD = -1;
-                for (let t = 0; t < 900; t++) {
-                    const jx = cand.x + Math.floor(Math.random() * 30) - 15;
-                    const jz = cand.z + Math.floor(Math.random() * 10) - 5;
-                    if (!isWithinPlayBounds(jx, jz) || isObstacle(jx, jz) || !isOpenSpot(jx, jz)) continue;
-                    const d = Math.abs(jz - ((escortEdge === 'north') ? offsetZ : -offsetZ));
-                    if (d > bestD) { bestD = d; best = { x: jx, z: jz }; }
-                }
-                if (best) { floodStart = best; clusterX = best.x; clusterZ = best.z; }
             }
 
             // Osobny etap: cel eskorty i sam Powierzony. Wcześniej ten fragment
