@@ -28083,6 +28083,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 zabici ? `Padło ${zabici} istot${najlepszy && najlepszy.kills ? `, najwięcej z ręki ${najlepszy.name}` : ''}.` : 'Nikt nie dobył broni na darmo.'];
             if (polegli.length) zd.push(`Lina pękła nad: ${polegli.join(', ')}.`);
             if (blizny.length) zd.push(`Bliznę wyniósł ${blizny.join(', ')}.`);
+            if (wygrana) zapiszWiezi();
+            if (wygrana && celSpelniony()) { playerStats.grace += 8; zd.push(`Dotrzymaliśmy słowa: ${fabCel.opis.toLowerCase()}. (+8 Łaski)`); }
+            if (final) { final.sploty.forEach(sp => scene.remove(sp.mesh)); final = null; zd.push('Splot wciąż wisi. Tkacz poczeka.'); }
             fab.kronika.push(zd.join(' '));
         }
         const nazwaWojownika = w => w.przydomek ? `${w.name} „${w.przydomek}”` : w.name;
@@ -28178,12 +28181,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 fabTryb = gameMode;
                 if (gameMode === 'dream') setTimeout(() => {
                     if (gameMode !== 'dream') return;
-                    rozlozZnaleziska();
+                    fabStartSnu();
                     const m = currentCombatTheme ? (currentCombatTheme.__bazowaNazwa || currentCombatTheme.name) : 'nieznane miejsce';
                     narrator(losZ(NARRATOR_START).replace('{m}', m).replace('{n}', playerStats.mission + 1));
                 }, 1500);
             }
-            if (gameMode !== 'dream') return;
+            if (gameMode !== 'dream') { if (fabCel) { fabCel = null; pokazCel(); } return; }
+            updateOpowiesciWSnie();
             for (let i = fabZnaleziska.length - 1; i >= 0; i--) {
                 const z = fabZnaleziska[i];
                 z.mesh.rotation.y += 0.02;
@@ -28191,8 +28195,274 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const t = losZ(ZNALEZISKA[z.typ].filter(t => fab.znaleziska.indexOf(t) === -1)) || losZ(ZNALEZISKA[z.typ]);
                 if (fab.znaleziska.indexOf(t) === -1) fab.znaleziska.push(t);
                 scene.remove(z.mesh); fabZnaleziska.splice(i, 1);
+                if (z.typ === 'zaginiona') { fab.zaginionaZnaleziona = true; playerStats.grace += 10; fab.kronika.push('Znaleźliśmy ślad zaginionej dziewczyny.'); }
                 showFloatingWarning('Znalezisko'); updateUI(t); narrator(t);
             }
+        }
+
+        // ---- SKUTKI WYBORÓW, FINAŁ NICI, WIĘZI, GŁĘBIA SNU, CELE POBOCZNE ----
+        const zywiOddzialu = () => soldiers.filter(sd => !sd.isDead && sd.mesh && !sd.isNPC && !sd.isEscortee && !sd.isAngel);
+        function wolnePoleDaleko(minD, maxD) {
+            const k = zywiOddzialu()[0]; if (!k) return null;
+            const kx = Math.round(k.mesh.position.x), kz = Math.round(k.mesh.position.z);
+            for (let t = 0; t < 900; t++) {
+                const a = Math.random() * Math.PI * 2, d = minD + Math.random() * (maxD - minD);
+                const x = Math.round(kx + Math.cos(a) * d), z = Math.round(kz + Math.sin(a) * d);
+                if (isWithinPlayBounds(x, z) && canStandAt(x, z, 0) && !isUnitAtLevel(x, z, 0, null)) return [x, z];
+            }
+            return null;
+        }
+        function dodajZnalezisko(x, z, typ) {
+            const m = brylaWspomnienia(0); m.position.set(x, 0.05, z); scene.add(m);
+            fabZnaleziska.push({ x, z, typ, mesh: m });
+        }
+
+        // 1. Wybory wracają na planszę
+        function skutkiWyborow() {
+            const k = zywiOddzialu()[0]; if (!k) return;
+            if (fab.wybory.zakonnik === 'Przyjmij go' && !fab.zakonnikByl) {
+                const pole = wolnePoleDaleko(1, 3);
+                if (pole) {
+                    fab.zakonnikByl = true;
+                    const m = createCharacter(0x5a4630, 0xddbb99, 0x2a2018, 1, 'standard');
+                    m.position.set(pole[0], getLevelY(pole[0], pole[1], 0) + (m.userData.yOffset || 0), pole[1]); scene.add(m);
+                    soldiers.push({ mesh: m, name: 'Brat Anzelm', class: 'uniwersalna', hp: 12, maxHp: 12, ap: 12, maxAp: 12,
+                        accuracyBonus: 0, isDead: false, turnEnded: false, isKneeling: false, level: 0, shotsFired: 0, shotsHit: 0, kills: 0,
+                        hitStreak: 0, healsUsed: 0, shieldsUsed: 0, crossUsed: 0, levitateUsed: 0, levitateTurns: 0, stealthUsed: 0,
+                        stealthActive: false, callUsed: 0, summonedTurns: 0, hypnotizedBy: null, panicTurns: 0, angelUsed: 0,
+                        isAngel: true, angelTurns: 99, meleeOnly: true });
+                    refreshPlayerPositions();
+                    updateUI('Zakonnik, którego przyjąłeś pod dach, stoi w tym śnie obok was. „Mówiłem, że śni mi się to samo.”');
+                    fab.kronika.push('Brat Anzelm wszedł z nami w sen.');
+                }
+            }
+            const zasadzka = (ile, tekst) => {
+                const pole = wolnePoleDaleko(9, 15); if (!pole) return;
+                for (let i = 0; i < ile; i++) summonMonsterNear(pole[0], pole[1], 0, false);
+                showFloatingWarning('Zasadzka!'); updateUI(tekst);
+            };
+            if (fab.wybory.zaNicia && (fab.zasadzki || 0) < 2) {
+                fab.zasadzki = (fab.zasadzki || 0) + 1;
+                zasadzka(3, 'Ludzie Zakonu czekali w tym śnie. Poszedłeś za czarną nicią - teraz ona prowadzi ich do ciebie.');
+            }
+            if (fab.wybory.porzuconySen && !fab.porzuconyByl) {
+                fab.porzuconyByl = true;
+                zasadzka(2, 'Znasz ten sen. To człowiek, którego zostawiłeś samego - jego koszmary urosły.');
+            }
+            if (fab.wybory.list === 'Obiecaj pomoc' && !fab.zaginionaZnaleziona) {
+                const pole = wolnePoleDaleko(10, 22);
+                if (pole) { dodajZnalezisko(pole[0], pole[1], 'zaginiona'); updateUI('Gdzieś w tym śnie jest ślad zaginionej dziewczyny. Szukajcie światła nad ziemią.'); }
+            }
+        }
+        ZNALEZISKA.zaginiona = ['Wstążka zaginionej dziewczyny, zawiązana na czarnej nici. Żyje - ktoś trzyma ją we śnie. (+10 Łaski)'];
+
+        // 2. Finał nici: Tkacz i trzy sploty czarnych lin. Przecięcie wszystkich kończy wątek.
+        let final = null;   // { sploty: [{x,z,mesh}], tkacz }
+        function zacznijFinal() {
+            const sploty = [];
+            for (let i = 0; i < 3; i++) {
+                const pole = wolnePoleDaleko(10 + i * 4, 22 + i * 6); if (!pole) continue;
+                const g = new THREE.Group();
+                g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 60, 6), new THREE.MeshBasicMaterial({ color: 0x08040c })));
+                g.children[0].position.y = 30;
+                const zar = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 8), new THREE.MeshBasicMaterial({ color: 0x9a30d0 }));
+                zar.position.y = 0.5; g.add(zar);
+                g.position.set(pole[0], 0, pole[1]); scene.add(g);
+                sploty.push({ x: pole[0], z: pole[1], mesh: g });
+            }
+            if (!sploty.length) return;
+            let tkacz = null;
+            const pole = wolnePoleDaleko(8, 14);
+            if (pole) {
+                const m = createDeathMesh(); m.scale.multiplyScalar(1.4);
+                m.traverse(ch => { if (ch.isMesh && ch.material && ch.material.color) { ch.material = ch.material.clone(); ch.material.color.multiplyScalar(0.35); } });
+                m.position.set(pole[0], getLevelY(pole[0], pole[1], 0) + (m.userData.yOffset || 0), pole[1]); scene.add(m);
+                tkacz = { mesh: m, type: 'smierc', hp: 40, maxHp: 40, ap: 12, maxAp: 12, accuracyBonus: 0, isDead: false,
+                          facingAngle: 0, level: 0, nieDoZabicia: true, tkacz: true };
+                enemies.push(tkacz); refreshEnemyPositions();
+            }
+            final = { sploty, tkacz };
+            pokazIntro(null, [{ karta: 'Tkacz', tekst: 'Nad tym snem liny się splatają. Trzy czarne sploty schodzą z nieba do ziemi, a między nimi chodzi ten, kto je trzyma.\n\n' +
+                'Tkacza nie da się zabić. Podejdźcie do każdego splotu i przetnijcie go. Dopóki choć jeden wisi, co turę Tkacz szarpie za czyjąś linę.' }], 'SPLOT');
+        }
+        function turaFinalu() {
+            if (!final || !final.sploty.length) return;
+            const z = zywiOddzialu(); if (!z.length) return;
+            const of = losZ(z);
+            zadajObrazenia(of, 2, 'tkacz');
+            showFloatingWarning('Tkacz szarpie linę!'); updateUI(`Tkacz szarpie za linę nad ${of.name}. (-2 HP) Zostało splotów: ${final.sploty.length}.`);
+            const sp = losZ(final.sploty); summonMonsterNear(sp.x, sp.z, 0, false);
+            checkGameOver();
+        }
+        function updateFinalu() {
+            if (!final) return;
+            for (let i = final.sploty.length - 1; i >= 0; i--) {
+                const sp = final.sploty[i];
+                sp.mesh.children[1].scale.setScalar(1 + 0.2 * Math.sin(performance.now() / 200 + i));
+                const kto = zywiOddzialu().find(sd => Math.hypot(sd.mesh.position.x - sp.x, sd.mesh.position.z - sp.z) < 1.6);
+                if (!kto) continue;
+                scene.remove(sp.mesh); final.sploty.splice(i, 1);
+                showFloatingWarning('Splot przecięty!'); updateUI(`${kto.name} przecina czarny splot. Zostało: ${final.sploty.length}.`);
+            }
+            if (!final.sploty.length) {
+                const t = final.tkacz; final = null; fab.finalWygrany = true; playerStats.grace += 30;
+                if (t && !t.isDead) { t.isDead = true; scene.remove(t.mesh); refreshEnemyPositions(); }
+                fab.kronika.push('Przecięliśmy splot. Czarne liny opadły, a Tkacz rozsypał się jak przędza. Jasne trzymają dalej.');
+                narrator('Czarne liny opadają. Ktoś po drugiej stronie puścił.');
+                checkGameOver();
+            }
+        }
+
+        // 3. Więzi: trzy wspólnie przeżyte noce robią z dwóch wojowników towarzyszy broni
+        const WIEZ_OD = 3;
+        const kluczWiezi = (a, b) => [a, b].sort().join('|');
+        const maWiez = (a, b) => ((fab.wiezi || {})[kluczWiezi(a, b)] || 0) >= WIEZ_OD;
+        function premiaWiezi(sd) {   // +10% celności, gdy towarzysz stoi w 3 polach
+            if (!sd || !sd.mesh || !fab.wiezi) return 0;
+            return soldiers.some(o => o !== sd && !o.isDead && o.mesh && maWiez(sd.name, o.name) &&
+                Math.hypot(o.mesh.position.x - sd.mesh.position.x, o.mesh.position.z - sd.mesh.position.z) <= 3.5) ? 10 : 0;
+        }
+        function zapiszWiezi() {
+            const z = soldiers.filter(sd => !sd.isDead && !sd.isNPC && !sd.isEscortee && !sd.isAngel && !(sd.summonedTurns > 0));
+            fab.wiezi = fab.wiezi || {};
+            for (let i = 0; i < z.length; i++) for (let j = i + 1; j < z.length; j++) {
+                const k = kluczWiezi(z[i].name, z[j].name);
+                fab.wiezi[k] = (fab.wiezi[k] || 0) + 1;
+                if (fab.wiezi[k] === WIEZ_OD) fab.kronika.push(`${z[i].name} i ${z[j].name} zostali towarzyszami broni.`);
+            }
+        }
+        let fabPolegli = new Set();
+        function sprawdzSmierciTowarzyszy() {
+            soldiers.forEach(sd => {
+                if (!sd.isDead || fabPolegli.has(sd)) return;
+                fabPolegli.add(sd);
+                soldiers.forEach(o => {
+                    if (o === sd || o.isDead || !maWiez(sd.name, o.name)) return;
+                    if (Math.random() < 0.5) { o.ap += 4; updateUI(`${o.name} widzi, jak pada ${sd.name}, i wpada w szał! (+4 PA)`); showFloatingWarning('Szał!'); }
+                    else { dodajZwatpienie(o, 2, 'smierc'); updateUI(`${o.name} patrzy, jak pęka lina nad ${sd.name}. Coś w nim gaśnie.`); }
+                });
+            });
+        }
+
+        // 4. Sen się pogłębia: co GLEBIA_CO tur wrogowie celniejsi, mgła gęstsza
+        const GLEBIA_CO = 8;
+        let fabTura = 0, fabGlebia = 0;
+        function poglebSen() {
+            fabGlebia++;
+            enemies.forEach(e => { if (!e.isDead) e.accuracyBonus = (e.accuracyBonus || 0) + 5; });
+            if (scene.fog && scene.fog.density) scene.fog.density *= 1.15;
+            else if (scene.fog && scene.fog.far) scene.fog.far *= 0.9;
+            showFloatingWarning('Sen się pogłębia');
+            updateUI(`Sen się pogłębia (stopień ${fabGlebia}). Śniący tonie - to, co tu mieszka, widzi was wyraźniej. (+5% celności wrogów)`);
+        }
+
+        // 5. Cel poboczny - jeden na sen, nagroda w Łasce po wygranej
+        const CELE = [
+            { id: 'bezRan', opis: 'Nikt nie spadnie poniżej połowy życia' },
+            { id: 'szybko', opis: 'Zamknij sen w 12 tur' },
+            { id: 'bezStrat', opis: 'Nikt nie polegnie' },
+            { id: 'jaskinie', opis: 'Zawal każdą jaskinię', gdy: () => obstaclePositions.some(o => o.type === 'jaskinia') },
+            { id: 'znalezisko', opis: 'Znajdź to, co leży w tym śnie', gdy: () => fabZnaleziska.length > 0 }
+        ];
+        let fabCel = null;
+        function pokazCel() {
+            let el = document.getElementById('cel-poboczny');
+            if (!el) {
+                el = document.createElement('div'); el.id = 'cel-poboczny';
+                el.style.cssText = 'position:fixed;left:50%;top:6px;transform:translateX(-50%);padding:3px 12px;background:rgba(0,0,0,.55);' +
+                    'color:#e8dcc0;font:13px Georgia,serif;pointer-events:none;z-index:50;border-radius:4px';
+                document.body.appendChild(el);
+            }
+            el.style.display = (fabCel && gameMode === 'dream') ? '' : 'none';
+            if (fabCel) { el.textContent = 'Cel poboczny: ' + fabCel.opis + (fabCel.ok ? '' : ' ✗'); el.style.opacity = fabCel.ok ? 1 : 0.5; }
+        }
+        function sledzCel() {
+            if (!fabCel || !fabCel.ok) return;
+            const z = soldiers.filter(sd => !sd.isNPC && !sd.isEscortee && !sd.isAngel);
+            if ((fabCel.id === 'bezRan' && z.some(sd => sd.hp < (sd.maxHp || 10) / 2)) ||
+                (fabCel.id === 'bezStrat' && z.some(sd => sd.isDead)) ||
+                (fabCel.id === 'szybko' && combatTurnCounter > 12)) { fabCel.ok = false; pokazCel(); }
+        }
+        function celSpelniony() {
+            if (!fabCel || !fabCel.ok) return false;
+            if (fabCel.id === 'jaskinie') return obstaclePositions.filter(o => o.type === 'jaskinia').every(o => o.zawalona);
+            if (fabCel.id === 'znalezisko') return fabZnaleziska.length === 0;
+            return true;
+        }
+
+        // 6. Ogień pali pajęczyny: spętany wojownik na płonącym polu jest wolny, sieć-przeszkoda znika
+        function ogienPaliSieci() {
+            if (!ogienGrid) return;
+            const plonie = (x, z) => { const c = ogienGrid[Math.round(x) + offsetX]; return !!c && c[Math.round(z) + offsetZ] === 1; };
+            soldiers.forEach(sd => { if (!sd.isDead && sd.mesh && isSoldierWebbed(sd) && !sd.webLiany && plonie(sd.mesh.position.x, sd.mesh.position.z)) {
+                freeFromWeb(sd, null); updateUI(`Ogień przepala pajęczynę - ${sd.name} jest wolny.`); } });
+            obstaclePositions.filter(o => o.type === 'pajeczyna' && plonie(o.x, o.z)).forEach(o => rozbijPrzedmiot(o));
+        }
+
+        // Start snu: wszystko, co opowieść dokłada na planszę
+        function fabStartSnu() {
+            fabTura = combatTurnCounter; fabGlebia = 0; fabPolegli = new Set(); final = null;
+            rozlozZnaleziska();
+            if (!misjaTestowa || window.fabTest) {
+                skutkiWyborow();
+                if (fab.nici.indexOf(60) !== -1 && !fab.finalWygrany) zacznijFinal();
+            }
+            const mozliwe = CELE.filter(c => !c.gdy || c.gdy());
+            fabCel = Object.assign({ ok: true }, losZ(mozliwe)); pokazCel();
+        }
+        let fabLicznik = 0;
+        function updateOpowiesciWSnie() {
+            updateFinalu();
+            if (++fabLicznik % 30) return;
+            sprawdzSmierciTowarzyszy(); sledzCel(); ogienPaliSieci();
+            if (combatTurnCounter !== fabTura) {
+                fabTura = combatTurnCounter;
+                if (isPlayerTurn && !gameOver) { turaFinalu(); if (fabTura > 1 && (fabTura - 1) % GLEBIA_CO === 0) poglebSen(); }
+            }
+        }
+
+        // 6. Telekineza łamie drzewo: pień pada OD wojownika na 3 pola i przygniata, kogo zastanie
+        function drzewoTK(sd, x, z) {
+            if (!sd || !sd.mesh || (sd.level || 0) !== 0) return null;
+            const o = obstacleMap.get(`${x},${z}`);
+            if (!o || o.type !== 'tree') return null;
+            return odlegloscPol(Math.round(sd.mesh.position.x), Math.round(sd.mesh.position.z), x, z) <= zasiegChwytuTK(sd) ? o : null;
+        }
+        function drzewaWZasieguTK(sd) {
+            if (!sd || !sd.mesh) return 0;
+            const sx = Math.round(sd.mesh.position.x), sz = Math.round(sd.mesh.position.z), r = zasiegChwytuTK(sd);
+            return obstaclePositions.filter(o => o.type === 'tree' && odlegloscPol(sx, sz, o.x, o.z) <= r).length;
+        }
+        function zlamDrzewo(sd, o) {
+            if (sd.ap < TK_AP) { przerwijTelekineze('Zabrakło sił.'); return; }
+            sd.ap -= TK_AP;
+            const vx = o.x - Math.round(sd.mesh.position.x), vz = o.z - Math.round(sd.mesh.position.z);
+            const dx = Math.abs(vx) >= Math.abs(vz) ? Math.sign(vx) || 1 : 0, dz = dx ? 0 : Math.sign(vz) || 1;
+            const pola = [];
+            for (let k = 1; k <= 3; k++) {
+                const px = o.x + dx * k, pz = o.z + dz * k, mx = px + offsetX, mz = pz + offsetZ;
+                if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth || obstacleGrid[mx][mz]) break;
+                pola.push([px, pz]);
+            }
+            schowajDrzewo(o.x, o.z);
+            const i = indeksBrylyOslony(o);
+            if (i !== -1 && Math.hypot(obstacleMeshes[i].position.x - o.x, obstacleMeshes[i].position.z - o.z) < 0.3) usunBryleOslony(o);
+            o.type = 'rumowisko';   // pniak zostaje jako osłona
+            const dl = Math.max(1, pola.length) + 0.4, y = getTerrainY(o.x, o.z);
+            const pien = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, dl, 8), new THREE.MeshLambertMaterial({ color: 0x5a4028, map: detTekstura('drewno') }));
+            pien.rotation.z = Math.PI / 2; pien.rotation.y = dx ? 0 : Math.PI / 2;
+            pien.position.set(o.x + dx * dl / 2, y + 0.24, o.z + dz * dl / 2);
+            const kor = new THREE.Mesh(new THREE.SphereGeometry(0.9, 8, 6), new THREE.MeshLambertMaterial({ color: 0x35502c, map: detTekstura('krzak') }));
+            kor.scale.y = 0.6; kor.position.set(o.x + dx * (dl + 0.3), y + 0.45, o.z + dz * (dl + 0.3));
+            const pniak = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.3, 0.4, 8), pien.material); pniak.position.set(o.x, y + 0.2, o.z);
+            [pien, kor, pniak].forEach(m => { m.userData.det = false; scene.add(m); obstacleMeshes.push(m); });
+            playFileSfx(AudioFiles.wallHit, 0.9);
+            showFloatingWarning('Drzewo pada!');
+            updateUI(`${sd.name} łamie drzewo siłą umysłu. Pień wali się na ${pola.length} ${pola.length === 1 ? 'pole' : 'pola'}.`);
+            pola.forEach(([px, pz]) => { if (!przygniec(px, pz, 'Drzewo')) postawGruz(px, pz); });
+            trybTelekinezy = null; odswiezPrzyciskTelekinezy();
+            refreshPlayerPositions(); refreshEnemyPositions(); updateFoW(); updateUI();
+            checkGameOver();
         }
 
         // Kronika pod klawiszem J
@@ -28200,7 +28470,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const druz = recruitedWarriors.filter(w => w.blizny).map(w => `${nazwaWojownika(w)} - blizn: ${w.blizny}`);
             const tekst = (fab.kronika.length ? fab.kronika.slice(-12).join('\n\n') : 'Kronika jest jeszcze pusta.') +
                 (druz.length ? '\n\n— Weterani —\n' + druz.join('\n') : '') +
-                (fab.znaleziska.length ? '\n\n— Znaleziska —\n' + fab.znaleziska.join('\n') : '');
+                (fab.znaleziska.length ? '\n\n— Znaleziska —\n' + fab.znaleziska.join('\n') : '') +
+                (Object.keys(fab.wiezi || {}).some(k => fab.wiezi[k] >= WIEZ_OD) ? '\n\n— Towarzysze broni —\n' +
+                    Object.keys(fab.wiezi).filter(k => fab.wiezi[k] >= WIEZ_OD).map(k => k.replace('|', ' i ')).join('\n') : '') +
+                (fabCel ? '\n\nCel poboczny tego snu: ' + fabCel.opis : '');
             showDialogue('[Kronika wyprawy]\n\n' + tekst, 'Zamknij', null, null, null);
         }
 
@@ -28215,6 +28488,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 pokaz: () => showDialogue(`[${i.tytul}]\n\n${i.tekst}`, 'Dalej', null, null, null) }));
             e.push({ m: 0, typ: 'Narrator', nazwa: 'Wejście w sen', pokaz: () => narrator(losZ(NARRATOR_START).replace('{m}', 'Cmentarzysko').replace('{n}', 7)) });
             e.push({ m: 0, typ: 'Kronika', nazwa: 'Podgląd kroniki', pokaz: pokazKronike });
+            e.push({ m: 61, typ: 'Finał', nazwa: 'Tkacz i trzy sploty (w śnie: stawia od razu)', pokaz: () => { if (gameMode === 'dream') zacznijFinal(); else updateUI('Finał zaczyna się w pierwszym śnie po karcie „Splot”.'); } });
             return e.sort((a, b) => a.m - b.m);
         }
         function ustawEtap(m) {   // stan kampanii tak, jakby gracz właśnie doszedł do misji m
@@ -34522,7 +34796,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Premia za znajomość przeciwnika - z Demonarium i z doświadczenia
             const wiedza = (cel && cel.type) ? premiaZWiedzy(cel.type) : 0;
             // Modlitwa na opak odbiera pewność ręki całemu oddziałowi
-            return getPlayerAccuracyBonusBazowy(soldier) + wiedza - (klatwaBluzniercy || 0);
+            return getPlayerAccuracyBonusBazowy(soldier) + wiedza - (klatwaBluzniercy || 0) + premiaWiezi(soldier);
         }
 
         function getPlayerAccuracyBonusBazowy(soldier) {
@@ -40446,7 +40720,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
             if (s.ap < TK_AP) { updateUI(`Za mało punktów ruchu (potrzeba ${TK_AP}).`); return; }
             const k = kandydaciTelekinezy(s);
-            if (!k.wrogowie.length && !k.przedmioty.length) {
+            const drzew = (s.level || 0) === 0 ? drzewaWZasieguTK(s) : 0;
+            if (!k.wrogowie.length && !k.przedmioty.length && !drzew) {
                 updateUI(`Nic w zasięgu umysłu (${zasiegChwytuTK(s)} pól).`);
                 return;
             }
@@ -40454,6 +40729,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             updateUI(`TELEKINEZA: kliknij, co unieść - w zasięgu ${k.wrogowie.length} ` +
                      `${k.wrogowie.length === 1 ? 'wróg' : 'wrogów'} i ${k.przedmioty.length} ` +
                      `${k.przedmioty.length === 1 ? 'przedmiot' : 'przedmiotów'}. ` +
+                     (drzew ? 'Kliknij drzewo, żeby je złamać - padnie od ciebie na 3 pola. ' : '') +
                      `Rzut sięga ${TK_ZASIEG_RZUTU} pól od uniesionego. [Esc] anuluje.`);
             odswiezPrzyciskTelekinezy();
         }
@@ -40488,6 +40764,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const przedmiot = k.przedmioty.find(o =>
                     Math.round(o.x) === targetX && Math.round(o.z) === targetZ);
                 const pocisk = wrog || przedmiot;
+                const drzewo = pocisk ? null : drzewoTK(s, targetX, targetZ);
+                if (drzewo) { zlamDrzewo(s, drzewo); return true; }
                 if (!pocisk) {
                     updateUI('Tego nie uniesiesz. Kliknij wroga albo sprzęt w zasięgu.');
                     return true;
