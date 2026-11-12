@@ -26406,6 +26406,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             spawnSpecialBuildingParkingCars();
             startNpcSicknessTimer();
             rebuildWaterSources(); // fontanna istnieje dopiero po pełnym wygenerowaniu miasta
+            ozywMiasto();
 
             cameraFollowTarget.set(hero.mesh.position.x, hero.mesh.position.y, hero.mesh.position.z);
             cameraPanOffset.set(0, 0, 0);
@@ -28186,6 +28187,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     narrator(losZ(NARRATOR_START).replace('{m}', m).replace('{n}', playerStats.mission + 1));
                 }, 1500);
             }
+            updateMiasta();
             if (gameMode !== 'dream') { if (fabCel) { fabCel = null; pokazCel(); } return; }
             updateOpowiesciWSnie();
             for (let i = fabZnaleziska.length - 1; i >= 0; i--) {
@@ -28402,6 +28404,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Start snu: wszystko, co opowieść dokłada na planszę
         function fabStartSnu() {
             fabTura = combatTurnCounter; fabGlebia = 0; fabPolegli = new Set(); final = null;
+            fabOstrzezenie = !!fab.ostrzezony; fab.ostrzezony = false;
+            if (fabOstrzezenie) setTimeout(() => updateUI('Wiedzieliście, że przyjdą - znak z miasta was ostrzegł. (+10% celności w tym śnie)'), 6000);
             rozlozZnaleziska();
             if (!misjaTestowa || window.fabTest) {
                 skutkiWyborow();
@@ -28410,7 +28414,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const mozliwe = CELE.filter(c => !c.gdy || c.gdy());
             fabCel = Object.assign({ ok: true }, losZ(mozliwe)); pokazCel();
         }
-        let fabLicznik = 0;
+        let fabLicznik = 0, fabOstrzezenie = false;
         function updateOpowiesciWSnie() {
             updateFinalu();
             if (++fabLicznik % 30) return;
@@ -28465,6 +28469,284 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             checkGameOver();
         }
 
+        // ========================================================
+        // --- ŻYWE MIASTO (Teraźniejszość) ---
+        // Miasto pamięta uczynki, mieszkańcy mają historie w odcinkach, pora dnia
+        // przynosi własne sprawy, Zakon zostawia ślady, a wdzięczność widać.
+        // Stan: fab.miasto (zapisywany z grą). Wszystko, co stawiamy, trafia do miastoGrupa.
+        // ========================================================
+        let miastoGrupa = null, miastoPunkty = [], golebie = [], miastoUczynki = null;
+        const stanMiasta = () => fab.miasto || (fab.miasto = { odcinki: {}, poMisji: {}, wdziecznosc: 0, miejsca: {}, dzien: '' });
+        // 0 zaniedbane ... 4 rozkwit
+        const stopienMiasta = () => Math.min(4, Math.floor(playerStats.goodDeeds / 6));
+        function wolneWMiescie(cx, cz, rMin, rMax) {
+            for (let t = 0; t < 400; t++) {
+                const a = Math.random() * Math.PI * 2, d = rMin + Math.random() * (rMax - rMin);
+                const x = Math.round(cx + Math.cos(a) * d), z = Math.round(cz + Math.sin(a) * d);
+                const mx = x + offsetX, mz = z + offsetZ;
+                if (mx < 2 || mx >= mapWidth - 2 || mz < 2 || mz >= mapDepth - 2) continue;
+                if (!isObstacle(x, z) && !isForbiddenRoadForPedestrian(x, z)) return [x, z];
+            }
+            return null;
+        }
+        const matM = (kolor, swieci) => swieci ? new THREE.MeshBasicMaterial({ color: kolor }) : new THREE.MeshLambertMaterial({ color: kolor });
+        function bryla(geo, mat, x, y, z) { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); miastoGrupa.add(m); return m; }
+        // Punkt, do którego wystarczy podejść: { x, z, r, raz() }
+        function punktMiasta(x, z, mesh, raz, r) { miastoPunkty.push({ x, z, mesh, raz, r: r || 1.6 }); }
+        function znacznikMiasta(x, z, kolor) {
+            const g = new THREE.Group();
+            const k = new THREE.Mesh(new THREE.OctahedronGeometry(0.16), matM(kolor, true)); k.position.y = 1.5; g.add(k);
+            g.position.set(x, getTerrainY(x, z), z); miastoGrupa.add(g); return g;
+        }
+
+        // --- 2. Mieszkańcy z historiami. Kolejny odcinek dopiero po następnej nocy we śnie. ---
+        const MIESZKANCY = [
+            { id: 'wdowa', imie: 'Helena, wdowa', kolor: 0x3a3440, odcinki: [
+                'Mąż zmarł w marcu. Od tamtej pory nakrywam do stołu na dwoje. Usiądziesz na chwilę? Tylko żeby krzesło nie stało puste.',
+                'Znalazłam jego zegarek. Stoi na godzinie, o której zasnął. Nakręcisz go? Ja nie mam odwagi.',
+                'Śniło mi się, że ktoś stał obok mnie w ciemności i nie pozwolił mi iść za nim. Miał twoją twarz. Dziś nakryłam na jedno. Dziękuję.'] },
+            { id: 'pijak', imie: 'Stach spod sklepu', kolor: 0x6a5a3a, odcinki: [
+                'Nie dawaj mi pieniędzy. Daj mi powód. Posiedź, powiedz, jak się nazywa dzisiejszy dzień.',
+                'Trzy dni bez. Ręce mi latają. Odprowadź mnie pod drzwi córki - sam zawrócę przy furtce.',
+                'Otworzyła. Nic nie mówiła, tylko postawiła drugi talerz. W nocy śniło mi się, że tonę w butelce, a ktoś rozbił szkło. To byłeś ty, prawda?'] },
+            { id: 'chlopiec', imie: 'Antek', kolor: 0x4a7ab0, odcinki: [
+                'Tata pojechał do pracy i nie wraca. Mama mówi, że niedługo. Umiesz naprawić latawiec? On zawsze naprawiał.',
+                'Napisałem list do taty. Nie znam adresu. Zaniesiesz go pod kapliczkę? Tam podobno wszystko dochodzi.',
+                'Tata zadzwonił! Mówił, że mu się śniłem i że wraca. A mnie się śnił pan - gonił pan to czarne, co siedziało na dachu.'] },
+            { id: 'organista', imie: 'Pan Ignacy, organista', kolor: 0x2a2a30, odcinki: [
+                'Od roku gram z pamięci. Nuty mi się rozmazują, a wstyd przyznać proboszczowi. Przeczytasz mi dzisiejszą pieśń na głos?',
+                'Uczę chłopaka od Kowalskich. Ma słuch, nie ma butów. Zaprowadź go do mnie - powiedz, że lekcje są za darmo.',
+                'Wczoraj grał sam, całą mszę. Siedziałem w ławce i płakałem. We śnie ktoś wyniósł mnie z płonącego chóru. Nie widzę twarzy, ale poznaję kroki.'] },
+            { id: 'akuszerka', imie: 'Stara Marta, akuszerka', kolor: 0x7a4a4a, odcinki: [
+                'Ja cię odbierałam, wiesz? W tamtą burzę. Słyszałam śpiew. Nikomu nie mówiłam, bo by mnie zamknęli. Posłuchaj starej chwilę.',
+                'Nad twoją kołyską widziałam jasną nić, aż do powały i dalej. Od tamtej pory widuję je nad ludźmi. Nad niektórymi czarne. Uważaj na tych z czarnymi.',
+                'Moja nić się skraca, czuję to. Nie bój się - ktoś ją trzyma i nie puści. Tobie też. Idź, masz jeszcze dużo nocy przed sobą.'] },
+            { id: 'listonosz', imie: 'Listonosz Wacław', kolor: 0x33557a, odcinki: [
+                'Noszę listy bez znaczka. Ktoś je wrzuca nocą, a na każdym ten sam rogaty znak. Boję się je doręczać. Co byś zrobił na moim miejscu?',
+                'Spaliłem jeden. Nazajutrz leżał w torbie drugi, taki sam, z moim imieniem. Pójdziesz ze mną pod komisariat? Sam nie dojdę.',
+                'Nikt mi nie uwierzył, ale listy przestały przychodzić. Śniło mi się, że ktoś wyjął mi je z rąk i podarł. Zostawił mi za to to - trzymaj, tobie się przyda.'] }
+        ];
+        function postawMieszkancow() {
+            const st = stanMiasta();
+            MIESZKANCY.forEach((p, i) => {
+                const pole = wolneWMiescie(hero.mesh.position.x, hero.mesh.position.z, 6 + i * 3, 16 + i * 5); if (!pole) return;
+                const mesh = createCharacter(p.kolor, 0xffccaa, 0x554433, 0.95, 'town-npc', true);
+                mesh.position.set(pole[0], getTerrainY(pole[0], pole[1]) + mesh.userData.yOffset, pole[1]); scene.add(mesh);
+                const koniec = (st.odcinki[p.id] || 0) >= p.odcinki.length;
+                townNPCs.push({ mesh, aura: addAuraEffect(mesh, koniec ? 0x66ccff : 0xffd24a), kind: 'happy', needType: null, helped: false, taskTaken: false, postac: p,
+                    wander: { homeX: pole[0], homeZ: pole[1], state: 'idle', targetX: pole[0], targetZ: pole[1], waitUntil: performance.now() + 2000, speed: 0.9 } });
+            });
+        }
+        function rozmowaZMieszkancem(npc) {
+            const p = npc.postac, st = stanMiasta(), nr = st.odcinki[p.id] || 0;
+            if (nr >= p.odcinki.length) { speakAt(npc, losZ(['Dobrze cię widzieć.', 'Śpię spokojnie. Dzięki tobie.', 'Zajdź kiedyś na herbatę.'])); return; }
+            if (nr > 0 && st.poMisji[p.id] === playerStats.mission) {
+                speakAt(npc, losZ(['Daj mi czas. Przyjdź po następnej nocy.', 'Jeszcze to w sobie układam. Wróć jutro.'])); return;
+            }
+            showDialogue(`[${p.imie}]\n\n${p.odcinki[nr]}`, nr === p.odcinki.length - 1 ? 'Wysłuchaj' : 'Pomóż', 'Nie teraz', () => {
+                st.odcinki[p.id] = nr + 1; st.poMisji[p.id] = playerStats.mission;
+                playerStats.goodDeeds += 1; playerStats.grace += 3 + nr;
+                playerStats.level = 1 + Math.floor(playerStats.goodDeeds / 3); updatePlayerStatsUI();
+                if (nr + 1 >= p.odcinki.length) {
+                    fab.kronika.push(`${p.imie}: historia domknięta. To ten sen ratowaliśmy.`);
+                    if (npc.aura) npc.aura.material.color.set(0x66ccff);
+                    if (p.id === 'listonosz') { zapasZiol = (zapasZiol || 0) + 2; }
+                    narrator(`${p.imie.split(',')[0]} śpi już spokojnie.`);
+                } else showFloatingWarning(`+${3 + nr} Łaski`);
+            }, null);
+        }
+
+        // --- 3. Rytm dnia: każda pora ma swoją sprawę, raz dziennie ---
+        const SPRAWY_DNIA = {
+            rano: { kto: 'Przekupka z targu', kolor: 0xa05a3a, tekst: 'Wóz przyjechał, a mój chłopak chory. Pomożesz rozładować skrzynki, zanim ludzie przyjdą?', po: 'Rozładowaliście wóz przed otwarciem targu.' },
+            poludnie: { kto: 'Nauczycielka', kolor: 0x4a6a8a, tekst: 'Dzieci mają przerwę, a ja muszę zanieść obiad chorej matce. Popilnujesz ich kwadrans?', po: 'Dzieci przez kwadrans grały z tobą w berka.' },
+            wieczor: { kto: 'Kościelny', kolor: 0x3a3a3a, tekst: 'Ręce mi się trzęsą, nie sięgnę knotów. Zapalisz ze mną lampy przed nieszporami?', po: 'Zapaliliście lampy. Dzwon zabił na nieszpory.' }
+        };
+        function postawSpraweDnia() {
+            const sp = SPRAWY_DNIA[currentTimeOfDay]; if (!sp) return;
+            const st = stanMiasta(), dzis = czasGry.toDateString() + currentTimeOfDay;
+            const c = currentTimeOfDay === 'wieczor' ? specialBuildingSpawns.church : (currentTimeOfDay === 'poludnie' ? specialBuildingSpawns.school : specialBuildingSpawns.fountain);
+            const pole = wolneWMiescie(c ? c.x : hero.mesh.position.x, c ? c.z : hero.mesh.position.z, 3, 9); if (!pole) return;
+            if (currentTimeOfDay === 'rano') {   // stragan
+                const y = getTerrainY(pole[0] + 1, pole[1]);
+                bryla(new THREE.BoxGeometry(1.6, 0.8, 0.8), new THREE.MeshLambertMaterial({ color: 0x7a5a3a, map: detTekstura('drewno') }), pole[0] + 1.2, y + 0.4, pole[1]);
+                bryla(new THREE.BoxGeometry(1.9, 0.06, 1.2), matM(0xb03030), pole[0] + 1.2, y + 1.9, pole[1]).rotation.x = 0.18;
+                [-0.7, 0.7].forEach(d => bryla(new THREE.CylinderGeometry(0.04, 0.04, 1.9, 5), matM(0x4a3a2a), pole[0] + 1.2 + d, y + 0.95, pole[1] + 0.5));
+                [0xd04020, 0xe0a020, 0x50a030].forEach((k, i) => bryla(new THREE.SphereGeometry(0.13, 6, 5), matM(k), pole[0] + 0.8 + i * 0.4, y + 0.9, pole[1]));
+            }
+            if (st.dzien === dzis) return;
+            const mesh = createCharacter(sp.kolor, 0xffccaa, 0x332211, 0.95, 'town-npc', true);
+            mesh.position.set(pole[0], getTerrainY(pole[0], pole[1]) + mesh.userData.yOffset, pole[1]); scene.add(mesh);
+            townNPCs.push({ mesh, aura: addAuraEffect(mesh, 0xffa040), kind: 'happy', needType: null, helped: false, taskTaken: false, sprawa: sp, wander: null });
+        }
+        function rozmowaOSprawie(npc) {
+            const sp = npc.sprawa, st = stanMiasta();
+            if (npc.helped) { speakAt(npc, 'Bóg zapłać. Idź z Bogiem.'); return; }
+            showDialogue(`[${sp.kto}]\n\n${sp.tekst}`, 'Pomogę', 'Nie mogę', () => {
+                npc.helped = true; st.dzien = czasGry.toDateString() + currentTimeOfDay;
+                playerStats.goodDeeds += 1; playerStats.grace += 3; playerStats.level = 1 + Math.floor(playerStats.goodDeeds / 3); updatePlayerStatsUI();
+                if (npc.aura) npc.aura.material.color.set(0x66ccff);
+                czasGry = new Date(czasGry.getTime() + 20 * 60000); odswiezZegar();
+                updateUI(sp.po + ' (+3 Łaski)'); showFloatingWarning('Dobry uczynek');
+            }, null);
+        }
+
+        // --- 1 + 5 + 7. Wygląd miasta zależny od uczynków, dary wdzięczności, gołębie, kałuże ---
+        function ubierzMiasto() {
+            const st = stanMiasta(), stopien = stopienMiasta();
+            const zwykle = houses.filter(h => !h.specjalny && h.minX !== undefined && spaloneDomy.indexOf(h.id) === -1).slice(0, 60);
+            const kwiatG = new THREE.SphereGeometry(0.09, 5, 4), swiecaG = new THREE.CylinderGeometry(0.03, 0.03, 0.14, 5), plomG = new THREE.SphereGeometry(0.035, 5, 4);
+            const KW = [0xe04060, 0xf0c030, 0xf0f0f0, 0xa060d0, 0xf08030];
+            zwykle.forEach((h, i) => {
+                const naroza = [[h.minX - 0.6, h.minZ - 0.6], [h.maxX + 0.6, h.minZ - 0.6], [h.minX - 0.6, h.maxZ + 0.6], [h.maxX + 0.6, h.maxZ + 0.6]];
+                const [x, z] = naroza[i % 4];
+                if (isObstacle(Math.round(x), Math.round(z))) return;
+                const y = getTerrainY(x, z);
+                if (stopien === 0 && i % 3 === 0) {   // zaniedbanie: śmieci pod płotem
+                    for (let k = 0; k < 3; k++) bryla(new THREE.BoxGeometry(0.18, 0.1, 0.14), matM([0x5a5a52, 0x6a5a48, 0x444a50][k]), x + k * 0.2, y + 0.05, z + (k % 2) * 0.15).rotation.y = k;
+                }
+                if (i % 4 < stopien) {                // rozkwit: doniczka z kwiatami
+                    bryla(new THREE.CylinderGeometry(0.16, 0.12, 0.2, 7), matM(0x9a5a3a), x, y + 0.1, z);
+                    for (let k = 0; k < 4; k++) bryla(kwiatG, matM(KW[(i + k) % 5]), x + Math.cos(k * 1.6) * 0.1, y + 0.3 + (k % 2) * 0.05, z + Math.sin(k * 1.6) * 0.1);
+                }
+                if (i < st.wdziecznosc * 2 && i % 2 === 0) {   // świeczka pod domem kogoś, komu pomogłeś
+                    bryla(swiecaG, matM(0xf0e8d0), x + 0.3, y + 0.07, z + 0.3);
+                    bryla(plomG, matM(0xffc040, true), x + 0.3, y + 0.17, z + 0.3);
+                }
+            });
+            // Kwiaty pod kościołem rosną z każdym stopniem
+            const ch = specialBuildingSpawns.church;
+            if (ch) for (let k = 0; k < stopien * 6; k++) {
+                const pole = wolneWMiescie(ch.x, ch.z, 2, 6); if (!pole) continue;
+                bryla(kwiatG, matM(KW[k % 5]), pole[0] + Math.random() * 0.6 - 0.3, getTerrainY(pole[0], pole[1]) + 0.12, pole[1] + Math.random() * 0.6 - 0.3);
+            }
+            // 5. Chleb od wdzięcznych pod drzwiami: co trzy uczynki
+            if (st.wdziecznosc >= 3) {
+                const hh = specialBuildingSpawns.heroHouse || { x: hero.mesh.position.x, z: hero.mesh.position.z };
+                const pole = wolneWMiescie(hh.x, hh.z, 1, 3);
+                if (pole) {
+                    const y = getTerrainY(pole[0], pole[1]);
+                    const kosz = bryla(new THREE.CylinderGeometry(0.24, 0.18, 0.2, 9), new THREE.MeshLambertMaterial({ color: 0x9a7a4a, map: detTekstura('tkanina') }), pole[0], y + 0.1, pole[1]);
+                    const chleb = bryla(new THREE.SphereGeometry(0.16, 8, 6), matM(0xb07a3a), pole[0], y + 0.24, pole[1]); chleb.scale.set(1.3, 0.6, 0.9);
+                    const zn = znacznikMiasta(pole[0], pole[1], 0xffd24a);
+                    punktMiasta(pole[0], pole[1], zn, () => {
+                        st.wdziecznosc -= 3; zdrowieBohatera = null; playerStats.grace += 2; updatePlayerStatsUI();
+                        miastoGrupa.remove(kosz); miastoGrupa.remove(chleb);
+                        updateUI('Pod drzwiami leży kosz: chleb, jeszcze ciepły, i kartka „Bóg zapłać”. Rany przestają boleć. (+2 Łaski)');
+                        showFloatingWarning('Dar wdzięczności');
+                    });
+                }
+            }
+            // 7. Gołębie na placu - zrywają się, gdy podejdziesz
+            golebie = [];
+            const f = specialBuildingSpawns.fountain || ch;
+            if (f && currentTimeOfDay !== 'noc') {
+                const pole = wolneWMiescie(f.x, f.z, 2, 6);
+                if (pole) for (let k = 0; k < 7 + stopien * 2; k++) {
+                    const g = new THREE.Group();
+                    const t = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), matM(k % 3 ? 0x8a8e96 : 0xd8d8d8)); t.scale.set(1, 0.8, 1.5); t.position.y = 0.09; g.add(t);
+                    const gl = new THREE.Mesh(new THREE.SphereGeometry(0.05, 5, 4), t.material); gl.position.set(0, 0.17, 0.1); g.add(gl);
+                    const x = pole[0] + Math.random() * 3 - 1.5, z = pole[1] + Math.random() * 3 - 1.5;
+                    g.position.set(x, getTerrainY(x, z), z); g.rotation.y = Math.random() * 6.3; miastoGrupa.add(g);
+                    golebie.push({ g, x, z, y: g.position.y, lot: 0, faza: Math.random() * 6 });
+                }
+            }
+            // 7. Kałuże po deszczu
+            if (weatherType === 'rain') for (let k = 0; k < 25; k++) {
+                const pole = wolneWMiescie(hero.mesh.position.x, hero.mesh.position.z, 2, 40); if (!pole) continue;
+                const m = bryla(new THREE.CircleGeometry(0.35 + Math.random() * 0.4, 12), new THREE.MeshBasicMaterial({ color: 0x8aa0b8, transparent: true, opacity: 0.35, depthWrite: false }),
+                    pole[0], getTerrainY(pole[0], pole[1]) + 0.03, pole[1]);
+                m.rotation.x = -Math.PI / 2; m.scale.y = 0.6 + Math.random() * 0.5;
+            }
+        }
+
+        // --- 4. Ślady Zakonu: znak na ziemi i obcy, który wypytuje ---
+        function postawSladyZakonu() {
+            if (aktualnyAkt() < 2 && poziomNamierzenia < 1) return;
+            const pole = wolneWMiescie(hero.mesh.position.x, hero.mesh.position.z, 10, 30);
+            if (pole) {
+                const y = getTerrainY(pole[0], pole[1]) + 0.04;
+                const kr = bryla(new THREE.RingGeometry(0.45, 0.55, 20), new THREE.MeshBasicMaterial({ color: 0x8a1010, side: THREE.DoubleSide }), pole[0], y, pole[1]); kr.rotation.x = -Math.PI / 2;
+                [-0.2, 0.2].forEach(d => { const rg = bryla(new THREE.ConeGeometry(0.06, 0.3, 4), matM(0x8a1010, true), pole[0] + d, y + 0.01, pole[1] - 0.25); rg.rotation.x = -Math.PI / 2; });
+                punktMiasta(pole[0], pole[1], kr, () => {
+                    poziomNamierzenia = Math.max(0, poziomNamierzenia - 1); playerStats.grace += 3; updatePlayerStatsUI();
+                    fab.ostrzezony = true; fab.kronika.push('Starłem z bruku rogaty znak, zanim ktoś go odczytał.');
+                    updateUI('Rogata głowa w okręgu, wysypana czerwonym pyłem. To adres dla kogoś, kto przyjdzie nocą. Ścierasz znak butem - w następnym śnie będziecie na nich gotowi. (+3 Łaski)');
+                    showFloatingWarning('Znak Zakonu starty');
+                });
+            }
+            const p2 = wolneWMiescie(hero.mesh.position.x, hero.mesh.position.z, 12, 28);
+            if (p2 && Math.random() < 0.7) {
+                const mesh = createCharacter(0x18181c, 0xd8c0a8, 0x101010, 1.0, 'town-npc', true);
+                mesh.position.set(p2[0], getTerrainY(p2[0], p2[1]) + mesh.userData.yOffset, p2[1]); scene.add(mesh);
+                townNPCs.push({ mesh, aura: null, kind: 'happy', needType: null, helped: false, taskTaken: false, obcy: true, wander: null });
+            }
+        }
+        function rozmowaZObcym(npc) {
+            if (npc.helped) { speakAt(npc, '...'); return; }
+            npc.helped = true;
+            const madry = (playerCharacterStats.madrosc || 10) >= 12;
+            speakAt(npc, losZ(['Szukam znajomego. Podobno dobrze sypia. Nie wie pan, gdzie mieszka?', 'Ładne miasteczko. Ludzie tu ostatnio... spokojniejsi. Ciekawe czemu.']));
+            if (madry) { fab.ostrzezony = true; updateUI('Pod mankietem ma tatuaż: okrąg i rogi. Zapamiętujesz twarz - w następnym śnie poznasz jego ludzi z daleka.'); showFloatingWarning('Człowiek Zakonu'); }
+            else updateUI('Coś w nim jest nie tak, ale nie umiesz powiedzieć co. (Mądrość 12 pozwoliłaby go przejrzeć.)');
+        }
+
+        // --- 6. Miejsca do odkrycia: otwierają się z aktami ---
+        const MIEJSCA = [
+            { id: 'studnia', odAktu: 0, gdzie: () => specialBuildingSpawns.fountain, karta: 'Studnia', tekst: 'Wrzucasz kamyk. Plusk przychodzi za późno - i nie sam. Z dołu ktoś odpowiada tym samym rytmem, jakim bije twoje serce.\n\nNa cembrowinie wydrapano: „Kto śpi nad wodą, śni cudze sny.”' },
+            { id: 'strych', odAktu: 1, gdzie: () => specialBuildingSpawns.heroHouse, karta: 'Strych z listami', tekst: 'Za luźną deską leży paczka listów przewiązana sznurkiem. Wszystkie z roku 1894, wszystkie do tej samej osoby, wszystkie nieotwarte.\n\nNa ostatnim ktoś dopisał ołówkiem: „Nie budzić. On trzyma linę za całą ulicę.”' },
+            { id: 'krypta', odAktu: 2, gdzie: () => specialBuildingSpawns.cemetery || specialBuildingSpawns.church, karta: 'Zamurowana krypta', tekst: 'Zaprawa jest świeższa niż mur. Przez szczelinę widać siedem pustych nisz i ósmą - z twoim imieniem wykutym zawczasu.\n\nKtoś tu na ciebie czeka od bardzo dawna. Pytanie tylko, po której stronie.' }
+        ];
+        function postawMiejsca() {
+            const st = stanMiasta();
+            MIEJSCA.forEach(mj => {
+                if (st.miejsca[mj.id] || aktualnyAkt() < mj.odAktu) return;
+                const c = mj.gdzie(); if (!c) return;
+                const pole = wolneWMiescie(c.x, c.z, 2, 7); if (!pole) return;
+                const zn = znacznikMiasta(pole[0], pole[1], 0xb080ff);
+                const list = brylaWspomnienia(0); zn.add(list);
+                punktMiasta(pole[0], pole[1], zn, () => {
+                    st.miejsca[mj.id] = true; playerStats.grace += 5; updatePlayerStatsUI();
+                    fab.kronika.push(`[Miasto] ${mj.karta}.`); if (fab.znaleziska.indexOf(mj.karta) === -1) fab.znaleziska.push(mj.karta + ' - ' + mj.tekst.split('\n')[0]);
+                    pokazIntro(null, [{ karta: mj.karta, tekst: mj.tekst + '\n\n(+5 Łaski)' }], 'ODKRYCIE');
+                });
+            });
+        }
+
+        function ozywMiasto() {
+            if (miastoGrupa) scene.remove(miastoGrupa);
+            miastoGrupa = new THREE.Group(); miastoGrupa.userData.unitType = 'fx'; scene.add(miastoGrupa);
+            miastoPunkty = []; golebie = []; miastoUczynki = playerStats.goodDeeds;
+            if (gameMode !== 'present' || !hero || !hero.mesh || mp) return;
+            try { ubierzMiasto(); postawMieszkancow(); postawSpraweDnia(); postawSladyZakonu(); postawMiejsca(); }
+            catch (e) { console.warn('[miasto]', e); }
+        }
+        function updateMiasta() {
+            if (!miastoGrupa || !hero || !hero.mesh) return;
+            if (gameMode !== 'present') { miastoGrupa.visible = false; return; }
+            miastoGrupa.visible = true;
+            const hx = hero.mesh.position.x, hz = hero.mesh.position.z, t = performance.now() / 1000;
+            // każdy nowy uczynek to czyjaś wdzięczność
+            if (miastoUczynki !== null && playerStats.goodDeeds > miastoUczynki) stanMiasta().wdziecznosc += playerStats.goodDeeds - miastoUczynki;
+            miastoUczynki = playerStats.goodDeeds;
+            for (let i = miastoPunkty.length - 1; i >= 0; i--) {
+                const p = miastoPunkty[i];
+                if (p.mesh && p.mesh.children[0]) p.mesh.children[0].rotation.y = t * 2;
+                if (dialogueOpen || Math.hypot(hx - p.x, hz - p.z) > p.r) continue;
+                miastoPunkty.splice(i, 1); if (p.mesh) miastoGrupa.remove(p.mesh); p.raz();
+            }
+            golebie.forEach(g => {
+                const d = Math.hypot(hx - g.x, hz - g.z);
+                if (!g.lot && d < 3) g.lot = t;
+                if (g.lot) {
+                    const w = t - g.lot;
+                    g.g.position.set(g.x + Math.cos(g.faza) * w * 3, g.y + Math.min(6, w * 3) + Math.sin(w * 14) * 0.05, g.z + Math.sin(g.faza) * w * 3);
+                    g.g.rotation.y = Math.atan2(Math.cos(g.faza), Math.sin(g.faza));
+                    if (w > 9 && d > 8) { g.lot = 0; g.g.position.set(g.x, g.y, g.z); }
+                } else g.g.children[1].position.y = 0.17 - Math.max(0, Math.sin(t * 3 + g.faza)) * 0.09;   // dziobie
+            });
+        }
+
         // Kronika pod klawiszem J
         function pokazKronike() {
             const druz = recruitedWarriors.filter(w => w.blizny).map(w => `${nazwaWojownika(w)} - blizn: ${w.blizny}`);
@@ -28488,6 +28770,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 pokaz: () => showDialogue(`[${i.tytul}]\n\n${i.tekst}`, 'Dalej', null, null, null) }));
             e.push({ m: 0, typ: 'Narrator', nazwa: 'Wejście w sen', pokaz: () => narrator(losZ(NARRATOR_START).replace('{m}', 'Cmentarzysko').replace('{n}', 7)) });
             e.push({ m: 0, typ: 'Kronika', nazwa: 'Podgląd kroniki', pokaz: pokazKronike });
+            MIESZKANCY.forEach(p => p.odcinki.forEach((o, i) => e.push({ m: i, typ: 'Miasto', nazwa: `${p.imie} ${i + 1}/${p.odcinki.length}`,
+                pokaz: () => showDialogue(`[${p.imie}]\n\n${o}`, 'Dalej', null, null, null) })));
+            MIEJSCA.forEach(mj => e.push({ m: (PROLOGI.find(q => q.akt === mj.odAktu) || {}).odMisji || 0, typ: 'Odkrycie', nazwa: mj.karta,
+                pokaz: () => pokazIntro(null, [{ karta: mj.karta, tekst: mj.tekst }], 'ODKRYCIE') }));
             e.push({ m: 61, typ: 'Finał', nazwa: 'Tkacz i trzy sploty (w śnie: stawia od razu)', pokaz: () => { if (gameMode === 'dream') zacznijFinal(); else updateUI('Finał zaczyna się w pierwszym śnie po karcie „Splot”.'); } });
             return e.sort((a, b) => a.m - b.m);
         }
@@ -34796,7 +35082,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Premia za znajomość przeciwnika - z Demonarium i z doświadczenia
             const wiedza = (cel && cel.type) ? premiaZWiedzy(cel.type) : 0;
             // Modlitwa na opak odbiera pewność ręki całemu oddziałowi
-            return getPlayerAccuracyBonusBazowy(soldier) + wiedza - (klatwaBluzniercy || 0) + premiaWiezi(soldier);
+            return getPlayerAccuracyBonusBazowy(soldier) + wiedza - (klatwaBluzniercy || 0) + premiaWiezi(soldier) + (fabOstrzezenie ? 10 : 0);
         }
 
         function getPlayerAccuracyBonusBazowy(soldier) {
@@ -38469,6 +38755,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }
                 return;
             }
+            if (npc.postac) { rozmowaZMieszkancem(npc); return; }
+            if (npc.sprawa) { rozmowaOSprawie(npc); return; }
+            if (npc.obcy) { rozmowaZObcym(npc); return; }
             if (npc.kind === 'happy' || npc.helped) {
                 // Co jakiś czas mieszkaniec zamiast zdawkowego powitania przytacza Pismo
                 if (Math.random() < 0.3) speakAt(npc, losowyCytat());
@@ -54966,6 +55255,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             function ustawScene(nr) {
                 if (!wideo || nr === biezacaScena) return;
                 biezacaScena = nr;
+                // Film i lektor należą do intra o narodzinach - prologi i karty fabularne lecą na ciemnym tle
+                if (wlasneKarty) { wideo.classList.remove('widoczne'); return; }
                 const sciezka = `mov/scena${nr + 1}.mp4`;
                 wideo.classList.remove('widoczne');
                 odtworzLektora(nr);
