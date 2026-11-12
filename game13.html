@@ -28176,7 +28176,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
         const NARRATOR_START = ['{m}. Mgła przyszła od strony, z której nikt nie przychodzi.', 'Noc {n}. Wchodzimy w sen: {m}.',
                                 'Ktoś śni o miejscu, które nazywa się {m}. Nie wie, że nie śni sam.', 'Liny napięły się nad głowami. {m}.'];
-        let fabTryb = null;
+        let fabTryb = null, fabLicznik2 = 0;
         function updateFabuly() {
             if (gameMode !== fabTryb) {
                 fabTryb = gameMode;
@@ -28188,6 +28188,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 }, 1500);
             }
             updateMiasta();
+            if (++fabLicznik2 % 20 === 0) { samouczek(); if (gameMode === 'present') animujPostacieMiasta(); }
             if (gameMode !== 'dream') { if (fabCel) { fabCel = null; pokazCel(); } return; }
             updateOpowiesciWSnie();
             for (let i = fabZnaleziska.length - 1; i >= 0; i--) {
@@ -28226,7 +28227,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const pole = wolnePoleDaleko(1, 3);
                 if (pole) {
                     fab.zakonnikByl = true;
-                    const m = createCharacter(0x5a4630, 0xddbb99, 0x2a2018, 1, 'standard');
+                    const m = buildEnemyModelInstance('zakonnik') || createCharacter(0x5a4630, 0xddbb99, 0x2a2018, 1, 'standard');
                     m.position.set(pole[0], getLevelY(pole[0], pole[1], 0) + (m.userData.yOffset || 0), pole[1]); scene.add(m);
                     soldiers.push({ mesh: m, name: 'Brat Anzelm', class: 'uniwersalna', hp: 12, maxHp: 12, ap: 12, maxAp: 12,
                         accuracyBonus: 0, isDead: false, turnEnded: false, isKneeling: false, level: 0, shotsFired: 0, shotsHit: 0, kills: 0,
@@ -28501,27 +28502,27 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         // --- 2. Mieszkańcy z historiami. Kolejny odcinek dopiero po następnej nocy we śnie. ---
         const MIESZKANCY = [
-            { id: 'wdowa', imie: 'Helena, wdowa', kolor: 0x3a3440, odcinki: [
+            { id: 'wdowa', imie: 'Helena, wdowa', kolor: 0x3a3440, model: 'cywil_women2', odcinki: [
                 'Mąż zmarł w marcu. Od tamtej pory nakrywam do stołu na dwoje. Usiądziesz na chwilę? Tylko żeby krzesło nie stało puste.',
                 'Znalazłam jego zegarek. Stoi na godzinie, o której zasnął. Nakręcisz go? Ja nie mam odwagi.',
                 'Śniło mi się, że ktoś stał obok mnie w ciemności i nie pozwolił mi iść za nim. Miał twoją twarz. Dziś nakryłam na jedno. Dziękuję.'] },
-            { id: 'pijak', imie: 'Stach spod sklepu', kolor: 0x6a5a3a, odcinki: [
+            { id: 'pijak', imie: 'Stach spod sklepu', kolor: 0x6a5a3a, model: 'cywil_men', odcinki: [
                 'Nie dawaj mi pieniędzy. Daj mi powód. Posiedź, powiedz, jak się nazywa dzisiejszy dzień.',
                 'Trzy dni bez. Ręce mi latają. Odprowadź mnie pod drzwi córki - sam zawrócę przy furtce.',
                 'Otworzyła. Nic nie mówiła, tylko postawiła drugi talerz. W nocy śniło mi się, że tonę w butelce, a ktoś rozbił szkło. To byłeś ty, prawda?'] },
-            { id: 'chlopiec', imie: 'Antek', kolor: 0x4a7ab0, odcinki: [
+            { id: 'chlopiec', imie: 'Antek', kolor: 0x4a7ab0, model: 'cywil_men', skala: 0.62, odcinki: [
                 'Tata pojechał do pracy i nie wraca. Mama mówi, że niedługo. Umiesz naprawić latawiec? On zawsze naprawiał.',
                 'Napisałem list do taty. Nie znam adresu. Zaniesiesz go pod kapliczkę? Tam podobno wszystko dochodzi.',
                 'Tata zadzwonił! Mówił, że mu się śniłem i że wraca. A mnie się śnił pan - gonił pan to czarne, co siedziało na dachu.'] },
-            { id: 'organista', imie: 'Pan Ignacy, organista', kolor: 0x2a2a30, odcinki: [
+            { id: 'organista', imie: 'Pan Ignacy, organista', kolor: 0x2a2a30, model: 'cywil_men', odcinki: [
                 'Od roku gram z pamięci. Nuty mi się rozmazują, a wstyd przyznać proboszczowi. Przeczytasz mi dzisiejszą pieśń na głos?',
                 'Uczę chłopaka od Kowalskich. Ma słuch, nie ma butów. Zaprowadź go do mnie - powiedz, że lekcje są za darmo.',
                 'Wczoraj grał sam, całą mszę. Siedziałem w ławce i płakałem. We śnie ktoś wyniósł mnie z płonącego chóru. Nie widzę twarzy, ale poznaję kroki.'] },
-            { id: 'akuszerka', imie: 'Stara Marta, akuszerka', kolor: 0x7a4a4a, odcinki: [
+            { id: 'akuszerka', imie: 'Stara Marta, akuszerka', kolor: 0x7a4a4a, model: 'cywil_women', skala: 0.92, odcinki: [
                 'Ja cię odbierałam, wiesz? W tamtą burzę. Słyszałam śpiew. Nikomu nie mówiłam, bo by mnie zamknęli. Posłuchaj starej chwilę.',
                 'Nad twoją kołyską widziałam jasną nić, aż do powały i dalej. Od tamtej pory widuję je nad ludźmi. Nad niektórymi czarne. Uważaj na tych z czarnymi.',
                 'Moja nić się skraca, czuję to. Nie bój się - ktoś ją trzyma i nie puści. Tobie też. Idź, masz jeszcze dużo nocy przed sobą.'] },
-            { id: 'listonosz', imie: 'Listonosz Wacław', kolor: 0x33557a, odcinki: [
+            { id: 'listonosz', imie: 'Listonosz Wacław', kolor: 0x33557a, model: 'cywil_men', odcinki: [
                 'Noszę listy bez znaczka. Ktoś je wrzuca nocą, a na każdym ten sam rogaty znak. Boję się je doręczać. Co byś zrobił na moim miejscu?',
                 'Spaliłem jeden. Nazajutrz leżał w torbie drugi, taki sam, z moim imieniem. Pójdziesz ze mną pod komisariat? Sam nie dojdę.',
                 'Nikt mi nie uwierzył, ale listy przestały przychodzić. Śniło mi się, że ktoś wyjął mi je z rąk i podarł. Zostawił mi za to to - trzymaj, tobie się przyda.'] }
@@ -28530,7 +28531,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const st = stanMiasta();
             MIESZKANCY.forEach((p, i) => {
                 const pole = wolneWMiescie(hero.mesh.position.x, hero.mesh.position.z, 6 + i * 3, 16 + i * 5); if (!pole) return;
-                const mesh = createCharacter(p.kolor, 0xffccaa, 0x554433, 0.95, 'town-npc', true);
+                const mesh = postacMiasta(p.model, p.kolor, p.skala);
                 mesh.position.set(pole[0], getTerrainY(pole[0], pole[1]) + mesh.userData.yOffset, pole[1]); scene.add(mesh);
                 const koniec = (st.odcinki[p.id] || 0) >= p.odcinki.length;
                 townNPCs.push({ mesh, aura: addAuraEffect(mesh, koniec ? 0x66ccff : 0xffd24a), kind: 'happy', needType: null, helped: false, taskTaken: false, postac: p,
@@ -28558,9 +28559,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         // --- 3. Rytm dnia: każda pora ma swoją sprawę, raz dziennie ---
         const SPRAWY_DNIA = {
-            rano: { kto: 'Przekupka z targu', kolor: 0xa05a3a, tekst: 'Wóz przyjechał, a mój chłopak chory. Pomożesz rozładować skrzynki, zanim ludzie przyjdą?', po: 'Rozładowaliście wóz przed otwarciem targu.' },
-            poludnie: { kto: 'Nauczycielka', kolor: 0x4a6a8a, tekst: 'Dzieci mają przerwę, a ja muszę zanieść obiad chorej matce. Popilnujesz ich kwadrans?', po: 'Dzieci przez kwadrans grały z tobą w berka.' },
-            wieczor: { kto: 'Kościelny', kolor: 0x3a3a3a, tekst: 'Ręce mi się trzęsą, nie sięgnę knotów. Zapalisz ze mną lampy przed nieszporami?', po: 'Zapaliliście lampy. Dzwon zabił na nieszpory.' }
+            rano: { kto: 'Przekupka z targu', kolor: 0xa05a3a, model: 'cywil_women', tekst: 'Wóz przyjechał, a mój chłopak chory. Pomożesz rozładować skrzynki, zanim ludzie przyjdą?', po: 'Rozładowaliście wóz przed otwarciem targu.' },
+            poludnie: { kto: 'Nauczycielka', kolor: 0x4a6a8a, model: 'cywil_women2', tekst: 'Dzieci mają przerwę, a ja muszę zanieść obiad chorej matce. Popilnujesz ich kwadrans?', po: 'Dzieci przez kwadrans grały z tobą w berka.' },
+            wieczor: { kto: 'Kościelny', kolor: 0x3a3a3a, model: 'cywil_men', tekst: 'Ręce mi się trzęsą, nie sięgnę knotów. Zapalisz ze mną lampy przed nieszporami?', po: 'Zapaliliście lampy. Dzwon zabił na nieszpory.' }
         };
         function postawSpraweDnia() {
             const sp = SPRAWY_DNIA[currentTimeOfDay]; if (!sp) return;
@@ -28575,7 +28576,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 [0xd04020, 0xe0a020, 0x50a030].forEach((k, i) => bryla(new THREE.SphereGeometry(0.13, 6, 5), matM(k), pole[0] + 0.8 + i * 0.4, y + 0.9, pole[1]));
             }
             if (st.dzien === dzis) return;
-            const mesh = createCharacter(sp.kolor, 0xffccaa, 0x332211, 0.95, 'town-npc', true);
+            const mesh = postacMiasta(sp.model, sp.kolor);
             mesh.position.set(pole[0], getTerrainY(pole[0], pole[1]) + mesh.userData.yOffset, pole[1]); scene.add(mesh);
             townNPCs.push({ mesh, aura: addAuraEffect(mesh, 0xffa040), kind: 'happy', needType: null, helped: false, taskTaken: false, sprawa: sp, wander: null });
         }
@@ -28677,7 +28678,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
             const p2 = wolneWMiescie(hero.mesh.position.x, hero.mesh.position.z, 12, 28);
             if (p2 && Math.random() < 0.7) {
-                const mesh = createCharacter(0x18181c, 0xd8c0a8, 0x101010, 1.0, 'town-npc', true);
+                const mesh = postacMiasta('inkwizytor', 0x18181c, 0.85);
                 mesh.position.set(p2[0], getTerrainY(p2[0], p2[1]) + mesh.userData.yOffset, p2[1]); scene.add(mesh);
                 townNPCs.push({ mesh, aura: null, kind: 'happy', needType: null, helped: false, taskTaken: false, obcy: true, wander: null });
             }
@@ -28747,6 +28748,161 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
         }
 
+        // ========================================================
+        // --- SAMOUCZEK: podpowiedzi przy pierwszym zetknięciu z każdą rzeczą ---
+        // Każda pokazuje się raz na zapis (fab.podp). Pierwszy sen prowadzi krok po kroku.
+        // ========================================================
+        let podpKolejka = [], podpDo = 0;
+        function podp(id, tekst) {
+            fab.podp = fab.podp || {};
+            if (fab.podp[id] || fab.bezPodpowiedzi) return false;
+            fab.podp[id] = 1; podpKolejka.push(tekst); return true;
+        }
+        function pokazPodpowiedzi() {
+            let el = document.getElementById('podpowiedz');
+            if (!el) {
+                el = document.createElement('div'); el.id = 'podpowiedz';
+                el.style.cssText = 'position:fixed;left:50%;bottom:120px;transform:translateX(-50%);max-width:560px;padding:10px 16px;background:rgba(14,12,8,.92);' +
+                    'color:#f0e4c4;font:15px Georgia,serif;border:1px solid #c8a850;border-radius:6px;z-index:8000;display:none;cursor:pointer;text-align:center';
+                el.title = 'Kliknij, żeby zamknąć';
+                el.onclick = () => { podpDo = 0; };
+                document.body.appendChild(el);
+            }
+            const t = performance.now();
+            if (t < podpDo) return;
+            if (!podpKolejka.length) { el.style.display = 'none'; return; }
+            el.innerHTML = '<b style="color:#c8a850">Podpowiedź</b><br>' + podpKolejka.shift();
+            el.style.display = ''; podpDo = t + 9000;
+        }
+        let samKrok = 0, samPoz = null;
+        function samouczek() {
+            fab.podp = fab.podp || {};
+            pokazPodpowiedzi();
+            if (mp || dialogueOpen) return;
+            if (gameMode === 'present' && hero && hero.mesh) {
+                podp('miasto', 'To twoje miasteczko. Ludzie z <b>czerwoną</b> poświatą potrzebują pomocy - podejdź i kliknij. Każdy dobry uczynek daje Łaskę, a miasto od nich rozkwita.');
+                if (fab.podp.miasto && performance.now() > podpDo) podp('zloci', 'Mieszkańcy ze <b>złotą</b> poświatą mają własne historie w odcinkach. Kolejny odcinek usłyszysz po następnej nocy we śnie.');
+                if (fab.podp.zloci && performance.now() > podpDo) podp('klawisze', 'Klawisz <b>J</b> otwiera kronikę wyprawy, <b>O</b> - Ostoję. Do snu wchodzi się przez śpiącego mieszkańca nocą albo przez portal.');
+                if (miastoPunkty.some(q => Math.hypot(q.x - hero.mesh.position.x, q.z - hero.mesh.position.z) < 9))
+                    podp('znacznik', 'Wirujący znacznik oznacza coś do znalezienia. Wystarczy do niego podejść.');
+                return;
+            }
+            if (gameMode !== 'dream' || gameOver) return;
+            const a = getActiveSoldier(); if (!a || !a.mesh) return;
+            // Pierwszy sen krok po kroku: ruch -> strzał -> koniec tury
+            if (!fab.podp.samKoniec) {
+                const poz = Math.round(a.mesh.position.x) + ',' + Math.round(a.mesh.position.z);
+                if (samKrok === 0) { podp('samRuch', 'Jesteś we śnie. <b>Kliknij pole</b>, żeby aktywny wojownik tam poszedł. Każdy krok kosztuje punkty akcji (PA) - widać je w panelu.'); samPoz = poz; samKrok = 1; }
+                else if (samKrok === 1 && poz !== samPoz) samKrok = 2;
+                else if (samKrok === 2 && enemies.some(e => !e.isDead && e.mesh && e.mesh.visible)) {
+                    podp('samStrzal', 'Widzisz wroga. <b>Kliknij go</b>, żeby wycelować, i jeszcze raz, żeby strzelić. Osłony i odległość zmieniają szansę trafienia.'); samKrok = 3; }
+                else if (samKrok === 3 && soldiers.some(q => (q.shotsFired || 0) > 0)) {
+                    podp('samTura', 'Gdy skończą się PA, tura przechodzi na następnego wojownika, a potem na wrogów. Jasna <b>lina</b> nad głową pokazuje życie: blednie i strzępi się, gdy wojownik słabnie.'); samKrok = 4; }
+                else if (samKrok === 4 && combatTurnCounter > 1) { podp('samKoniec', 'U góry ekranu jest <b>cel poboczny</b> tego snu - za jego spełnienie dostaniesz dodatkową Łaskę. Powodzenia.'); }
+            }
+            const ax = a.mesh.position.x, az = a.mesh.position.z, blisko = (x, z, d) => Math.hypot(x - ax, z - az) < d;
+            if (umieTelekineze(a) && isPlayerTurn) podp('tk', 'Ten wojownik zna <b>telekinezę</b>. Może cisnąć wrogiem albo sprzętem, a kliknięte <b>drzewo</b> złamie tak, że pień przygniecie stojących za nim.');
+            if (obstaclePositions.some(o => o.type === 'jaskinia' && !o.zawalona && blisko(o.x, o.z, 7))) podp('jaskinia', 'Z <b>jaskiń</b> wychodzą posiłki wroga. Stań obok wylotu i kliknij jaskinię, żeby ją zawalić (2 PA) - ale huk zaalarmuje okolicę.');
+            if (fabZnaleziska.some(z => blisko(z.x, z.z, 10))) podp('znalezisko', 'Światełko nad ziemią to <b>znalezisko</b>: list, napis, czyjś ślad. Podejdź, a trafi do kroniki.');
+            if (final) podp('final', 'Czarne <b>sploty</b> schodzą z nieba. Podejdź wojownikiem do każdego, żeby go przeciąć. Tkacza nie da się zabić - nie trać na niego amunicji.');
+            if (fabGlebia > 0) podp('glebia', 'Sen <b>pogłębia się</b> co 8 tur: wrogowie strzelają celniej. Nie warto zwlekać.');
+            if (soldiers.some(q => q !== a && !q.isDead && q.mesh && maWiez(a.name, q.name))) podp('wiez', 'Ci dwaj to <b>towarzysze broni</b>. Trzymaj ich w 3 polach od siebie - celują wtedy o 10% lepiej.');
+            if (soldiers.some(q => q.isAngel && q.name === 'Brat Anzelm')) podp('anzelm', '<b>Brat Anzelm</b> walczy u waszego boku w tym śnie. Bije wręcz - poślij go naprzód.');
+        }
+
+        // Postać miasta: model z dysku, a gdy go brak - bryła z kodu
+        function postacMiasta(klucz, kolor, skala) {
+            let m = null;
+            try { m = klucz ? (klucz.indexOf('cywil') === 0 ? zbudujCywila(klucz) : buildEnemyModelInstance(klucz)) : null; } catch (e) { m = null; }
+            if (!m) m = createCharacter(kolor, 0xffccaa, 0x443322, 0.95, 'town-npc', true);
+            if (skala) m.scale.multiplyScalar(skala);
+            m.userData.unitType = 'town-npc';
+            if (m.userData.yOffset === undefined) m.userData.yOffset = 0;
+            return m;
+        }
+        function animujPostacieMiasta() {
+            townNPCs.forEach(n => {
+                if (!n.mesh || !n.mesh.userData.isEnemyModel) return;
+                const chce = (n.wander && n.wander.state === 'walking') ? 'walk' : 'idle';
+                if (n._anim !== chce) { n._anim = chce; animWroga(n, chce, false); }
+            });
+        }
+
+        // ========================================================
+        // --- AUTOMAT DO WYWAŻENIA: gra misje prostym botem i zbiera wyniki ---
+        // autoGra(ile, { motyw, misja, oddzial }) -> Promise z listą wyników; raport w konsoli i w panelu F9.
+        // Bot: strzela do najbliższego widocznego wroga, inaczej idzie w stronę najbliższego.
+        // ========================================================
+        let autoWyniki = [], autoTrwa = false;
+        const czekaj = ms => new Promise(ok => setTimeout(ok, ms));
+        async function autoMisja(opcje) {
+            forcedThemeId = opcje.motyw || null; forcedMissionType = opcje.misja || 'standard'; forcedTimeOfDay = 'poludnie';
+            if (opcje.oddzial) testSquadSize = opcje.oddzial;
+            runTestMission();
+            await czekaj(9000);
+            const hp0 = soldiers.reduce((q, x) => q + (x.maxHp || 10), 0), wrogow0 = enemies.length;
+            let bezRuchu = 0;
+            const start = performance.now();
+            while (gameMode === 'dream' && !gameOver && combatTurnCounter <= 40 && performance.now() - start < 240000) {
+                await czekaj(350);
+                if (dialogueOpen) { const b = document.getElementById('npc-dialogue-yes'); if (b) b.click(); continue; }
+                const io = document.getElementById('intro-overlay'); if (io && io.style.display !== 'none') { const b = document.getElementById('btn-intro-pomin'); if (b) b.click(); }
+                if (!isPlayerTurn) continue;
+                let a = getActiveSoldier();
+                if (!a || a.isDead || a.turnEnded || a.ap <= 0) { autoSelectActiveSoldier(); continue; }
+                const ax = Math.round(a.mesh.position.x), az = Math.round(a.mesh.position.z), ap = a.ap;
+                const zywi = enemies.filter(e => !e.isDead && e.mesh && !e.nieDoZabicia && !e.podZiemia);
+                if (!zywi.length) { a.turnEnded = true; continue; }
+                const odl = e => Math.hypot(e.mesh.position.x - ax, e.mesh.position.z - az);
+                const widoczni = zywi.filter(e => e.mesh.visible && (e.level || 0) === (a.level || 0)).sort((p, q) => odl(p) - odl(q));
+                if (widoczni.length && odl(widoczni[0]) <= 16) {
+                    try { strzelZPaska(widoczni[0]); } catch (e) {}
+                } else if (widoczni.length) {
+                    a.turnEnded = true;   // wróg widoczny, ale za daleko - czekamy w miejscu, nie szarżujemy
+                } else {
+                    const cel = zywi.sort((p, q) => odl(p) - odl(q))[0];
+                    const d = odl(cel), krok = Math.min(3, Math.max(1, d - 8));
+                    let tx = Math.round(ax + (cel.mesh.position.x - ax) / d * krok), tz = Math.round(az + (cel.mesh.position.z - az) / d * krok), ok = false;
+                    for (let r = 0; r <= 3 && !ok; r++) for (let dx = -r; dx <= r && !ok; dx++) for (let dz = -r; dz <= r && !ok; dz++)
+                        if (canStandAt(tx + dx, tz + dz, a.level || 0) && !isUnitAtLevel(tx + dx, tz + dz, a.level || 0, null)) { tx += dx; tz += dz; ok = true; }
+                    if (ok) { celZPaska = { x: tx, z: tz }; try { obsluzRozkaz({ clientX: 0, clientY: 0, button: 0, pointerType: 'mouse', target: document.body }); } catch (e) {} finally { celZPaska = null; } }
+                }
+                await czekaj(500);
+                a = soldiers.find(q => q === a);
+                if (a && !a.isDead && a.ap === ap && Math.round(a.mesh.position.x) === ax && Math.round(a.mesh.position.z) === az) {
+                    if (++bezRuchu >= 3) { a.turnEnded = true; bezRuchu = 0; }   // rozkaz nic nie dał - oddaj turę
+                } else bezRuchu = 0;
+            }
+            const nasi = soldiers.filter(x => !x.isAngel && !x.isNPC && !x.isEscortee);
+            const w = { motyw: currentCombatTheme ? currentCombatTheme.id : '?', misja: currentMissionType, oddzial: nasi.length,
+                strzaly: nasi.reduce((q, x) => q + (x.shotsFired || 0), 0), trafienia: nasi.reduce((q, x) => q + (x.shotsHit || 0), 0),
+                wynik: gameOver ? (lastMissionWon ? 'wygrana' : 'przegrana') : 'niedokończona', tury: combatTurnCounter,
+                polegli: nasi.filter(x => x.isDead).length, hpUtracone: Math.round(100 * (1 - nasi.reduce((q, x) => q + Math.max(0, x.isDead ? 0 : x.hp), 0) / Math.max(1, hp0))),
+                wrogow: wrogow0, zabici: enemies.filter(e => e.isDead).length, glebia: fabGlebia };
+            autoWyniki.push(w);
+            // sprzątamy po misji bez nagród
+            gameOver = true; document.getElementById('game-over-screen').style.display = 'none';
+            try { returnToPresentFromDream(); } catch (e) {}
+            await czekaj(2500);
+            return w;
+        }
+        async function autoGra(ile, opcje) {
+            if (autoTrwa) return autoWyniki;
+            autoTrwa = true; autoWyniki = []; fab.bezPodpowiedzi = true;
+            const zapisFab = JSON.stringify(fab), zapisStat = JSON.stringify(playerStats);
+            try { for (let i = 0; i < ile; i++) { const w = await autoMisja(Array.isArray(opcje) ? opcje[i % opcje.length] : (opcje || {})); console.info('[auto]', JSON.stringify(w)); } }
+            finally { autoTrwa = false; fab = JSON.parse(zapisFab); Object.assign(playerStats, JSON.parse(zapisStat)); misjaTestowa = false; }
+            console.info('[auto] RAPORT\n' + raportAuto());
+            return autoWyniki;
+        }
+        function raportAuto() {
+            if (!autoWyniki.length) return 'Brak wyników.';
+            const n = autoWyniki.length, ile = k => autoWyniki.filter(w => w.wynik === k).length, sr = f => (autoWyniki.reduce((q, w) => q + f(w), 0) / n).toFixed(1);
+            return `Misji: ${n} | wygrane ${ile('wygrana')}, przegrane ${ile('przegrana')}, niedokończone ${ile('niedokończona')}\n` +
+                `Średnio: ${sr(w => w.tury)} tur, ${sr(w => w.polegli)} poległych, ${sr(w => w.hpUtracone)}% utraconego życia, ${sr(w => w.zabici)}/${sr(w => w.wrogow)} wrogów\n` +
+                autoWyniki.map(w => `${w.motyw}/${w.misja} x${w.oddzial}: ${w.wynik}, ${w.tury} tur, polegli ${w.polegli}, -${w.hpUtracone}% HP, wrogowie ${w.zabici}/${w.wrogow}`).join('\n');
+        }
+
         // Kronika pod klawiszem J
         function pokazKronike() {
             const druz = recruitedWarriors.filter(w => w.blizny).map(w => `${nazwaWojownika(w)} - blizn: ${w.blizny}`);
@@ -28792,7 +28948,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 'font:13px sans-serif;padding:12px;z-index:9500;border:1px solid #6a5a40';
             const et = etapyHistorii();
             el.innerHTML = '<b>HISTORIA - TEST (F9)</b> <small>misja teraz: ' + playerStats.mission + '</small><br>' +
-                '<button id="ph-auto">▶ Odtwarzaj po kolei</button> <button id="ph-sym">Symulacja kampanii</button><div id="ph-log" style="white-space:pre-wrap;margin:6px 0;color:#b8c8a0"></div>' +
+                '<button id="ph-auto">▶ Odtwarzaj po kolei</button> <button id="ph-sym">Symulacja kampanii</button> <button id="ph-bot">Automat: 5 misji</button><div id="ph-log" style="white-space:pre-wrap;margin:6px 0;color:#b8c8a0"></div>' +
                 et.map((x, i) => `<div style="padding:3px 0;border-bottom:1px solid #2a241c">m.${x.m} <i>${x.typ}</i> ${x.nazwa} ` +
                     `<button data-p="${i}">pokaż</button> <button data-s="${i}">skocz</button></div>`).join('');
             document.body.appendChild(el);
@@ -28808,6 +28964,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     et[i++].pokaz();
                 }, 500);
             };
+            el.querySelector('#ph-bot').onclick = () => { el.remove(); autoGra(5).then(() => { panelHistorii(); document.querySelector('#ph-log').textContent = raportAuto(); }); };
             el.querySelector('#ph-sym').onclick = () => {
                 const log = [];
                 for (let m = 0; m <= 75; m++) et.filter(x => x.m === m).forEach(x => log.push(`misja ${m}: ${x.typ} - ${x.nazwa}`));
