@@ -2948,6 +2948,7 @@
         function rysujKadr() {
             animujPyl();
             wyrownajSwiatla();
+            tikZbiorczy();
             if (kompozytor && !trybOszczedny) kompozytor.render(); else renderer.render(scene, camera);
         }
         window.addEventListener('resize', dopasujPoObrocie);
@@ -17342,6 +17343,93 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 skalujUV(ch.geometry);
             }));
         }
+        // ===== RYSOWANIE ZBIORCZE REKWIZYTÓW =====
+        // Cmentarz to kilkanaście tysięcy osobnych brył (mogiła - pięć, przęsło ogrodzenia - siedem),
+        // a silnik w każdej klatce obchodzi każdą z osobna. Bryły rekwizytów z ZB_TYPY sklejamy więc
+        // w kilka dużych siatek (osobna na każdą teksturę), a oryginały zdejmujemy ze sceny.
+        // Oryginał zostaje w obstacleMeshes i reszta gry dalej nim steruje: gdy go ukryje (mgła wojny),
+        // usunie (zniszczenie) albo poruszy (wieko sarkofagu, telekineza), tikZbiorczy to zauważa -
+        // wygasza jego kawałek siatki, a poruszony oryginał wraca na scenę jako zwykła bryła.
+        const ZB_TYPY = ['mogila', 'krzyz_drewniany', 'sarcophagus', 'gravestone', 'grave-fence'];
+        let zbPartie = [], zbWpisy = [], zbLicznik = 0;
+        function zbierzZbiorczo() {
+            zbPartie.forEach(b => { scene.remove(b); b.geometry.dispose(); b.material.dispose(); });
+            zbPartie = []; zbWpisy = [];
+            if (!obstacleGrid) return;
+            const grupy = new Map();
+            obstacleMeshes.forEach(m => {
+                if (!m || !m.position || m.isInstancedMesh || m.parent !== scene || !(m.isMesh || m.isGroup)) return;
+                const mx = Math.round(m.position.x) + offsetX, mz = Math.round(m.position.z) + offsetZ;
+                const o = mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth ? obstacleGrid[mx][mz] : null;
+                if (!o || ZB_TYPY.indexOf(o.type) === -1) return;
+                m.updateMatrixWorld(true);
+                const czesci = []; let ok = true;
+                m.traverse(c => {
+                    if (!c.isMesh) { if (!c.isGroup) ok = false; return; }
+                    const g = c.geometry, mt = c.material;
+                    if (g && g.index && g.attributes.position && g.attributes.normal && g.attributes.uv && mt && mt.isMeshLambertMaterial &&
+                        !mt.transparent && mt.side === THREE.FrontSide && !mt.flatShading && mt.emissive.getHex() === 0 && c.visible) czesci.push(c);
+                    else ok = false;
+                });
+                if (!ok || !czesci.length) return;
+                const wpis = { m: m, czesci: [], vis: true, p: m.position.clone(), q: m.quaternion.clone(), s: m.scale.clone() };
+                czesci.forEach(c => {
+                    const k = (c.material.map ? c.material.map.uuid : '-') + (c.castShadow ? 1 : 0) + (c.receiveShadow ? 1 : 0);
+                    if (!grupy.has(k)) grupy.set(k, []);
+                    grupy.get(k).push({ wpis: wpis, c: c });
+                });
+                zbWpisy.push(wpis);
+            });
+            const v = new THREE.Vector3(), nm = new THREE.Matrix3();
+            grupy.forEach(lista => {
+                let nW = 0, nI = 0;
+                lista.forEach(e => { nW += e.c.geometry.attributes.position.count; nI += e.c.geometry.index.count; });
+                const poz = new Float32Array(nW * 3), nor = new Float32Array(nW * 3), uv = new Float32Array(nW * 2), kol = new Float32Array(nW * 3), ind = new Uint32Array(nI);
+                const geo = new THREE.BufferGeometry();
+                const wzor = lista[0].c;
+                const siatka = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: wzor.material.map || null, vertexColors: true }));
+                let w = 0, ii = 0;
+                lista.forEach(e => {
+                    const g = e.c.geometry, P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv, barwa = e.c.material.color, n = P.count;
+                    nm.getNormalMatrix(e.c.matrixWorld);
+                    for (let i = 0; i < n; i++) {
+                        v.fromBufferAttribute(P, i).applyMatrix4(e.c.matrixWorld); poz[(w + i) * 3] = v.x; poz[(w + i) * 3 + 1] = v.y; poz[(w + i) * 3 + 2] = v.z;
+                        v.fromBufferAttribute(N, i).applyMatrix3(nm).normalize(); nor[(w + i) * 3] = v.x; nor[(w + i) * 3 + 1] = v.y; nor[(w + i) * 3 + 2] = v.z;
+                        uv[(w + i) * 2] = U.getX(i); uv[(w + i) * 2 + 1] = U.getY(i);
+                        kol[(w + i) * 3] = barwa.r; kol[(w + i) * 3 + 1] = barwa.g; kol[(w + i) * 3 + 2] = barwa.b;
+                    }
+                    for (let i = 0; i < g.index.count; i++) ind[ii++] = g.index.getX(i) + w;
+                    e.wpis.czesci.push({ siatka: siatka, od: w * 3, kopia: poz.slice(w * 3, (w + n) * 3) });
+                    w += n;
+                });
+                geo.setAttribute('position', new THREE.BufferAttribute(poz, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+                geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); geo.setAttribute('color', new THREE.BufferAttribute(kol, 3));
+                geo.setIndex(new THREE.BufferAttribute(ind, 1));
+                siatka.castShadow = wzor.castShadow; siatka.receiveShadow = wzor.receiveShadow; siatka.frustumCulled = false;
+                scene.add(siatka); zbPartie.push(siatka);
+            });
+            zbWpisy.forEach(wp => scene.remove(wp.m));
+        }
+        function tikZbiorczy() {
+            if (!zbWpisy.length) return;
+            const sa = (++zbLicznik % 10 === 0) ? new Set(obstacleMeshes) : null;
+            const brudne = new Set();
+            const ustaw = (wp, widac) => wp.czesci.forEach(c => {
+                const a = c.siatka.geometry.attributes.position.array;
+                if (widac) a.set(c.kopia, c.od); else a.fill(0, c.od, c.od + c.kopia.length);
+                brudne.add(c.siatka);
+            });
+            for (let i = zbWpisy.length - 1; i >= 0; i--) {
+                const wp = zbWpisy[i], m = wp.m;
+                const ruch = !m.position.equals(wp.p) || !m.quaternion.equals(wp.q) || !m.scale.equals(wp.s);
+                if (ruch || (sa && !sa.has(m))) {
+                    ustaw(wp, false);
+                    if (ruch && obstacleMeshes.indexOf(m) !== -1) scene.add(m);   // poruszony żyje dalej jako zwykła bryła
+                    zbWpisy.splice(i, 1);
+                } else if (m.visible !== wp.vis) { wp.vis = m.visible; ustaw(wp, wp.vis); }
+            }
+            brudne.forEach(sk => { sk.geometry.attributes.position.needsUpdate = true; });
+        }
         function renderObstacles() {
             oczyscWnetrzaZachodu();
             usunSladyWspolczesnosci();
@@ -19746,6 +19834,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (drzewLacznie > 0) console.info(`[drzewa] Na planszy: ${drzewLacznie} (z modelu ${drzewZModeluNaPlanszy}, z kodu ${drzewZKodu}, wywołań rysowania ${drzewaZbiorcze.length})`);
 
             teksturujPrzeszkody();
+            zbierzZbiorczo();
         }
 
         const highlightMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.4, depthWrite: false }));
