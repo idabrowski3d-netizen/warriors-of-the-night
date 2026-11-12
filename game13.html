@@ -2921,16 +2921,29 @@
         // więc gdy wróg ze światłem znikał lub wracał we mgle wojny, wszystkie shadery planszy
         // kompilowały się od nowa (kilkanaście sekund w jednej turze obcych). Brakujące do
         // stałej liczby miejsca zajmują zgaszone światła zapasowe.
-        let _swBrudne = true, _swLista = [], _swCel = 0;
+        // Do tego liczy się tylko SW_MAX świateł najbliższych środka kadru (z poprawką na ich zasięg);
+        // dalsze trafiają na warstwę, której kamera nie widzi. Wcześniej karta liczyła ponad 50 świateł
+        // dla każdego piksela, także tych daleko poza ekranem.
+        const SW_MAX = 16;
+        let _swBrudne = true, _swLista = [];
         const _swZapas = [], _swAdd = THREE.Object3D.prototype.add;
         THREE.Object3D.prototype.add = function () { _swBrudne = true; return _swAdd.apply(this, arguments); };
         function wyrownajSwiatla() {
             if (_swBrudne) { _swBrudne = false; _swLista = []; scene.traverse(o => { if (o.isPointLight && !o.userData.zapas) _swLista.push(o); }); }
-            let n = 0;
-            for (const l of _swLista) { let o = l; while (o && o.visible && o !== scene) o = o.parent; if (o === scene) n++; }
-            if (n > _swCel || n < _swCel - 12) _swCel = Math.ceil((n + 6) / 4) * 4;
-            while (_swZapas.length < _swCel - n) { const z = new THREE.PointLight(0x000000, 0); z.userData.zapas = true; _swZapas.push(z); scene.add(z); }
-            for (let i = 0; i < _swZapas.length; i++) _swZapas[i].visible = i < _swCel - n;
+            const sx = cameraFollowTarget.x + cameraPanOffset.x, sz = cameraFollowTarget.z + cameraPanOffset.z;
+            const czynne = [];
+            for (const l of _swLista) {
+                let o = l; while (o && o.visible && o !== scene) o = o.parent;
+                if (o !== scene) continue;
+                const m = l.matrixWorld.elements;
+                l._swOcena = l.intensity > 0 ? Math.hypot(m[12] - sx, m[14] - sz) - (l.distance || 40) : 1e9;
+                czynne.push(l);
+            }
+            czynne.sort((p, q) => p._swOcena - q._swOcena);
+            for (let i = 0; i < czynne.length; i++) czynne[i].layers.set(i < SW_MAX ? 0 : 1);
+            const brak = Math.max(0, SW_MAX - czynne.length);
+            while (_swZapas.length < brak) { const z = new THREE.PointLight(0x000000, 0); z.userData.zapas = true; _swZapas.push(z); scene.add(z); }
+            for (let i = 0; i < _swZapas.length; i++) _swZapas[i].visible = i < brak;
         }
         function rysujKadr() {
             animujPyl();
