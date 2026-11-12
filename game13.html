@@ -2917,8 +2917,24 @@
             const k = d.y < -0.05 ? -camera.position.y / d.y : 10;
             pylek.position.set(camera.position.x + d.x * k, 0, camera.position.z + d.z * k);
         }
+        // Stała liczba świateł punktowych. Karta kompiluje shadery pod konkretną liczbę świateł,
+        // więc gdy wróg ze światłem znikał lub wracał we mgle wojny, wszystkie shadery planszy
+        // kompilowały się od nowa (kilkanaście sekund w jednej turze obcych). Brakujące do
+        // stałej liczby miejsca zajmują zgaszone światła zapasowe.
+        let _swBrudne = true, _swLista = [], _swCel = 0;
+        const _swZapas = [], _swAdd = THREE.Object3D.prototype.add;
+        THREE.Object3D.prototype.add = function () { _swBrudne = true; return _swAdd.apply(this, arguments); };
+        function wyrownajSwiatla() {
+            if (_swBrudne) { _swBrudne = false; _swLista = []; scene.traverse(o => { if (o.isPointLight && !o.userData.zapas) _swLista.push(o); }); }
+            let n = 0;
+            for (const l of _swLista) { let o = l; while (o && o.visible && o !== scene) o = o.parent; if (o === scene) n++; }
+            if (n > _swCel || n < _swCel - 12) _swCel = Math.ceil((n + 6) / 4) * 4;
+            while (_swZapas.length < _swCel - n) { const z = new THREE.PointLight(0x000000, 0); z.userData.zapas = true; _swZapas.push(z); scene.add(z); }
+            for (let i = 0; i < _swZapas.length; i++) _swZapas[i].visible = i < _swCel - n;
+        }
         function rysujKadr() {
             animujPyl();
+            wyrownajSwiatla();
             if (kompozytor && !trybOszczedny) kompozytor.render(); else renderer.render(scene, camera);
         }
         window.addEventListener('resize', dopasujPoObrocie);
@@ -28190,6 +28206,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             updateMiasta();
             if (++fabLicznik2 % 20 === 0) { samouczek(); if (gameMode === 'present') animujPostacieMiasta(); }
             if (gameMode !== 'dream') { if (fabCel) { fabCel = null; pokazCel(); } return; }
+            if (fabLicznik2 % 15 === 0) sprawdzNowegoWroga();
             updateOpowiesciWSnie();
             for (let i = fabZnaleziska.length - 1; i >= 0; i--) {
                 const z = fabZnaleziska[i];
@@ -28403,7 +28420,42 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         // Start snu: wszystko, co opowieść dokłada na planszę
+        // Pierwsze spotkanie z wrogiem, którego nie ma jeszcze w Kronice:
+        // kamera dojeżdża do niego na chwilę, a on wyłania się z czarnych oparów.
+        let fabPokazani = new Set(), fabPokazTrwa = false;
+        const _geoOparu = new THREE.SphereGeometry(0.45, 8, 6);
+        function sprawdzNowegoWroga() {
+            if (fabPokazTrwa || autoTrwa || gameOver || dialogueOpen) return;
+            const e = enemies.find(q => !q.isDead && q.mesh && q.mesh.visible && !q.podZiemia && !q.wAucie &&
+                !fabPokazani.has(q.type) && bestiaryUnlocked.indexOf(q.type) === -1);
+            if (!e) return;
+            fabPokazani.add(e.type); fabPokazTrwa = true;
+            const wpis = BESTIARY_ENTRIES.find(b => b.id === e.type);
+            showFloatingWarning('Nowy wróg: ' + (wpis ? wpis.title : 'coś nieznanego'));
+            const p = e.mesh.position, skala = e.mesh.scale.clone(), skad = cameraFollowTarget.clone(), pan = cameraPanOffset.clone(), t0 = performance.now();
+            const opary = [];
+            for (let i = 0; i < 16; i++) {
+                const m = new THREE.Mesh(_geoOparu, new THREE.MeshBasicMaterial({ color: 0x050308, transparent: true, opacity: 0.75, depthWrite: false }));
+                const k = Math.random() * 6.28, rr = Math.random() * 0.7;
+                m.position.set(p.x + Math.cos(k) * rr, p.y + Math.random() * 1.6, p.z + Math.sin(k) * rr);
+                m.userData.v = 0.3 + Math.random() * 0.6; scene.add(m); opary.push(m);
+            }
+            activeAnimations.push(() => {
+                const t = (performance.now() - t0) / 1000, tam = Math.min(1, t / 0.5), wroc = Math.max(0, Math.min(1, (t - 1.9) / 0.5));
+                const ile = wroc > 0 ? 1 - wroc : tam;   // najazd pół sekundy, postój, powrót pół sekundy
+                cameraFollowTarget.copy(skad).lerp(p, ile); cameraPanOffset.copy(pan).multiplyScalar(1 - ile); applyCameraPosition();
+                const u = Math.min(1, t / 1.3);
+                if (!e.isDead) e.mesh.scale.copy(skala).multiplyScalar(0.15 + 0.85 * u);
+                opary.forEach(m => { m.position.y += m.userData.v * 0.016; m.scale.setScalar(1 + u * 1.8); m.material.opacity = 0.75 * (1 - Math.min(1, t / 1.8)); });
+                if (t < 2.4) return false;
+                opary.forEach(m => { scene.remove(m); m.material.dispose(); });
+                fabPokazTrwa = false;
+                return true;
+            });
+        }
+
         function fabStartSnu() {
+            fabPokazani = new Set();
             fabTura = combatTurnCounter; fabGlebia = 0; fabPolegli = new Set(); final = null;
             fabOstrzezenie = !!fab.ostrzezony; fab.ostrzezony = false;
             if (fabOstrzezenie) setTimeout(() => updateUI('Wiedzieliście, że przyjdą - znak z miasta was ostrzegł. (+10% celności w tym śnie)'), 6000);
@@ -28873,6 +28925,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 else if (ap >= PIORUN_OCUCENIE_AP && soldiers.some(q => obok(q) && q.nieprzytomny)) { try { ocucAction(); } catch (e) {} }
                 else if (a.class === 'uzdrowiciel' && ap >= healCost && (a.healsUsed || 0) < getMentalistUses(soldiers.indexOf(a)) && soldiers.some(ranny)) {
                     try { healAction(); } catch (e) {}
+                } else if (ap >= meleeCost && widoczni.some(e => obok(e))) {
+                    try { meleeAttack(); } catch (e) {}   // wróg na sąsiednim polu: cios jest tańszy (3 PA) i pewniejszy (92%) niż strzał
                 } else if (najl && ap >= shootCost && (szansa >= 50 || (szansa >= 35 && ap >= 2 * shootCost))) {
                     try { strzelZPaska(najl); } catch (e) {}   // pewny strzał albo taki, po którym zostaje PA na ogień w turze wroga
                 } else if (widoczni.length) {
