@@ -28831,7 +28831,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // ========================================================
         // --- AUTOMAT DO WYWAŻENIA: gra misje prostym botem i zbiera wyniki ---
         // autoGra(ile, { motyw, misja, oddzial }) -> Promise z listą wyników; raport w konsoli i w panelu F9.
-        // Bot: strzela do najbliższego widocznego wroga, inaczej idzie w stronę najbliższego.
+        // Bot: leczy rannych, strzela przy dobrej szansie, inaczej kryje się za osłoną, klęka i czeka; bez wroga w polu widzenia podchodzi od osłony do osłony.
         // ========================================================
         let autoWyniki = [], autoTrwa = false;
         const czekaj = ms => new Promise(ok => setTimeout(ok, ms));
@@ -28843,7 +28843,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const hp0 = soldiers.reduce((q, x) => q + (x.maxHp || 10), 0), wrogow0 = enemies.length;
             let bezRuchu = 0;
             const start = performance.now();
-            while (gameMode === 'dream' && !gameOver && combatTurnCounter <= 40 && performance.now() - start < 240000) {
+            while (gameMode === 'dream' && !gameOver && combatTurnCounter <= 40 && performance.now() - start < 420000) {
                 await czekaj(350);
                 if (dialogueOpen) { const b = document.getElementById('npc-dialogue-yes'); if (b) b.click(); continue; }
                 const io = document.getElementById('intro-overlay'); if (io && io.style.display !== 'none') { const b = document.getElementById('btn-intro-pomin'); if (b) b.click(); }
@@ -28855,17 +28855,32 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (!zywi.length) { a.turnEnded = true; continue; }
                 const odl = e => Math.hypot(e.mesh.position.x - ax, e.mesh.position.z - az);
                 const widoczni = zywi.filter(e => e.mesh.visible && (e.level || 0) === (a.level || 0)).sort((p, q) => odl(p) - odl(q));
-                if (widoczni.length && odl(widoczni[0]) <= 16) {
-                    try { strzelZPaska(widoczni[0]); } catch (e) {}
+                const wolne = (x, z) => canStandAt(x, z, a.level || 0) && !isUnitAtLevel(x, z, a.level || 0, null);
+                const oslona = (x, z, e) => getCoverObstacle(x, z, Math.round(e.mesh.position.x), Math.round(e.mesh.position.z)) !== null;
+                const idz = (x, z) => { celZPaska = { x, z }; try { obsluzRozkaz({ clientX: 0, clientY: 0, button: 0, pointerType: 'mouse', target: document.body }); } catch (e) {} finally { celZPaska = null; } };
+                const ranny = u => !u.isDead && u.mesh && u.hp <= (u.maxHp || 10) / 2 &&
+                    Math.max(Math.abs(Math.round(u.mesh.position.x) - ax), Math.abs(Math.round(u.mesh.position.z) - az)) <= 1;
+                const najl = widoczni.slice().sort((p, q) => szansaZPaska(a, q) - szansaZPaska(a, p))[0], szansa = najl ? szansaZPaska(a, najl) : 0;
+                if (a.class === 'uzdrowiciel' && ap >= healCost && (a.healsUsed || 0) < getMentalistUses(soldiers.indexOf(a)) && soldiers.some(ranny)) {
+                    try { healAction(); } catch (e) {}
+                } else if (najl && ap >= shootCost && (szansa >= 50 || (szansa >= 35 && ap >= 2 * shootCost))) {
+                    try { strzelZPaska(najl); } catch (e) {}   // pewny strzał albo taki, po którym zostaje PA na ogień w turze wroga
                 } else if (widoczni.length) {
-                    a.turnEnded = true;   // wróg widoczny, ale za daleko - czekamy w miejscu, nie szarżujemy
+                    // wróg widoczny, ale strzał słaby: za osłonę, przyklęknąć i czekać z PA na jego ruch
+                    const gr = widoczni[0]; let kr = null;
+                    if (!oslona(ax, az, gr)) for (let r = 1; r <= 3 && !kr; r++) for (let dx = -r; dx <= r && !kr; dx++) for (let dz = -r; dz <= r && !kr; dz++)
+                        if (wolne(ax + dx, az + dz) && oslona(ax + dx, az + dz, gr)) kr = { x: ax + dx, z: az + dz };
+                    if (kr && !a._autoKryl) { a._autoKryl = combatTurnCounter; idz(kr.x, kr.z); }
+                    else if (!a.isKneeling && ap >= kneelCost + shootCost) toggleKneel();
+                    else a.turnEnded = true;
+                    if (a._autoKryl && a._autoKryl !== combatTurnCounter) a._autoKryl = 0;
                 } else {
                     const cel = zywi.sort((p, q) => odl(p) - odl(q))[0];
                     const d = odl(cel), krok = Math.min(3, Math.max(1, d - 8));
                     let tx = Math.round(ax + (cel.mesh.position.x - ax) / d * krok), tz = Math.round(az + (cel.mesh.position.z - az) / d * krok), ok = false;
-                    for (let r = 0; r <= 3 && !ok; r++) for (let dx = -r; dx <= r && !ok; dx++) for (let dz = -r; dz <= r && !ok; dz++)
-                        if (canStandAt(tx + dx, tz + dz, a.level || 0) && !isUnitAtLevel(tx + dx, tz + dz, a.level || 0, null)) { tx += dx; tz += dz; ok = true; }
-                    if (ok) { celZPaska = { x: tx, z: tz }; try { obsluzRozkaz({ clientX: 0, clientY: 0, button: 0, pointerType: 'mouse', target: document.body }); } catch (e) {} finally { celZPaska = null; } }
+                    for (const zOslona of [true, false]) for (let r = 0; r <= 3 && !ok; r++) for (let dx = -r; dx <= r && !ok; dx++) for (let dz = -r; dz <= r && !ok; dz++)
+                        if (wolne(tx + dx, tz + dz) && (!zOslona || oslona(tx + dx, tz + dz, cel))) { tx += dx; tz += dz; ok = true; }   // najpierw pola za osłoną
+                    if (ok) idz(tx, tz);
                 }
                 await czekaj(500);
                 a = soldiers.find(q => q === a);
@@ -28878,7 +28893,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 strzaly: nasi.reduce((q, x) => q + (x.shotsFired || 0), 0), trafienia: nasi.reduce((q, x) => q + (x.shotsHit || 0), 0),
                 wynik: gameOver ? (lastMissionWon ? 'wygrana' : 'przegrana') : 'niedokończona', tury: combatTurnCounter,
                 polegli: nasi.filter(x => x.isDead).length, hpUtracone: Math.round(100 * (1 - nasi.reduce((q, x) => q + Math.max(0, x.isDead ? 0 : x.hp), 0) / Math.max(1, hp0))),
-                wrogow: wrogow0, zabici: enemies.filter(e => e.isDead).length, glebia: fabGlebia };
+                wrogow: wrogow0, zabici: enemies.filter(e => e.isDead).length, glebia: fabGlebia,
+                lezacy: nasi.filter(x => !x.isDead && x.nieprzytomny).length, powod: gameOver ? document.getElementById('game-over-text').innerText : '' };
             autoWyniki.push(w);
             // sprzątamy po misji bez nagród
             gameOver = true; document.getElementById('game-over-screen').style.display = 'none';
@@ -28900,7 +28916,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const n = autoWyniki.length, ile = k => autoWyniki.filter(w => w.wynik === k).length, sr = f => (autoWyniki.reduce((q, w) => q + f(w), 0) / n).toFixed(1);
             return `Misji: ${n} | wygrane ${ile('wygrana')}, przegrane ${ile('przegrana')}, niedokończone ${ile('niedokończona')}\n` +
                 `Średnio: ${sr(w => w.tury)} tur, ${sr(w => w.polegli)} poległych, ${sr(w => w.hpUtracone)}% utraconego życia, ${sr(w => w.zabici)}/${sr(w => w.wrogow)} wrogów\n` +
-                autoWyniki.map(w => `${w.motyw}/${w.misja} x${w.oddzial}: ${w.wynik}, ${w.tury} tur, polegli ${w.polegli}, -${w.hpUtracone}% HP, wrogowie ${w.zabici}/${w.wrogow}`).join('\n');
+                autoWyniki.map(w => `${w.motyw}/${w.misja} x${w.oddzial}: ${w.wynik}, ${w.tury} tur, polegli ${w.polegli}${w.lezacy ? ', nieprzytomni ' + w.lezacy : ''}, -${w.hpUtracone}% HP, wrogowie ${w.zabici}/${w.wrogow}, celność ${w.strzaly ? Math.round(100 * w.trafienia / w.strzaly) : 0}% z ${w.strzaly}${w.powod ? ' [' + w.powod + ']' : ''}`).join('\n');
         }
 
         // Kronika pod klawiszem J
