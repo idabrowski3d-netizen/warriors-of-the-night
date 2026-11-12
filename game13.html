@@ -35542,7 +35542,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // na planszy pożaru, więc nikt jej nie czyścił; teraz ogień może
             // powstać wszędzie i bez tego płomienie z poprzedniej misji
             // wisiałyby nad kolejną - ten sam wyciek, co kiedyś z ogniami Otchłani.
-            ogienPlomienie.forEach(m => scene.remove(m));
+            ogienPlomienie.forEach(m => scene.remove(m)); ogienSwiatla.forEach(l => { l.intensity = 0; });
             ogienPlomienie = [];
             przygotujSiatkeOgnia();
             wyczyscPajeczyny();
@@ -40782,7 +40782,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             ogienGrid = null; ogienWiek = null;
         }
 
-        function brylaOgnia() {
+        function brylaOgnia(bezSwiatla) {
             const g = new THREE.Group();
             const jasny = new THREE.MeshBasicMaterial({ color: 0xffb020, transparent: true, opacity: 0.9 });
             const ciemny = new THREE.MeshBasicMaterial({ color: 0xd43a08, transparent: true, opacity: 0.75 });
@@ -40793,8 +40793,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 jez.position.set((Math.random() - 0.5) * 0.55, h / 2, (Math.random() - 0.5) * 0.55);
                 g.add(jez);
             }
-            const sw = new THREE.PointLight(0xff7a20, 1.3, 7, 1.7);
-            sw.position.y = 0.7; g.add(sw);
+            if (!bezSwiatla) { const sw = new THREE.PointLight(0xff7a20, 1.3, 7, 1.7); sw.position.y = 0.7; g.add(sw); }
             g.userData.jezyki = g.children.filter(ch => ch.isMesh);
             return g;
         }
@@ -42410,7 +42409,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // kilka tysięcy płomieni położyłoby przeglądarkę.
         function odswiezPlomienie() {
             if (!ogienGrid) return;
-            ogienPlomienie.forEach(m => scene.remove(m));
+            ogienPlomienie.forEach(m => scene.remove(m)); ogienSwiatla.forEach(l => { l.intensity = 0; });
             ogienPlomienie = [];
             const plonace = [];
             for (let mx = 0; mx < mapWidth; mx++)
@@ -42421,12 +42420,22 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             for (let i = 0; i < plonace.length; i += krok) {
                 const [mx, mz] = plonace[i];
                 const x = mx - offsetX, z = mz - offsetZ;
-                const g = brylaOgnia();
+                const g = brylaOgnia(true);
                 g.position.set(x, getTerrainY(x, z), z);
                 scene.add(g);
                 ogienPlomienie.push(g);
             }
+            // Cztery stałe światła rozłożone po płomieniach zamiast światła w każdym z nich:
+            // każde nowe światło zmuszało kartę do kompilacji wszystkich shaderów (zacięcie przy strzale zapalającym)
+            for (let i = 0; i < 4; i++) {
+                const l = ogienSwiatla[i] || (ogienSwiatla[i] = new THREE.PointLight(0xff7a20, 0, 9, 1.7));
+                if (l.parent !== scene) scene.add(l);
+                const pl = ogienPlomienie.length > i ? ogienPlomienie[Math.floor(i * ogienPlomienie.length / Math.min(4, ogienPlomienie.length))] : null;
+                l.intensity = pl ? 1.8 : 0;
+                if (pl) l.position.set(pl.position.x, pl.position.y + 0.7, pl.position.z);
+            }
         }
+        const ogienSwiatla = [];
 
         function animujPozar(time) {
             if (!ogienPlomienie.length) return;
@@ -48563,6 +48572,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
             const ex = Math.round(e.mesh.position.x), ez = Math.round(e.mesh.position.z), ey = getLevelY(ex, ez, eLvl);
 
+            // NIEŚWIADOMY ODDZIAŁU: nikt go nie zaalarmował, nie chodzi patrolem, w zasięgu wzroku
+            // i słuchu nie ma nikogo ani niedawnego strzału. Taki wróg stoi, gdzie stał - nie liczymy
+            // mu tury i nie rusza na łowy przez całą planszę. Punkty akcji zostają mu na reakcję.
+            // Gdy zostanie ich trzech, szukają oddziału sami, żeby gracz nie przeczesywał planszy.
+            if (!e.zaalarmowany && !e.patrol && !e.naSerce && !e.napastnik && enemies.filter(q => !q.isDead).length > 3) {
+                const zasieg = Math.max(getVisionRange(), HEARING_RADIUS) + 2;
+                const ktos = soldiers.concat(npcs).some(u => !u.isDead && u.mesh && Math.hypot(u.mesh.position.x - ex, u.mesh.position.z - ez) <= zasieg);
+                const strzal = lastShotEvent && Math.hypot(lastShotEvent.x - ex, lastShotEvent.z - ez) <= SHOT_HEARING_RADIUS;
+                if (!ktos && !strzal) { currentEnemyIndex++; processNextEnemy(); return; }
+            }
             // Słuch: ktoś blisko lub niedawny strzał odwraca wroga w tamtą stronę, zanim rozejrzy się po polu widzenia
             updateEnemyFacing(e);
 
