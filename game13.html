@@ -17350,11 +17350,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // Oryginał zostaje w obstacleMeshes i reszta gry dalej nim steruje: gdy go ukryje (mgła wojny),
         // usunie (zniszczenie) albo poruszy (wieko sarkofagu, telekineza), tikZbiorczy to zauważa -
         // wygasza jego kawałek siatki, a poruszony oryginał wraca na scenę jako zwykła bryła.
-        const ZB_TYPY = ['mogila', 'krzyz_drewniany', 'sarcophagus', 'gravestone', 'grave-fence'];
-        let zbPartie = [], zbWpisy = [], zbLicznik = 0;
+        const ZB_TYPY = ['mogila', 'krzyz_drewniany', 'sarcophagus', 'gravestone', 'grave-fence',
+            'tree', 'ambona', 'drzewo_liany', 'zagajnik', 'paproc', 'pien_z_siekiera', 'mrowisko', 'krzak', 'grzyby',
+            'stos_drewna', 'pniak', 'kamien_mech', 'kloda', 'zywoplot', 'kepa', 'rock'];
+        let zbPartie = [], zbWpisy = [], zbLicznik = 0, zbPominiete = {};
         function zbierzZbiorczo() {
             zbPartie.forEach(b => { scene.remove(b); b.geometry.dispose(); b.material.dispose(); });
-            zbPartie = []; zbWpisy = [];
+            zbPartie = []; zbWpisy = []; zbPominiete = {};
             if (!obstacleGrid) return;
             const grupy = new Map();
             obstacleMeshes.forEach(m => {
@@ -17367,14 +17369,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 m.traverse(c => {
                     if (!c.isMesh) { if (!c.isGroup) ok = false; return; }
                     const g = c.geometry, mt = c.material;
-                    if (g && g.index && g.attributes.position && g.attributes.normal && g.attributes.uv && mt && mt.isMeshLambertMaterial &&
-                        !mt.transparent && mt.side === THREE.FrontSide && !mt.flatShading && mt.emissive.getHex() === 0 && c.visible) czesci.push(c);
+                    if (g && g.attributes.position && g.attributes.normal && g.attributes.uv && mt && mt.isMeshLambertMaterial &&
+                        !mt.transparent && !mt.alphaTest && mt.emissive.getHex() === 0 && c.visible) czesci.push(c);
                     else ok = false;
                 });
-                if (!ok || !czesci.length) return;
+                if (!ok || !czesci.length) { zbPominiete[o.type] = (zbPominiete[o.type] || 0) + 1; return; }
                 const wpis = { m: m, czesci: [], vis: true, p: m.position.clone(), q: m.quaternion.clone(), s: m.scale.clone() };
                 czesci.forEach(c => {
-                    const k = (c.material.map ? c.material.map.uuid : '-') + (c.castShadow ? 1 : 0) + (c.receiveShadow ? 1 : 0);
+                    const k = (c.material.map ? c.material.map.uuid : '-') + (c.castShadow ? 1 : 0) + (c.receiveShadow ? 1 : 0) + (c.material.flatShading ? 1 : 0) + c.material.side;
                     if (!grupy.has(k)) grupy.set(k, []);
                     grupy.get(k).push({ wpis: wpis, c: c });
                 });
@@ -17383,11 +17385,11 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const v = new THREE.Vector3(), nm = new THREE.Matrix3();
             grupy.forEach(lista => {
                 let nW = 0, nI = 0;
-                lista.forEach(e => { nW += e.c.geometry.attributes.position.count; nI += e.c.geometry.index.count; });
+                lista.forEach(e => { const g = e.c.geometry; nW += g.attributes.position.count; nI += g.index ? g.index.count : g.attributes.position.count; });
                 const poz = new Float32Array(nW * 3), nor = new Float32Array(nW * 3), uv = new Float32Array(nW * 2), kol = new Float32Array(nW * 3), ind = new Uint32Array(nI);
                 const geo = new THREE.BufferGeometry();
                 const wzor = lista[0].c;
-                const siatka = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: wzor.material.map || null, vertexColors: true }));
+                const siatka = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: wzor.material.map || null, vertexColors: true, flatShading: wzor.material.flatShading, side: wzor.material.side }));
                 let w = 0, ii = 0;
                 lista.forEach(e => {
                     const g = e.c.geometry, P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv, barwa = e.c.material.color, n = P.count;
@@ -17398,7 +17400,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                         uv[(w + i) * 2] = U.getX(i); uv[(w + i) * 2 + 1] = U.getY(i);
                         kol[(w + i) * 3] = barwa.r; kol[(w + i) * 3 + 1] = barwa.g; kol[(w + i) * 3 + 2] = barwa.b;
                     }
-                    for (let i = 0; i < g.index.count; i++) ind[ii++] = g.index.getX(i) + w;
+                    if (g.index) for (let i = 0; i < g.index.count; i++) ind[ii++] = g.index.getX(i) + w;
+                    else for (let i = 0; i < n; i++) ind[ii++] = i + w;
                     e.wpis.czesci.push({ siatka: siatka, od: w * 3, kopia: poz.slice(w * 3, (w + n) * 3) });
                     w += n;
                 });
