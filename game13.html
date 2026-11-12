@@ -28848,6 +28848,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (dialogueOpen) { const b = document.getElementById('npc-dialogue-yes'); if (b) b.click(); continue; }
                 const io = document.getElementById('intro-overlay'); if (io && io.style.display !== 'none') { const b = document.getElementById('btn-intro-pomin'); if (b) b.click(); }
                 if (!isPlayerTurn) continue;
+                const kz = soldiers.find(q => !q.isDead && q.wKryzysie);   // zwątpienie: rozkaz wraca go do szeregu
+                if (kz) { pokazKryzys(kz); const b = document.querySelectorAll('#kryzys-lista button')[1]; if (b) b.click(); continue; }
                 let a = getActiveSoldier();
                 if (!a || a.isDead || a.turnEnded || a.ap <= 0) { autoSelectActiveSoldier(); continue; }
                 const ax = Math.round(a.mesh.position.x), az = Math.round(a.mesh.position.z), ap = a.ap;
@@ -28860,8 +28862,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const idz = (x, z) => { celZPaska = { x, z }; try { obsluzRozkaz({ clientX: 0, clientY: 0, button: 0, pointerType: 'mouse', target: document.body }); } catch (e) {} finally { celZPaska = null; } };
                 const ranny = u => !u.isDead && u.mesh && u.hp <= (u.maxHp || 10) / 2 &&
                     Math.max(Math.abs(Math.round(u.mesh.position.x) - ax), Math.abs(Math.round(u.mesh.position.z) - az)) <= 1;
-                const najl = widoczni.slice().sort((p, q) => szansaZPaska(a, q) - szansaZPaska(a, p))[0], szansa = najl ? szansaZPaska(a, najl) : 0;
-                if (a.class === 'uzdrowiciel' && ap >= healCost && (a.healsUsed || 0) < getMentalistUses(soldiers.indexOf(a)) && soldiers.some(ranny)) {
+                // Bluźnierca psuje celność całemu oddziałowi - do niego strzelamy najpierw, nawet przy słabej szansie
+                const wart = e => szansaZPaska(a, e) + (e.type === 'bluznierca' ? 40 : 0);
+                const najl = widoczni.slice().sort((p, q) => wart(q) - wart(p))[0], szansa = najl ? szansaZPaska(a, najl) + (najl.type === 'bluznierca' ? 30 : 0) : 0;
+                const obok = u => u !== a && !u.isDead && u.mesh && Math.max(Math.abs(Math.round(u.mesh.position.x) - ax), Math.abs(Math.round(u.mesh.position.z) - az)) <= 1;
+                const sp = soldiers.find(q => obok(q) && isSoldierWebbed(q));
+                if (a.nieprzytomny) a.turnEnded = true;
+                else if (isSoldierWebbed(a)) { if (ap >= meleeCost) { try { meleeAttack(); } catch (e) {} } else a.turnEnded = true; }   // szarpie się w sieci
+                else if (sp && ap >= 2) idz(Math.round(sp.mesh.position.x), Math.round(sp.mesh.position.z));   // rozrywa sieć towarzysza
+                else if (ap >= PIORUN_OCUCENIE_AP && soldiers.some(q => obok(q) && q.nieprzytomny)) { try { ocucAction(); } catch (e) {} }
+                else if (a.class === 'uzdrowiciel' && ap >= healCost && (a.healsUsed || 0) < getMentalistUses(soldiers.indexOf(a)) && soldiers.some(ranny)) {
                     try { healAction(); } catch (e) {}
                 } else if (najl && ap >= shootCost && (szansa >= 50 || (szansa >= 35 && ap >= 2 * shootCost))) {
                     try { strzelZPaska(najl); } catch (e) {}   // pewny strzał albo taki, po którym zostaje PA na ogień w turze wroga
@@ -28875,7 +28885,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     else a.turnEnded = true;
                     if (a._autoKryl && a._autoKryl !== combatTurnCounter) a._autoKryl = 0;
                 } else {
-                    const cel = zywi.sort((p, q) => odl(p) - odl(q))[0];
+                    const cel = zywi.find(e => e.type === 'bluznierca' && e.bylSlyszany) || zywi.sort((p, q) => odl(p) - odl(q))[0];
                     const d = odl(cel), krok = Math.min(3, Math.max(1, d - 8));
                     let tx = Math.round(ax + (cel.mesh.position.x - ax) / d * krok), tz = Math.round(az + (cel.mesh.position.z - az) / d * krok), ok = false;
                     for (const zOslona of [true, false]) for (let r = 0; r <= 3 && !ok; r++) for (let dx = -r; dx <= r && !ok; dx++) for (let dz = -r; dz <= r && !ok; dz++)
@@ -32114,8 +32124,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // w której żyje, cały oddział traci celność, a gracz Łaskę.
         // Jedynym sposobem jest pójść i go uciszyć.
         // ========================================================
-        const BLUZNIERCA_KARA = 6;        // ile celności zabiera każda jego tura
-        const BLUZNIERCA_KARA_MAX = 40;   // dalej nie opada - inaczej walka staje
+        const BLUZNIERCA_KARA = 4;        // ile celności zabiera każda jego tura
+        const BLUZNIERCA_KARA_MAX = 24;   // dalej nie opada - inaczej walka staje
         const BLUZNIERCA_LASKA = 2;       // ile Łaski wysysa na turę
         let klatwaBluzniercy = 0;         // narastająca kara do celności oddziału
 
@@ -34812,6 +34822,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
 
             minimapCtx.restore();
+            // Znak północy na brzegu mapy - mapa obraca się z kamerą, a komunikaty mówią o stronach świata
+            const kw = minimapCanvas.width / 2, kh = minimapCanvas.height / 2;
+            const knx = kw + Math.sin(katMapy) * (kw - 9), knz = kh - Math.cos(katMapy) * (kh - 9);
+            minimapCtx.font = 'bold 11px sans-serif'; minimapCtx.textAlign = 'center'; minimapCtx.textBaseline = 'middle';
+            minimapCtx.lineWidth = 3; minimapCtx.strokeStyle = '#000000'; minimapCtx.strokeText('N', knx, knz);
+            minimapCtx.fillStyle = '#ff5544'; minimapCtx.fillText('N', knx, knz);
             drawMinimapViewport();
         }
 
@@ -48339,11 +48355,21 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // BLUŹNIERCA: nie atakuje i nigdzie nie idzie. Klęczy i odmawia modlitwę
             // na opak. Każda jego tura to kolejny ubytek celności całego oddziału
             // i kolejna wyssana Łaska. Da się to zatrzymać tylko jednym sposobem.
+            // Gdy wojownik podejdzie na 5 pól, przerywa modlitwę i ucieka (tą samą drogą co oślepieni)
+            const bluzGoni = e.type === 'bluznierca' && !e.isDead && soldiers.filter(s => !s.isDead && s.mesh && !s.nieprzytomny)
+                .sort((p, q) => p.mesh.position.distanceTo(e.mesh.position) - q.mesh.position.distanceTo(e.mesh.position))[0];
+            if (bluzGoni && Math.hypot(bluzGoni.mesh.position.x - e.mesh.position.x, bluzGoni.mesh.position.z - e.mesh.position.z) <= 5) {
+                e.blindedTurns = 1; e.blindedFrom = { x: Math.round(bluzGoni.mesh.position.x), z: Math.round(bluzGoni.mesh.position.z) };
+            } else
             if (e.type === 'bluznierca' && !e.isDead) {
+                // Skąd dobiega głos - licząc od środka oddziału
+                const zywiB = soldiers.filter(s => !s.isDead && s.mesh), nB = Math.max(1, zywiB.length);
+                const bdx = e.mesh.position.x - zywiB.reduce((q, s) => q + s.mesh.position.x, 0) / nB, bdz = e.mesh.position.z - zywiB.reduce((q, s) => q + s.mesh.position.z, 0) / nB;
+                const skad = Math.abs(bdx) > Math.abs(bdz) ? (bdx > 0 ? 'wschodu' : 'zachodu') : (bdz > 0 ? 'południa' : 'północy');
                 if (!e.bylSlyszany) {
                     e.bylSlyszany = true;
                     noteEnemyEncountered('bluznierca');
-                    showFloatingWarning('Ktoś odmawia modlitwę na opak.');
+                    showFloatingWarning(`Ktoś odmawia modlitwę na opak. Głos dobiega z ${skad}.`);
                 }
                 if (klatwaBluzniercy < BLUZNIERCA_KARA_MAX) {
                     klatwaBluzniercy = Math.min(BLUZNIERCA_KARA_MAX, klatwaBluzniercy + BLUZNIERCA_KARA);
@@ -48354,7 +48380,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (e.mesh && e.mesh.userData.znakBluzniercy) e.mesh.userData.znakBluzniercy.rotation.y += 0.6;
                 animWroga(e, 'specjalna', true);
                 updateUI(`BLUŹNIERCA modli się dalej. Celność oddziału -${klatwaBluzniercy}%` +
-                         (zabrane > 0 ? `, Łaska -${zabrane}.` : '.'));
+                         (zabrane > 0 ? `, Łaska -${zabrane}.` : '.') + ` Głos dobiega z ${skad}.`);
                 if (typeof odswiezPanel === 'function') odswiezPanel();
                 e.ap = 0;
                 currentEnemyIndex++; setTimeout(processNextEnemy, 220);
@@ -49102,7 +49128,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     e.ap -= walk.length;
                     faceTowards(e, walk[walk.length - 1].x, walk[walk.length - 1].z);
                     SoundEngine.playStep(e.type);
-                    updateUI('Oślepiony wróg ucieka przed Znakiem Krzyża!');
+                    updateUI(e.type === 'bluznierca' ? 'BLUŹNIERCA przerywa modlitwę i ucieka przed wami!' : 'Oślepiony wróg ucieka przed Znakiem Krzyża!');
                     if (e.mesh.userData.isEnemyModel) animWroga(e, 'walk');
                     moveAlongPath({ mesh: e.mesh, userData: e.mesh.userData }, walk, 140, () => {
                         if (e.mesh.userData.isEnemyModel) animWroga(e, 'idle');
@@ -49112,7 +49138,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     done = true;
                 }
                 if (done) return;
-                updateUI('Oślepiony wróg kuli się w miejscu.');
+                updateUI(e.type === 'bluznierca' ? 'BLUŹNIERCA nie ma dokąd uciec. Milknie.' : 'Oślepiony wróg kuli się w miejscu.');
                 currentEnemyIndex++; setTimeout(processNextEnemy, 150);
                 return;
             }
@@ -51834,7 +51860,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                       'W chwili jego śmierci modlitwa urywa się w pół słowa i cała kara znika natychmiast. ' +
                       'Jeśli na planszy klęczy jeszcze drugi, trwa dalej.',
                 stats: [['Punkty życia', '18'], ['Punkty ruchu', '0 - nie rusza się'],
-                        ['Kara do celności', '-6% za turę, do -40%'],
+                        ['Kara do celności', '-4% za turę, do -24%'],
                         ['Wysysanie Łaski', '2 na turę'],
                         ['Styl walki', 'żaden - szkodzi samą obecnością']]
             },
