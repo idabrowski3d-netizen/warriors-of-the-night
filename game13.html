@@ -25560,6 +25560,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         function getObedientSquadSize() {
+            if (window.autoPelnyOddzial) return 4;   // automat do wyważenia kieruje całym oddziałem
             const ch = getTotalStat('charyzma');
             if (ch >= 19) return 4;
             if (ch >= 16) return 3;
@@ -29002,11 +29003,12 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const start = performance.now();
             while (gameMode === 'dream' && !gameOver && combatTurnCounter <= 40 && performance.now() - start < 420000) {
                 await czekaj(350);
+                // zwątpienie: okno kryzysu samo otwiera się na początku tury - rozkaz wraca wojownika do szeregu
+                const kz = isPlayerTurn && soldiers.find(q => !q.isDead && q.wKryzysie);
+                if (kz) { pokazKryzys(kz); const b = document.querySelectorAll('#kryzys-lista button')[1]; if (b) b.click(); continue; }
                 if (dialogueOpen) { const b = document.getElementById('npc-dialogue-yes'); if (b) b.click(); continue; }
                 const io = document.getElementById('intro-overlay'); if (io && io.style.display !== 'none') { const b = document.getElementById('btn-intro-pomin'); if (b) b.click(); }
                 if (!isPlayerTurn) continue;
-                const kz = soldiers.find(q => !q.isDead && q.wKryzysie);   // zwątpienie: rozkaz wraca go do szeregu
-                if (kz) { pokazKryzys(kz); const b = document.querySelectorAll('#kryzys-lista button')[1]; if (b) b.click(); continue; }
                 let a = getActiveSoldier();
                 if (!a || a.isDead || a.turnEnded || a.ap <= 0) { autoSelectActiveSoldier(); continue; }
                 const ax = Math.round(a.mesh.position.x), az = Math.round(a.mesh.position.z), ap = a.ap;
@@ -29073,10 +29075,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
         async function autoGra(ile, opcje) {
             if (autoTrwa) return autoWyniki;
-            autoTrwa = true; autoWyniki = []; fab.bezPodpowiedzi = true;
+            autoTrwa = true; autoWyniki = []; fab.bezPodpowiedzi = true; window.autoPelnyOddzial = true;
             const zapisFab = JSON.stringify(fab), zapisStat = JSON.stringify(playerStats);
             try { for (let i = 0; i < ile; i++) { const w = await autoMisja(Array.isArray(opcje) ? opcje[i % opcje.length] : (opcje || {})); console.info('[auto]', JSON.stringify(w)); } }
-            finally { autoTrwa = false; fab = JSON.parse(zapisFab); Object.assign(playerStats, JSON.parse(zapisStat)); misjaTestowa = false; }
+            finally { autoTrwa = false; window.autoPelnyOddzial = false; fab = JSON.parse(zapisFab); Object.assign(playerStats, JSON.parse(zapisStat)); misjaTestowa = false; }
             console.info('[auto] RAPORT\n' + raportAuto());
             return autoWyniki;
         }
