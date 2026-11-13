@@ -21531,7 +21531,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (nazwa) akcje[rola] = akcje[nazwa];
             });
             // Łucznik strzela, więc 'fire' jest też jego 'shoot' i 'fire_kneel'
-            if (akcje.fire) { akcje.shoot = akcje.fire; akcje.fire_kneel = akcje.fire; }
+            if (akcje.fire) { akcje.shoot = akcje.fire; if (!akcje.fire_kneel) akcje.fire_kneel = akcje.fire; }
             ['death', 'attack', 'fire', 'fire_kneel', 'pray', 'hit'].forEach(r => {
                 if (!akcje[r]) return;
                 akcje[r].loop = THREE.LoopOnce;
@@ -21865,6 +21865,14 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 });
                 wpis.clips[n] = new THREE.AnimationClip(n, zr.duration, tory);
             });
+            // Strzał z klęku: nogi i biodra zostają w pozie klęku, a tułów i ręce wykonują WŁASNY strzał klasy
+            // (łucznik napina łuk, uzdrowiciel rzuca czar) - strzał paladyna nie pasowałby do ich broni.
+            const wlasny = wpis.clips[klipRoli(wpis, 'fire')], klek = wpis.clips.kneel_idle;
+            if (wlasny && klek) {
+                const dolna = t => /(Hips|UpLeg|Leg|Foot|Toe)/.test(t.name.slice(0, t.name.lastIndexOf('.')));
+                wpis.clips.fire_kneel = new THREE.AnimationClip('fire_kneel', wlasny.duration, wlasny.tracks.filter(t => !dolna(t)).map(t => t.clone())
+                    .concat(klek.tracks.filter(dolna).map(t => { const n = t.getValueSize(), v = Array.from(t.values.slice(0, n)); return new t.constructor(t.name, [0, wlasny.duration], v.concat(v)); })));
+            }
         }
 
         function playWarriorAnim(mesh, nazwa, powrotDoIdle) {
@@ -21890,7 +21898,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
             if (kleczy) nazwaIdle = 'kneel_idle';
             if (powrotDoIdle && a[nazwaIdle]) {
-                let klip = warriorModelClips[nazwa] || heroModelClips[nazwa];
+                // długość bierzemy z klipu, który naprawdę gra - klasy mają własne animacje o innym czasie niż paladyn
+                let klip = (a[nazwa].getClip && a[nazwa].getClip()) || warriorModelClips[nazwa] || heroModelClips[nazwa];
                 if (!klip && mesh.userData.isEnemyModel && wrogModele[mesh.userData.enemyKind]) {
                     klip = wrogModele[mesh.userData.enemyKind].klipy[nazwa];
                 }
