@@ -10480,7 +10480,71 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const _zdjeciaTerenu = {};
         function wczytajZdjecie(plik, gotowe) {
             if (_zdjeciaTerenu[plik]) return gotowe(_zdjeciaTerenu[plik]);
-            new THREE.TextureLoader().load(plik, t => { _zdjeciaTerenu[plik] = t; gotowe(t); });
+            // Odbicie lustrzane na brzegach: dowolne zdjęcie powtarza się bez widocznego szwu
+            new THREE.TextureLoader().load(plik, t => { t.wrapS = t.wrapT = THREE.MirroredRepeatWrapping; _zdjeciaTerenu[plik] = t; gotowe(t); });
+        }
+        // Każde pole gruntu to osobna kostka i dotąd każda dostawała całe zdjęcie - było widać, gdzie się kończy
+        // i zaczyna, a wzór powtarzał się co pole. Teraz zdjęcie leży na świecie: jedno powtórzenie na TEREN_KAFLI pól,
+        // więc sąsiednie pola pokazują kolejne kawałki tego samego obrazu.
+        const TEREN_KAFLI = 5;
+        function teksturaBezSzwow(mat) {
+            if (mat.__bezSzwow) return mat;
+            mat.__bezSzwow = true;
+            mat.onBeforeCompile = function (sh) {
+                THREE.Material.prototype.onBeforeCompile.call(this, sh);   // wspólny dopisek (cień wrogów) liczy pozycję w świecie
+                sh.vertexShader = sh.vertexShader.replace('vCienWp = (modelMatrix * cWp).xyz;',
+                    'vCienWp = (modelMatrix * cWp).xyz;\n#ifdef USE_UV\n vUv = vCienWp.xz / ' + TEREN_KAFLI.toFixed(1) + ';\n#endif');
+                // Drugi odczyt tego samego zdjęcia: obrócony, w innej skali i przesunięty. Oba mieszają się
+                // według łagodnych, nieregularnych plam, więc oko nie łapie ani szwu, ani powtarzającego się wzoru.
+                sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>',
+                    '#ifdef USE_MAP\n vec4 tA = texture2D( map, vUv );\n vec4 tB = texture2D( map, vec2( vUv.y, -vUv.x ) * 0.61 + vec2( 0.37, 0.19 ) );\n' +
+                    ' float fm = 0.5 + 0.5 * sin( vUv.x * 2.9 + sin( vUv.y * 2.1 ) * 1.7 ) * sin( vUv.y * 2.3 + sin( vUv.x * 1.3 ) * 1.9 + 1.1 );\n' +
+                    ' diffuseColor *= mix( tA, tB, smoothstep( 0.3, 0.7, fm ) );\n#endif');
+            };
+            mat.needsUpdate = true;
+            return mat;
+        }
+        // Miękkie przejście między różnymi teksturami: pasek z teksturą pola, który zachodzi na sąsiada
+        // i zanika (przezroczystość z kolorów wierzchołków). Leży w nakładkach, więc znika z planszą i chowa się we mgle.
+        function pasekPrzejscia() {
+            const g = new THREE.BufferGeometry(), d = 0.35;
+            g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-0.5, 0, -d, 0.5, 0, -d, -0.5, 0, d, 0.5, 0, d]), 3));
+            g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0]), 3));
+            g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0, 0, 1, 0, 0, 0.7, 1, 0.7]), 2));
+            g.setAttribute('color', new THREE.BufferAttribute(new Float32Array([1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0]), 4));
+            g.setIndex([0, 2, 1, 1, 2, 3]);
+            return g;
+        }
+        function materialPrzejscia(zr) {
+            const m = zr.clone();
+            m.transparent = true; m.vertexColors = true; m.depthWrite = false; m.side = THREE.DoubleSide;
+            m.polygonOffset = true; m.polygonOffsetFactor = -2; m.polygonOffsetUnits = -2;
+            if (zr.__bezSzwow) teksturaBezSzwow(m);
+            // zdjęcie dociera z opóźnieniem - pasek bierze je, gdy tylko pojawi się na polu
+            const zgraj = () => { if (m.map !== zr.map) { m.map = zr.map; m.needsUpdate = true; } };
+            [300, 1200, 3000, 8000].forEach(t => setTimeout(zgraj, t));
+            return m;
+        }
+        function postawPrzejsciaTekstur() {
+            if (!terrainMeshes || terrainMeshes.length < 6) return 0;
+            const kopie = {}, dummy = new THREE.Object3D();
+            for (let mx = 0; mx < mapWidth; mx++) for (let mz = 0; mz < mapDepth; mz++) {
+                if (riverGrid[mx][mz] === 1) continue;
+                const a = siatkaTerenu(mx, mz), h = heightMap[mx][mz];
+                for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+                    const nx = mx + dx, nz = mz + dz;
+                    if (nx < 0 || nx >= mapWidth || nz < 0 || nz >= mapDepth || riverGrid[nx][nz] === 1) continue;
+                    // pasek kładzie tylko pole o wyższym numerze tekstury i tylko na równym terenie
+                    if (a <= siatkaTerenu(nx, nz) || Math.abs(heightMap[nx][nz] - h) > 0.01) continue;
+                    dummy.position.set(mx - offsetX + dx * 0.85, h + 0.012, mz - offsetZ + dz * 0.85);
+                    dummy.rotation.set(0, Math.atan2(dx, dz), 0);
+                    dummy.updateMatrix();
+                    (kopie[a] || (kopie[a] = [])).push({ pole: { x: nx - offsetX, z: nz - offsetZ }, m: dummy.matrix.clone() });
+                }
+            }
+            let ile = 0;
+            Object.keys(kopie).forEach(a => { ile += dodajNakladke(pasekPrzejscia(), materialPrzejscia(terrainMeshes[a].material), kopie[a], false); });
+            return ile;
         }
         function nalozZdjeciaTerenu() {
             if (!currentCombatTheme || isExploreMode()) return;
@@ -10489,6 +10553,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 const mat = terrainMats[k];
                 if (!tak || !mat || mat.__zdjecie) return;   // materiał jest nowy co planszę - jedno losowanie na planszę
                 mat.__zdjecie = true;
+                teksturaBezSzwow(mat);
                 wczytajZdjecie(`textures/${n}_${1 + Math.floor(Math.random() * ile)}.jpg`, t => { mat.map = t; mat.needsUpdate = true; });
             });
         }
@@ -10562,7 +10627,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Tekstury z edytora plansz: osobna siatka na każdy użyty wariant
             for (let w = 1; w < TEKSTURY_GRUNTU.length; w++) {
                 if (!counts[5 + w]) { const pusta = new THREE.InstancedMesh(geo, terrainMats.grass, 1); pusta.visible = false; terrainMeshes.push(pusta); continue; }   // nieużyta - pliku nawet nie pobieramy
-                if (!_matWariantow[w]) { const m = _matWariantow[w] = new THREE.MeshLambertMaterial({ color: TEKSTURY_GRUNTU[w].k || 0xffffff }); wczytajZdjecie(TEKSTURY_GRUNTU[w].plik, t => { m.map = t; m.needsUpdate = true; }); }
+                if (!_matWariantow[w]) { const m = _matWariantow[w] = teksturaBezSzwow(new THREE.MeshLambertMaterial({ color: TEKSTURY_GRUNTU[w].k || 0xffffff })); wczytajZdjecie(TEKSTURY_GRUNTU[w].plik, t => { m.map = t; m.needsUpdate = true; }); }
                 const im = new THREE.InstancedMesh(geo, _matWariantow[w], Math.max(1, counts[5 + w]));
                 im.visible = counts[5 + w] > 0;
                 terrainMeshes.push(im);
@@ -19858,6 +19923,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             dodajOdbiciaCyber();
             zbudujPlatyPodlog();   // dopiero teraz bryły - z gotowej listy pól
             postawSkalyZboczy();
+            postawPrzejsciaTekstur();
             postawPrzejsciaGruntu();
             postawBrzegi();
             postawDrobiazgi();
@@ -35206,9 +35272,10 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         const TEREN_ROZRZUT_JASNOSCI = 0.10;   // +/- 10% jasności
         const TEREN_ROZRZUT_ODCIENIA = 0.07;   // cieplej / chłodniej
         function ziarnoKafla(mx, mz) {
-            const a = Math.abs((mx * 73856093) ^ (mz * 19349663)) % 1000;
-            const b = Math.abs((mx * 83492791) ^ (mz * 2971215073)) % 1000;
-            return { jasnosc: a / 1000, odcien: b / 1000 };
+            // Dawniej każde pole losowało jasność osobno i grunt wyglądał jak szachownica.
+            // Teraz jasność i odcień zmieniają się płynnie, dużymi plamami - sąsiednie pola są do siebie podobne.
+            return { jasnosc: 0.5 + 0.25 * Math.sin(mx * 0.31 + Math.sin(mz * 0.17) * 1.3) + 0.25 * Math.sin(mz * 0.23 + mx * 0.11 + 2.1),
+                     odcien: 0.5 + 0.25 * Math.sin(mx * 0.19 + mz * 0.13 + 0.7) + 0.25 * Math.sin(mz * 0.29 - mx * 0.07 + 4.2) };
         }
         let mglaJasnosc = null, mglaJasnosc2 = null;
         const kolorMgly = new THREE.Color();
