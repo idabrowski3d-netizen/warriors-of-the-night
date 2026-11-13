@@ -20832,6 +20832,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 loader.load(WARRIOR_MODEL_URL, (gltf) => {
                     warriorModelProto = gltf.scene;
                     (gltf.animations || []).forEach(a => { warriorModelClips[a.name] = a; });
+                    // Poza klęku do trzymania: ostatnia klatka przyklęknięcia jako osobny klip
+                    if (warriorModelClips.stand_to_kneel) {
+                        warriorModelClips.kneel_idle = new THREE.AnimationClip('kneel_idle', 0.5, warriorModelClips.stand_to_kneel.tracks.map(t => {
+                            const n = t.getValueSize(), v = Array.from(t.values.slice(t.values.length - n));
+                            return new t.constructor(t.name, [0, 0.5], v.concat(v));
+                        }));
+                    }
 
                     // Skórowane siatki mają zasięg widoczności liczony z pozy spoczynkowej,
                     // przez co silnik potrafi je odciąć i postać znika. Wyłączamy to odcinanie.
@@ -21515,6 +21522,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             klon.position.y = wpis.proto.userData.footOffset || 0;
             grupa.add(klon);
 
+            pozyczKlek(wpis);
             const mixer = new THREE.AnimationMixer(klon);
             const akcje = {};
             Object.keys(wpis.clips).forEach(nazwa => { akcje[nazwa] = mixer.clipAction(wpis.clips[nazwa]); });
@@ -21836,9 +21844,35 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             else if (nazwy.indexOf('fire') !== -1) fxEnergia(mesh, Object.assign({}, FX_STRZAL, { kolor: KOLOR_AURY_KLASY[s.class] || 0xffc860, czas: Math.min(1400, Math.max(600, dl)) }));
         }
 
+        // Modele klas (wojownik, łucznik, uzdrowiciel) nie mają własnych animacji klęku, ale mają ten sam
+        // szkielet co paladyn. Bierzemy więc od niego obroty kości, a ruch bioder skalujemy do wzrostu postaci.
+        const KLIPY_KLEKU = ['stand_to_kneel', 'knee_to_stand', 'fire_kneel', 'kneel_idle'];
+        function pozyczKlek(wpis) {
+            if (wpis.clips.kneel_idle || !warriorModelClips.kneel_idle || !warriorModelProto || !wpis.proto) return;
+            const biodra = o => { let b = null; o.traverse(c => { if (!b && c.isBone && /Hips$/.test(c.name)) b = c; }); return b; };
+            const bp = biodra(warriorModelProto), bk = biodra(wpis.proto);
+            if (!bp || !bk) return;
+            const skala = bk.position.length() / (bp.position.length() || 1);
+            const kosci = new Set(); wpis.proto.traverse(c => { if (c.isBone) kosci.add(c.name); });
+            KLIPY_KLEKU.forEach(n => {
+                const zr = warriorModelClips[n]; if (!zr) return;
+                const tory = [];
+                zr.tracks.forEach(t => {
+                    const i = t.name.lastIndexOf('.'), kosc = t.name.slice(0, i), co = t.name.slice(i + 1);
+                    if (!kosci.has(kosc)) return;
+                    if (co === 'quaternion') tory.push(t.clone());
+                    else if (co === 'position' && kosc === bp.name) { const k = t.clone(); for (let j = 0; j < k.values.length; j++) k.values[j] *= skala; tory.push(k); }
+                });
+                wpis.clips[n] = new THREE.AnimationClip(n, zr.duration, tory);
+            });
+        }
+
         function playWarriorAnim(mesh, nazwa, powrotDoIdle) {
             if (!mesh || !mesh.userData || !mesh.userData.actions) return;
             const a = mesh.userData.actions;
+            // Kto klęczy, ten w spoczynku trzyma pozę klęku, a nie wstaje
+            const kleczy = mesh.userData.kleczy && a.kneel_idle;
+            if (kleczy && nazwa === 'idle') nazwa = 'kneel_idle';
             if (!a[nazwa]) return;
             const poprzednia = mesh.userData.currentAction;
             if (poprzednia === nazwa && nazwa !== 'attack') return;
@@ -21854,6 +21888,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             } else if (mesh.userData.isHeroModel) {
                 nazwaIdle = (gameMode === 'presentNight') ? 'hero_fly' : 'hero_idle';
             }
+            if (kleczy) nazwaIdle = 'kneel_idle';
             if (powrotDoIdle && a[nazwaIdle]) {
                 let klip = warriorModelClips[nazwa] || heroModelClips[nazwa];
                 if (!klip && mesh.userData.isEnemyModel && wrogModele[mesh.userData.enemyKind]) {
@@ -38626,15 +38661,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const baseYOffset = (active.mesh.userData.baseYOffset !== undefined)
                 ? active.mesh.userData.baseYOffset : (active.mesh.userData.yOffset || 0);
             active.mesh.userData.baseYOffset = baseYOffset;
+            // Model z animacją klęku naprawdę klęka; bryła zastępcza i modele bez niej są spłaszczane jak dotąd
+            const maKlek = !!(active.mesh.userData.actions && active.mesh.userData.actions.kneel_idle);
+            active.mesh.userData.kleczy = active.isKneeling;
             if (active.isKneeling) {
                 playWarriorAnimAny(active.mesh, ['stand_to_kneel'], true);
-                active.mesh.scale.y = baseScale * 0.7;
-                active.mesh.userData.yOffset = baseYOffset * 0.7;
+                active.mesh.scale.y = baseScale * (maKlek ? 1 : 0.7);
+                active.mesh.userData.yOffset = baseYOffset * (maKlek ? 1 : 0.7);
                 document.getElementById('btn-kneel').innerText = 'Wstań';
                 updateUI(`${active.name} przyklęka. (+20% celności, trudniej go trafić)`);
                 chatter(active, CHATTER_KNEEL, 0.6);
             } else {
-                playWarriorAnimAny(active.mesh, ['kneel_to_stand'], true);
+                playWarriorAnimAny(active.mesh, ['kneel_to_stand', 'knee_to_stand'], true);   // w pliku klip nazywa się knee_to_stand
                 active.mesh.scale.y = baseScale;
                 active.mesh.userData.yOffset = baseYOffset;
                 document.getElementById('btn-kneel').innerText = 'Przyklęknij';
@@ -41759,7 +41797,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         function polozNieprzytomnego(s) {
             s.nieprzytomny = true;
             s.turnEnded = true; s.ap = 0;
-            s.isKneeling = false;
+            s.isKneeling = false; if (s.mesh) s.mesh.userData.kleczy = false;
             if (s.mesh) { s.mesh.rotation.z = Math.PI / 2; s.mesh.position.y -= 0.35; }
             refreshPlayerPositions();
         }
