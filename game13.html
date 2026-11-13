@@ -1031,6 +1031,7 @@
             <div style="height:1px; background:#444; margin:8px 0;"></div>
             <button id="btn-help" style="width:100%;">❓ Instrukcja i sterowanie</button>
             <button id="btn-testmode" style="width:100%; border-color:#cc66cc;">🧪 Tryb testowy</button>
+            <button id="btn-edytor" style="width:100%; margin-top:6px; border-color:#e8c770;">🗺 Edytor plansz</button>
         </div>
     </div>
 
@@ -25324,7 +25325,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const themes = document.getElementById('test-themes');
             themes.innerHTML = '';
             themes.appendChild(mk('losowa', forcedThemeId === null, () => { forcedThemeId = null; renderTestPanel(); }));
-            COMBAT_THEMES.forEach(t => themes.appendChild(mk(t.name, forcedThemeId === t.id, () => { forcedThemeId = t.id; renderTestPanel(); })));
+            COMBAT_THEMES.forEach(t => themes.appendChild(mk(t.name, forcedThemeId === t.id && !forcedPlansza, () => { forcedThemeId = t.id; forcedPlansza = null; renderTestPanel(); })));
+            Object.values(wczytajPlansze()).forEach(pl => themes.appendChild(mk('★ ' + pl.nazwa, forcedPlansza && forcedPlansza.nazwa === pl.nazwa, () => { forcedThemeId = pl.motyw; forcedPlansza = pl; renderTestPanel(); })));
+            themes.appendChild(mk('🗺 Edytor plansz', false, () => otworzEdytor(forcedThemeId || 'alabama', forcedPlansza ? 'zapisana' : 'pusta', forcedPlansza && forcedPlansza.nazwa), 'preset'));
 
             const miss = document.getElementById('test-missions');
             miss.innerHTML = '';
@@ -26429,6 +26432,13 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 mac.forEach((m, q) => { im.setMatrixAt(q, m); im.setColorAt(q, colorVisible); im.userData.stanKopii[q] = true; });
                 im.instanceMatrix.needsUpdate = true;
                 if (im.instanceColor) im.instanceColor.needsUpdate = true;
+            });
+            drzewaZbiorcze.forEach(im => {   // drzewa schowane we mgle też wracają
+                const mac = im.userData && im.userData.macierze;
+                if (!mac) return;
+                im.userData.stanKopii = mac.map(() => true);
+                mac.forEach((m, q) => im.setMatrixAt(q, m));
+                im.instanceMatrix.needsUpdate = true;
             });
             updateMinimapTerrain();
         }
@@ -29101,6 +29111,374 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 (fabCel ? '\n\nCel poboczny tego snu: ' + fabCel.opis : '');
             showDialogue('[Kronika wyprawy]\n\n' + tekst, 'Zamknij', null, null, null);
         }
+
+        // ========================================================
+        // --- EDYTOR PLANSZ ---
+        // Plansza układana ręcznie zamiast losowanej. Edytor działa na prawdziwej planszy gry:
+        // z lewej biblioteka (narzędzia terenu, tekstury gruntu, obiekty), z prawej sama plansza.
+        // Zapisana plansza podmienia w startGame tylko dwa pierwsze kroki budowy (wysokości
+        // terenu oraz przeszkody i drogi) - reszta gry rysuje ją i zaludnia tak jak każdą inną.
+        // Plansze trzymamy w przeglądarce (localStorage) i można je wyeksportować do pliku .json.
+        // ========================================================
+        const PLANSZE_KLUCZ = 'wojownicy_plansze_uzytkownika';
+        let planszaUzytkownika = null;   // plansza, na której toczy się bieżący sen (null - losowana)
+        let forcedPlansza = null;        // wybrana w panelu testowym albo w edytorze
+        let edytorAktywny = false;
+        const TEKSTURY_ED = [['Trawa', 0, '#4f7a3a'], ['Ziemia', 1, '#7a5a3a'], ['Droga', 2, '#3c3c40'], ['Chodnik', 3, '#9a9a94'], ['Pasy', 4, '#d8d8d0'], ['Błoto', 5, '#4a3a26']];
+        const OBIEKTY_ED_POMIN = ['house-roof', 'budowla', 'przejscie', 'wesole-czesc', 'ruiny-czesc', 'wrak-czesc'];
+        const OBIEKTY_ED = ['altar', 'auto', 'balustrada', 'beczka', 'beczka_prochu', 'blok', 'bron_na_scianie', 'budka_telefoniczna', 'budowla',
+            'cemetery-fence', 'chata_drwala', 'column', 'datablock', 'datapillar', 'diabelski', 'drzewo_liany', 'dzwon', 'filar', 'fountain', 'generator',
+            'granica-plot', 'grave-fence', 'gravestone', 'grzyby', 'hedge', 'house-door', 'house-wall', 'house-window', 'hydrant', 'jaskinia', 'kaktus',
+            'kapliczka', 'karuzela', 'kepa', 'kepa_wysoka', 'kibel', 'klatka_ptak', 'kloda', 'komin_wulkaniczny', 'koniowiaz', 'kontener', 'kosciotrup',
+            'kosz', 'kra', 'krata', 'kroplowka', 'krzak', 'krzyz', 'krzyz_drewniany', 'lampa-peronowa', 'lawka', 'lawka_koscielna', 'liany', 'lozko',
+            'mogila', 'nagrobek', 'namiot', 'neon_szyld', 'obelisk', 'oltarz', 'pal', 'paleta', 'paproc', 'pentagram', 'pieczara', 'pniak', 'prycza',
+            'przerebel', 'regal', 'regal_drewniany', 'regal_ksiegi', 'regal_sloje', 'rock', 'ruina', 'ruiny', 'rumowisko', 'rusztowanie', 'sadzawka',
+            'sarcophagus', 'skrzynia', 'skrzynia_metal', 'slup', 'slup_energetyczny', 'stairs', 'statue', 'stog_siana', 'stojak_zbroja', 'stol_drewniany',
+            'stos_beczek', 'stos_drewna', 'stos_opon', 'strach_na_wroble', 'swieca', 'swiecznik', 'sztandar', 'tor', 'tree', 'trzcina', 'wagon-sciana',
+            'wal', 'wall-destructible', 'wall-resistant', 'wiata', 'wieza-cisnien', 'wiezyczka', 'witraz', 'wlocznie', 'woz', 'wozek', 'wrak_ciezarowy',
+            'wrak_osobowy', 'wysciolka', 'yard-wall', 'zachod-sciana', 'zachod-weranda', 'zagajnik', 'znak_drogowy', 'zywoplot'];
+        function listaObiektowEd() {
+            return [...new Set(OBIEKTY_ED.concat(Object.keys(REKWIZYTY_Z_KODU)))].filter(t => OBIEKTY_ED_POMIN.indexOf(t) === -1).sort();
+        }
+
+        function wczytajPlansze() {
+            try { return JSON.parse(localStorage.getItem(PLANSZE_KLUCZ) || '{}') || {}; } catch (e) { return {}; }
+        }
+        function zapiszPlansze(wszystkie) {
+            try { localStorage.setItem(PLANSZE_KLUCZ, JSON.stringify(wszystkie)); return true; }
+            catch (e) { showFloatingWarning('Nie udało się zapisać - brak miejsca w przeglądarce. Wyeksportuj plansze do pliku.'); return false; }
+        }
+        function pustaPlansza(motyw, nazwa) {
+            return { wersja: 1, nazwa: nazwa, motyw: motyw, szer: mapWidth, gleb: mapDepth, wys: null, typy: null, obiekty: [] };
+        }
+        // Bieżąca plansza gry -> dane do zapisu
+        function planszaDoZapisu(nazwa, motyw) {
+            const wys = [], typy = [];
+            for (let x = 0; x < mapWidth; x++) for (let z = 0; z < mapDepth; z++) { wys.push(Math.round(heightMap[x][z] * 100) / 100); typy.push(terrainTypeMap[x][z]); }
+            const obiekty = obstaclePositions.map(o => {
+                const k = {};
+                Object.keys(o).forEach(n => { const v = o[n]; if (n.indexOf('__') !== 0 && n !== 'mesh' && (typeof v === 'number' || typeof v === 'string' || typeof v === 'boolean')) k[n] = v; });
+                return k;
+            });
+            return { wersja: 1, nazwa: nazwa, motyw: motyw, szer: mapWidth, gleb: mapDepth, wys: wys, typy: typy.join(''), obiekty: obiekty };
+        }
+        function dodajPrzeszkodeEd(o) {
+            const mx = o.x + offsetX, mz = o.z + offsetZ;
+            if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return false;
+            const wSiatce = o.type !== 'house-door' && o.type !== 'house-roof';
+            if (wSiatce && obstacleGrid[mx][mz] !== null) return false;
+            obstaclePositions.push(o);
+            if (wSiatce) { obstacleGrid[mx][mz] = o; obstacleMap.set(o.x + ',' + o.z, o); }
+            return true;
+        }
+        function usunPrzeszkodeEd(x, z) {
+            const mx = x + offsetX, mz = z + offsetZ;
+            if (mx < 0 || mx >= mapWidth || mz < 0 || mz >= mapDepth) return false;
+            const przed = obstaclePositions.length;
+            obstaclePositions = obstaclePositions.filter(o => !(Math.round(o.x) === x && Math.round(o.z) === z));
+            obstacleGrid[mx][mz] = null; obstacleMap.delete(x + ',' + z);
+            return obstaclePositions.length !== przed;
+        }
+        function ustawPrzeszkodyEd(lista) {
+            obstaclePositions = []; obstacleMap.clear();
+            for (let i = 0; i < mapWidth; i++) obstacleGrid[i].fill(null);
+            lista.forEach(o => dodajPrzeszkodeEd(Object.assign({}, o)));
+        }
+        // Wołane w startGame zamiast wyniku generatora
+        function wczytajPlanszeUzytkownika(p) {
+            const zgodna = p.szer === mapWidth && p.gleb === mapDepth;
+            for (let x = 0; x < mapWidth; x++) for (let z = 0; z < mapDepth; z++) {
+                const i = x * mapDepth + z;
+                heightMap[x][z] = zgodna && p.wys ? (+p.wys[i] || 0) : 0;
+                terrainTypeMap[x][z] = zgodna && p.typy ? (+p.typy[i] || 0) : 0;
+            }
+            for (let i = 0; i < mapWidth; i++) { riverGrid[i].fill(0); cornfieldGrid[i].fill(0); }
+            houses = []; hasRiver = false; bridgePositions = []; polaPodMostem = new Set();
+            ustawPrzeszkodyEd(zgodna ? (p.obiekty || []) : []);
+        }
+
+        // ---- Tryb edytora ----
+        let edNarzedzie = 'obiekt', edObiekt = 'tree', edTekstura = 0, edPedzel = 1, edObrot = 0, edNazwa = '', edMotyw = 'alabama';
+        let edPociagniecie = null, edCofnij = [], edZnacznik = null, edTerenBrudny = false, edOstatniaPrzebudowa = 0;
+        const edRay = new THREE.Raycaster(), edNdc = new THREE.Vector2();
+
+        function otworzEdytor(motyw, tryb, nazwa) {
+            // tryb: 'pusta' | 'generator' | 'zapisana'
+            const zapisane = wczytajPlansze();
+            edMotyw = motyw;
+            const tema = COMBAT_THEMES.find(t => t.id === motyw);
+            if (tryb === 'zapisana' && zapisane[nazwa]) { edNazwa = nazwa; edMotyw = zapisane[nazwa].motyw; }
+            else {
+                const baza = (tema ? (tema.__bazowaNazwa || tema.name) : motyw) + ' (user)';
+                let n = baza, k = 2; while (zapisane[n]) n = baza + ' ' + (k++);
+                edNazwa = n;
+            }
+            forcedThemeId = edMotyw; forcedMissionType = 'standard'; forcedTimeOfDay = 'poludnie';
+            forcedPlansza = tryb === 'generator' ? null : (tryb === 'zapisana' ? zapisane[nazwa] : pustaPlansza(edMotyw, edNazwa));
+            const oddzial = testSquadSize; testSquadSize = 1;
+            edytorAktywny = true;
+            document.body.classList.add('edytor');
+            runTestMission();
+            testSquadSize = oddzial;
+            const czekaj = setInterval(() => {
+                if (gameMode !== 'dream' || !soldiers.length || !terrainMeshes || !terrainMeshes.length) return;
+                clearInterval(czekaj);
+                setTimeout(edytorStart, 1500);
+            }, 200);
+        }
+        function edytorStart() {
+            forcedPlansza = null;
+            // Plansza bez życia: wrogów i cywilów zdejmujemy, oddział chowamy (bez niego gra uznałaby misję za przegraną)
+            enemies.forEach(e => { if (e.mesh) scene.remove(e.mesh); }); enemies.length = 0;
+            npcs.forEach(n => { if (n.mesh) scene.remove(n.mesh); }); npcs.length = 0;
+            soldiers.forEach(s => { if (s.mesh) s.mesh.visible = false; });
+            if (dialogueOpen) { const b = document.getElementById('npc-dialogue-no') || document.getElementById('npc-dialogue-yes'); if (b) b.click(); }
+            revealFullMap();
+            if (!edZnacznik) {
+                edZnacznik = new THREE.Mesh(new THREE.BoxGeometry(1, 0.25, 1), new THREE.MeshBasicMaterial({ color: 0xffd040, wireframe: true, depthTest: false }));
+                edZnacznik.renderOrder = 20; edZnacznik.userData.bezCienia = true;
+            }
+            scene.add(edZnacznik);
+            cameraFollowTarget.set(0, 0, 0); cameraPanOffset.set(0, 0, 0); applyCameraPosition();
+            edCofnij = [];
+            rysujPanelEdytora();
+        }
+        function zamknijEdytor() {
+            edytorAktywny = false;
+            document.body.classList.remove('edytor');
+            const p = document.getElementById('edytor-panel'); if (p) p.remove();
+            if (edZnacznik) scene.remove(edZnacznik);
+            gameOver = true; document.getElementById('game-over-screen').style.display = 'none';
+            try { returnToPresentFromDream(); } catch (e) {}
+        }
+        function edZapisz() {
+            const wszystkie = wczytajPlansze();
+            wszystkie[edNazwa] = planszaDoZapisu(edNazwa, edMotyw);
+            if (zapiszPlansze(wszystkie)) edStatus(`Zapisano „${edNazwa}”.`);
+            return wszystkie[edNazwa];
+        }
+        function edEksport(dane) {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([JSON.stringify(dane)], { type: 'application/json' }));
+            a.download = dane.nazwa.replace(/[^a-z0-9ąćęłńóśźż _()-]/gi, '_') + '.json';
+            document.body.appendChild(a); a.click(); a.remove();
+        }
+        function edImport(plik, gotowe) {
+            const r = new FileReader();
+            r.onload = () => {
+                try {
+                    const d = JSON.parse(r.result);
+                    if (!d || !d.nazwa || !d.motyw || !Array.isArray(d.obiekty)) throw new Error('to nie jest plansza');
+                    const wszystkie = wczytajPlansze(); wszystkie[d.nazwa] = d;
+                    if (zapiszPlansze(wszystkie)) { showFloatingWarning(`Wczytano planszę „${d.nazwa}”.`); if (gotowe) gotowe(d); }
+                } catch (e) { showFloatingWarning('Nie udało się wczytać pliku planszy: ' + e.message); }
+            };
+            r.readAsText(plik);
+        }
+        function edStatus(t) { const s = document.getElementById('ed-status'); if (s) s.innerText = t; }
+
+        // ---- Zmiany na planszy ----
+        function edMigawka() {
+            edCofnij.push({ h: heightMap.map(a => a.slice()), t: terrainTypeMap.map(a => a.slice()), o: obstaclePositions.map(o => Object.assign({}, o)) });
+            if (edCofnij.length > 30) edCofnij.shift();
+        }
+        function edCofnijKrok() {
+            const m = edCofnij.pop();
+            if (!m) { edStatus('Nie ma czego cofnąć.'); return; }
+            for (let x = 0; x < mapWidth; x++) { heightMap[x].set(m.h[x]); terrainTypeMap[x].set(m.t[x]); }
+            ustawPrzeszkodyEd(m.o);
+            edPrzebuduj(true, true);
+            edStatus('Cofnięto.');
+        }
+        function edPrzebuduj(teren, obiekty) {
+            if (teren) buildTerrainMeshes();
+            if (teren || obiekty) renderObstacles();
+            revealFullMap();
+            edOstatniaPrzebudowa = performance.now(); edTerenBrudny = false;
+        }
+        function edPole(event) {
+            if (!raycastMesh) return null;
+            edNdc.set((event.clientX / window.innerWidth) * 2 - 1, -(event.clientY / window.innerHeight) * 2 + 1);
+            edRay.setFromCamera(edNdc, camera);
+            const t = edRay.intersectObject(raycastMesh)[0];
+            return t ? { x: Math.round(t.point.x), z: Math.round(t.point.z) } : null;
+        }
+        function edPolaPedzla(p) {
+            const r = (edPedzel - 1) / 2, wynik = [];
+            for (let dx = -Math.floor(r); dx <= Math.ceil(r); dx++) for (let dz = -Math.floor(r); dz <= Math.ceil(r); dz++) {
+                const x = p.x + dx, z = p.z + dz, mx = x + offsetX, mz = z + offsetZ;
+                if (mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth) wynik.push({ x, z, mx, mz });
+            }
+            return wynik;
+        }
+        function edZastosuj(p) {
+            const pc = edPociagniecie;
+            edPolaPedzla(p).forEach(q => {
+                const k = q.x + ',' + q.z;
+                if (pc.odwiedzone.has(k)) return;
+                pc.odwiedzone.add(k);
+                if (edNarzedzie === 'podnies' || edNarzedzie === 'obniz') {
+                    heightMap[q.mx][q.mz] = Math.max(-4, Math.min(12, heightMap[q.mx][q.mz] + (edNarzedzie === 'podnies' ? 0.5 : -0.5)));
+                    pc.teren = true;
+                } else if (edNarzedzie === 'wyrownaj') {
+                    if (pc.poziom === undefined) pc.poziom = heightMap[q.mx][q.mz];
+                    heightMap[q.mx][q.mz] = pc.poziom; pc.teren = true;
+                } else if (edNarzedzie === 'tekstura') {
+                    terrainTypeMap[q.mx][q.mz] = edTekstura; pc.teren = true;
+                } else if (edNarzedzie === 'gumka') {
+                    if (usunPrzeszkodeEd(q.x, q.z)) pc.obiekty = true;
+                } else if (edNarzedzie === 'obiekt') {
+                    usunPrzeszkodeEd(q.x, q.z);
+                    const o = { x: q.x, z: q.z, type: edObiekt };
+                    if (edObrot) o.obrot = edObrot;
+                    if (dodajPrzeszkodeEd(o)) pc.obiekty = true;
+                }
+            });
+            if (pc.teren) edTerenBrudny = true;
+        }
+        function edLinia(a, b) {   // pola między poprzednią a bieżącą pozycją kursora - szybki ruch nie zostawia dziur
+            const n = Math.max(Math.abs(b.x - a.x), Math.abs(b.z - a.z));
+            for (let i = 1; i <= n; i++) edZastosuj({ x: Math.round(a.x + (b.x - a.x) * i / n), z: Math.round(a.z + (b.z - a.z) * i / n) });
+        }
+        function edUstawZnacznik(p) {
+            if (!edZnacznik) return;
+            if (!p) { edZnacznik.visible = false; return; }
+            const r = (edPedzel - 1) / 2;
+            edZnacznik.visible = true;
+            edZnacznik.scale.set(edPedzel, 1, edPedzel);
+            edZnacznik.position.set(p.x + (Math.ceil(r) - Math.floor(r)) / 2, getTerrainY(p.x, p.z) + 0.15, p.z + (Math.ceil(r) - Math.floor(r)) / 2);
+            const mx = p.x + offsetX, mz = p.z + offsetZ, o = mx >= 0 && mx < mapWidth && mz >= 0 && mz < mapDepth ? obstacleGrid[mx][mz] : null;
+            edStatus(`Pole ${p.x}, ${p.z} | wysokość ${getTerrainY(p.x, p.z).toFixed(1)}${o ? ' | ' + o.type : ''}`);
+        }
+
+        window.addEventListener('pointerdown', e => {
+            if (!edytorAktywny || e.button !== 0 || e.target !== renderer.domElement) return;
+            e.stopImmediatePropagation(); e.preventDefault();
+            const p = edPole(e); if (!p) return;
+            edMigawka();
+            edPociagniecie = { odwiedzone: new Set(), ost: p, teren: false, obiekty: false };
+            edZastosuj(p);
+            if (edPociagniecie.teren) edPrzebuduj(true, false);
+        }, true);
+        window.addEventListener('pointermove', e => {
+            if (!edytorAktywny) return;
+            const p = e.target === renderer.domElement ? edPole(e) : null;
+            edUstawZnacznik(p);
+            if (!edPociagniecie || !p) return;
+            if (p.x !== edPociagniecie.ost.x || p.z !== edPociagniecie.ost.z) { edLinia(edPociagniecie.ost, p); edPociagniecie.ost = p; }
+            // teren widać w trakcie malowania, nie dopiero po puszczeniu przycisku
+            if (edTerenBrudny && performance.now() - edOstatniaPrzebudowa > 150) edPrzebuduj(true, false);
+        }, true);
+        window.addEventListener('pointerup', e => {
+            if (!edytorAktywny || !edPociagniecie) return;
+            const pc = edPociagniecie; edPociagniecie = null;
+            if (pc.teren || pc.obiekty) edPrzebuduj(pc.teren, true);
+        }, true);
+        window.addEventListener('keydown', e => {
+            if (!edytorAktywny) return;
+            if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) return;
+            const k = e.key.toLowerCase();
+            const przesun = { w: [0, -40], arrowup: [0, -40], s: [0, 40], arrowdown: [0, 40], a: [-40, 0], arrowleft: [-40, 0], d: [40, 0], arrowright: [40, 0] }[k];
+            if (przesun) { const r = ekranNaPlansze(-przesun[0], -przesun[1]); cameraPanOffset.x += r.x; cameraPanOffset.z += r.z; applyCameraPosition(); }
+            else if (k === 'q') rotateCameraBy(Math.PI / 2);
+            else if (k === 'e') rotateCameraBy(-Math.PI / 2);
+            else if (k === 'r') { edObrot = (edObrot + Math.PI / 2) % (Math.PI * 2); rysujPanelEdytora(); }
+            else if (k === 'z' && (e.ctrlKey || e.metaKey)) edCofnijKrok();
+            else if (k === '[') { edPedzel = Math.max(1, edPedzel - 2); rysujPanelEdytora(); }
+            else if (k === ']') { edPedzel = Math.min(9, edPedzel + 2); rysujPanelEdytora(); }
+            else { if (!/^F\d+$/.test(e.key)) e.stopImmediatePropagation(); return; }   // spacja, J, O i reszta skrótów gry nie działają w edytorze
+            e.preventDefault(); e.stopImmediatePropagation();
+        }, true);
+
+        // ---- Panel z biblioteką ----
+        function rysujPanelEdytora() {
+            let p = document.getElementById('edytor-panel');
+            const szukaj = p ? (p.querySelector('#ed-szukaj') || {}).value || '' : '';
+            const przewin = p ? (p.querySelector('#ed-lista') || {}).scrollTop || 0 : 0;
+            if (!p) {
+                p = document.createElement('div'); p.id = 'edytor-panel'; document.body.appendChild(p);
+                p.addEventListener('wheel', e => e.stopPropagation());   // kółko nad panelem przewija listę, nie przybliża planszy
+            }
+            const btn = (id, tekst, aktywny, tytul) => `<button data-ed="${id}" class="ed-btn${aktywny ? ' ed-akt' : ''}" title="${tytul || ''}">${tekst}</button>`;
+            const zapisane = Object.keys(wczytajPlansze());
+            p.innerHTML = `
+                <div class="ed-tytul">Edytor plansz</div>
+                <label>Nazwa <input id="ed-nazwa" value="${edNazwa.replace(/"/g, '&quot;')}"></label>
+                <label>Plansza bazowa <select id="ed-motyw">${COMBAT_THEMES.map(t => `<option value="${t.id}"${t.id === edMotyw ? ' selected' : ''}>${t.__bazowaNazwa || t.name}</option>`).join('')}</select></label>
+                <div class="ed-rzad">${btn('nowa', 'Nowa pusta')}${btn('generator', 'Z generatora')}</div>
+                <label>Zapisane <select id="ed-zapisane"><option value="">- wybierz -</option>${zapisane.map(n => `<option>${n.replace(/</g, '&lt;')}</option>`).join('')}</select></label>
+                <div class="ed-rzad">${btn('zapisz', '💾 Zapisz')}${btn('zagraj', '▶ Zagraj')}${btn('cofnij', '↶ Cofnij', false, 'Ctrl+Z')}</div>
+                <div class="ed-rzad">${btn('eksport', '⬇ Eksport')}${btn('import', '⬆ Import')}${btn('usun', '🗑 Usuń')}${btn('wyjdz', '✕ Wyjdź')}</div>
+                <input type="file" id="ed-plik" accept=".json" style="display:none">
+                <div class="ed-sub">Teren</div>
+                <div class="ed-rzad">${btn('n:podnies', '⬆ Podnieś', edNarzedzie === 'podnies')}${btn('n:obniz', '⬇ Obniż', edNarzedzie === 'obniz')}${btn('n:wyrownaj', '═ Wyrównaj', edNarzedzie === 'wyrownaj')}${btn('n:gumka', '⌫ Gumka', edNarzedzie === 'gumka', 'usuwa obiekty')}</div>
+                <div class="ed-rzad">Pędzel: ${[1, 3, 5, 7].map(n => btn('p:' + n, n + '×' + n, edPedzel === n, '[ i ] zmieniają rozmiar')).join('')}</div>
+                <div class="ed-sub">Tekstury gruntu</div>
+                <div class="ed-rzad">${TEKSTURY_ED.map(([n, t, k]) => `<button data-ed="t:${t}" class="ed-btn ed-tex${edNarzedzie === 'tekstura' && edTekstura === t ? ' ed-akt' : ''}"><i style="background:${k}"></i>${n}</button>`).join('')}</div>
+                <div class="ed-sub">Obiekty <span class="ed-mala">obrót ${Math.round(edObrot * 180 / Math.PI)}° (R)</span></div>
+                <input id="ed-szukaj" placeholder="szukaj obiektu..." value="${szukaj.replace(/"/g, '&quot;')}">
+                <div id="ed-lista">${listaObiektowEd().filter(t => t.indexOf(szukaj.toLowerCase()) !== -1).map(t =>
+                    `<button data-ed="o:${t}" class="ed-obj${edNarzedzie === 'obiekt' && edObiekt === t ? ' ed-akt' : ''}">${t.replace(/[_-]/g, ' ')}</button>`).join('')}</div>
+                <div id="ed-status" class="ed-mala">Lewy przycisk - rysuj, rolka - przesuń/przybliż, WASD - przesuń, Q/E - obróć widok</div>`;
+            p.querySelector('#ed-lista').scrollTop = przewin;
+            p.querySelector('#ed-nazwa').addEventListener('change', e => { edNazwa = e.target.value.trim() || edNazwa; });
+            p.querySelector('#ed-motyw').addEventListener('change', e => { edMotyw = e.target.value; });
+            p.querySelector('#ed-zapisane').addEventListener('change', e => { if (e.target.value) otworzEdytor(edMotyw, 'zapisana', e.target.value); });
+            p.querySelector('#ed-szukaj').addEventListener('input', () => { rysujPanelEdytora(); const s = document.getElementById('ed-szukaj'); s.focus(); s.setSelectionRange(s.value.length, s.value.length); });
+            p.querySelector('#ed-plik').addEventListener('change', e => { if (e.target.files[0]) edImport(e.target.files[0], d => otworzEdytor(d.motyw, 'zapisana', d.nazwa)); });
+            p.querySelectorAll('[data-ed]').forEach(b => b.addEventListener('click', () => edAkcja(b.dataset.ed)));
+        }
+        function edAkcja(a) {
+            const [rodz, war] = a.split(':');
+            if (rodz === 'n') edNarzedzie = war;
+            else if (rodz === 'p') edPedzel = +war;
+            else if (rodz === 't') { edNarzedzie = 'tekstura'; edTekstura = +war; }
+            else if (rodz === 'o') { edNarzedzie = 'obiekt'; edObiekt = war; }
+            else if (a === 'nowa') { if (confirm('Zacząć nową, pustą planszę? Niezapisane zmiany przepadną.')) otworzEdytor(edMotyw, 'pusta'); return; }
+            else if (a === 'generator') { if (confirm('Wygenerować planszę losowo i edytować ją? Niezapisane zmiany przepadną.')) otworzEdytor(edMotyw, 'generator'); return; }
+            else if (a === 'zapisz') { edZapisz(); }
+            else if (a === 'cofnij') { edCofnijKrok(); return; }
+            else if (a === 'eksport') { edEksport(planszaDoZapisu(edNazwa, edMotyw)); return; }
+            else if (a === 'import') { document.getElementById('ed-plik').click(); return; }
+            else if (a === 'usun') {
+                const wszystkie = wczytajPlansze();
+                if (wszystkie[edNazwa] && confirm(`Usunąć zapisaną planszę „${edNazwa}”? Tego nie da się cofnąć.`)) { delete wszystkie[edNazwa]; zapiszPlansze(wszystkie); edStatus('Usunięto z zapisanych.'); }
+            }
+            else if (a === 'zagraj') {
+                const dane = edZapisz();
+                zamknijPanelBezWyjscia();
+                forcedThemeId = dane.motyw; forcedPlansza = dane; forcedMissionType = null; forcedTimeOfDay = null;
+                runTestMission();
+                return;
+            }
+            else if (a === 'wyjdz') { if (confirm('Wyjść z edytora? Niezapisane zmiany przepadną.')) zamknijEdytor(); return; }
+            rysujPanelEdytora();
+        }
+        function zamknijPanelBezWyjscia() {
+            edytorAktywny = false;
+            document.body.classList.remove('edytor');
+            const p = document.getElementById('edytor-panel'); if (p) p.remove();
+            if (edZnacznik) scene.remove(edZnacznik);
+        }
+        (() => {
+            const st = document.createElement('style');
+            st.textContent = `
+                body.edytor > *:not(canvas):not(#edytor-panel) { display: none !important; }
+                #edytor-panel { position: fixed; left: 0; top: 0; bottom: 0; width: 300px; z-index: 9999; background: rgba(16,14,20,0.94);
+                    color: #ddd; font: 13px sans-serif; padding: 10px; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; border-right: 1px solid #554; }
+                #edytor-panel .ed-tytul { font-size: 17px; color: #e8c770; font-weight: bold; }
+                #edytor-panel .ed-sub { margin-top: 6px; color: #e8c770; border-top: 1px solid #443; padding-top: 6px; }
+                #edytor-panel label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: #aaa; }
+                #edytor-panel input, #edytor-panel select { background: #222; color: #eee; border: 1px solid #555; padding: 4px; font-size: 13px; }
+                #edytor-panel .ed-rzad { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+                #edytor-panel .ed-btn, #edytor-panel .ed-obj { background: #2a2730; color: #ddd; border: 1px solid #555; padding: 4px 7px; cursor: pointer; font-size: 12px; border-radius: 3px; }
+                #edytor-panel .ed-akt { background: #6b5320; border-color: #e8c770; color: #fff; }
+                #edytor-panel .ed-tex i { display: inline-block; width: 12px; height: 12px; margin-right: 4px; vertical-align: -2px; border: 1px solid #000; }
+                #edytor-panel #ed-lista { flex: 1; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 3px; align-content: start; min-height: 120px; }
+                #edytor-panel .ed-obj { text-align: left; }
+                #edytor-panel .ed-mala { font-size: 11px; color: #999; }`;
+            document.head.appendChild(st);
+        })();
 
         // ---- PANEL TESTOWY HISTORII (F9) ----
         // Wszystkie etapy fabuły w kolejności misji: skok, odtwarzanie po kolei, symulacja kampanii.
@@ -35173,6 +35551,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         function updateFoW() {
+            if (edytorAktywny) return;   // w edytorze cała plansza jest odkryta
             if (gameOver || soldiers.length === 0) return;
             for (let L = 0; L < fowVisible.length; L++) {
                 for(let x=0; x<mapWidth; x++) fowVisible[L][x].fill(0);
@@ -35510,12 +35889,21 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (czyCzasNaOblezenieOstoi() && !forcedThemeId) {
                 forced = COMBAT_THEMES.find(t => t.id === 'ostoja') || forced;
             }
+            // Plansza ułożona w edytorze: wybrana w panelu/edytorze albo wylosowana z puli razem z planszami z generatora
+            planszaUzytkownika = null;
+            if (forcedPlansza) { planszaUzytkownika = forcedPlansza; forced = COMBAT_THEMES.find(t => t.id === forcedPlansza.motyw) || forced; }
+            else if (!forced) {
+                const wlasne = Object.values(wczytajPlansze()).filter(p => availableThemes.some(t => t.id === p.motyw));
+                const los = Math.floor(Math.random() * (availableThemes.length + wlasne.length));
+                if (los >= availableThemes.length) { planszaUzytkownika = wlasne[los - availableThemes.length]; forced = COMBAT_THEMES.find(t => t.id === planszaUzytkownika.motyw); }
+            }
             currentCombatTheme = forced || availableThemes[Math.floor(Math.random() * availableThemes.length)];
             // Nowe miejsce na mapie świata - ten sam układ terenu, inna nazwa
             if (currentCombatTheme) {
                 if (!currentCombatTheme.__bazowaNazwa) currentCombatTheme.__bazowaNazwa = currentCombatTheme.name;
                 currentCombatTheme.name = wylosujNazweMiejsca(
                     { id: currentCombatTheme.id, name: currentCombatTheme.__bazowaNazwa });
+                if (planszaUzytkownika) currentCombatTheme.name = planszaUzytkownika.nazwa;
             }
             wylosujGatunkiPajakow();   // gatunki zależą od planszy, więc dopiero teraz
             terrainMats = createTerrainTextures(currentCombatTheme.palette);
@@ -35619,6 +36007,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             resetFloorGrids();
             generateHeightMap(); 
             generateObstaclesAndRoads(); 
+            if (planszaUzytkownika) wczytajPlanszeUzytkownika(planszaUzytkownika);   // plansza z edytora zamiast losowej
             // Most trzeba oczyścić ZANIM staną na nim wojownicy - rozstawianie
             // szuka wolnego pola przy krawędzi, a zanim to zrobiliśmy, przęsło
             // było zastawione domami i oddział lądował w środku planszy.
@@ -37867,7 +38256,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function handleEdgeScroll() {
             if (naTelefonie || drazekAktywny) return;   // na dotyku widok przesuwa drążek
-            if (kinoAktywne) return;
+            if (kinoAktywne || edytorAktywny) return;   // w edytorze panel leży przy krawędzi - widok przesuwa się klawiszami i rolką
             if (gameOver || !getActiveSoldier()) return;
             const margin = 45, panSpeed = 0.225;
             let panX = 0, panZ = 0;
@@ -53422,6 +53811,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         document.getElementById('btn-close-bestiary').addEventListener('click', () => { document.getElementById('bestiary-overlay').style.display = 'none'; });
         document.getElementById('btn-help').addEventListener('click', (e) => { e.stopPropagation(); toggleHelp(); });
         document.getElementById('btn-testmode').addEventListener('click', (e) => { e.stopPropagation(); toggleTestPanel(); });
+        document.getElementById('btn-edytor').addEventListener('click', (e) => { e.stopPropagation(); otworzEdytor(forcedThemeId || 'alabama', 'pusta'); });
         document.getElementById('btn-close-test').addEventListener('click', () => { document.getElementById('test-overlay').style.display = 'none'; });
         document.getElementById('btn-test-start').addEventListener('click', runTestMission);
         document.getElementById('btn-close-help').addEventListener('click', () => { document.getElementById('help-overlay').style.display = 'none'; });
