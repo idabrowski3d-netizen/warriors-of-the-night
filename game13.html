@@ -29204,7 +29204,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             });
             return { wersja: 2, nazwa: nazwa, motyw: motyw, szer: mapWidth, gleb: mapDepth,
                 wys: spakujPola((x, z) => Math.round(heightMap[x][z] * 100) / 100), typy: spakujPola((x, z) => terrainTypeMap[x][z]),
-                warianty: spakujPola((x, z) => terrainWariant[x][z]), woda: spakujPola((x, z) => riverGrid[x][z] === 1 ? 1 : 0), obiekty: obiekty };
+                warianty: spakujPola((x, z) => terrainWariant[x][z]), woda: spakujPola((x, z) => riverGrid[x][z] === 1 ? 1 : 0), obiekty: obiekty,
+                start: edStart, wrogowie: edWrogowie.slice() };
         }
         function dodajPrzeszkodeEd(o) {
             const mx = o.x + offsetX, mz = o.z + offsetZ;
@@ -29263,7 +29264,26 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             ustawPrzeszkodyEd(zgodna ? (p.obiekty || []) : []);
         }
 
+        // Plansza z edytora: wrogowie stają wokół wskazanych punktów (po równo na każdy)
+        function rozstawWrogowZPlanu() {
+            const pkt = planszaUzytkownika && planszaUzytkownika.wrogowie;
+            if (!pkt || !pkt.length) return;
+            enemies.forEach((e, i) => {
+                if (!e.mesh || e.wAucie || e.wZasadzce || e.czaiSie) return;
+                const c = pkt[i % pkt.length];
+                for (let t = 0; t < 200; t++) {
+                    const x = c.x + Math.floor(Math.random() * 13) - 6, z = c.z + Math.floor(Math.random() * 13) - 6;
+                    if (!isWithinPlayBounds(x, z) || isObstacle(x, z) || isUnitAtLevel(x, z, 0, e)) continue;
+                    e.level = 0;
+                    e.mesh.position.set(x, getTerrainY(x, z) + (e.mesh.userData.yOffset || 0), z);
+                    refreshEnemyPositions();
+                    break;
+                }
+            });
+        }
+
         // ---- Tryb edytora ----
+        let edStart = null, edWrogowie = [], edZnaczniki = null;
         let edNarzedzie = 'obiekt', edObiekt = 'tree', edTekstura = 0, edWariant = 0, edPedzel = 1, edObrot = 0, edNazwa = '', edMotyw = 'alabama';
         let edPociagniecie = null, edCofnij = [], edZnacznik = null, edTerenBrudny = false, edOstatniaPrzebudowa = 0, edPlan = null, edUkryte = [], edLicznik = 0;
         let edMiniatury = {}, edMiniaturyTrwaja = false;
@@ -29305,6 +29325,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             clearWeatherParticles(); weatherType = null; wiatrMisji = null;
             // Misja zdążyła dołożyć swoje (jaskinie, łóżko snu, cele) - wracamy do samego planu
             if (edPlan) wczytajPlanszeUzytkownika(edPlan);
+            edStart = edPlan && edPlan.start ? { x: edPlan.start.x, z: edPlan.start.z } : null;
+            edWrogowie = edPlan && edPlan.wrogowie ? edPlan.wrogowie.map(q => ({ x: q.x, z: q.z })) : [];
             if (!edZnacznik) {
                 edZnacznik = new THREE.Mesh(new THREE.BoxGeometry(1, 0.25, 1), new THREE.MeshBasicMaterial({ color: 0xffd040, wireframe: true, depthTest: false }));
                 edZnacznik.renderOrder = 20; edZnacznik.userData.bezCienia = true;
@@ -29320,7 +29342,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // chmury, portale, ozdoby misji) znika na czas edycji i wraca po wyjściu.
         function edUkryjObce() {
             if (!edPlan) return;   // plansza z generatora zostaje taka, jaką wylosowała gra
-            const swoje = new Set([raycastMesh, riverMesh, edZnacznik, ambientLight, directionalLight, directionalLight.target]
+            const swoje = new Set([raycastMesh, riverMesh, edZnacznik, edZnaczniki, ambientLight, directionalLight, directionalLight.target]
                 .concat(terrainMeshes, obstacleMeshes, zbPartie, drzewaZbiorcze, nakladkiPodlog));
             scene.children.forEach(o => { if (o.visible && !swoje.has(o) && !o.userData.zapas) { o.visible = false; edUkryte.push(o); } });
         }
@@ -29338,6 +29360,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             document.body.classList.remove('edytor');
             const p = document.getElementById('edytor-panel'); if (p) p.remove();
             if (edZnacznik) scene.remove(edZnacznik);
+            if (edZnaczniki) scene.remove(edZnaczniki);
             edPokazUkryte();
         }
         function zamknijEdytor() {
@@ -29375,7 +29398,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         // ---- Zmiany na planszy ----
         function edMigawka() {
             edCofnij.push({ h: heightMap.map(a => a.slice()), t: terrainTypeMap.map(a => a.slice()), w: terrainWariant.map(a => a.slice()),
-                r: riverGrid.map(a => a.slice()), o: obstaclePositions.map(o => Object.assign({}, o)) });
+                r: riverGrid.map(a => a.slice()), o: obstaclePositions.map(o => Object.assign({}, o)), st: edStart, wr: edWrogowie.slice() });
             if (edCofnij.length > 30) edCofnij.shift();
         }
         function edCofnijKrok() {
@@ -29384,6 +29407,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             for (let x = 0; x < mapWidth; x++) { heightMap[x].set(m.h[x]); terrainTypeMap[x].set(m.t[x]); terrainWariant[x].set(m.w[x]); for (let z = 0; z < mapDepth; z++) riverGrid[x][z] = m.r[x][z]; }
             przeliczWodeEd();
             ustawPrzeszkodyEd(m.o);
+            edStart = m.st; edWrogowie = m.wr;
             edPrzebuduj(true, true);
             edStatus('Cofnięto.');
         }
@@ -29391,9 +29415,23 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (teren) { przeliczWodeEd(); buildTerrainMeshes(); renderRiver(); }
             if (teren || obiekty) renderObstacles();
             revealFullMap();
+            rysujZnacznikiEd();
             edUkryjObce();
             edOstatniaPrzebudowa = performance.now(); edTerenBrudny = false;
             rysujMinimapeEd();
+        }
+        // Słupki pokazujące start oddziału (zielony) i punkty wrogów (czerwone) - widać je tylko w edytorze
+        function rysujZnacznikiEd() {
+            if (edZnaczniki) scene.remove(edZnaczniki);
+            edZnaczniki = new THREE.Group();
+            const slupek = (q, kolor) => {
+                const m = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 3, 10), new THREE.MeshBasicMaterial({ color: kolor, transparent: true, opacity: 0.75 }));
+                m.material.userData.bezCienia = true;
+                m.position.set(q.x, getTerrainY(q.x, q.z) + 1.5, q.z); edZnaczniki.add(m);
+            };
+            if (edStart) slupek(edStart, 0x40e060);
+            edWrogowie.forEach(q => slupek(q, 0xe04040));
+            scene.add(edZnaczniki);
         }
         function edPole(event) {
             if (!raycastMesh) return null;
@@ -29428,7 +29466,18 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     terrainWariant[q.mx][q.mz] = edWariant; pc.teren = true;
                 } else if (edNarzedzie === 'woda') {
                     if (ustawWodeEd(q.mx, q.mz, true)) pc.teren = true;
+                } else if (edNarzedzie === 'most') {
+                    // kładka: pole przestaje być wodą i dostaje deski - da się po nim przejść
+                    if (ustawWodeEd(q.mx, q.mz, false) || terrainWariant[q.mx][q.mz] !== W_DESKI) { terrainTypeMap[q.mx][q.mz] = 3; terrainWariant[q.mx][q.mz] = W_DESKI; pc.teren = true; }
+                } else if (edNarzedzie === 'start') {
+                    if (riverGrid[q.mx][q.mz] !== 1 && !obstacleGrid[q.mx][q.mz]) { edStart = { x: q.x, z: q.z }; pc.obiekty = true; }
+                } else if (edNarzedzie === 'wrog') {
+                    if (riverGrid[q.mx][q.mz] !== 1 && !edWrogowie.some(w => w.x === q.x && w.z === q.z)) { edWrogowie.push({ x: q.x, z: q.z }); pc.obiekty = true; }
                 } else if (edNarzedzie === 'gumka') {
+                    const ile = edWrogowie.length;
+                    edWrogowie = edWrogowie.filter(w => !(w.x === q.x && w.z === q.z));
+                    if (edStart && edStart.x === q.x && edStart.z === q.z) { edStart = null; pc.obiekty = true; }
+                    if (edWrogowie.length !== ile) pc.obiekty = true;
                     if (ustawWodeEd(q.mx, q.mz, false)) pc.teren = true;
                     else if (usunPrzeszkodeEd(q.x, q.z)) pc.obiekty = true;
                 } else if (edNarzedzie === 'obiekt') {
@@ -29496,6 +29545,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }, true);
 
         // ---- Minimapa całej planszy (rzut z góry) ----
+        const W_DESKI = TEKSTURY_GRUNTU.findIndex(t => t && t.n === 'Deski');
         const KOLORY_TERENU_ED = [[79, 122, 58], [122, 90, 58], [60, 60, 64], [154, 154, 148], [216, 216, 208], [74, 58, 38]];
         const KOLORY_WARIANTOW_ED = [null];
         function rysujMinimapeEd() {
@@ -29514,6 +29564,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // gdzie patrzy kamera
             const kx = cameraFollowTarget.x + cameraPanOffset.x + offsetX, kz = cameraFollowTarget.z + cameraPanOffset.z + offsetZ;
             g.strokeStyle = '#ffd040'; g.lineWidth = 1.5; g.strokeRect(kx - 12, kz - 9, 24, 18);
+            const kropka = (q, kolor) => { g.fillStyle = kolor; g.fillRect(q.x + offsetX - 2, q.z + offsetZ - 2, 5, 5); };
+            if (edStart) kropka(edStart, '#40ff70');
+            edWrogowie.forEach(q => kropka(q, '#ff4040'));
         }
         function edSkoczMinimapa(e) {
             const c = e.currentTarget, r = c.getBoundingClientRect();
@@ -29545,7 +29598,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             bazaMiniaturEd('readonly', st => {
                 if (!st) return;
                 const q = st.get('miniatury');
-                q.onsuccess = () => { if (q.result) { edMiniatury = q.result; rysujListeObiektowEd(); } };
+                q.onsuccess = () => { if (q.result) { edMiniatury = q.result; rysujListeObiektowEd(); } else setTimeout(() => { if (edytorAktywny) zrobMiniaturyEd(); }, 800); };
             });
         }
         async function zrobMiniaturyEd() {
@@ -29613,14 +29666,15 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     <div class="ed-rzad">${btn('zapisz', '💾 Zapisz')}${btn('zagraj', '▶ Zagraj')}${btn('cofnij', '↶ Cofnij', 'Ctrl+Z')}</div>
                     <div class="ed-rzad">${btn('eksport', '⬇ Eksport')}${btn('import', '⬆ Import')}${btn('usun', '🗑 Usuń')}${btn('wyjdz', '✕ Wyjdź')}</div>
                     <input type="file" id="ed-plik" accept=".json" style="display:none">
-                    <div class="ed-sub">Cała plansza <span class="ed-mala">kliknij, żeby tam skoczyć</span></div>
+                    <div class="ed-sub">Cała plansza ${btn('lupa', '🔍', 'powiększ lub zmniejsz minimapę')} <span class="ed-mala">kliknij mapę, żeby tam skoczyć</span></div>
                     <canvas id="ed-minimapa" width="${mapWidth}" height="${mapDepth}"></canvas>
                     <div id="ed-status" class="ed-mala"></div>
                     <div class="ed-mala">Lewy przycisk - rysuj. Rolka - przybliż, wciśnięta rolka - przesuń. WASD - przesuń, Q/E - obróć widok, R - obróć obiekt.</div>
                 </div>
                 <div class="ed-kol ed-kol2">
                     <div class="ed-sub" style="margin-top:0;border-top:0;padding-top:0">Teren i woda</div>
-                    <div class="ed-rzad">${btn('n:podnies', '⬆ Podnieś')}${btn('n:obniz', '⬇ Obniż')}${btn('n:wyrownaj', '═ Wyrównaj')}${btn('n:woda', '🌊 Woda', 'maluje wodę: staw, rzekę, fosę')}${btn('n:gumka', '⌫ Gumka', 'usuwa obiekty i wodę')}</div>
+                    <div class="ed-rzad">${btn('n:podnies', '⬆ Podnieś')}${btn('n:obniz', '⬇ Obniż')}${btn('n:wyrownaj', '═ Wyrównaj')}${btn('n:woda', '🌊 Woda', 'maluje wodę: staw, rzekę, fosę')}${btn('n:most', '═ Most', 'kładka z desek przez wodę - da się po niej przejść')}${btn('n:gumka', '⌫ Gumka', 'usuwa obiekty, wodę i znaczniki')}</div>
+                    <div class="ed-rzad">${btn('n:start', '● Start oddziału', 'tu zaczyna oddział (jeden punkt, zielony słupek)')}${btn('n:wrog', '● Wrogowie', 'wokół tych punktów staną wrogowie, po równo na każdy (czerwone słupki)')}</div>
                     <div class="ed-rzad">Pędzel: ${[1, 3, 5, 7].map(n => btn('p:' + n, n + '×' + n, '[ i ] zmieniają rozmiar')).join('')}</div>
                     <div class="ed-sub">Tekstury gruntu</div>
                     <div class="ed-rzad">${TEKSTURY_ED.map(([n, t, k]) => `<button data-ed="t:${t}" class="ed-btn ed-tex" title="${n} - tekstura planszy bazowej"><i style="background:${k}"></i>${n}</button>`).join('')}</div>
@@ -29657,6 +29711,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             p.querySelector('#ed-obrot').innerText = `obrót ${Math.round(edObrot * 180 / Math.PI)}°`;
         }
         function edAkcja(a) {
+            if (edMiniaturyTrwaja) { edStatus('Chwila - powstają miniatury obiektów. Plansza zaraz wróci.'); return; }
             const i = a.indexOf(':'), rodz = i < 0 ? a : a.slice(0, i), war = i < 0 ? '' : a.slice(i + 1);
             if (rodz === 'n') edNarzedzie = war;
             else if (rodz === 'p') edPedzel = +war;
@@ -29668,6 +29723,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             else if (a === 'zapisz') { edZapisz(); const s = document.getElementById('ed-zapisane'); if (s && ![...s.options].some(o => o.value === edNazwa)) s.add(new Option(edNazwa)); return; }
             else if (a === 'cofnij') { edCofnijKrok(); return; }
             else if (a === 'miniatury') { zrobMiniaturyEd(); return; }
+            else if (a === 'lupa') { document.getElementById('ed-minimapa').classList.toggle('ed-duza'); return; }
             else if (a === 'eksport') { edEksport(planszaDoZapisu(edNazwa, edMotyw)); return; }
             else if (a === 'import') { document.getElementById('ed-plik').click(); return; }
             else if (a === 'usun') {
@@ -29703,6 +29759,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 #edytor-panel .ed-tex i { display: inline-block; width: 12px; height: 12px; margin-right: 4px; vertical-align: -2px; border: 1px solid #000; }
                 #edytor-panel .ed-kafel { width: 38px; height: 38px; background-size: cover; background-blend-mode: multiply; border: 1px solid #555; cursor: pointer; border-radius: 3px; padding: 0; }
                 #edytor-panel #ed-minimapa { width: 100%; image-rendering: pixelated; border: 1px solid #555; cursor: crosshair; }
+                #edytor-panel #ed-minimapa.ed-duza { position: fixed; left: 570px; top: 10px; height: calc(100vh - 20px); width: auto; z-index: 10000; border: 2px solid #e8c770; box-shadow: 0 0 30px #000; }
+                #edytor-panel [data-ed="n:start"] { color: #60ff80; } #edytor-panel [data-ed="n:wrog"] { color: #ff6060; }
                 #edytor-panel #ed-lista { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 100px; gap: 3px; align-content: start; min-height: 120px; }
                 #edytor-panel .ed-obj { padding: 2px; display: flex; flex-direction: column; align-items: center; gap: 1px; overflow: hidden; }
                 #edytor-panel .ed-obj img, #edytor-panel .ed-obj i { width: 68px; height: 68px; display: block; background: #1c1a20; }
@@ -29935,6 +29993,8 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 if (best) { floodStart = best; clusterX = best.x; clusterZ = best.z; }
             }
 
+            // Plansza z edytora: oddział zaczyna tam, gdzie postawiono znacznik startu
+            if (planszaUzytkownika && planszaUzytkownika.start) { floodStart = planszaUzytkownika.start; clusterX = floodStart.x; clusterZ = floodStart.z; }
             if (!floodStart && count > 1) {
                 let clusterValid = false, cAttempts = 0;
                 while (!clusterValid && cAttempts < 500) {
@@ -36316,6 +36376,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // Patrole na końcu rozstawiania - muszą widzieć WSZYSTKICH wrogów
             // (razem z obstawą) i gotowe zadania poboczne, bo z tego liczy się
             // złożoność misji, a z niej wielkość patrolu.
+            rozstawWrogowZPlanu();   // po wszystkich krokach, które dostawiają i przesuwają wrogów, a przed patrolami
             rozstawPatrole();
             rozstawZmiennych();
             rozstawLuny();
