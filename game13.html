@@ -4719,7 +4719,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         // Pochodnie leżą na planszy - trzeba po nie podejść
         function rozstawPochodnie() {
-            if (gameMode !== 'dream') return 0;
+            if (gameMode !== 'dream' || (planszaUzytkownika && !planszaUzytkownika.dodatki)) return 0;
             for (let i = 0; i < POCHODNIE_NA_PLANSZE; i++) {
                 let p = null;
                 for (let t = 0; t < 120 && !p; t++) {
@@ -5404,7 +5404,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             // pliki det_* są szare (same faktury) - barwę daje pole k
             { n: 'Beton', typ: 3, plik: 'textures/det_beton.jpg', k: 0xb4b4ae }, { n: 'Kamień', typ: 3, plik: 'textures/det_kamien.jpg', k: 0x9c948a },
             { n: 'Tynk', typ: 3, plik: 'textures/det_tynk.jpg', k: 0xd8ccb4 }, { n: 'Deski', typ: 3, plik: 'textures/det_drewno.jpg', k: 0x9a6c3c },
-            { n: 'Blacha', typ: 3, plik: 'textures/det_metal.jpg', k: 0x8c949c }, { n: 'Tkanina', typ: 3, plik: 'textures/det_tkanina.jpg', k: 0x9a4a48 }];
+            { n: 'Blacha', typ: 3, plik: 'textures/det_metal.jpg', k: 0x8c949c }, { n: 'Tkanina', typ: 3, plik: 'textures/det_tkanina.jpg', k: 0x9a4a48 },
+            // własne obrazy gracza: wystarczy wrzucić do katalogu textures pliki user_1.jpg ... user_12.jpg
+            ...Array.from({ length: 12 }, (_, i) => ({ n: 'Własna ' + (i + 1), typ: 0, plik: `textures/user_${i + 1}.jpg`, wlasna: true }))];
         const _matWariantow = [];
         let planszaUzytkownika = null;   // plansza z edytora, na której toczy się bieżący sen (null - losowana)
         let forcedPlansza = null;        // wybrana w panelu testowym albo w edytorze
@@ -10559,6 +10561,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             ];
             // Tekstury z edytora plansz: osobna siatka na każdy użyty wariant
             for (let w = 1; w < TEKSTURY_GRUNTU.length; w++) {
+                if (!counts[5 + w]) { const pusta = new THREE.InstancedMesh(geo, terrainMats.grass, 1); pusta.visible = false; terrainMeshes.push(pusta); continue; }   // nieużyta - pliku nawet nie pobieramy
                 if (!_matWariantow[w]) { const m = _matWariantow[w] = new THREE.MeshLambertMaterial({ color: TEKSTURY_GRUNTU[w].k || 0xffffff }); wczytajZdjecie(TEKSTURY_GRUNTU[w].plik, t => { m.map = t; m.needsUpdate = true; }); }
                 const im = new THREE.InstancedMesh(geo, _matWariantow[w], Math.max(1, counts[5 + w]));
                 im.visible = counts[5 + w] > 0;
@@ -29205,7 +29208,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             return { wersja: 2, nazwa: nazwa, motyw: motyw, szer: mapWidth, gleb: mapDepth,
                 wys: spakujPola((x, z) => Math.round(heightMap[x][z] * 100) / 100), typy: spakujPola((x, z) => terrainTypeMap[x][z]),
                 warianty: spakujPola((x, z) => terrainWariant[x][z]), woda: spakujPola((x, z) => riverGrid[x][z] === 1 ? 1 : 0), obiekty: obiekty,
-                start: edStart, wrogowie: edWrogowie.slice() };
+                start: edStart, wrogowie: edWrogowie.slice(), dodatki: edDodatki };
         }
         function dodajPrzeszkodeEd(o) {
             const mx = o.x + offsetX, mz = o.z + offsetZ;
@@ -29283,7 +29286,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
         }
 
         // ---- Tryb edytora ----
-        let edStart = null, edWrogowie = [], edZnaczniki = null;
+        let edStart = null, edWrogowie = [], edZnaczniki = null, edDodatki = false, edTeksturySprawdzone = false;
         let edNarzedzie = 'obiekt', edObiekt = 'tree', edTekstura = 0, edWariant = 0, edPedzel = 1, edObrot = 0, edNazwa = '', edMotyw = 'alabama';
         let edPociagniecie = null, edCofnij = [], edZnacznik = null, edTerenBrudny = false, edOstatniaPrzebudowa = 0, edPlan = null, edUkryte = [], edLicznik = 0;
         let edMiniatury = {}, edMiniaturyTrwaja = false;
@@ -29301,6 +29304,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 edNazwa = n;
             }
             edPokazUkryte();
+            sprawdzTeksturyEd();
             forcedThemeId = edMotyw; forcedMissionType = 'standard'; forcedTimeOfDay = 'poludnie'; forcedSeason = 'lato';
             forcedPlansza = edPlan = tryb === 'generator' ? null : (tryb === 'zapisana' ? zapisane[nazwa] : pustaPlansza(edMotyw, edNazwa));
             const oddzial = testSquadSize; testSquadSize = 1;
@@ -29327,6 +29331,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (edPlan) wczytajPlanszeUzytkownika(edPlan);
             edStart = edPlan && edPlan.start ? { x: edPlan.start.x, z: edPlan.start.z } : null;
             edWrogowie = edPlan && edPlan.wrogowie ? edPlan.wrogowie.map(q => ({ x: q.x, z: q.z })) : [];
+            edDodatki = !!(edPlan && edPlan.dodatki);
             if (!edZnacznik) {
                 edZnacznik = new THREE.Mesh(new THREE.BoxGeometry(1, 0.25, 1), new THREE.MeshBasicMaterial({ color: 0xffd040, wireframe: true, depthTest: false }));
                 edZnacznik.renderOrder = 20; edZnacznik.userData.bezCienia = true;
@@ -29574,13 +29579,17 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             cameraFollowTarget.set(x, getTerrainY(x, z), z); cameraPanOffset.set(0, 0, 0); applyCameraPosition();
             rysujMinimapeEd();
         }
-        // Średnia barwa zdjęcia tekstury - do minimapy
-        TEKSTURY_GRUNTU.forEach((t, w) => {
+        // Przy pierwszym otwarciu edytora: które pliki tekstur istnieją (własne są opcjonalne) i jaka jest ich średnia barwa - do minimapy
+        function sprawdzTeksturyEd() {
+          if (edTeksturySprawdzone) return;
+          edTeksturySprawdzone = true;
+          TEKSTURY_GRUNTU.forEach((t, w) => {
             if (!t) return;
             const im = new Image();
-            im.onload = () => { try { const c = document.createElement('canvas'); c.width = c.height = 1; const g = c.getContext('2d'); g.drawImage(im, 0, 0, 1, 1); const p = g.getImageData(0, 0, 1, 1).data; const k = t.k || 0xffffff; KOLORY_WARIANTOW_ED[w] = [p[0] * (k >> 16) / 255, p[1] * ((k >> 8) & 255) / 255, p[2] * (k & 255) / 255]; } catch (e) {} };
+            im.onload = () => { t.jest = true; if (t.wlasna && document.getElementById('edytor-panel')) zbudujPanelEdytora(); try { const c = document.createElement('canvas'); c.width = c.height = 1; const g = c.getContext('2d'); g.drawImage(im, 0, 0, 1, 1); const p = g.getImageData(0, 0, 1, 1).data; const k = t.k || 0xffffff; KOLORY_WARIANTOW_ED[w] = [p[0] * (k >> 16) / 255, p[1] * ((k >> 8) & 255) / 255, p[2] * (k & 255) / 255]; } catch (e) {} };
             im.src = t.plik;
-        });
+          });
+        }
 
         // ---- Miniatury obiektów ----
         // Wszystkie obiekty biblioteki stają na chwilę w rzędach na planszy, każdy dostaje zdjęcie 96x96,
@@ -29656,6 +29665,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const btn = (id, tekst, tytul) => `<button data-ed="${id}" class="ed-btn" title="${tytul || ''}">${tekst}</button>`;
             const zapisane = Object.keys(wczytajPlansze());
             const grupy = [['Trawa', 0], ['Ziemia', 1], ['Droga', 2], ['Chodnik i posadzki', 3]];
+            const wlasne = TEKSTURY_GRUNTU.map((t, w) => t && t.wlasna && t.jest ? `<button data-ed="w:${w}" class="ed-kafel" title="${t.n} (${t.plik})" style="background-image:url(${t.plik})"></button>` : '').join('');
             p.innerHTML = `
                 <div class="ed-kol">
                     <div class="ed-tytul">Edytor plansz</div>
@@ -29666,6 +29676,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     <div class="ed-rzad">${btn('zapisz', '💾 Zapisz')}${btn('zagraj', '▶ Zagraj')}${btn('cofnij', '↶ Cofnij', 'Ctrl+Z')}</div>
                     <div class="ed-rzad">${btn('eksport', '⬇ Eksport')}${btn('import', '⬆ Import')}${btn('usun', '🗑 Usuń')}${btn('wyjdz', '✕ Wyjdź')}</div>
                     <input type="file" id="ed-plik" accept=".json" style="display:none">
+                    <label class="ed-pole" title="przejścia z posiłkami wroga, kapliczki, pale i pochodnie - gra rozstawia je losowo"><input type="checkbox" id="ed-dodatki"> Gra dostawia swoje dodatki</label>
                     <div class="ed-sub">Cała plansza ${btn('lupa', '🔍', 'powiększ lub zmniejsz minimapę')} <span class="ed-mala">kliknij mapę, żeby tam skoczyć</span></div>
                     <canvas id="ed-minimapa" width="${mapWidth}" height="${mapDepth}"></canvas>
                     <div id="ed-status" class="ed-mala"></div>
@@ -29678,14 +29689,16 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                     <div class="ed-rzad">Pędzel: ${[1, 3, 5, 7].map(n => btn('p:' + n, n + '×' + n, '[ i ] zmieniają rozmiar')).join('')}</div>
                     <div class="ed-sub">Tekstury gruntu</div>
                     <div class="ed-rzad">${TEKSTURY_ED.map(([n, t, k]) => `<button data-ed="t:${t}" class="ed-btn ed-tex" title="${n} - tekstura planszy bazowej"><i style="background:${k}"></i>${n}</button>`).join('')}</div>
-                    ${grupy.map(([nazwa, typ]) => `<div class="ed-mala">${nazwa}</div><div class="ed-rzad">${TEKSTURY_GRUNTU.map((t, w) => t && t.typ === typ ?
+                    ${grupy.map(([nazwa, typ]) => `<div class="ed-mala">${nazwa}</div><div class="ed-rzad">${TEKSTURY_GRUNTU.map((t, w) => t && t.typ === typ && !t.wlasna ?
                         `<button data-ed="w:${w}" class="ed-kafel" title="${t.n}" style="background-image:url(${t.plik});background-color:#${(t.k || 0xffffff).toString(16).padStart(6, '0')}"></button>` : '').join('')}</div>`).join('')}
+                    <div class="ed-mala">Własne ${wlasne ? '' : '- wrzuć do katalogu textures pliki user_1.jpg ... user_12.jpg'}</div><div class="ed-rzad">${wlasne}</div>
                     <div class="ed-sub">Obiekty <span class="ed-mala" id="ed-obrot"></span> ${btn('miniatury', '📷 Miniatury', 'tworzy zdjęcia wszystkich obiektów - trwa około pół minuty, robione raz')}</div>
                     <input id="ed-szukaj" placeholder="szukaj obiektu...">
                     <div id="ed-lista"></div>
                 </div>`;
             p.querySelector('#ed-nazwa').addEventListener('change', e => { edNazwa = e.target.value.trim() || edNazwa; });
             p.querySelector('#ed-motyw').addEventListener('change', e => { edMotyw = e.target.value; });
+            p.querySelector('#ed-dodatki').addEventListener('change', e => { edDodatki = e.target.checked; });
             p.querySelector('#ed-zapisane').addEventListener('change', e => { if (e.target.value) otworzEdytor(edMotyw, 'zapisana', e.target.value); });
             p.querySelector('#ed-szukaj').addEventListener('input', rysujListeObiektowEd);
             p.querySelector('#ed-plik').addEventListener('change', e => { if (e.target.files[0]) edImport(e.target.files[0], d => otworzEdytor(d.motyw, 'zapisana', d.nazwa)); });
@@ -29707,7 +29720,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             const p = document.getElementById('edytor-panel'); if (!p) return;
             const wybrane = edNarzedzie === 'obiekt' ? 'o:' + edObiekt : edNarzedzie === 'tekstura' ? (edWariant ? 'w:' + edWariant : 't:' + edTekstura) : 'n:' + edNarzedzie;
             p.querySelectorAll('[data-ed]').forEach(b => b.classList.toggle('ed-akt', b.dataset.ed === wybrane || b.dataset.ed === 'p:' + edPedzel));
-            p.querySelector('#ed-nazwa').value = edNazwa; p.querySelector('#ed-motyw').value = edMotyw;
+            p.querySelector('#ed-nazwa').value = edNazwa; p.querySelector('#ed-motyw').value = edMotyw; p.querySelector('#ed-dodatki').checked = edDodatki;
             p.querySelector('#ed-obrot').innerText = `obrót ${Math.round(edObrot * 180 / Math.PI)}°`;
         }
         function edAkcja(a) {
@@ -29752,6 +29765,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
                 #edytor-panel .ed-tytul { font-size: 17px; color: #e8c770; font-weight: bold; }
                 #edytor-panel .ed-sub { margin-top: 6px; color: #e8c770; border-top: 1px solid #443; padding-top: 6px; }
                 #edytor-panel label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: #aaa; }
+                #edytor-panel label.ed-pole { flex-direction: row; align-items: center; gap: 6px; color: #ddd; }
                 #edytor-panel input, #edytor-panel select { background: #222; color: #eee; border: 1px solid #555; padding: 4px; font-size: 13px; }
                 #edytor-panel .ed-rzad { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
                 #edytor-panel .ed-btn, #edytor-panel .ed-obj { background: #2a2730; color: #ddd; border: 1px solid #555; padding: 4px 7px; cursor: pointer; font-size: 12px; border-radius: 3px; }
@@ -31273,6 +31287,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
 
         function rozstawPale() {
             upiory.forEach(g => scene.remove(g)); upiory.clear();
+            if (planszaUzytkownika && !planszaUzytkownika.dodatki) return 0;
             if (gameMode !== 'dream' || !heartPrison || !heartPrison.sin) return 0;
             if (!PALE_GRZECHY.includes(heartPrison.sin.id) || Math.random() > PALE_SZANSA) return 0;
             const ile = 2 + Math.floor(Math.random() * 3);
@@ -45452,7 +45467,9 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             if (gameOver) return;
 
             // --- KAPLICZKI ---
-            const ileK = KAPLICZKA_MIN + Math.floor(Math.random() * (KAPLICZKA_MAX - KAPLICZKA_MIN + 1));
+            // Na planszy z edytora kapliczki i wrota z posiłkami stają tylko wtedy, gdy autor planszy na to pozwolił
+            const bezDodatkow = planszaUzytkownika && !planszaUzytkownika.dodatki;
+            const ileK = bezDodatkow ? 0 : KAPLICZKA_MIN + Math.floor(Math.random() * (KAPLICZKA_MAX - KAPLICZKA_MIN + 1));
             for (let i = 0; i < ileK; i++) {
                 const m = miejsceNaZadanie(kapliczkiMisji, KAPLICZKA_ROZSTAW, KAPLICZKA_OD_ODDZIALU);
                 if (!m) break;
@@ -45467,7 +45484,7 @@ const SEASON_LABELS = { wiosna: 'WIOSNA', lato: 'LATO', jesien: 'JESIEŃ', zima:
             }
 
             // --- WROTA ---
-            const ileW = WROTA_MIN + Math.floor(Math.random() * (WROTA_MAX - WROTA_MIN + 1));
+            const ileW = bezDodatkow ? 0 : WROTA_MIN + Math.floor(Math.random() * (WROTA_MAX - WROTA_MIN + 1));
             for (let i = 0; i < ileW; i++) {
                 const m = miejsceNaZadanie(wrotaMisji.concat(kapliczkiMisji), WROTA_ROZSTAW, WROTA_OD_ODDZIALU);
                 if (!m) break;
